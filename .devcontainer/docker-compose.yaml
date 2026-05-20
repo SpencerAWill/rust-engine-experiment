@@ -1,0 +1,24 @@
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/base:bookworm
+    init: true
+    environment:
+      DEVCONTAINER: "true"
+      HISTFILE: /commandhistory/.bash_history
+      TZ: ${TZ:-America/New_York}
+      CARGO_TARGET_DIR: /target
+    volumes:
+      - ..:/workspace:cached
+      - command-history:/commandhistory
+      - claude-code:/home/vscode/.claude
+      - cargo-registry:/home/vscode/.cargo/registry
+      - cargo-git:/home/vscode/.cargo/git
+      - cargo-target:/target
+    command: sleep infinity
+
+volumes:
+  command-history:
+  claude-code:
+  cargo-registry:
+  cargo-git:
+  cargo-target:

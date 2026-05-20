@@ -2,18 +2,30 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/debian
 {
 	"name": "Dev Container",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:bookworm",
+	"dockerComposeFile": "docker-compose.yaml",
+	"service": "dev",
+	"workspaceFolder": "/workspace",
+	"postCreateCommand": "sudo chown -R vscode:vscode /commandhistory /home/vscode/.claude /home/vscode/.cargo /target && touch /commandhistory/.bash_history",
 	"features": {
-		"ghcr.io/devcontainers/features/rust:1": {}
+		"ghcr.io/devcontainers/features/rust:1": {},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+	},
+	"remoteUser": "vscode",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"tamasfe.even-better-toml",
+				"vadimcn.vscode-lldb",
+				"serayuzgur.crates"
+			],
+			"settings": {
+				"editor.formatOnSave": true,
+				"rust-analyzer.check.command": "clippy"
+			}
+		}
 	}
-
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
-	// Configure tool-specific properties.
-	// "customizations": {},
 }
