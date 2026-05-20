@@ -16,8 +16,7 @@
 			"extensions": [
 				"rust-lang.rust-analyzer",
 				"tamasfe.even-better-toml",
-				"vadimcn.vscode-lldb",
-				"serayuzgur.crates"
+				"vadimcn.vscode-lldb"
 			],
 			"settings": {
 				"editor.formatOnSave": true,
@@ -25,7 +24,6 @@
 			}
 		}
 	}
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 }
