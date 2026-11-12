@@ -494,7 +494,7 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
   - `HandlePool<T>` with the dense layout of spec §5.1: `new`, `with_capacity`, `insert`, `try_insert`, `get`, `get_mut`, `remove`, `contains`, `len`, `is_empty`, `capacity`, `shrink_to_fit`, `values`, `values_mut`, `clear`, plus `Index`/`IndexMut`, `Default`, and `Clone` (when `T: Clone`);
   - `CapacityError<T>`.
 - Produces, test-only: `pub fn assert_invariants(&self)`, behind `#[cfg(any(test, feature = "test-invariants"))]`. Add feature `test-invariants = []` so the integration tests in Task 7 can use it.
-- Produces, crate-internal: `pub(crate) fn with_slot_limit(limit: u32) -> Self` (normal limit `u32::MAX`), and `#[cfg(test)] fn set_generation_for_test(index: u32, generation: u32)`.
+- Produces, crate-internal: `pub(crate) fn with_slot_limit(limit: u32) -> Self` (normal limit `MAX_SLOTS` = 2³¹−2, amended 2026-11-12 when the slot was packed into 8 bytes), and `#[cfg(test)] fn set_generation_for_test(index: u32, generation: u32)`.
 
 - [ ] **Step 1: Write the failing tests** (in `pool.rs` `#[cfg(test)]`)
 

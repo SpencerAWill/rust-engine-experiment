@@ -478,7 +478,7 @@ pub struct HandlePool<T> {
 impl<T> HandlePool<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
-    /// # Panics: if `u32::MAX` slots are already in use (see `try_insert`). `#[track_caller]`.
+    /// # Panics: if 2³¹−2 slots are already in use (see `try_insert`). `#[track_caller]`.
     #[must_use] pub fn insert(&mut self, value: T) -> Handle<T>;
     /// Fallible twin of `insert`; on failure, ownership of `value` is returned in the error.
     pub fn try_insert(&mut self, value: T) -> Result<Handle<T>, CapacityError<T>>;
@@ -531,7 +531,7 @@ pub struct HandleAllocator<T> { /* generations + free list */ }
 impl<T> HandleAllocator<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
-    /// # Panics: if `u32::MAX` slots are in use. `#[track_caller]`.
+    /// # Panics: if 2³¹−2 slots are in use. `#[track_caller]`.
     #[must_use] pub fn allocate(&mut self) -> Handle<T>;
     /// Fallible twin of `allocate`.
     pub fn try_allocate(&mut self) -> Option<Handle<T>>;
@@ -553,7 +553,7 @@ impl<T> HandleAllocator<T> {
 - Free slots are reused **LIFO**, which makes allocation order deterministic given the same operation sequence.
 - **Generation exhaustion:** if bumping would overflow `u32::MAX`, the slot is permanently retired (never reused). This guarantees a stale handle can never become valid again, at the cost of one slot per 2³²−1 reuses.
 - `clear()` bumps every occupied slot's generation (outstanding handles become stale) and returns all non-retired slots to the free list in ascending index order. Reuse order after `clear` is therefore deterministic.
-- **Capacity:** at most `u32::MAX` slots. `insert`/`allocate` panic beyond that (`# Panics` documented).
+- **Capacity:** at most 2³¹−2 (`0x7FFF_FFFE`) slots (amended 2026-11-12). A slot is exactly 8 bytes, because it packs its state into one `u32`: the top bit marks vacant, and the two largest values are sentinels (end of free list, retired). Handle indices still span the full `u32` range, so the `to_bits` layout is unaffected. `insert`/`allocate` panic beyond the limit (`# Panics` documented).
 - **Dense storage (decision 2026-11-12):** values live in a contiguous `Vec<T>`, with a parallel dense `Vec<Handle<T>>`. Each slot records its value's dense position.
   - `insert` pushes to the dense arrays.
   - `remove` **swap-removes**: the last dense element moves into the hole, and its slot's dense position is updated.
@@ -561,7 +561,7 @@ impl<T> HandleAllocator<T> {
 - **Complexity:**
   - `insert`/`allocate`/`get`/`remove`/`free`/`contains` are O(1). `get` costs two array accesses (slot, then dense position).
   - Iteration, `retain`, `values()`, and `drain` are **O(len) over contiguous memory**.
-- **Memory:** 8 bytes per slot ever used (a `u32` generation plus a `u32` dense position or free link; slots never shrink), plus 8 bytes per live value (its dense `Handle`), plus the values. `shrink_to_fit` releases dense capacity after a spike.
+- **Memory:** 8 bytes per slot ever used (a `u32` generation plus one packed `u32`: dense position, free link, or retired marker; slots never shrink; asserted by a unit test), plus 8 bytes per live value (its dense `Handle`), plus the values. `shrink_to_fit` releases dense capacity after a spike.
 - Implementation is 100% safe Rust (`Vec<Slot>`, where `Slot` holds a generation and an enum `Occupied { dense: u32 } | Vacant { next_free: Option<u32> } | Retired`).
 
 ### 5.2 `engine_random`
