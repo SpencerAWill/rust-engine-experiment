@@ -54,6 +54,6 @@ mod slots;
 
 pub use allocator::HandleAllocator;
 pub use dense_allocator::{DenseAllocIter, DenseHandleAllocator};
-pub use error::CapacityError;
+pub use error::{CapacityError, InvalidHandleBits};
 pub use handle::Handle;
 pub use pool::{Drain, HandlePool, IntoIter, Iter, IterMut};

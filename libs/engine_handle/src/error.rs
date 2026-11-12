@@ -72,3 +72,50 @@ impl<T> fmt::Display for CapacityError<T> {
 }
 
 impl<T: fmt::Debug> Error for CapacityError<T> {}
+
+/// Returned by `Handle::try_from(u64)` when the generation (low) half of the bits is zero, which
+/// no handle ever has.
+///
+/// # Examples
+///
+/// ```
+/// use engine_handle::Handle;
+///
+/// let err = Handle::<u8>::try_from(5_u64 << 32).unwrap_err();
+/// assert_eq!(err.bits(), 5_u64 << 32);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct InvalidHandleBits {
+    bits: u64,
+}
+
+impl InvalidHandleBits {
+    pub(crate) const fn new(bits: u64) -> Self {
+        Self { bits }
+    }
+
+    /// The rejected bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::Handle;
+    /// assert_eq!(Handle::<u8>::try_from(0_u64).unwrap_err().bits(), 0);
+    /// ```
+    pub const fn bits(&self) -> u64 {
+        self.bits
+    }
+}
+
+impl fmt::Display for InvalidHandleBits {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:#018x} is not a handle: its generation (low 32 bits) is zero",
+            self.bits
+        )
+    }
+}
+
+impl Error for InvalidHandleBits {}

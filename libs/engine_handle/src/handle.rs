@@ -6,6 +6,8 @@ use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
 
+use crate::error::InvalidHandleBits;
+
 /// A typed, generational identifier: 8 bytes, and `Option<Handle<T>>` is also 8 bytes.
 ///
 /// A handle names a slot (`index`) and the slot's `generation` when the handle
@@ -137,6 +139,24 @@ impl<T> Handle<T> {
     }
 }
 
+impl<T> From<Handle<T>> for u64 {
+    /// Same as [`Handle::to_bits`].
+    #[inline]
+    fn from(handle: Handle<T>) -> u64 {
+        handle.to_bits()
+    }
+}
+
+impl<T> TryFrom<u64> for Handle<T> {
+    type Error = InvalidHandleBits;
+
+    /// Same as [`Handle::from_bits`], with the rejected bits in the error.
+    #[inline]
+    fn try_from(bits: u64) -> Result<Self, InvalidHandleBits> {
+        Self::from_bits(bits).ok_or(InvalidHandleBits::new(bits))
+    }
+}
+
 impl<T> Clone for Handle<T> {
     #[inline]
     fn clone(&self) -> Self {
@@ -222,6 +242,17 @@ mod tests {
         assert_eq!(Handle::<u8>::from_bits(h.to_bits()), Some(h));
         assert_eq!(Handle::<u8>::from_bits(0), None);
         assert_eq!(Handle::<u8>::from_bits(7u64 << 32), None); // generation half zero
+    }
+
+    #[test]
+    fn u64_conversions_match_to_bits_and_from_bits() {
+        let h = Handle::<u8>::new(3, NonZeroU32::new(2).unwrap());
+        assert_eq!(u64::from(h), h.to_bits());
+        assert_eq!(Handle::<u8>::try_from(u64::from(h)), Ok(h));
+        let err = Handle::<u8>::try_from(7_u64 << 32).unwrap_err();
+        assert_eq!(err.bits(), 7_u64 << 32);
+        let message = alloc::format!("{err}");
+        assert!(message.contains("generation"), "message was {message}");
     }
 
     #[test]
