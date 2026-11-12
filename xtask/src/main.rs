@@ -16,6 +16,7 @@ mod check_workflows;
 mod cmd;
 mod coverage;
 mod fuzz;
+mod mutants;
 mod prng_stats;
 
 use std::process::ExitCode;

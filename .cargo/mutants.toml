@@ -1,0 +1,7 @@
+# Shared cargo-mutants settings; see CONTRIBUTING.md "Mutation testing".
+test_tool = "nextest"
+all_features = true
+additional_cargo_test_args = ["--run-ignored", "all"]
+cap_lints = true
+gitignore = true
+exclude_re = []
