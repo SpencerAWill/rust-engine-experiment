@@ -27,6 +27,9 @@ jobs:
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-nextest,cargo-deny,wasmtime
+      # The full `ci` includes `fuzz-build`, which is strict under `CI`, so it needs these two.
+      - run: rustup toolchain install "$(cargo xtask fuzz-toolchain)" --profile minimal
+      - run: cargo install --locked cargo-fuzz
       - run: cargo xtask ci
 
   # Property tests at 100,000 cases each (the default is 256). Some failures only show at this

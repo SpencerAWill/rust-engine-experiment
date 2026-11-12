@@ -129,8 +129,18 @@ impl Harness {
                         assert_eq!(batch.len(), n);
                         self.register_batch(batch, replay);
                     }
-                    // Nothing may have been allocated; `check` compares `len()` with the model.
-                    None => assert!(!fits, "refused {n} handles with room for {}", self.room()),
+                    // Nothing may have been allocated. `check` compares `len()` with the model;
+                    // the clone taken before the call catches state the model cannot see, such
+                    // as a changed free-list order or generation.
+                    None => {
+                        assert!(!fits, "refused {n} handles with room for {}", self.room());
+                        let mut replay = replay;
+                        assert_eq!(
+                            self.allocator.clone().try_allocate(),
+                            replay.try_allocate(),
+                            "a refused batch changed what the next allocation returns"
+                        );
+                    }
                 }
             }
             Op::Free(i) => {

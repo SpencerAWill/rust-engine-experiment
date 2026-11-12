@@ -35,7 +35,9 @@ enum Op {
     GetDisjoint(usize, usize),
     /// Keeps a value when `value % (k % 8 + 1) != 0`.
     Retain(u16),
-    Drain,
+    /// Drains the pool. An even `n` consumes every value; an odd `n` takes only `n / 2 % 8`
+    /// values and drops the iterator early, which must still empty the pool.
+    Drain(u8),
     Clear,
     Iterate,
     /// A handle built from arbitrary bits, which the pool probably never issued.
@@ -194,14 +196,26 @@ impl Harness {
                 });
                 self.model.retain(|_, value| *value % k != 0);
             }
-            Op::Drain => {
-                let drained: Vec<(Handle<Tracked>, Tracked)> = self.pool.drain().collect();
+            Op::Drain(n) => {
+                let mut drain = self.pool.drain();
+                let drained: Vec<(Handle<Tracked>, Tracked)> = if n % 2 == 0 {
+                    drain.by_ref().collect()
+                } else {
+                    drain.by_ref().take(usize::from(n / 2 % 8)).collect()
+                };
+                // Dropping the iterator drops whatever was not consumed.
+                drop(drain);
                 let seen: BTreeMap<u64, u16> = drained
                     .iter()
                     .map(|(handle, tracked)| (handle.to_bits(), tracked.value))
                     .collect();
                 assert_eq!(seen.len(), drained.len(), "drain yielded a handle twice");
-                assert_eq!(seen, self.model);
+                for (bits, value) in &seen {
+                    assert_eq!(self.model.get(bits), Some(value), "drain invented a value");
+                }
+                if n % 2 == 0 {
+                    assert_eq!(seen, self.model, "a full drain missed values");
+                }
                 drop(drained);
                 self.model.clear();
             }
