@@ -129,19 +129,6 @@ fn parse_bench(flags: &[&str]) -> Result<Command, String> {
     Ok(Command::Bench { save, compare })
 }
 
-/// Keeps only the crates that exist yet, reporting the rest as skipped.
-fn existing<'a>(names: &[&'a str]) -> Vec<&'a str> {
-    let mut found = Vec::new();
-    for name in names {
-        if std::path::Path::new("libs").join(name).is_dir() {
-            found.push(*name);
-        } else {
-            println!("skipping {name}: crate does not exist yet");
-        }
-    }
-    found
-}
-
 fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
     require_tool("cargo-nextest", "cargo install --locked cargo-nextest")?;
     let mut args = vec!["nextest", "run", "--workspace", "--all-features"];
@@ -165,50 +152,58 @@ fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// The `no_std` leaf crates, built without default features for a bare-metal target.
 fn no_std() -> Result<(), String> {
-    let crates = existing(&["engine_handle", "engine_random", "engine_time"]);
-    if crates.is_empty() {
-        return Ok(());
-    }
-    let mut args = vec!["build"];
-    for c in &crates {
-        args.extend(["-p", c]);
-    }
-    args.extend(["--no-default-features", "--target", "thumbv7em-none-eabihf"]);
-    run("cargo", &args, &[])
-}
-
-fn wasm() -> Result<(), String> {
-    if !existing(&["engine"]).is_empty() {
-        run(
-            "cargo",
-            &[
-                "build",
-                "-p",
-                "engine",
-                "--target",
-                "wasm32-unknown-unknown",
-            ],
-            &[],
-        )?;
-    }
-    let crates = existing(&[
-        "engine_handle",
-        "engine_random",
-        "engine_time",
-        "engine_math",
-    ]);
-    if crates.is_empty() {
-        return Ok(());
-    }
-    require_tool("wasmtime", "cargo install --locked wasmtime-cli")?;
-    let mut args = vec!["test", "--target", "wasm32-wasip1", "--lib", "--tests"];
-    for c in &crates {
-        args.extend(["-p", c]);
-    }
     run(
         "cargo",
-        &args,
+        &[
+            "build",
+            "-p",
+            "engine_handle",
+            "-p",
+            "engine_random",
+            "-p",
+            "engine_time",
+            "--no-default-features",
+            "--target",
+            "thumbv7em-none-eabihf",
+        ],
+        &[],
+    )
+}
+
+/// Builds the facade for `wasm32-unknown-unknown` (which also proves `SystemClock` is excluded
+/// there), then runs the leaf crates' and `engine_math`'s tests on `wasm32-wasip1` under wasmtime.
+fn wasm() -> Result<(), String> {
+    run(
+        "cargo",
+        &[
+            "build",
+            "-p",
+            "engine",
+            "--target",
+            "wasm32-unknown-unknown",
+        ],
+        &[],
+    )?;
+    require_tool("wasmtime", "cargo install --locked wasmtime-cli")?;
+    run(
+        "cargo",
+        &[
+            "test",
+            "--target",
+            "wasm32-wasip1",
+            "--lib",
+            "--tests",
+            "-p",
+            "engine_handle",
+            "-p",
+            "engine_random",
+            "-p",
+            "engine_time",
+            "-p",
+            "engine_math",
+        ],
         &[("CARGO_TARGET_WASM32_WASIP1_RUNNER", "wasmtime")],
     )
 }
