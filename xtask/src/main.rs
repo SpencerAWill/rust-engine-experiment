@@ -8,6 +8,8 @@
 
 //! `cargo xtask <command>`: the single entry point that CI and humans both run.
 
+mod check_statics;
+mod check_unsafe;
 mod cmd;
 
 use std::process::ExitCode;
@@ -27,6 +29,8 @@ enum Command {
     },
     Doc,
     Deny,
+    CheckUnsafe,
+    CheckStatics,
     Ci {
         quick: bool,
     },
@@ -55,6 +59,8 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         }),
         "doc" => only(&[]).map(|()| Command::Doc),
         "deny" => only(&[]).map(|()| Command::Deny),
+        "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
+        "check-statics" => only(&[]).map(|()| Command::CheckStatics),
         "ci" => only(&["--quick"]).map(|()| Command::Ci {
             quick: has("--quick"),
         }),
@@ -118,6 +124,8 @@ fn execute(command: &Command) -> Result<(), String> {
             require_tool("cargo-deny", "cargo install --locked cargo-deny")?;
             run("cargo", &["deny", "check"], &[])
         }
+        Command::CheckUnsafe => check_unsafe::run(),
+        Command::CheckStatics => check_statics::run(),
         Command::Ci { quick } => {
             // `quick` is the only mode in this task; later tasks extend the full run.
             let _ = quick;
