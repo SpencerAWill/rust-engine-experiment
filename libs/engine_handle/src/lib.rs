@@ -54,6 +54,8 @@ mod slots;
 
 pub use allocator::HandleAllocator;
 pub use dense_allocator::{DenseAllocIter, DenseHandleAllocator};
+#[cfg(any(test, feature = "test-invariants"))]
+pub use error::InvariantViolation;
 pub use error::{CapacityError, InvalidHandleBits};
 pub use handle::Handle;
 pub use pool::{Drain, HandlePool, IntoIter, Iter, IterMut};

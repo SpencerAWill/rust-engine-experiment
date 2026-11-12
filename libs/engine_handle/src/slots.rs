@@ -6,6 +6,9 @@
 
 use alloc::collections::TryReserveError;
 use alloc::vec::Vec;
+
+#[cfg(any(test, feature = "test-invariants"))]
+use crate::error::InvariantViolation;
 use core::num::NonZeroU32;
 
 /// The most slots a pool can hold: indices `0..MAX_SLOTS`.
@@ -290,25 +293,26 @@ impl SlotTable {
 
     /// Checks the table's own invariants and returns the number of occupied slots.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics on the first violation: a retired slot not at the maximum generation, or a free
-    /// list that cycles or misses a vacant slot.
+    /// Returns the first violation: a retired slot not at the maximum generation, a free list
+    /// that cycles or misses a vacant slot, or a retired count that is out of sync.
     #[cfg(any(test, feature = "test-invariants"))]
-    #[track_caller]
-    pub(crate) fn assert_invariants(&self) -> usize {
+    pub(crate) fn check_invariants(&self) -> Result<usize, InvariantViolation> {
         let mut occupied = 0;
         let mut vacant = 0;
+        let mut retired = 0;
         for (index, slot) in self.slots.iter().enumerate() {
             match slot.state() {
                 SlotState::Occupied { .. } => occupied += 1,
                 SlotState::Vacant { .. } => vacant += 1,
                 SlotState::Retired => {
-                    assert_eq!(
-                        slot.generation,
-                        NonZeroU32::MAX,
-                        "retired slot {index} is not at MAX"
-                    );
+                    retired += 1;
+                    if slot.generation != NonZeroU32::MAX {
+                        return Err(violation(format_args!(
+                            "retired slot {index} is not at the maximum generation"
+                        )));
+                    }
                 }
             }
         }
@@ -316,24 +320,37 @@ impl SlotTable {
         let mut cursor = self.free_head;
         while let Some(index) = cursor {
             let SlotState::Vacant { next_free } = self.slots[index as usize].state() else {
-                panic!("free list reaches non-vacant slot {index}");
+                return Err(violation(format_args!(
+                    "free list reaches non-vacant slot {index}"
+                )));
             };
             visited += 1;
-            assert!(
-                visited <= vacant,
-                "free list has a cycle or visits a slot twice"
-            );
+            if visited > vacant {
+                return Err(violation(format_args!(
+                    "free list has a cycle or visits a slot twice"
+                )));
+            }
             cursor = next_free;
         }
-        assert_eq!(visited, vacant, "free list misses vacant slots");
-        let retired = self
-            .slots
-            .iter()
-            .filter(|slot| matches!(slot.state(), SlotState::Retired))
-            .count();
-        assert_eq!(retired, self.retired, "retired count is out of sync");
-        occupied
+        if visited != vacant {
+            return Err(violation(format_args!(
+                "free list misses vacant slots ({visited} linked, {vacant} vacant)"
+            )));
+        }
+        if retired != self.retired {
+            return Err(violation(format_args!(
+                "retired count is out of sync ({} recorded, {retired} found)",
+                self.retired
+            )));
+        }
+        Ok(occupied)
     }
+}
+
+/// Builds an [`InvariantViolation`] from a formatted message.
+#[cfg(any(test, feature = "test-invariants"))]
+pub(crate) fn violation(message: core::fmt::Arguments<'_>) -> InvariantViolation {
+    InvariantViolation::new(alloc::fmt::format(message))
 }
 
 /// Converts a length or position that is bounded by the slot limit (below [`MAX_SLOTS`], which

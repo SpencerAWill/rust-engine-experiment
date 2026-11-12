@@ -102,7 +102,7 @@ fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
             Op::Iterate => {}
         }
 
-        pool.assert_invariants();
+        pool.check_invariants().expect("invariants hold");
         assert_eq!(pool.len(), model.len());
         let snapshot: Snapshot = pool.iter().map(|(h, v)| (h.to_bits(), *v)).collect();
         let as_model: BTreeMap<_, _> = snapshot.iter().copied().collect();
@@ -196,7 +196,7 @@ fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
             }
         }
 
-        alloc.assert_invariants();
+        alloc.check_invariants().expect("invariants hold");
         assert_eq!(alloc.len(), model.len());
         let snapshot: Vec<u64> = alloc.iter().map(Handle::to_bits).collect();
         assert_eq!(snapshot.iter().copied().collect::<BTreeSet<_>>(), model);
@@ -260,7 +260,7 @@ fn run_lean_against_dense(ops: &[AllocOp]) {
                 model.clear();
             }
         }
-        lean.assert_invariants();
+        lean.check_invariants().expect("invariants hold");
         assert_eq!(lean.len(), model.len());
         assert_eq!(lean.len(), dense.len());
         for h in &issued {

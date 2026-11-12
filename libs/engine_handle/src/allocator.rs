@@ -6,6 +6,8 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate::handle::{Handle, write_short_type_name};
+#[cfg(any(test, feature = "test-invariants"))]
+use crate::slots::violation;
 use crate::slots::{SlotTable, VACANT_BIT};
 
 /// Lean handle allocation: it hands out [`Handle`]s and tracks which are alive, and nothing more.
@@ -331,18 +333,24 @@ impl<T> HandleAllocator<T> {
         self.live = 0;
     }
 
-    /// Checks every internal invariant, panicking on the first violation.
+    /// Checks every internal invariant and reports the first violation.
     ///
     /// Available in tests and with the `test-invariants` feature; not part of the stable API.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if any invariant is violated, which would be a bug in this crate.
+    /// Returns an [`InvariantViolation`](crate::InvariantViolation) if any invariant does not
+    /// hold, which would be a bug in this crate.
     #[cfg(any(test, feature = "test-invariants"))]
-    #[track_caller]
-    pub fn assert_invariants(&self) {
-        let occupied = self.slots.assert_invariants();
-        assert_eq!(occupied, self.live, "occupied slots != live count");
+    pub fn check_invariants(&self) -> Result<(), crate::InvariantViolation> {
+        let occupied = self.slots.check_invariants()?;
+        if occupied != self.live {
+            return Err(violation(format_args!(
+                "occupied slots ({occupied}) != live count ({})",
+                self.live
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -394,7 +402,7 @@ mod tests {
             let expected: alloc::vec::Vec<_> = (0..n).map(|_| looped.allocate()).collect();
             assert_eq!(out, expected, "n = {n}");
             assert_eq!(batch.len(), looped.len());
-            batch.assert_invariants();
+            batch.check_invariants().expect("invariants hold");
             // And the two continue identically afterwards.
             assert_eq!(batch.allocate(), looped.allocate());
         }
@@ -415,12 +423,12 @@ mod tests {
         let kept = a.allocate();
         assert!(a.try_allocate_many(5).is_none()); // only 4 left: nothing is allocated
         assert_eq!(a.len(), 1);
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
         let rest = a.try_allocate_many(4).unwrap();
         assert_eq!(rest.len(), 4);
         assert!(a.try_allocate_many(1).is_none());
         assert!(a.is_alive(kept));
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -433,7 +441,7 @@ mod tests {
         assert!(a.free(last)); // retires the slot: 2 usable slots remain
         assert!(a.try_allocate_many(3).is_none());
         assert_eq!(a.try_allocate_many(2).unwrap().len(), 2);
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -496,13 +504,23 @@ mod tests {
     }
 
     #[test]
+    fn check_invariants_reports_a_violation_instead_of_panicking() {
+        let mut a = HandleAllocator::<u8>::new();
+        let _ = a.allocate();
+        assert!(a.check_invariants().is_ok());
+        a.live += 1; // corrupt the live count
+        let message = alloc::format!("{}", a.check_invariants().unwrap_err());
+        assert!(message.contains("live"), "message was {message}");
+    }
+
+    #[test]
     fn free_returns_false_for_stale_handle() {
         let mut a = HandleAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.free(h));
         assert!(!a.free(h));
         assert!(!a.is_alive(h));
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -515,7 +533,7 @@ mod tests {
         assert!(!a.is_alive(forged));
         assert!(!a.free(forged));
         assert_eq!(a.len(), 0);
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -529,7 +547,7 @@ mod tests {
         assert_eq!(third.index(), second.index());
         assert_eq!(third.generation().get(), second.generation().get() + 1);
         assert_eq!(a.allocate().index(), first.index());
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -560,7 +578,7 @@ mod tests {
         assert!(!a.is_alive(last));
         // The only slot is retired, so the allocator is now full.
         assert!(a.try_allocate().is_none());
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -572,7 +590,7 @@ mod tests {
         assert!(a.is_empty() && hs.iter().all(|h| !a.is_alive(*h)));
         let again: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate().index()).collect();
         assert_eq!(again, [0, 1, 2, 3]);
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]

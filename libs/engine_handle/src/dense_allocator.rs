@@ -279,17 +279,17 @@ impl<T> DenseHandleAllocator<T> {
         self.pool.retain(|handle, ()| keep(retype(handle)));
     }
 
-    /// Checks every internal invariant, panicking on the first violation.
+    /// Checks every internal invariant and reports the first violation.
     ///
     /// Available in tests and with the `test-invariants` feature; not part of the stable API.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if any invariant is violated, which would be a bug in this crate.
+    /// Returns an [`InvariantViolation`](crate::InvariantViolation) if any invariant does not
+    /// hold, which would be a bug in this crate.
     #[cfg(any(test, feature = "test-invariants"))]
-    #[track_caller]
-    pub fn assert_invariants(&self) {
-        self.pool.assert_invariants();
+    pub fn check_invariants(&self) -> Result<(), crate::InvariantViolation> {
+        self.pool.check_invariants()
     }
 }
 
@@ -410,7 +410,7 @@ mod tests {
         assert!(a.free(h));
         assert!(!a.free(h));
         assert!(!a.is_alive(h));
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(third.generation().get(), second.generation().get() + 1);
         let fourth = a.allocate();
         assert_eq!(fourth.index(), first.index());
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
         assert!(a.is_empty() && !a.is_alive(hs[0]));
         let again = a.allocate();
         assert_eq!((again.index(), again.generation().get()), (0, 2));
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
     }
 
     #[test]

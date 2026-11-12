@@ -119,3 +119,43 @@ impl fmt::Display for InvalidHandleBits {
 }
 
 impl Error for InvalidHandleBits {}
+
+/// An internal invariant of a pool or allocator does not hold, which would be a bug in this
+/// crate. Returned by the `check_invariants` methods, which exist in tests and with the
+/// `test-invariants` feature.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "test-invariants")]
+/// # {
+/// use engine_handle::HandlePool;
+///
+/// let mut pool = HandlePool::new();
+/// let _ = pool.insert(1);
+/// assert!(pool.check_invariants().is_ok());
+/// # }
+/// ```
+#[cfg(any(test, feature = "test-invariants"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct InvariantViolation {
+    message: alloc::string::String,
+}
+
+#[cfg(any(test, feature = "test-invariants"))]
+impl InvariantViolation {
+    pub(crate) fn new(message: alloc::string::String) -> Self {
+        Self { message }
+    }
+}
+
+#[cfg(any(test, feature = "test-invariants"))]
+impl fmt::Display for InvariantViolation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invariant violated: {}", self.message)
+    }
+}
+
+#[cfg(any(test, feature = "test-invariants"))]
+impl Error for InvariantViolation {}

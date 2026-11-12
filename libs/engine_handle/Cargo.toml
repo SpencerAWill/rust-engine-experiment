@@ -9,7 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
-# Exposes `assert_invariants` to integration tests.
+# Exposes `check_invariants` to integration tests.
 test-invariants = []
 
 [dev-dependencies]

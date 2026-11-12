@@ -11,7 +11,7 @@ use crate::handle::Handle;
 #[cfg(test)]
 use crate::slots::MAX_SLOTS;
 #[cfg(any(test, feature = "test-invariants"))]
-use crate::slots::SlotState;
+use crate::slots::{SlotState, violation};
 use crate::slots::{SlotTable, to_u32};
 #[cfg(test)]
 use core::num::NonZeroU32;
@@ -629,41 +629,43 @@ impl<T> HandlePool<T> {
         self.values.clear();
     }
 
-    /// Checks every internal invariant, panicking with a description of the first violation.
+    /// Checks every internal invariant and reports the first violation.
     ///
     /// Available in tests and with the `test-invariants` feature; not part of the stable API.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if any invariant is violated, which would be a bug in this crate.
+    /// Returns an [`InvariantViolation`](crate::InvariantViolation) if any invariant does not
+    /// hold, which would be a bug in this crate.
     #[cfg(any(test, feature = "test-invariants"))]
-    #[track_caller]
-    pub fn assert_invariants(&self) {
-        assert_eq!(
-            self.handles.len(),
-            self.values.len(),
-            "dense arrays differ in length"
-        );
-        let occupied = self.slots.assert_invariants();
-        assert_eq!(
-            occupied,
-            self.handles.len(),
-            "occupied slots != dense length"
-        );
-        for (i, handle) in self.handles.iter().enumerate() {
-            assert!(
-                matches!(
-                    self.slots.state(handle.index()),
-                    SlotState::Occupied { dense } if dense as usize == i
-                ),
-                "slot of {handle:?} does not point back at dense position {i}"
-            );
-            assert_eq!(
-                self.slots.generation(handle.index()),
-                handle.generation(),
-                "generation mismatch for {handle:?}"
-            );
+    pub fn check_invariants(&self) -> Result<(), crate::InvariantViolation> {
+        if self.handles.len() != self.values.len() {
+            return Err(violation(format_args!("dense arrays differ in length")));
         }
+        let occupied = self.slots.check_invariants()?;
+        if occupied != self.handles.len() {
+            return Err(violation(format_args!(
+                "occupied slots ({occupied}) != dense length ({})",
+                self.handles.len()
+            )));
+        }
+        for (i, handle) in self.handles.iter().enumerate() {
+            let points_back = matches!(
+                self.slots.state(handle.index()),
+                SlotState::Occupied { dense } if dense as usize == i
+            );
+            if !points_back {
+                return Err(violation(format_args!(
+                    "slot of {handle:?} does not point back at dense position {i}"
+                )));
+            }
+            if self.slots.generation(handle.index()) != handle.generation() {
+                return Err(violation(format_args!(
+                    "generation mismatch for {handle:?}"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// Overwrites a slot's generation (and its dense handle), for exhaustion tests.
@@ -773,7 +775,7 @@ mod tests {
         assert_eq!(p.get(h), None);
         assert_eq!(p.len(), 0);
         assert!(p.is_empty());
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -787,7 +789,7 @@ mod tests {
         assert_eq!(c.index(), b.index());
         assert_eq!(c.generation().get(), b.generation().get() + 1);
         assert!(!p.contains(b));
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -802,7 +804,7 @@ mod tests {
         p.remove(n);
         let m = p.insert(3);
         assert_ne!(m.index(), h.index()); // still never reused after more churn
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -815,7 +817,7 @@ mod tests {
         let new: Vec<_> = (0..3).map(|i| p.insert(i)).collect();
         assert_eq!(new.iter().map(|h| h.index()).collect::<Vec<_>>(), [0, 1, 2]);
         assert!(new.iter().all(|h| h.generation().get() == 2));
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -828,7 +830,7 @@ mod tests {
         assert_eq!(p.values(), &['c', 'b']); // dense order after swap-remove
         assert_eq!(p[c], 'c');
         assert_eq!(p[b], 'b'); // moved element still resolves
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -846,7 +848,7 @@ mod tests {
         for (i, h) in hs[..10].iter().enumerate() {
             assert_eq!(p[*h], i + 1);
         }
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -860,6 +862,19 @@ mod tests {
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
         assert_eq!(p.remove(forged), None);
+    }
+
+    #[test]
+    fn check_invariants_reports_a_violation_instead_of_panicking() {
+        let mut p = HandlePool::new();
+        let h = p.insert(1);
+        assert!(p.check_invariants().is_ok());
+        // Corrupt the slot's generation without updating the dense handle.
+        p.slots
+            .set_generation(h.index(), NonZeroU32::new(5).unwrap());
+        let err = p.check_invariants().unwrap_err();
+        let message = alloc::format!("{err}");
+        assert!(message.contains("generation"), "message was {message}");
     }
 
     #[test]
@@ -877,7 +892,7 @@ mod tests {
         assert_eq!(p[b], Node { me: b, tag: 2 });
         assert_eq!(b.index(), a.index());
         assert_eq!(b.generation().get(), a.generation().get() + 1);
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -906,7 +921,7 @@ mod tests {
             p.insert_with(|_| -> i32 { panic!("closure failed") })
         }));
         assert!(result.is_err());
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
         assert_eq!(
             (p.len(), p.iter().map(|(h, v)| (h, *v)).collect::<Vec<_>>()),
             before
@@ -1024,7 +1039,7 @@ mod tests {
         assert_eq!(p.len(), 2);
         assert!(p.contains(a) && p.contains(c) && !p.contains(b));
         assert_eq!(p.values().len(), 2);
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -1078,7 +1093,7 @@ mod tests {
         b.clear();
         assert!(a.is_empty());
         assert!(old.iter().all(|h| !a.contains(*h)));
-        a.assert_invariants();
+        a.check_invariants().expect("invariants hold");
         let from_a = fill(&mut a);
         let from_b = fill(&mut b);
         assert_eq!(from_a, from_b);
@@ -1095,7 +1110,7 @@ mod tests {
         let _ = q.insert(1);
         core::mem::forget(q.drain());
         assert!(q.is_empty());
-        q.assert_invariants();
+        q.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -1114,7 +1129,7 @@ mod tests {
         kept.sort_unstable();
         assert_eq!(kept, [0, 2, 4]);
         assert!(p.contains(hs[0]) && !p.contains(hs[1]) && p.contains(hs[4]));
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
     }
 
     #[test]
@@ -1160,7 +1175,7 @@ mod tests {
             });
         }));
         assert!(result.is_err());
-        p.assert_invariants();
+        p.check_invariants().expect("invariants hold");
         for (h, v) in &p {
             assert_eq!(p[h], *v);
         }
