@@ -14,6 +14,7 @@ mod check_statics;
 mod check_unsafe;
 mod check_workflows;
 mod cmd;
+mod fuzz;
 mod prng_stats;
 
 use std::process::ExitCode;
@@ -46,6 +47,9 @@ enum Command {
     BenchSmoke,
     BenchDoc(bench_doc::Options),
     Hack,
+    Fuzz(fuzz::Options),
+    FuzzBuild,
+    FuzzToolchain,
     Typos,
     BenchReport(bench_report::Options),
     Bench {
@@ -60,9 +64,9 @@ enum Command {
 
 /// Parses command-line arguments (without the program name).
 fn parse(args: &[&str]) -> Result<Command, String> {
-    let (name, flags) = args
-        .split_first()
-        .ok_or_else(|| "missing command (try: fmt, clippy, test, doc, deny, ci)".to_string())?;
+    let (name, flags) = args.split_first().ok_or_else(|| {
+        "missing command (try: fmt, clippy, test, doc, deny, fuzz, ci)".to_string()
+    })?;
     let has = |flag: &str| flags.contains(&flag);
     let only = |allowed: &[&str]| -> Result<(), String> {
         match flags.iter().find(|f| !allowed.contains(f)) {
@@ -91,6 +95,9 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "bench-smoke" => only(&[]).map(|()| Command::BenchSmoke),
         "bench-doc" => bench_doc::parse_flags(flags).map(Command::BenchDoc),
         "hack" => only(&[]).map(|()| Command::Hack),
+        "fuzz" => fuzz::parse_flags(flags).map(Command::Fuzz),
+        "fuzz-build" => only(&[]).map(|()| Command::FuzzBuild),
+        "fuzz-toolchain" => only(&[]).map(|()| Command::FuzzToolchain),
         "typos" => only(&[]).map(|()| Command::Typos),
         "bench" => parse_bench(flags),
         "bench-report" => bench_report::parse_flags(flags).map(Command::BenchReport),
@@ -320,13 +327,20 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::Deny,
             Command::BenchBuild,
             Command::BenchSmoke,
+            Command::FuzzBuild,
         ]);
     }
     steps
 }
 
+/// Runs the `ci` steps. `fuzz-build` is strict only under `CI` (GitHub Actions sets it): on a
+/// contributor's machine a missing nightly or `cargo-fuzz` prints a skip note instead, so
+/// unrelated work is not blocked. Run directly, `fuzz-build` is always strict.
 fn ci(quick: bool) -> Result<(), String> {
-    ci_steps(quick).iter().try_for_each(execute)
+    ci_steps(quick).iter().try_for_each(|step| match step {
+        Command::FuzzBuild => fuzz::fuzz_build(std::env::var_os("CI").is_some()),
+        other => execute(other),
+    })
 }
 
 fn execute(command: &Command) -> Result<(), String> {
@@ -379,6 +393,12 @@ fn execute(command: &Command) -> Result<(), String> {
                 &hack_args().iter().map(String::as_str).collect::<Vec<_>>(),
                 &[],
             )
+        }
+        Command::Fuzz(options) => fuzz::fuzz(options),
+        Command::FuzzBuild => fuzz::fuzz_build(true),
+        Command::FuzzToolchain => {
+            fuzz::print_toolchain();
+            Ok(())
         }
         Command::Typos => {
             require_tool("typos", "cargo install --locked typos-cli")?;
@@ -552,6 +572,31 @@ mod tests {
                 "--no-dev-deps"
             ]
         );
+    }
+
+    #[test]
+    fn fuzz_commands_parse() {
+        assert_eq!(parse(&["fuzz-toolchain"]), Ok(Command::FuzzToolchain));
+        assert!(parse(&["fuzz-toolchain", "--x"]).is_err());
+        assert_eq!(parse(&["fuzz-build"]), Ok(Command::FuzzBuild));
+        assert!(parse(&["fuzz-build", "--x"]).is_err());
+        assert!(matches!(
+            parse(&["fuzz", "all", "--time", "5"]),
+            Ok(Command::Fuzz(_))
+        ));
+        assert!(parse(&["fuzz", "nope"]).is_err());
+        // The fuzz run itself is never part of `ci`.
+        assert!(
+            !ci_steps(false)
+                .iter()
+                .any(|c| matches!(c, Command::Fuzz(_)))
+        );
+    }
+
+    #[test]
+    fn fuzz_build_runs_in_the_full_ci_only() {
+        assert!(ci_steps(false).contains(&Command::FuzzBuild));
+        assert!(!ci_steps(true).contains(&Command::FuzzBuild));
     }
 
     #[test]
