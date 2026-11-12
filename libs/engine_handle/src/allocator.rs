@@ -1,5 +1,6 @@
 //! [`HandleAllocator`]: handle allocation without value storage or a live-handle list.
 
+use alloc::collections::TryReserveError;
 use core::fmt;
 use core::marker::PhantomData;
 
@@ -82,6 +83,53 @@ impl<T> HandleAllocator<T> {
             live: 0,
             _marker: PhantomData,
         }
+    }
+
+    /// Reserves room for at least `additional` more live handles without reallocating.
+    ///
+    /// The room is counted from the live handles now: after `reserve(n)`, the next `n`
+    /// allocations do not reallocate.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`, or if the allocator fails, exactly like
+    /// [`Vec::reserve`]. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandleAllocator;
+    /// let mut x = HandleAllocator::<u8>::new();
+    /// x.reserve(1000);
+    /// ```
+    #[track_caller]
+    pub fn reserve(&mut self, additional: usize) {
+        if let Err(error) = self.try_reserve(additional) {
+            panic!(
+                "HandleAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
+                 use try_reserve to handle this without panicking"
+            );
+        }
+    }
+
+    /// Fallible twin of [`reserve`](Self::reserve).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TryReserveError`] if the capacity overflows or the allocator fails. On error
+    /// some of the internal arrays may already have grown, which is harmless.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandleAllocator;
+    /// let mut x = HandleAllocator::<u8>::new();
+    /// assert!(x.try_reserve(16).is_ok());
+    /// assert!(x.try_reserve(usize::MAX).is_err());
+    /// ```
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.slots
+            .try_reserve_slots(self.live.saturating_add(additional))
     }
 
     /// An allocator that holds at most `limit` slots, for testing the full path.
@@ -268,6 +316,44 @@ impl<T> fmt::Debug for HandleAllocator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reserve_then_allocate_does_not_reallocate() {
+        let mut a = HandleAllocator::<u8>::new();
+        a.reserve(100);
+        let capacity = a.slots.capacity();
+        assert!(capacity >= 100);
+        for _ in 0..100 {
+            let _ = a.allocate();
+        }
+        assert_eq!(a.slots.capacity(), capacity);
+    }
+
+    #[test]
+    fn reserve_counts_live_handles() {
+        let mut a = HandleAllocator::<u8>::new();
+        for _ in 0..50 {
+            let _ = a.allocate();
+        }
+        a.reserve(50);
+        assert!(a.slots.capacity() >= 100);
+        assert!(a.try_reserve(10).is_ok());
+    }
+
+    #[test]
+    #[should_panic(expected = "try_reserve")]
+    fn reserve_panics_on_capacity_overflow() {
+        HandleAllocator::<u8>::new().reserve(usize::MAX);
+    }
+
+    #[test]
+    fn try_reserve_reports_overflow_instead_of_panicking() {
+        assert!(
+            HandleAllocator::<u8>::new()
+                .try_reserve(usize::MAX)
+                .is_err()
+        );
+    }
 
     #[test]
     fn free_returns_false_for_stale_handle() {

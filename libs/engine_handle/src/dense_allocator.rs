@@ -1,5 +1,6 @@
 //! [`DenseHandleAllocator`]: handle allocation without value storage, with iteration over live handles.
 
+use alloc::collections::TryReserveError;
 use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
@@ -72,6 +73,52 @@ impl<T> DenseHandleAllocator<T> {
             pool: HandlePool::with_capacity(capacity),
             _marker: PhantomData,
         }
+    }
+
+    /// Reserves room for at least `additional` more live handles without reallocating.
+    ///
+    /// The room is counted from the live handles now: after `reserve(n)`, the next `n`
+    /// allocations do not reallocate.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`, or if the allocator fails, exactly like
+    /// [`Vec::reserve`]. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut x = DenseHandleAllocator::<u8>::new();
+    /// x.reserve(1000);
+    /// ```
+    #[track_caller]
+    pub fn reserve(&mut self, additional: usize) {
+        if let Err(error) = self.try_reserve(additional) {
+            panic!(
+                "DenseHandleAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
+                 use try_reserve to handle this without panicking"
+            );
+        }
+    }
+
+    /// Fallible twin of [`reserve`](Self::reserve).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TryReserveError`] if the capacity overflows or the allocator fails. On error
+    /// some of the internal arrays may already have grown, which is harmless.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut x = DenseHandleAllocator::<u8>::new();
+    /// assert!(x.try_reserve(16).is_ok());
+    /// assert!(x.try_reserve(usize::MAX).is_err());
+    /// ```
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.pool.try_reserve(additional)
     }
 
     /// An allocator that holds at most `limit` slots, for testing the full path.
@@ -326,6 +373,20 @@ impl<T> fmt::Debug for DenseAllocIter<'_, T> {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
+
+    #[test]
+    fn reserve_makes_room_in_every_array() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        a.reserve(100);
+        assert!(a.pool.slot_capacity() >= 100);
+        assert!(a.try_reserve(usize::MAX).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "try_reserve")]
+    fn reserve_panics_on_capacity_overflow() {
+        DenseHandleAllocator::<u8>::new().reserve(usize::MAX);
+    }
 
     #[test]
     fn free_returns_false_for_stale_handle() {

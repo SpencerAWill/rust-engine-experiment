@@ -4,6 +4,7 @@
 //! The table knows nothing about values. An occupied slot carries one `u32` of caller data (its
 //! `link`): the pool stores the value's dense position there, the lean allocator stores `0`.
 
+use alloc::collections::TryReserveError;
 use alloc::vec::Vec;
 use core::num::NonZeroU32;
 
@@ -104,6 +105,18 @@ impl SlotTable {
             limit,
             ..Self::new()
         }
+    }
+
+    /// Ensures capacity for `total` slots in all, counting those already created.
+    pub(crate) fn try_reserve_slots(&mut self, total: usize) -> Result<(), TryReserveError> {
+        self.slots
+            .try_reserve(total.saturating_sub(self.slots.len()))
+    }
+
+    /// Slots the table can hold without reallocating.
+    #[cfg(test)]
+    pub(crate) fn capacity(&self) -> usize {
+        self.slots.capacity()
     }
 
     /// The most slots this table will create.
@@ -267,6 +280,30 @@ pub(crate) fn to_u32(n: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reserve_slots_makes_room_so_acquiring_never_reallocates() {
+        let mut table = SlotTable::new();
+        table.try_reserve_slots(100).unwrap();
+        let capacity = table.capacity();
+        assert!(capacity >= 100);
+        for _ in 0..100 {
+            assert!(table.acquire(0).is_some());
+        }
+        assert_eq!(table.capacity(), capacity);
+    }
+
+    #[test]
+    fn reserve_slots_counts_slots_already_created() {
+        let mut table = SlotTable::new();
+        for _ in 0..10 {
+            let _ = table.acquire(0);
+        }
+        table.try_reserve_slots(10).unwrap(); // already satisfied: no growth needed
+        let capacity = table.capacity();
+        table.try_reserve_slots(10).unwrap();
+        assert_eq!(table.capacity(), capacity);
+    }
 
     #[test]
     fn slot_is_eight_bytes() {

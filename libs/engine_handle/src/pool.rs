@@ -4,6 +4,8 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::ops::{Index, IndexMut};
 
+use alloc::collections::TryReserveError;
+
 use crate::error::CapacityError;
 use crate::handle::Handle;
 #[cfg(test)]
@@ -114,6 +116,61 @@ impl<T> HandlePool<T> {
             handles: Vec::with_capacity(capacity),
             values: Vec::with_capacity(capacity),
         }
+    }
+
+    /// Reserves room for at least `additional` more values without reallocating.
+    ///
+    /// The room is counted from the live values now: after `reserve(n)`, the next `n`
+    /// inserts do not reallocate.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`, or if the allocator fails, exactly like
+    /// [`Vec::reserve`]. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut x = HandlePool::<u64>::new();
+    /// x.reserve(1000);
+    /// ```
+    #[track_caller]
+    pub fn reserve(&mut self, additional: usize) {
+        if let Err(error) = self.try_reserve(additional) {
+            panic!(
+                "HandlePool::reserve: cannot reserve room for {additional} more values ({error}); \
+                 use try_reserve to handle this without panicking"
+            );
+        }
+    }
+
+    /// Fallible twin of [`reserve`](Self::reserve).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TryReserveError`] if the capacity overflows or the allocator fails. On error
+    /// some of the internal arrays may already have grown, which is harmless.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut x = HandlePool::<u64>::new();
+    /// assert!(x.try_reserve(16).is_ok());
+    /// assert!(x.try_reserve(usize::MAX).is_err());
+    /// ```
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.handles.try_reserve(additional)?;
+        self.values.try_reserve(additional)?;
+        self.slots
+            .try_reserve_slots(self.len().saturating_add(additional))
+    }
+
+    /// Slots the pool can hold without reallocating its slot array.
+    #[cfg(test)]
+    pub(crate) fn slot_capacity(&self) -> usize {
+        self.slots.capacity()
     }
 
     /// A pool that holds at most `limit` slots, for testing the full-pool paths.
@@ -754,6 +811,41 @@ mod tests {
         let mut p = HandlePool::with_slot_limit(1);
         let _ = p.insert(1);
         let _ = p.insert(2);
+    }
+
+    #[test]
+    fn reserve_then_insert_does_not_reallocate_any_array() {
+        let mut p = HandlePool::<u64>::new();
+        p.reserve(100);
+        let (values, slots) = (p.capacity(), p.slot_capacity());
+        assert!(values >= 100 && slots >= 100);
+        for i in 0..100 {
+            let _ = p.insert(i);
+        }
+        assert_eq!((p.capacity(), p.slot_capacity()), (values, slots));
+    }
+
+    #[test]
+    fn reserve_counts_live_values() {
+        let mut p = HandlePool::new();
+        for i in 0..50 {
+            let _ = p.insert(i);
+        }
+        p.reserve(50);
+        assert!(p.capacity() >= 100 && p.slot_capacity() >= 100);
+    }
+
+    #[test]
+    #[should_panic(expected = "try_reserve")]
+    fn reserve_panics_on_capacity_overflow() {
+        HandlePool::<u8>::new().reserve(usize::MAX);
+    }
+
+    #[test]
+    fn try_reserve_reports_overflow_instead_of_panicking() {
+        let mut p = HandlePool::<u8>::new();
+        assert!(p.try_reserve(usize::MAX).is_err());
+        assert!(p.try_reserve(16).is_ok());
     }
 
     #[test]
