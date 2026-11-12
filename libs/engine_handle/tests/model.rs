@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use engine_handle::{DenseHandleAllocator, Handle, HandlePool};
+use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -206,6 +206,56 @@ proptest! {
         let first = run_alloc(&ops);
         let second = run_alloc(&ops);
         prop_assert_eq!(first, second);
+    }
+}
+
+/// Runs `ops` (without `Retain`, which the lean allocator lacks) against the lean allocator,
+/// the dense allocator and a set model. Both allocators must issue identical handles and agree
+/// on liveness after every step.
+fn run_lean_against_dense(ops: &[AllocOp]) {
+    let mut lean = HandleAllocator::<u8>::new();
+    let mut dense = DenseHandleAllocator::<u8>::new();
+    let mut model = BTreeSet::<u64>::new();
+    let mut issued: Vec<Handle<u8>> = Vec::new();
+
+    for op in ops {
+        let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
+        match *op {
+            AllocOp::Allocate => {
+                let (a, b) = (lean.allocate(), dense.allocate());
+                assert_eq!(a, b, "allocators issued different handles");
+                assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
+                issued.push(a);
+            }
+            AllocOp::Free(i) => {
+                if let Some(h) = pick(i) {
+                    let was_live = model.remove(&h.to_bits());
+                    assert_eq!(lean.free(h), was_live);
+                    assert_eq!(dense.free(h), was_live);
+                }
+            }
+            AllocOp::IsAlive(_) | AllocOp::Retain(_) => {}
+            AllocOp::Clear => {
+                lean.clear();
+                dense.clear();
+                model.clear();
+            }
+        }
+        lean.assert_invariants();
+        assert_eq!(lean.len(), model.len());
+        assert_eq!(lean.len(), dense.len());
+        for h in &issued {
+            assert_eq!(lean.is_alive(*h), model.contains(&h.to_bits()));
+        }
+    }
+}
+
+proptest! {
+    #![proptest_config(config())]
+
+    #[test]
+    fn lean_allocator_matches_dense_allocator_and_model(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+        run_lean_against_dense(&ops);
     }
 }
 

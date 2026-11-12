@@ -35,12 +35,14 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+mod allocator;
 mod dense_allocator;
 mod error;
 mod handle;
 mod pool;
 mod slots;
 
+pub use allocator::HandleAllocator;
 pub use dense_allocator::{DenseAllocIter, DenseHandleAllocator};
 pub use error::CapacityError;
 pub use handle::Handle;
