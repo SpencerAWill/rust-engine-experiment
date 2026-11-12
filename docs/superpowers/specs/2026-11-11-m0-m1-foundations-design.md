@@ -98,14 +98,14 @@ examples/
   fixed_step_sim/          headless deterministic sample (binary crate)
 benches/                   `engine_benches`: cross-library comparison benchmarks (publish = false)
 xtask/                     developer task runner (publish = false)
-fuzz/                      cargo-fuzz targets (excluded from workspace; nightly)
+fuzz/                      cargo-fuzz targets (excluded from workspace; nightly) — arrives in M2 (§4.12)
 docs/
   adr/                     architecture decision records
   benchmarks.md            methodology, hardware, recorded results
   superpowers/specs/       design specs (this file)
 .github/
   workflows/ci.yml         PR/push CI
-  workflows/nightly.yml    scheduled fuzzing
+  workflows/nightly.yml    scheduled latest-stable CI run (fuzzing added in M2)
   dependabot.yml           devcontainers + cargo + github-actions
 ```
 
@@ -161,7 +161,7 @@ engine_time     (no deps)
 engine_math  →  glam
 engine       →  engine_handle, engine_random, engine_time, engine_math
 fixed_step_sim → engine            (dev: dhat for allocation assertions)
-engine_benches → engine_*, criterion, gungraun, slotmap, thunderdome, rand, rand_xoshiro, fastrand   (dev-only)
+engine_benches → engine_*, criterion, slotmap, thunderdome, rand, rand_xoshiro, fastrand   (dev-only; gungraun added in M2)
 xtask        →  (std only; minimal deps)
 ```
 
@@ -175,7 +175,7 @@ Leaf crates do not depend on each other unless a real need appears.
 
 - `rust-toolchain.toml` pins the exact stable version (currently `1.97.0`) with components `rustfmt`, `clippy`, and the `thumbv7em-none-eabihf` target for `no_std` checks. Bumps are deliberate PRs.
 - `[workspace.package] rust-version` equals the pinned version. While at 0.x the MSRV moves freely. At publishing time, revisit (e.g. "latest stable − 2").
-- Miri and cargo-fuzz use a separately pinned nightly, recorded in `xtask` and CI (not in `rust-toolchain.toml`).
+- Miri and cargo-fuzz (from M2, §4.12) use a separately pinned nightly, recorded in `xtask` and CI (not in `rust-toolchain.toml`).
 - `Cargo.lock` is committed.
 
 ### 4.2 Lints
@@ -203,7 +203,7 @@ Leaf crates do not depend on each other unless a real need appears.
   3. confine `unsafe` to the smallest possible modules, with `#[deny(unsafe_code)]` on the rest;
   4. run under Miri in CI;
   5. have at least one fuzz target.
-- Miri also runs on `engine_handle` from day one (cheap, and it validates the CI job).
+- The Miri and fuzzing CI infrastructure is built at the start of M2, together with the first allowlisted crate (§4.12). M0+M1 has no `unsafe`, so these requirements have nothing to apply to yet.
 
 ### 4.4 API design guidelines
 
@@ -286,26 +286,26 @@ When the repo goes public (minutes become free), the macOS/Windows legs move to 
 | wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run the leaf crates' and `engine_math`'s tests (including the PRNG golden tests) on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered. See the WASM test notes below | yes |
 | check-unsafe | ubuntu | `cargo xtask check-unsafe` | yes |
 | check-statics | ubuntu | `cargo xtask check-statics` (§4.10) | yes |
-| miri | ubuntu (pinned nightly) | `cargo xtask miri` | yes |
+| miri | ubuntu (pinned nightly) | `cargo xtask miri` | **from M2** |
 | deny | ubuntu | `cargo xtask deny` | yes |
 | bench-build | ubuntu | `cargo bench --no-run` | yes |
-| bench-regress | ubuntu (Valgrind via `gungraun/setup-gungraun`) | `cargo xtask bench-regress` (instruction counts vs the PR's merge-base, measured in the same job; fail if > 5%; see §8) | yes; a `perf-regression-accepted` PR label downgrades it to report-only |
-| coverage | ubuntu | `cargo llvm-cov nextest` → summary in job output | report only |
+| bench-regress | ubuntu (Valgrind via `gungraun/setup-gungraun`) | `cargo xtask bench-regress` (instruction counts vs the PR's merge-base, measured in the same job; fail if > 5%; see §8) | **from M2**; a `perf-regression-accepted` PR label downgrades it to report-only |
+| coverage | ubuntu | `cargo llvm-cov nextest` → summary in job output | **from M2**, report only |
 
 **WASM test notes:**
 - proptest is declared as `proptest = { version = "…", default-features = false, features = ["std"] }` in `[workspace.dependencies]`. Its default `fork`/`timeout` features pull in `rusty-fork` → `wait-timeout`, which only compiles for unix/windows. A broken dev-dependency fails the entire test build for a target, so per-test `cfg` cannot work around it.
 - libtest ignores `#[should_panic]` tests on every wasm target except emscripten, and panics abort on WASI. So the `# Panics` contracts are tested on native targets only, and proptest failures on WASI abort without shrinking (shrink by reproducing on native).
 - The README's "Platform support" section records both facts.
 
-`.github/workflows/nightly.yml` runs on a daily schedule: each fuzz target for 10 minutes, plus `cargo xtask ci` against the latest stable toolchain (an early warning for toolchain bumps). It is report-only.
+`.github/workflows/nightly.yml` runs on a daily schedule: `cargo xtask ci` against the latest stable toolchain (an early warning for toolchain bumps), plus the macOS/Windows legs. From M2 it also runs each fuzz target for 10 minutes. It is report-only.
 
 Dependabot gains the `cargo` (weekly, grouped) and `github-actions` (weekly) ecosystems alongside the existing `devcontainers` entry.
 
 ### 4.8 `xtask` commands
 
-`ci` runs **every gating job in §4.7**, in sequence: fmt-check, clippy, test, doc, no-std, wasm, check-unsafe, check-statics, miri, deny, bench-build. `bench-regress` is the exception: it needs a merge-base and Valgrind, so it runs via its own command. `ci --quick` runs only fmt-check, clippy, and test for fast local iteration. Other commands: `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `miri`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `bench-regress`, `fuzz <target> [--time <secs>]`, `prng-stats` (streams PRNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand).
+`ci` runs **every gating job in §4.7**, in sequence: fmt-check, clippy, test, doc, no-std, wasm, check-unsafe, check-statics, deny, bench-build (plus miri from M2). `bench-regress` is the exception: it needs a merge-base and Valgrind, so it runs via its own command. `ci --quick` runs only fmt-check, clippy, and test for fast local iteration. Other commands: `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `check-statics`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `prng-stats` (streams PRNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand). Added in M2: `miri`, `fuzz <target> [--time <secs>]`, `bench-regress`, `coverage`.
 
-`xtask` has minimal dependencies: std, at most a small argument parser, and `syn` for `check-statics`. It shells out to `cargo` and external tools, and prints an actionable install hint when a tool (`cargo-nextest`, `cargo-deny`, `cargo-llvm-cov`, `gungraun-runner`, `cargo-fuzz`, `critcmp`, `wasmtime`) is missing.
+`xtask` has minimal dependencies: std, at most a small argument parser, and `syn` for `check-statics`. It shells out to `cargo` and external tools, and prints an actionable install hint when a tool (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`; from M2 also `cargo-llvm-cov`, `gungraun-runner`, `cargo-fuzz`) is missing.
 
 ### 4.9 Determinism guardrails (part of ADR 0003)
 
@@ -411,6 +411,18 @@ M1 contains no threads, but the rules are fixed now so M2/M3 inherit them rather
   - Benchmark sizes straddle the benchmark machine's cache hierarchy (L1/L2/SLC/DRAM, recorded in `docs/benchmarks.md`), with both sequential and random access.
   - Gungraun benchmarks enable Callgrind's cache simulation and report estimated L1/last-level-cache miss counts alongside instruction counts.
   - Hardware-counter profiling (Instruments CPU Counters on macOS, `perf stat` on Linux) is documented for investigations.
+
+### 4.12 Infrastructure staging
+
+Policies and decisions in this spec apply from day one. **Infrastructure arrives when the risk it guards against first appears.** Building it earlier would cost effort without catching anything, and adding it later requires no rework.
+
+| When | Infrastructure | Trigger |
+|---|---|---|
+| **M0+M1** | Workspace, lints, `clippy.toml` bans, `cargo-deny`, `check-unsafe`, `check-statics`; tiered fmt/clippy/test/doc CI; `no_std` + wasm build checks; WASI test run (PRNG goldens on 32-bit); proptest; golden tests; Criterion comparison benchmarks + `docs/benchmarks.md`; the sample's determinism, snapshot, and allocation tests | Always needed |
+| **Start of M2** | Miri job; `fuzz/` + nightly fuzzing; Gungraun instruction-count + cache-sim regression gate; coverage report; periodic `cargo-mutants` triage | First allowlisted `unsafe` crate and first performance-critical storage code |
+| **Start of M3** | loom model tests, ThreadSanitizer job, stress-test harness for `concurrency-allowlist.toml` crates | First concurrency-allowlisted crate |
+
+The allowlist files (`unsafe-allowlist.toml`, `concurrency-allowlist.toml`) exist, empty, from M0, so the rules are visible and enforced (`check-unsafe`) from the start.
 
 ---
 
@@ -991,11 +1003,11 @@ All layers run in CI unless noted.
 | Layout | `const` assertions + tests | Sizes/alignments of `Handle`, `Option<Handle>`, transforms per ADR 0006 |
 | Debug output | unit | Snapshot tests of `Debug` for `Handle`, `HandlePool`, `Prng` |
 | 32-bit / WASM | CI `wasm` job | Leaf-crate tests on `wasm32-wasip1`; `engine` builds for `wasm32-unknown-unknown` |
-| Undefined behavior | Miri | `engine_handle` (and all future allowlisted crates) |
-| Fuzzing | `cargo-fuzz` (nightly workflow) | `handle_pool_ops` (arbitrary op sequences checked against the model), `handle_from_bits` |
-| Test quality | `cargo-mutants` | Run manually or periodically; surviving mutants in M1 crates are triaged before M0+M1 is declared done. Not a CI gate |
+| Undefined behavior | Miri | From M2: all allowlisted crates (and `engine_handle` once the job exists) |
+| Fuzzing | `cargo-fuzz` (nightly workflow, from M2) | First targets in M2: `handle_pool_ops` (arbitrary op sequences checked against the model), `handle_from_bits`, plus the M2 storage code |
+| Test quality | `cargo-mutants` | Periodic from M2 (the M1 crates are included in the first run). Not a CI gate |
 
-Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) live in `[workspace.dependencies]` and are dev-dependencies only.
+Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz/`) live in `[workspace.dependencies]` and are dev-dependencies only.
 
 ---
 
@@ -1004,11 +1016,11 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 **Tools:**
 
 - **Criterion** (+ **critcmp**): local wall-clock benchmarks with named baselines. `cargo xtask bench --save <name>` runs `cargo bench -- --save-baseline <name>`; `cargo xtask bench --compare <a> <b>` runs critcmp.
-- **Gungraun** (formerly iai-callgrind): instruction-count benchmarks under Valgrind for CI regression gating (Linux only; runs in CI and the devcontainer, not natively on macOS). The PR job builds and runs the benchmarks at the PR's **merge-base**, then at the PR head, in the **same job on the same runner**, and compares the two. No artifacts are needed, so nothing expires and there is no stale-baseline drift. It fails on a > 5% instruction-count regression in any benchmark. The `perf-regression-accepted` PR label downgrades the gate to report-only for intended trade-offs; the PR description must justify it. Callgrind's cache simulation is enabled, so estimated L1/last-level-cache misses are reported too, but they are not gated. Instruction counts from the aarch64 devcontainer are not comparable with x86_64 CI counts, and are never mixed.
+- **Gungraun** (formerly iai-callgrind), **from M2 (§4.12)**: instruction-count benchmarks under Valgrind for CI regression gating (Linux only; runs in CI and the devcontainer, not natively on macOS). The PR job builds and runs the benchmarks at the PR's **merge-base**, then at the PR head, in the **same job on the same runner**, and compares the two. No artifacts are needed, so nothing expires and there is no stale-baseline drift. It fails on a > 5% instruction-count regression in any benchmark. The `perf-regression-accepted` PR label downgrades the gate to report-only for intended trade-offs; the PR description must justify it. Callgrind's cache simulation is enabled, so estimated L1/last-level-cache misses are reported too, but they are not gated. Instruction counts from the aarch64 devcontainer are not comparable with x86_64 CI counts, and are never mixed.
 
 **Layout:**
 
-- Micro-benchmarks for each crate live in `libs/<crate>/benches/` (Criterion, plus a Gungraun target for regression-critical paths).
+- Micro-benchmarks for each crate live in `libs/<crate>/benches/` (Criterion; from M2 also Gungraun targets for regression-critical paths).
 - Comparisons against other libraries live in `benches/` (`engine_benches`). Competitor crates are dev-dependencies of that crate only.
 
 **M1 benchmark matrix:**
@@ -1028,13 +1040,13 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 ## 9. Definition of done (M0+M1)
 
 1. `cargo xtask ci` passes locally (macOS) and in the devcontainer (Linux). The GitHub Actions matrix is green on ubuntu, macOS, and windows.
-2. All gating CI jobs in §4.7 exist and pass. The bench-regress gate is active once the first `main` baseline is recorded.
+2. All CI jobs marked for M0+M1 in §4.7/§4.12 exist and pass.
 3. Every public item in every crate is documented. Every public type has a runnable example.
-4. All test layers in §7 are implemented. Golden values are frozen. Miri is clean. Both fuzz targets run in the nightly workflow.
+4. All test layers in §7 that are scheduled for M0+M1 are implemented, and golden values are frozen.
 5. The benchmark matrix in §8 has been run locally, with results and hardware recorded in `docs/benchmarks.md`.
 6. ADRs 0001–0004 are written. README, dual license files, `deny.toml`, `unsafe-allowlist.toml` (empty), and dependabot config are in place.
 7. `examples/fixed_step_sim` runs, and its determinism test passes.
-8. A `cargo-mutants` run has been triaged.
+8. (Moved to M2: Miri, fuzzing, Gungraun gate, coverage, mutation triage; §4.12.)
 9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), 0007 (host owns the loop), and 0008 (no global state) are written. The `check-statics` job is green. The transcendental-method bans are active, with only the `engine_math::scalar` exception. The devcontainer has every tool `cargo xtask ci` needs. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
 10. The `wasm` CI job is green. The snapshot, allocation, large-world precision, and coordinate-conversion tests pass.
 11. Every documented-panic API has a fallible twin and `#[track_caller]`. The panic-contract, PRNG-normative, layout, and `Debug` tests pass. ADR 0009 is written, and `concurrency-allowlist.toml` exists (empty).
@@ -1059,8 +1071,8 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
-| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit at the bottom of the crate graph (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
-| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread. Determinism independent of thread count (§4.9). The concurrency allowlist, loom, TSan, and stress tests apply (§4.11). Per-worker state is cache-padded. The work-distribution strategy (work stealing vs fixed assignment) is chosen with benchmarks, and its merges must stay deterministic | Threading model (thread pool vs fibers vs work stealing) |
+| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit at the bottom of the crate graph (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout. **Infrastructure arriving with M2** (§4.12): Miri, fuzzing, Gungraun gate, coverage, mutation triage. **Dogfooding sample:** a minimal visual example (e.g. thousands of 2D agents drawn into a simple pixel-buffer window; the windowing crate is an example-only dependency, never an engine dependency). It validates ECS ergonomics with a real consumer, doubles as a realistic benchmark, and makes progress visible | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
+| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread. Determinism independent of thread count (§4.9). The concurrency allowlist, loom, TSan, and stress-test tooling arrive here and apply (§4.11, §4.12). Per-worker state is cache-padded. The work-distribution strategy (work stealing vs fixed assignment) is chosen with benchmarks, and its merges must stay deterministic | Threading model (thread pool vs fibers vs work stealing) |
 | M4: C ABI + C# | `engine_ffi` crate (allowlisted `unsafe`), handle-based C API, generated header, C# binding (generator choice evaluated: Interoptopus vs cbindgen + hand-written P/Invoke vs csbindgen), C# sample. **Also:** evaluate the WebAssembly component model (WIT + `wit-bindgen`) for sandboxed, multi-language mods alongside the C ABI for embedding. Define the FFI panic policy: a panic unwinding out of `extern "C"` aborts the host, so the FFI layer validates inputs before calling APIs with documented panics | Binding generator; ownership/lifetime rules across the boundary; native vs WASM for mods |
 | M5: Diagnostics & tooling foundation | Diagnostics facade (logging/tracing; host-installed subscribers per §4.10); profiler integration; **remote inspection protocol** (localhost by default, auth token; entity/component browsing via reflection, change subscriptions, edit commands); record/replay with automatic desync detection (per-tick state checksums) | Protocol transport and encoding; the editor's main integration path |
 | Later | Windowing/input (`winit`) → rendering (`wgpu`; 2D sprite/batching path, pixel-perfect cameras, world↔screen conversion, 3D path, 2.5D via orthographic/perspective cameras over the same world) → assets → audio → physics (2D and 3D are separate solvers in practice) → modding/plugin loading → optional convenience app runner → **editor product** (separate app over the M5 protocol and public APIs only) | — |
@@ -1133,9 +1145,9 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
 
-1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (Valgrind, wasmtime, cargo-nextest, cargo-deny, cargo-llvm-cov, cargo-fuzz, critcmp, gungraun-runner, the extra rustup targets, and the pinned nightly with Miri) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
-2. **`engine_handle`:** handles, pool, allocator; unit/property/Miri tests; fuzz targets; benchmarks.
+1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (wasmtime, cargo-nextest, cargo-deny, critcmp, the extra rustup targets; Valgrind, gungraun-runner, cargo-llvm-cov, cargo-fuzz, and the pinned nightly with Miri arrive in M2) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
+2. **`engine_handle`:** handles, pool, allocator; unit and property tests; benchmarks.
 3. **`engine_random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
 4. **`engine_time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
 5. **`engine_math`:** re-exports, `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `axis`, `convert`; ADRs 0005–0006; precision and conversion tests.
-6. **Facade, sample, docs:** `engine` prelude, `fixed_step_sim` with determinism/snapshot/allocation tests, the comparison benchmark run, `docs/benchmarks.md`, mutation-testing triage.
+6. **Facade, sample, docs:** `engine` prelude, `fixed_step_sim` with determinism/snapshot/allocation tests, the comparison benchmark run, `docs/benchmarks.md`.
