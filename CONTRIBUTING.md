@@ -44,7 +44,7 @@ Changes come with tests. For a bug fix, write the test first and confirm it fail
 
 Performance claims need measurements. Wall-clock numbers from a laptop or shared CI runner are noisy (we have measured about 5% drift between runs on a quiet machine), so:
 
-- Run on AC power with other apps closed, and record the machine and conditions.
+- Run on AC power with other apps closed, and record the machine and conditions. On macOS `cargo xtask bench` refuses to start on battery and keeps the machine awake; afterwards, check `pmset -g log` for a power change or sleep during the run.
 - Compare against a saved baseline: `cargo xtask bench --save NAME`, then `cargo xtask bench-report --baseline NEW --against OLD`. The report only calls a change real if it exceeds 5% and the confidence intervals do not overlap.
 - Say what you measured and what you did not.
 
