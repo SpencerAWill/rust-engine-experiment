@@ -80,13 +80,25 @@ You need `cargo-fuzz` and the pinned nightly; the command prints the install lin
 
 ## Reviews before a pull request
 
-Before opening a pull request, review the change three ways, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards.
+Before opening a pull request, review the change from each perspective below, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards.
+
+**Always**
 
 - **Code review** (`/code-review`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
-- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes, and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps).
+- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps).
 - **Documentation review**, by hand: every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` and the roadmap row are current; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
+- **Spec conformance review**, by hand: for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
 
-Triage every finding: fix it, or write in the pull request why you did not. The pull request description summarises the result of each review.
+**When the change touches it.** These are mandatory too, but you may answer "n/a" with the reason.
+
+| Review | Applies when | Asks |
+| --- | --- | --- |
+| **Public API** | a public item is added, changed or removed | Is the change deliberate and recorded? Does each panic have `#[track_caller]`, a `# Panics` section, an actionable message and a `try_` twin? Is the type future-proof (`#[non_exhaustive]`, sealed traits)? |
+| **Determinism** | library code changes, especially iteration, floats, hashing or anything `usize`-dependent | The lints catch banned names, not unordered iteration, platform-width differences, float reduction order or ambient state. Does it give identical results on aarch64, x86_64, wasm and 32-bit? |
+| **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor (see "Benchmarks")? |
+| **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere the facade promises? |
+
+Triage every finding: fix it, or write in the pull request why you did not. The pull request description has a Reviews section that lists all eight reviews with a one-line result each, or `n/a: <reason>` for a triggered review that does not apply.
 
 ## Security
 
