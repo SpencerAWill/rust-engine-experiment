@@ -185,6 +185,61 @@ impl<T> HandleAllocator<T> {
         Some(Handle::new(index, generation))
     }
 
+    /// Allocates exactly `n` handles at once, appending them to `out`.
+    ///
+    /// The handles are exactly the ones `n` calls to [`allocate`](Self::allocate) would issue, in
+    /// the same order, but a batch is several times faster than a loop of single allocations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the allocator fills up before `n` handles are allocated (2³¹−2 slots in use or
+    /// retired). The handles allocated before that stay allocated and in `out`. Use
+    /// [`try_allocate_many`](Self::try_allocate_many) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandleAllocator;
+    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// let mut handles = Vec::new();
+    /// alloc.allocate_many(100, &mut handles);
+    /// assert_eq!(handles.len(), 100);
+    /// ```
+    #[track_caller]
+    pub fn allocate_many(&mut self, n: usize, out: &mut alloc::vec::Vec<Handle<T>>) {
+        let got = self.try_allocate_many(n, out);
+        assert!(
+            got == n,
+            "HandleAllocator::allocate_many: allocator is full (allocated {got} of {n}); \
+             use try_allocate_many to handle this without panicking"
+        );
+    }
+
+    /// Allocates up to `n` handles at once, appending them to `out`, and returns how many it
+    /// allocated.
+    ///
+    /// The handles are exactly the ones `n` calls to [`allocate`](Self::allocate) would issue, in
+    /// the same order. It allocates fewer than `n` only when the allocator fills up.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandleAllocator;
+    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// let mut handles = Vec::new();
+    /// assert_eq!(alloc.try_allocate_many(3, &mut handles), 3);
+    /// assert_eq!(handles.len(), 3);
+    /// assert!(handles.iter().all(|h| alloc.is_alive(*h)));
+    /// ```
+    pub fn try_allocate_many(&mut self, n: usize, out: &mut alloc::vec::Vec<Handle<T>>) -> usize {
+        out.reserve(n.min(self.slots.limit() as usize));
+        let got = self.slots.acquire_many(n, OCCUPIED, |index, generation| {
+            out.push(Handle::new(index, generation));
+        });
+        self.live += got;
+        got
+    }
+
     /// Frees `handle`, making it and every copy of it stale. Returns `false` if it
     /// was already stale.
     ///
@@ -316,6 +371,61 @@ impl<T> fmt::Debug for HandleAllocator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Builds an allocator with some live handles and a free list in a known order.
+    fn churned() -> HandleAllocator<u8> {
+        let mut a = HandleAllocator::<u8>::new();
+        let hs: alloc::vec::Vec<_> = (0..10).map(|_| a.allocate()).collect();
+        for i in [3, 7, 1, 8] {
+            a.free(hs[i]);
+        }
+        a
+    }
+
+    #[test]
+    fn allocate_many_issues_the_same_handles_as_repeated_allocate() {
+        for n in [0, 1, 3, 4, 5, 50] {
+            let mut batch = churned();
+            let mut looped = churned();
+            let mut out = alloc::vec::Vec::new();
+            assert_eq!(batch.try_allocate_many(n, &mut out), n);
+            let expected: alloc::vec::Vec<_> = (0..n).map(|_| looped.allocate()).collect();
+            assert_eq!(out, expected, "n = {n}");
+            assert_eq!(batch.len(), looped.len());
+            batch.assert_invariants();
+            // And the two continue identically afterwards.
+            assert_eq!(batch.allocate(), looped.allocate());
+        }
+    }
+
+    #[test]
+    fn allocate_many_appends_exactly_n_handles() {
+        let mut a = HandleAllocator::<u8>::new();
+        let mut out = alloc::vec::Vec::new();
+        a.allocate_many(4, &mut out);
+        a.allocate_many(2, &mut out);
+        assert_eq!(out.len(), 6);
+        assert_eq!(a.len(), 6);
+        assert!(out.iter().all(|h| a.is_alive(*h)));
+    }
+
+    #[test]
+    #[should_panic(expected = "try_allocate_many")]
+    fn allocate_many_past_the_limit_panics_with_hint() {
+        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        a.allocate_many(3, &mut alloc::vec::Vec::new());
+    }
+
+    #[test]
+    fn allocate_many_stops_at_the_slot_limit_and_reports_how_many() {
+        let mut a = HandleAllocator::<u8>::with_slot_limit(5);
+        let mut out = alloc::vec::Vec::new();
+        assert_eq!(a.try_allocate_many(8, &mut out), 5);
+        assert_eq!(out.len(), 5);
+        assert_eq!(a.len(), 5);
+        assert_eq!(a.try_allocate_many(1, &mut out), 0);
+        a.assert_invariants();
+    }
 
     #[test]
     fn reserve_then_allocate_does_not_reallocate() {

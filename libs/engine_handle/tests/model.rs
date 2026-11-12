@@ -133,6 +133,8 @@ proptest! {
 #[derive(Debug, Clone)]
 enum AllocOp {
     Allocate,
+    /// Allocate this many handles in one batch (lean allocator) or a loop (dense).
+    AllocateMany(u8),
     Free(usize),
     IsAlive(usize),
     /// Keep a handle if `index % k != 0`.
@@ -143,6 +145,7 @@ enum AllocOp {
 fn alloc_op() -> impl Strategy<Value = AllocOp> {
     prop_oneof![
         4 => Just(AllocOp::Allocate),
+        1 => (0_u8..40).prop_map(AllocOp::AllocateMany),
         3 => any::<usize>().prop_map(AllocOp::Free),
         2 => any::<usize>().prop_map(AllocOp::IsAlive),
         1 => (1_u32..8).prop_map(AllocOp::Retain),
@@ -165,6 +168,13 @@ fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
                 let h = alloc.allocate();
                 assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
                 issued.push(h);
+            }
+            AllocOp::AllocateMany(n) => {
+                for _ in 0..n {
+                    let h = alloc.allocate();
+                    assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
+                    issued.push(h);
+                }
             }
             AllocOp::Free(i) => {
                 if let Some(h) = pick(i) {
@@ -226,6 +236,16 @@ fn run_lean_against_dense(ops: &[AllocOp]) {
                 assert_eq!(a, b, "allocators issued different handles");
                 assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
                 issued.push(a);
+            }
+            AllocOp::AllocateMany(n) => {
+                let mut batch = Vec::new();
+                lean.allocate_many(usize::from(n), &mut batch);
+                for a in batch {
+                    let b = dense.allocate();
+                    assert_eq!(a, b, "batch and loop issued different handles");
+                    assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
+                    issued.push(a);
+                }
             }
             AllocOp::Free(i) => {
                 if let Some(h) = pick(i) {

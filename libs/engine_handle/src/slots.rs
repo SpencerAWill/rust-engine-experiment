@@ -149,6 +149,46 @@ impl SlotTable {
         Some((index, NonZeroU32::MIN))
     }
 
+    /// Acquires up to `n` slots exactly as `n` calls to [`acquire`](Self::acquire) would (free
+    /// list first, then fresh slots in ascending order), calling `emit` with each. Returns how
+    /// many it acquired, which is less than `n` only at the slot limit.
+    pub(crate) fn acquire_many(
+        &mut self,
+        n: usize,
+        link: u32,
+        mut emit: impl FnMut(u32, NonZeroU32),
+    ) -> usize {
+        debug_assert!(link < MAX_SLOTS, "link {link} out of range");
+        let mut remaining = n;
+        while remaining > 0 {
+            let Some(index) = self.free_head else { break };
+            let slot = &mut self.slots[index as usize];
+            let SlotState::Vacant { next_free } = slot.state() else {
+                debug_assert!(false, "free list points at non-vacant slot {index}");
+                break;
+            };
+            self.free_head = next_free;
+            slot.link = link;
+            emit(index, slot.generation);
+            remaining -= 1;
+        }
+        let room = (self.limit as usize).saturating_sub(self.slots.len());
+        let fresh = remaining.min(room);
+        let start = self.slots.len();
+        self.slots.reserve(fresh);
+        self.slots.extend(core::iter::repeat_n(
+            Slot {
+                generation: NonZeroU32::MIN,
+                link,
+            },
+            fresh,
+        ));
+        for index in start..start + fresh {
+            emit(to_u32(index), NonZeroU32::MIN);
+        }
+        n - remaining + fresh
+    }
+
     /// The raw link of slot `index` if its generation is `generation`, else `None`.
     ///
     /// The link is only meaningful for an occupied slot. Vacant and retired links are at least
