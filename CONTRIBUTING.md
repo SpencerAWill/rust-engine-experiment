@@ -1,6 +1,13 @@
 # Contributing
 
-Thanks for your interest. This is an experimental engine: APIs change, and some decisions are deliberately deferred (see `docs/design/`). For anything beyond a small fix, **open an issue first** so we can agree on the direction before you spend time on it.
+Thanks for your interest. This is an experimental engine: APIs change, and some decisions are deliberately deferred (see the [roadmap](docs/roadmap.md)). For anything beyond a small fix, **open an issue first** so we can agree on the direction before you spend time on it.
+
+## How work is organized
+
+- Work is planned in [docs/roadmap.md](docs/roadmap.md): milestones, broken into **chunks** of about one pull request each.
+- Each chunk has a `spec.md` and a `plan.md`, copied from [docs/design/_template/](docs/design/_template/). The maintainer reviews them before implementation starts.
+- Pull request titles end with the chunk ID, for example `feat(fuzz): fuzz HandlePool against a model (M2.1)`.
+- Ideas, bugs and questions that are not scheduled go into issues. When one is scheduled, a chunk spec links it.
 
 ## Licence and originality
 

@@ -10,6 +10,10 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 - **Toolchain:** pinned Rust is now 1.99.1 (from 1.97.0), and `rust-version` (the MSRV) is 1.99. `Prng::fill_bytes` uses `as_chunks_mut` (a new clippy lint); its output is unchanged and covered by the golden tests.
 - **CI:** `actions/checkout` 7.0.1 and `actions/upload-artifact` 7.0.2 (still pinned to commit hashes), and the devcontainer `rust` feature 1.6.1.
 
+### Documentation
+
+- **Process:** work is now planned in `docs/roadmap.md` as small chunks, each with a spec and plan from `docs/design/_template/`. Milestones after M0+M1 are renumbered (the roadmap maps old to new numbers); plans are kept as historical records, and the M0+M1 plan is restored.
+
 ### Added
 
 - **Workspace and policy (M0):** pinned toolchain, lint policy, determinism bans in `clippy.toml`, `cargo-deny`, dual MIT/Apache licensing, ADRs 0001-0011, and `cargo xtask` (fmt, clippy, test, doc, deny, no-std, wasm, check-unsafe, check-statics, check-workflows, bench, bench-smoke, bench-report, prng-stats, ci). GitHub Actions are pinned to commit hashes and use a read-only token.

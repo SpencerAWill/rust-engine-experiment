@@ -1,6 +1,6 @@
 # Guide for AI coding assistants
 
-This file is a short entry point. The rules are in [CONTRIBUTING.md](CONTRIBUTING.md); read it first. Design background is in [docs/README.md](docs/README.md).
+This file is a short entry point. The rules are in [CONTRIBUTING.md](CONTRIBUTING.md); read it first. Design background is in [docs/README.md](docs/README.md). What is planned next, and its status, is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Commands
 
@@ -21,6 +21,7 @@ cargo xtask test        # nextest plus doctests
 
 ## How to work here
 
+- **Chunks and gates.** Work happens in chunks (see the roadmap). Write the chunk's spec and plan from [docs/design/_template/](docs/design/_template/) and stop for the maintainer to review both. If the chunk adds or changes an ADR, a public API, or a frozen format, stop after the spec, and write the plan only once the spec is accepted. Record anything that differs from the plan in its Deviations section.
 - **Test first.** For a bug fix, write the test, watch it fail for the reason you expect, then fix the code. Never weaken or delete a failing test without saying so.
 - **Verify before claiming.** Run the command and read its output; do not infer success from the diff.
 - **Stop and ask** before changing a public API, a frozen format, or a policy, and before anything outward-facing (a push to a shared branch, a merge, a publish).
