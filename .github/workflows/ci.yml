@@ -165,10 +165,7 @@ jobs:
       - run: cargo xtask bench-build
       - run: cargo xtask bench-smoke
 
-  # macOS and Windows legs run on pull requests only, to conserve private-repo minutes.
-  # When the repo is public: remove this if (spec §4.7).
   os-matrix:
-    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
