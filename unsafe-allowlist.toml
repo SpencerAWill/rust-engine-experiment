@@ -1,0 +1,7 @@
+# Crates permitted to contain `unsafe` code (spec §4.3, ADR 0001).
+# Every other crate root must carry #![forbid(unsafe_code)]; `cargo xtask check-unsafe` enforces it.
+# Format (one table per crate, with the ADR that justifies it):
+#
+#   [[crate]]
+#   name = "engine_ffi"
+#   adr = "docs/adr/0010-ffi-unsafe.md"
