@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_handle::{DenseHandleAllocator, Handle, HandlePool};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -153,7 +153,7 @@ fn alloc_op() -> impl Strategy<Value = AllocOp> {
 /// Runs `ops` against the allocator and a `BTreeSet` model; returns every handle issued
 /// and the `iter()` order after each step.
 fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
-    let mut alloc = HandleAllocator::<u8>::new();
+    let mut alloc = DenseHandleAllocator::<u8>::new();
     let mut model = BTreeSet::<u64>::new();
     let mut issued: Vec<Handle<u8>> = Vec::new();
     let mut trace = Vec::new();

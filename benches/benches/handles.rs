@@ -17,7 +17,7 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_handle::{DenseHandleAllocator, Handle, HandlePool};
 use engine_random::Prng;
 use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
@@ -505,14 +505,14 @@ trait Alloc {
     fn is_alive(&self, k: Self::Key) -> bool;
 }
 
-struct EngineAlloc(HandleAllocator<()>);
+struct EngineAlloc(DenseHandleAllocator<()>);
 struct SlotAlloc(SlotMap<DefaultKey, ()>);
 
 impl Alloc for EngineAlloc {
     type Key = Handle<()>;
     const NAME: &'static str = "engine_handle";
     fn new() -> Self {
-        Self(HandleAllocator::new())
+        Self(DenseHandleAllocator::new())
     }
     fn allocate(&mut self) -> Handle<()> {
         self.0.allocate()

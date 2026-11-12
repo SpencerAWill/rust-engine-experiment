@@ -1,4 +1,4 @@
-//! [`HandleAllocator`]: handle allocation without value storage.
+//! [`DenseHandleAllocator`]: handle allocation without value storage, with iteration over live handles.
 
 use core::fmt;
 use core::iter::FusedIterator;
@@ -25,11 +25,11 @@ fn retype<A, B>(handle: Handle<A>) -> Handle<B> {
 /// # Examples
 ///
 /// ```
-/// use engine_handle::HandleAllocator;
+/// use engine_handle::DenseHandleAllocator;
 ///
 /// struct Entity;
 ///
-/// let mut entities = HandleAllocator::<Entity>::new();
+/// let mut entities = DenseHandleAllocator::<Entity>::new();
 /// let a = entities.allocate();
 /// assert!(entities.is_alive(a));
 /// assert!(entities.free(a));
@@ -37,19 +37,19 @@ fn retype<A, B>(handle: Handle<A>) -> Handle<B> {
 /// let b = entities.allocate(); // same slot, next generation
 /// assert_eq!((b.index(), b.generation().get()), (a.index(), 2));
 /// ```
-pub struct HandleAllocator<T> {
+pub struct DenseHandleAllocator<T> {
     pool: HandlePool<()>,
     _marker: PhantomData<fn() -> T>,
 }
 
-impl<T> HandleAllocator<T> {
+impl<T> DenseHandleAllocator<T> {
     /// Creates an empty allocator. Does not allocate.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// assert!(HandleAllocator::<u8>::new().is_empty());
+    /// # use engine_handle::DenseHandleAllocator;
+    /// assert!(DenseHandleAllocator::<u8>::new().is_empty());
     /// ```
     #[inline]
     pub const fn new() -> Self {
@@ -64,8 +64,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let _ = HandleAllocator::<u8>::with_capacity(64);
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let _ = DenseHandleAllocator::<u8>::with_capacity(64);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -93,8 +93,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.is_alive(h));
     /// ```
@@ -103,7 +103,7 @@ impl<T> HandleAllocator<T> {
     pub fn allocate(&mut self) -> Handle<T> {
         let Some(handle) = self.try_allocate() else {
             panic!(
-                "HandleAllocator::allocate: allocator is full (2^31-2 slots in use or retired); \
+                "DenseHandleAllocator::allocate: allocator is full (2^31-2 slots in use or retired); \
                  use try_allocate to handle this without panicking"
             )
         };
@@ -115,8 +115,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// assert!(alloc.try_allocate().is_some());
     /// ```
     pub fn try_allocate(&mut self) -> Option<Handle<T>> {
@@ -129,8 +129,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.free(h));
     /// assert!(!alloc.free(h));
@@ -144,8 +144,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.is_alive(h));
     /// ```
@@ -159,8 +159,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let _ = alloc.allocate();
     /// assert_eq!(alloc.len(), 1);
     /// ```
@@ -174,8 +174,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// assert!(HandleAllocator::<u8>::new().is_empty());
+    /// # use engine_handle::DenseHandleAllocator;
+    /// assert!(DenseHandleAllocator::<u8>::new().is_empty());
     /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -187,8 +187,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// alloc.clear();
     /// assert!(!alloc.is_alive(h));
@@ -202,13 +202,13 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// let a = alloc.allocate();
     /// assert_eq!(alloc.iter().next(), Some(a));
     /// ```
-    pub fn iter(&self) -> AllocIter<'_, T> {
-        AllocIter {
+    pub fn iter(&self) -> DenseAllocIter<'_, T> {
+        DenseAllocIter {
             inner: self.pool.iter(),
             _marker: PhantomData,
         }
@@ -220,8 +220,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
     /// for _ in 0..4 {
     ///     let _ = alloc.allocate();
     /// }
@@ -246,13 +246,13 @@ impl<T> HandleAllocator<T> {
     }
 }
 
-impl<T> Default for HandleAllocator<T> {
+impl<T> Default for DenseHandleAllocator<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Clone for HandleAllocator<T> {
+impl<T> Clone for DenseHandleAllocator<T> {
     fn clone(&self) -> Self {
         Self {
             pool: self.pool.clone(),
@@ -261,34 +261,34 @@ impl<T> Clone for HandleAllocator<T> {
     }
 }
 
-impl<T> fmt::Debug for HandleAllocator<T> {
-    /// Prints `HandleAllocator<T> [Handle<T>(0v1), ...]`, listing the live handles.
+impl<T> fmt::Debug for DenseHandleAllocator<T> {
+    /// Prints `DenseHandleAllocator<T> [Handle<T>(0v1), ...]`, listing the live handles.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("HandleAllocator<")?;
+        f.write_str("DenseHandleAllocator<")?;
         write_short_type_name::<T>(f)?;
         f.write_str("> ")?;
         f.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<'a, T> IntoIterator for &'a HandleAllocator<T> {
+impl<'a, T> IntoIterator for &'a DenseHandleAllocator<T> {
     type Item = Handle<T>;
-    type IntoIter = AllocIter<'a, T>;
+    type IntoIter = DenseAllocIter<'a, T>;
 
-    fn into_iter(self) -> AllocIter<'a, T> {
+    fn into_iter(self) -> DenseAllocIter<'a, T> {
         self.iter()
     }
 }
 
-/// Iterator over the live handles of a [`HandleAllocator`], in dense order.
+/// Iterator over the live handles of a [`DenseHandleAllocator`], in dense order.
 ///
-/// Returned by [`HandleAllocator::iter`]; it is `ExactSizeIterator + FusedIterator`.
-pub struct AllocIter<'a, T> {
+/// Returned by [`DenseHandleAllocator::iter`]; it is `ExactSizeIterator + FusedIterator`.
+pub struct DenseAllocIter<'a, T> {
     inner: Iter<'a, ()>,
     _marker: PhantomData<fn() -> T>,
 }
 
-impl<T> Clone for AllocIter<'_, T> {
+impl<T> Clone for DenseAllocIter<'_, T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -297,7 +297,7 @@ impl<T> Clone for AllocIter<'_, T> {
     }
 }
 
-impl<T> Iterator for AllocIter<'_, T> {
+impl<T> Iterator for DenseAllocIter<'_, T> {
     type Item = Handle<T>;
 
     #[inline]
@@ -311,12 +311,12 @@ impl<T> Iterator for AllocIter<'_, T> {
     }
 }
 
-impl<T> ExactSizeIterator for AllocIter<'_, T> {}
-impl<T> FusedIterator for AllocIter<'_, T> {}
+impl<T> ExactSizeIterator for DenseAllocIter<'_, T> {}
+impl<T> FusedIterator for DenseAllocIter<'_, T> {}
 
-impl<T> fmt::Debug for AllocIter<'_, T> {
+impl<T> fmt::Debug for DenseAllocIter<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AllocIter")
+        f.debug_struct("DenseAllocIter")
             .field("remaining", &self.len())
             .finish_non_exhaustive()
     }
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn free_returns_false_for_stale_handle() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = DenseHandleAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.is_alive(h));
         assert!(a.free(h));
@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn allocate_after_free_reuses_slot_lifo_with_next_generation() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = DenseHandleAllocator::<u8>::new();
         let first = a.allocate();
         let second = a.allocate();
         a.free(first);
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn try_allocate_returns_none_at_the_slot_limit() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(2);
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_none());
@@ -364,14 +364,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_allocate")]
     fn allocate_past_limit_panics_with_hint() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(1);
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(1);
         let _ = a.allocate();
         let _ = a.allocate();
     }
 
     #[test]
     fn iter_retain_clear_and_len() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = DenseHandleAllocator::<u8>::new();
         let hs: Vec<_> = (0..6).map(|_| a.allocate()).collect();
         assert_eq!(a.len(), 6);
         assert_eq!(a.iter().len(), 6);
@@ -388,12 +388,12 @@ mod tests {
 
     #[test]
     fn debug_lists_live_handles() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = DenseHandleAllocator::<u8>::new();
         let _ = a.allocate();
         let _ = a.allocate();
         assert_eq!(
             alloc::format!("{a:?}"),
-            "HandleAllocator<u8> [Handle<u8>(0v1), Handle<u8>(1v1)]"
+            "DenseHandleAllocator<u8> [Handle<u8>(0v1), Handle<u8>(1v1)]"
         );
     }
 }

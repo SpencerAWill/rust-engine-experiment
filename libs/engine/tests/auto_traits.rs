@@ -7,7 +7,7 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use engine::handle::{CapacityError, Handle, HandleAllocator, HandlePool};
+use engine::handle::{CapacityError, DenseHandleAllocator, Handle, HandlePool};
 use engine::math::convert::CoordinateSystem;
 use engine::math::{Transform, Transform2d, WorldTransform, WorldTransform2d};
 use engine::random::Prng;
@@ -21,7 +21,7 @@ fn assert_traits<T: Send + Sync + Debug>() {}
 fn handle_types_are_send_sync_debug() {
     assert_traits::<Handle<Rc<u8>>>();
     assert_traits::<HandlePool<u8>>();
-    assert_traits::<HandleAllocator<Rc<u8>>>();
+    assert_traits::<DenseHandleAllocator<Rc<u8>>>();
     assert_traits::<CapacityError<u8>>();
 }
 
