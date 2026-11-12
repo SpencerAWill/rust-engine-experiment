@@ -1,0 +1,9 @@
+{
+  "name": "rust-engine-experiment-tooling",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck"
+  }
+}
