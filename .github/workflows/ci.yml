@@ -184,6 +184,30 @@ jobs:
       - run: cargo install --locked cargo-fuzz
       - run: cargo xtask fuzz-build
 
+  # Report only: it has no threshold, so it fails only when a test fails (which `test` already
+  # gates), and it is deliberately not a required check.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup show
+      - run: rustup component add llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - run: cargo xtask coverage
+      - run: cat target/llvm-cov/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-report
+          retention-days: 30
+          path: |
+            target/llvm-cov/html
+            target/llvm-cov/lcov.info
+
   os-matrix:
     strategy:
       fail-fast: false
