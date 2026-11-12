@@ -10,7 +10,7 @@ Experimental. All crates are `0.x`, `publish = false`, and their APIs are explic
 
 | Crate | Purpose | Why it is a separate crate |
 |---|---|---|
-| `engine_handle` | Generational handles, `HandlePool<T>`, `HandleAllocator<T>` | Platform (`no_std` + `alloc`), dependency-free; FFI exposure; layering |
+| `engine_handle` | Generational handles, `HandlePool<T>`, `HandleAllocator<T>` (lean), `DenseHandleAllocator<T>` (iterable) | Platform (`no_std` + `alloc`), dependency-free; FFI exposure; layering |
 | `engine_random` | Deterministic PRNG with frozen output streams | Stability; platform (`no_std`, no `alloc`); independent reuse |
 | `engine_time` | `Tick`, `FixedTimestep`, `TimeSource`, clocks | Platform (`no_std` core, `std` feature); independent reuse; layering |
 | `engine_math` | glam re-exports, `Transform` (local, large-world, 2D), coordinate conversion | Dependencies (`glam`); platform (`std`) |

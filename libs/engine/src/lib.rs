@@ -9,7 +9,7 @@
 //!
 //! | Module | Crate | What it is |
 //! |---|---|---|
-//! | [`handle`] | `engine_handle` | Typed generational [`Handle`](handle::Handle)s, a dense [`HandlePool`](handle::HandlePool), and a [`DenseHandleAllocator`](handle::DenseHandleAllocator) |
+//! | [`handle`] | `engine_handle` | Typed generational [`Handle`](handle::Handle)s, a dense [`HandlePool`](handle::HandlePool), and two allocators: the lean [`HandleAllocator`](handle::HandleAllocator) and the iterable [`DenseHandleAllocator`](handle::DenseHandleAllocator) |
 //! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
 //! | [`math`] | `engine_math` | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
@@ -54,7 +54,7 @@ pub use engine_time as time;
 ///
 /// Only this facade has a prelude: the leaf crates expose a small, flat public surface instead.
 pub mod prelude {
-    pub use engine_handle::{DenseHandleAllocator, Handle, HandlePool};
+    pub use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
     pub use engine_math::{
         DVec2, DVec3, Mat4, Quat, Transform, Transform2d, Vec2, Vec3, Vec4, WorldTransform,
         WorldTransform2d, axis,

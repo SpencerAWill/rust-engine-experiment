@@ -13,6 +13,16 @@
 //! - Everything is deterministic: the handles and iteration order a pool produces
 //!   are a pure function of the sequence of operations performed on it.
 //!
+//! # Choosing a container
+//!
+//! | Need | Use |
+//! | --- | --- |
+//! | Store values, iterate them contiguously | [`HandlePool`] |
+//! | Only IDs (data lives elsewhere), no iteration | [`HandleAllocator`] |
+//! | Only IDs, and iterate the live ones | [`DenseHandleAllocator`] |
+//!
+//! All three issue identical handles for the same sequence of operations.
+//!
 //! # Known limitation
 //!
 //! A [`Handle<T>`] issued by one pool and used on a *different* pool of the same
