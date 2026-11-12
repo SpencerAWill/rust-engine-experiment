@@ -23,6 +23,28 @@ jobs:
           tool: cargo-nextest,cargo-deny,wasmtime
       - run: cargo xtask ci
 
+  # Property tests at 100,000 cases each (the default is 256). Some failures only show at this
+  # depth, such as float-tolerance bugs, so this is where the next one gets caught. A failing
+  # run uploads the shrunk counterexamples that proptest saves.
+  deep-properties:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PROPTEST_CASES: "100000"
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo xtask test --release
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: proptest-regressions
+          path: "**/*.proptest-regressions"
+
   os-matrix:
     strategy:
       fail-fast: false
