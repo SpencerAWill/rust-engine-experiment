@@ -327,13 +327,20 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::Deny,
             Command::BenchBuild,
             Command::BenchSmoke,
+            Command::FuzzBuild,
         ]);
     }
     steps
 }
 
+/// Runs the `ci` steps. `fuzz-build` is strict only under `CI` (GitHub Actions sets it): on a
+/// contributor's machine a missing nightly or `cargo-fuzz` prints a skip note instead, so
+/// unrelated work is not blocked. Run directly, `fuzz-build` is always strict.
 fn ci(quick: bool) -> Result<(), String> {
-    ci_steps(quick).iter().try_for_each(execute)
+    ci_steps(quick).iter().try_for_each(|step| match step {
+        Command::FuzzBuild => fuzz::fuzz_build(std::env::var_os("CI").is_some()),
+        other => execute(other),
+    })
 }
 
 fn execute(command: &Command) -> Result<(), String> {
@@ -584,6 +591,12 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Command::Fuzz(_)))
         );
+    }
+
+    #[test]
+    fn fuzz_build_runs_in_the_full_ci_only() {
+        assert!(ci_steps(false).contains(&Command::FuzzBuild));
+        assert!(!ci_steps(true).contains(&Command::FuzzBuild));
     }
 
     #[test]
