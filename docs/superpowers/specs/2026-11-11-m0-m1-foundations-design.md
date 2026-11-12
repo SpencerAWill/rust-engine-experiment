@@ -1,7 +1,7 @@
 # M0+M1: Engineering Foundations and Core Primitives — Design Spec
 
 - **Date:** 2026-11-11
-- **Status:** Draft, awaiting review
+- **Status:** Approved 2026-11-12
 - **Working name:** `engine` (crates `engine_*`); rename before any publishing.
 - **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
 
