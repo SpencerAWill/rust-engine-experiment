@@ -4,6 +4,7 @@
 - **Status:** Implemented. Approved 2026-11-12 and amended after implementation (amendments are marked "amended 2026-11-12" inline). The code and the ADRs are authoritative where they differ.
 - **Working name:** `engine` (crates `engine_*`); rename before any publishing.
 - **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
+- **Milestone numbering:** this document uses the milestone numbers in force before 2026-11-12. [The roadmap](../../roadmap.md) maps them to the current ones and supersedes §11.
 
 ---
 
@@ -19,7 +20,7 @@
 | How it is tested and benchmarked | §7, §8 |
 | What "done" meant for M0+M1, and what comes next | §9, §10, §11 |
 
-For decisions, prefer the ADRs in `docs/adr/`. The implementation plan for this milestone was removed when it merged; recover it with `git log --diff-filter=D --name-only -- docs/design/m0-m1-foundations/plan.md` and `git show <commit>^:docs/design/m0-m1-foundations/plan.md`.
+For decisions, prefer the ADRs in `docs/adr/`. The implementation plan is [plan.md](plan.md), kept as a historical record.
 
 ---
 
@@ -118,7 +119,7 @@ fuzz/                      cargo-fuzz targets (excluded from workspace; nightly)
 docs/
   adr/                     architecture decision records
   benchmarks.md            methodology, hardware, recorded results
-  design/<milestone>/      design spec for each milestone (this file); its plan sits beside it until the milestone merges
+  design/<milestone>/      design specs and plans, one folder per milestone or chunk (see docs/README.md)
 .github/
   workflows/ci.yml         PR/push CI
   workflows/nightly.yml    scheduled latest-stable CI run (fuzzing added in M2)
@@ -1141,6 +1142,8 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 ---
 
 ## 11. Roadmap after M0+M1
+
+*Superseded by [the roadmap](../../roadmap.md) on 2026-11-12. Kept for the reasoning; the milestone numbers here are the old ones.*
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
