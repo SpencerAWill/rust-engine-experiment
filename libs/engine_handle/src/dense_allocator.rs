@@ -121,6 +121,37 @@ impl<T> DenseHandleAllocator<T> {
         self.pool.try_reserve(additional)
     }
 
+    /// Creates an empty allocator that holds at most `capacity` live handles, allocating all the memory it will
+    /// ever need up front.
+    ///
+    /// After this call, `allocate`, `free`, `clear`, `retain` and `iter` never touch the heap: once full, `try_allocate` returns `None`. Use it when
+    /// the exact heap behaviour must be known in advance, such as a frame budget with no
+    /// allocation or an embedded target. Allocation failure is handled as for
+    /// `Vec::with_capacity`.
+    ///
+    /// The capacity counts slots, and a slot that has been reused 2³²−1 times is retired for
+    /// good, so a very long-lived container can end up with slightly less room than `capacity`.
+    /// Calling [`reserve`](Self::reserve) can still grow the memory, because it is an explicit
+    /// request to allocate; the capacity limit keeps applying.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::with_fixed_capacity(2);
+    /// let a = alloc.allocate();
+    /// let _b = alloc.allocate();
+    /// assert!(alloc.try_allocate().is_none()); // full: no growth
+    /// alloc.free(a);
+    /// assert!(alloc.try_allocate().is_some()); // a freed slot is reused
+    /// ```
+    pub fn with_fixed_capacity(capacity: usize) -> Self {
+        Self {
+            pool: HandlePool::with_fixed_capacity(capacity),
+            _marker: PhantomData,
+        }
+    }
+
     /// An allocator that holds at most `limit` slots, for testing the full path.
     #[cfg(test)]
     pub(crate) fn with_slot_limit(limit: u32) -> Self {
@@ -150,8 +181,9 @@ impl<T> DenseHandleAllocator<T> {
     pub fn allocate(&mut self) -> Handle<T> {
         let Some(handle) = self.try_allocate() else {
             panic!(
-                "DenseHandleAllocator::allocate: allocator is full (2^31-2 slots in use or retired); \
-                 use try_allocate to handle this without panicking"
+                "DenseHandleAllocator::allocate: allocator is full ({} slots in use or retired); \
+                 use try_allocate to handle this without panicking",
+                self.pool.slot_limit()
             )
         };
         handle
@@ -375,6 +407,22 @@ mod tests {
     use alloc::vec::Vec;
 
     #[test]
+    fn fixed_capacity_dense_allocator_never_grows_and_reports_full() {
+        let mut a = DenseHandleAllocator::<u8>::with_fixed_capacity(4);
+        let slots = a.pool.slot_capacity();
+        let mut hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
+        assert!(a.try_allocate().is_none());
+        for _ in 0..50 {
+            for h in &hs {
+                assert!(a.free(*h));
+            }
+            hs = (0..4).map(|_| a.allocate()).collect();
+        }
+        a.check_invariants().expect("invariants hold");
+        assert_eq!(a.pool.slot_capacity(), slots);
+    }
+
+    #[test]
     fn reserve_makes_room_in_every_array() {
         let mut a = DenseHandleAllocator::<u8>::new();
         a.reserve(100);
@@ -434,6 +482,14 @@ mod tests {
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "full (1 slots")]
+    fn allocate_past_a_small_limit_names_that_limit() {
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(1);
+        let _ = a.allocate();
+        let _ = a.allocate();
     }
 
     #[test]

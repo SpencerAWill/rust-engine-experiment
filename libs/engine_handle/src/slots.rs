@@ -104,6 +104,17 @@ impl SlotTable {
         }
     }
 
+    /// A table that never holds more than `capacity` slots (at most [`MAX_SLOTS`]), with all the
+    /// room allocated up front.
+    pub(crate) fn with_fixed_capacity(capacity: usize) -> Self {
+        let limit = to_u32(capacity.min(MAX_SLOTS as usize));
+        Self {
+            slots: Vec::with_capacity(limit as usize),
+            limit,
+            ..Self::new()
+        }
+    }
+
     /// A table that holds at most `limit` slots, for testing the full path.
     #[cfg(test)]
     pub(crate) fn with_limit(limit: u32) -> Self {

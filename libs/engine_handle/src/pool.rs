@@ -167,6 +167,11 @@ impl<T> HandlePool<T> {
             .try_reserve_slots(self.len().saturating_add(additional))
     }
 
+    /// The most slots this pool will create.
+    pub(crate) const fn slot_limit(&self) -> u32 {
+        self.slots.limit()
+    }
+
     /// Slots the pool can hold without reallocating its slot array.
     #[cfg(test)]
     pub(crate) fn slot_capacity(&self) -> usize {
@@ -179,6 +184,40 @@ impl<T> HandlePool<T> {
         Self {
             slots: SlotTable::with_limit(limit),
             ..Self::new()
+        }
+    }
+
+    /// Creates an empty pool that holds at most `capacity` values, allocating all the memory it will
+    /// ever need up front.
+    ///
+    /// After this call, `insert`, `remove`, `clear`, `retain` and `drain` never touch the heap: once full, `try_insert` returns a `CapacityError`. Use it when
+    /// the exact heap behaviour must be known in advance, such as a frame budget with no
+    /// allocation or an embedded target. Allocation failure is handled as for
+    /// `Vec::with_capacity`.
+    ///
+    /// The capacity counts slots, and a slot that has been reused 2³²−1 times is retired for
+    /// good, so a very long-lived container can end up with slightly less room than `capacity`.
+    /// Calling [`reserve`](Self::reserve) can still grow the memory, because it is an explicit
+    /// request to allocate; the capacity limit keeps applying.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::with_fixed_capacity(2);
+    /// let a = pool.insert('a');
+    /// let _b = pool.insert('b');
+    /// assert!(pool.try_insert('c').is_err()); // full: no growth
+    /// pool.remove(a);
+    /// assert!(pool.try_insert('c').is_ok()); // a freed slot is reused
+    /// ```
+    pub fn with_fixed_capacity(capacity: usize) -> Self {
+        let slots = SlotTable::with_fixed_capacity(capacity);
+        let room = slots.limit() as usize;
+        Self {
+            slots,
+            handles: Vec::with_capacity(room),
+            values: Vec::with_capacity(room),
         }
     }
 
@@ -862,6 +901,33 @@ mod tests {
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
         assert_eq!(p.remove(forged), None);
+    }
+
+    #[test]
+    fn fixed_capacity_pool_never_grows_and_reports_full() {
+        let mut p = HandlePool::<u64>::with_fixed_capacity(8);
+        let (values, slots) = (p.capacity(), p.slot_capacity());
+        assert!(values >= 8 && slots >= 8);
+        let mut hs: Vec<_> = (0..8).map(|i| p.insert(i)).collect();
+        let full = p.try_insert(99).unwrap_err();
+        assert_eq!((full.limit(), full.into_inner()), (8, 99));
+        for round in 0..100_u64 {
+            let h = hs.remove(usize::try_from(round % 8).unwrap());
+            p.remove(h);
+            hs.push(p.insert(round));
+        }
+        p.clear();
+        for i in 0..8 {
+            let _ = p.insert(i);
+        }
+        p.check_invariants().expect("invariants hold");
+        assert_eq!((p.capacity(), p.slot_capacity()), (values, slots));
+    }
+
+    #[test]
+    fn fixed_capacity_zero_holds_nothing() {
+        let mut p = HandlePool::<u8>::with_fixed_capacity(0);
+        assert!(p.try_insert(1).is_err());
     }
 
     #[test]

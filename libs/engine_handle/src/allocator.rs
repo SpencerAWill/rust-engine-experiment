@@ -135,6 +135,38 @@ impl<T> HandleAllocator<T> {
             .try_reserve_slots(self.live.saturating_add(additional))
     }
 
+    /// Creates an empty allocator that holds at most `capacity` live handles, allocating all the memory it will
+    /// ever need up front.
+    ///
+    /// After this call, `allocate`, `free` and `clear` never touch the heap: once full, `try_allocate` returns `None`. Use it when
+    /// the exact heap behaviour must be known in advance, such as a frame budget with no
+    /// allocation or an embedded target. Allocation failure is handled as for
+    /// `Vec::with_capacity`.
+    ///
+    /// The capacity counts slots, and a slot that has been reused 2³²−1 times is retired for
+    /// good, so a very long-lived container can end up with slightly less room than `capacity`.
+    /// Calling [`reserve`](Self::reserve) can still grow the memory, because it is an explicit
+    /// request to allocate; the capacity limit keeps applying.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandleAllocator;
+    /// let mut alloc = HandleAllocator::<u8>::with_fixed_capacity(2);
+    /// let a = alloc.allocate();
+    /// let _b = alloc.allocate();
+    /// assert!(alloc.try_allocate().is_none()); // full: no growth
+    /// alloc.free(a);
+    /// assert!(alloc.try_allocate().is_some()); // a freed slot is reused
+    /// ```
+    pub fn with_fixed_capacity(capacity: usize) -> Self {
+        Self {
+            slots: SlotTable::with_fixed_capacity(capacity),
+            live: 0,
+            _marker: PhantomData,
+        }
+    }
+
     /// An allocator that holds at most `limit` slots, for testing the full path.
     #[cfg(test)]
     pub(crate) fn with_slot_limit(limit: u32) -> Self {
@@ -501,6 +533,26 @@ mod tests {
             assert!(a.len() == 0);
             core::mem::forget(a); // a const context cannot run `Drop`
         };
+    }
+
+    #[test]
+    fn fixed_capacity_allocator_never_grows_and_reports_full() {
+        let mut a = HandleAllocator::<u8>::with_fixed_capacity(4);
+        let capacity = a.slots.capacity();
+        assert!(capacity >= 4);
+        let mut hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
+        assert!(a.try_allocate().is_none());
+        assert!(a.try_allocate_many(1).is_none());
+        for _ in 0..50 {
+            for h in &hs {
+                assert!(a.free(*h));
+            }
+            hs = (0..4).map(|_| a.allocate()).collect();
+        }
+        a.clear();
+        assert_eq!(a.try_allocate_many(4).map(|v| v.len()), Some(4));
+        a.check_invariants().expect("invariants hold");
+        assert_eq!(a.slots.capacity(), capacity);
     }
 
     #[test]

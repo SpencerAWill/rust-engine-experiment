@@ -14,6 +14,7 @@ test-invariants = []
 
 [dev-dependencies]
 proptest = { workspace = true }
+dhat = "0.3"
 # Self dev-dependency: enables `test-invariants` for integration tests even without --all-features
 # (the wasm CI step runs `cargo test` without it).
 engine_handle = { path = ".", features = ["test-invariants"] }
