@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["xtask"]   # "libs/*", "examples/*" added when the first crate exists (Task 5); "benches" in Task 9
+members = ["libs/*", "xtask"]   # "examples/*" added with the first example (Task 19), "benches" in Task 9
 exclude = ["fuzz"]
 
 [workspace.package]
@@ -12,7 +12,8 @@ repository = "https://github.com/SpencerAWill/rust-engine-experiment"
 publish = false
 
 [workspace.dependencies]
-# internal crates are added here as they are created (path + version)
+# internal crates (path + version)
+engine_handle = { path = "libs/engine_handle", version = "0.1.0" }
 glam = { version = "0.30", default-features = false }
 proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)
 
