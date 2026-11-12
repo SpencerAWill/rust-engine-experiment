@@ -10,14 +10,15 @@
 //! Handle pool and allocator comparisons: `engine_handle` vs `slotmap` vs `thunderdome`.
 //!
 //! Every group runs over `N` in `{1_000, 100_000, 1_000_000}` and two value types
-//! (`u64` and a 64-byte `[u64; 8]`). Randomness is a tiny fixed-seed xorshift64,
-//! bench-only (it keeps the shuffles identical across runs and across libraries).
+//! (`u64` and a 64-byte `[u64; 8]`). Randomness comes from `engine_random::Prng` with fixed
+//! seeds, which keeps the shuffles identical across runs and across libraries.
 
 use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_random::Prng;
 use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
 
@@ -25,31 +26,11 @@ const SIZES: [usize; 3] = [1_000, 100_000, 1_000_000];
 /// Sizes for the scenario groups: most simulations live in the cache-resident range.
 const REAL_SIZES: [usize; 4] = [100, 1_000, 10_000, 100_000];
 
-// --- bench-only PRNG ---------------------------------------------------------------------
+// --- seeded randomness ---------------------------------------------------------------------
 
-/// xorshift64: bench-only, not an engine PRNG. Modulo bias is irrelevant here.
-struct XorShift64(u64);
-
-impl XorShift64 {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        x
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
-    }
-}
-
+/// Deterministic shuffle with a fixed seed, so every library sees identical key orders.
 fn shuffle<T>(items: &mut [T]) {
-    let mut rng = XorShift64(0x9E37_79B9_7F4A_7C15);
-    for i in (1..items.len()).rev() {
-        items.swap(i, rng.below(i + 1));
-    }
+    Prng::from_seed(0x9E37_79B9_7F4A_7C15).shuffle(items);
 }
 
 // --- value types ---------------------------------------------------------------------------
@@ -427,13 +408,13 @@ fn bench_frame_update<S: Store<V>, V: Value>(c: &mut Criterion) {
 fn bench_steady_churn<S: Store<V>, V: Value>(c: &mut Criterion) {
     for n in REAL_SIZES {
         let (mut store, mut keys) = filled::<S, V>(n);
-        let mut rng = XorShift64(0xD1B5_4A32_D192_ED03);
+        let mut rng = Prng::from_seed(0xD1B5_4A32_D192_ED03);
         let turnover = (n / 50).max(1);
         let mut next = n as u64;
         real_group(c, "scenario/steady_churn_frame", n).bench_function(id::<S, V>(n), |b| {
             b.iter(|| {
                 for _ in 0..turnover {
-                    let victim = keys.swap_remove(rng.below(keys.len()));
+                    let victim = keys.swap_remove(rng.range(0..keys.len()));
                     black_box(store.remove(victim));
                 }
                 for _ in 0..turnover {
