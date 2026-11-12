@@ -13,10 +13,15 @@ Experimental. All crates are `0.x`, `publish = false`, and their APIs are explic
 | `engine_handle` | Generational handles, `HandlePool<T>`, `HandleAllocator<T>` | Platform (`no_std` + `alloc`), dependency-free; FFI exposure; layering |
 | `engine_random` | Deterministic PRNG with frozen output streams | Stability; platform (`no_std`, no `alloc`); independent reuse |
 | `engine_time` | `Tick`, `FixedTimestep`, `TimeSource`, clocks | Platform (`no_std` core, `std` feature); independent reuse; layering |
-| `engine_math` | glam re-exports, `Transform`, scalar helpers | Dependencies (`glam`); platform (`std`) |
+| `engine_math` | glam re-exports, `Transform` (local, large-world, 2D), coordinate conversion | Dependencies (`glam`); platform (`std`) |
 | `engine` | Facade and `engine::prelude` | The single dependency for users |
 
-Rationale for the splitting rule is in [ADR 0004](docs/adr/0004-crate-splitting-rule.md). The crates are not all present yet; they arrive across the M0+M1 phases.
+Also in the workspace: `examples/fixed_step_sim` (a deterministic headless simulation that uses all
+of the above), `benches/` (`engine_benches`: comparisons against `slotmap`, `thunderdome`, `rand`,
+`rand_xoshiro`, and `fastrand`), and `xtask` (the task runner). Rationale for the splitting rule is
+in [ADR 0004](docs/adr/0004-crate-splitting-rule.md).
+
+Benchmark methodology and results are in [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Quick start
 
@@ -25,7 +30,7 @@ cargo xtask ci          # everything CI runs, in order
 cargo xtask ci --quick  # fmt check, clippy, tests only
 ```
 
-`cargo xtask` is the single entry point for both CI and local runs. It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
+`cargo xtask` is the single entry point for both CI and local runs. Other commands: `bench [--save NAME] [--compare A B]`, `prng-stats` (streams PRNG output for PractRand), `no-std`, `wasm`, `check-unsafe`, `check-statics`. It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
 
 ## Using the engine in your project
 
