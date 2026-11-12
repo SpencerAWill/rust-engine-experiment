@@ -574,7 +574,7 @@ fn bench_allocate<A: Alloc>(c: &mut Criterion) {
     }
 }
 
-/// Spawning `n` handles at once: a loop of `allocate` against `try_allocate_many`, on a fresh
+/// Spawning `n` handles at once: a loop of `allocate` against `allocate_many`, on a fresh
 /// allocator (all new slots) and on one whose free list holds `n` slots (all recycled).
 fn bench_batch_allocate(c: &mut Criterion) {
     for n in SIZES {
@@ -592,13 +592,15 @@ fn bench_batch_allocate(c: &mut Criterion) {
                         a.free(h);
                     }
                 }
-                (a, Vec::<Handle<()>>::with_capacity(n))
+                a
             };
             let mut g = group(c, name, n);
+            // Both variants build their own result vector, so its allocation counts for both.
             g.bench_function(BenchmarkId::new("loop", n), |b| {
                 b.iter_batched(
                     setup,
-                    |(mut a, mut out)| {
+                    |mut a| {
+                        let mut out = Vec::with_capacity(n);
                         for _ in 0..n {
                             out.push(a.allocate());
                         }
@@ -610,8 +612,8 @@ fn bench_batch_allocate(c: &mut Criterion) {
             g.bench_function(BenchmarkId::new("batch", n), |b| {
                 b.iter_batched(
                     setup,
-                    |(mut a, mut out)| {
-                        let _ = a.try_allocate_many(n, &mut out);
+                    |mut a| {
+                        let out = a.allocate_many(n);
                         (a, out)
                     },
                     BatchSize::LargeInput,
