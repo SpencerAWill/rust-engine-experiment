@@ -237,8 +237,8 @@ impl<T> HandleAllocator<T> {
     ///
     /// The handles are exactly the ones `n` calls to [`allocate`](Self::allocate) would issue, in
     /// the same order. A batch also reserves all the room it needs up front, which makes it about
-    /// 2.5x faster than a loop when it has to create new slots, and no faster when it only reuses
-    /// freed ones (see `docs/benchmarks.md`).
+    /// 2x faster than a loop when it has to create new slots. When it only reuses freed slots the
+    /// gain is 1.7-2x up to 100k handles and disappears at 1M (see `docs/benchmarks.md`).
     ///
     /// # Panics
     ///

@@ -573,8 +573,9 @@ impl<T> HandleAllocator<T> {
     #[must_use] pub fn allocate(&mut self) -> Handle<T>;
     /// Fallible twin of `allocate`.
     pub fn try_allocate(&mut self) -> Option<Handle<T>>;
-    /// `n` handles at once, exactly the ones `n` calls to `allocate` would issue. About 2.5x
-    /// faster than a loop when it creates new slots, no faster when it reuses freed ones.
+    /// `n` handles at once, exactly the ones `n` calls to `allocate` would issue. About 2x faster
+    /// than a loop when it creates new slots; reusing freed slots gains 1.7-2x up to 100k handles
+    /// and nothing at 1M (measured; see docs/benchmarks.md).
     /// # Panics: if fewer than `n` slots are available; nothing is allocated. `#[track_caller]`.
     #[must_use] pub fn allocate_many(&mut self, n: usize) -> Vec<Handle<T>>;
     /// All-or-nothing: `None`, with nothing allocated, if fewer than `n` slots are available.
