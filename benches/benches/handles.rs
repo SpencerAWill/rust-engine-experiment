@@ -17,7 +17,7 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use engine_handle::{DenseHandleAllocator, Handle, HandlePool};
+use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
 use engine_random::Prng;
 use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
@@ -506,11 +506,29 @@ trait Alloc {
 }
 
 struct EngineAlloc(DenseHandleAllocator<()>);
+struct LeanAlloc(HandleAllocator<()>);
 struct SlotAlloc(SlotMap<DefaultKey, ()>);
+
+impl Alloc for LeanAlloc {
+    type Key = Handle<()>;
+    const NAME: &'static str = "engine_handle_lean";
+    fn new() -> Self {
+        Self(HandleAllocator::new())
+    }
+    fn allocate(&mut self) -> Handle<()> {
+        self.0.allocate()
+    }
+    fn free(&mut self, k: Handle<()>) -> bool {
+        self.0.free(k)
+    }
+    fn is_alive(&self, k: Handle<()>) -> bool {
+        self.0.is_alive(k)
+    }
+}
 
 impl Alloc for EngineAlloc {
     type Key = Handle<()>;
-    const NAME: &'static str = "engine_handle";
+    const NAME: &'static str = "engine_handle_dense";
     fn new() -> Self {
         Self(DenseHandleAllocator::new())
     }
@@ -643,10 +661,13 @@ fn pool_benches(c: &mut Criterion) {
 
 fn allocator_benches(c: &mut Criterion) {
     bench_allocate::<EngineAlloc>(c);
+    bench_allocate::<LeanAlloc>(c);
     bench_allocate::<SlotAlloc>(c);
     bench_free_realloc_churn::<EngineAlloc>(c);
+    bench_free_realloc_churn::<LeanAlloc>(c);
     bench_free_realloc_churn::<SlotAlloc>(c);
     bench_is_alive::<EngineAlloc>(c);
+    bench_is_alive::<LeanAlloc>(c);
     bench_is_alive::<SlotAlloc>(c);
 }
 
