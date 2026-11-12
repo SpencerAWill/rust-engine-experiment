@@ -48,6 +48,7 @@ enum Command {
     BenchSmoke,
     BenchDoc(bench_doc::Options),
     Hack,
+    Coverage(coverage::Options),
     Fuzz(fuzz::Options),
     FuzzBuild,
     FuzzToolchain,
@@ -66,7 +67,8 @@ enum Command {
 /// Parses command-line arguments (without the program name).
 fn parse(args: &[&str]) -> Result<Command, String> {
     let (name, flags) = args.split_first().ok_or_else(|| {
-        "missing command (try: fmt, clippy, test, doc, deny, fuzz, ci)".to_string()
+        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], fuzz, ci)"
+            .to_string()
     })?;
     let has = |flag: &str| flags.contains(&flag);
     let only = |allowed: &[&str]| -> Result<(), String> {
@@ -96,6 +98,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "bench-smoke" => only(&[]).map(|()| Command::BenchSmoke),
         "bench-doc" => bench_doc::parse_flags(flags).map(Command::BenchDoc),
         "hack" => only(&[]).map(|()| Command::Hack),
+        "coverage" => coverage::parse_flags(flags).map(Command::Coverage),
         "fuzz" => fuzz::parse_flags(flags).map(Command::Fuzz),
         "fuzz-build" => only(&[]).map(|()| Command::FuzzBuild),
         "fuzz-toolchain" => only(&[]).map(|()| Command::FuzzToolchain),
@@ -395,6 +398,7 @@ fn execute(command: &Command) -> Result<(), String> {
                 &[],
             )
         }
+        Command::Coverage(options) => coverage::coverage(options),
         Command::Fuzz(options) => fuzz::fuzz(options),
         Command::FuzzBuild => fuzz::fuzz_build(true),
         Command::FuzzToolchain => {
@@ -598,6 +602,23 @@ mod tests {
     fn fuzz_build_runs_in_the_full_ci_only() {
         assert!(ci_steps(false).contains(&Command::FuzzBuild));
         assert!(!ci_steps(true).contains(&Command::FuzzBuild));
+    }
+
+    #[test]
+    fn coverage_parses_and_is_not_a_ci_step() {
+        assert!(matches!(parse(&["coverage"]), Ok(Command::Coverage(_))));
+        assert!(matches!(
+            parse(&["coverage", "--open"]),
+            Ok(Command::Coverage(_))
+        ));
+        assert!(parse(&["coverage", "--x"]).is_err());
+        for quick in [false, true] {
+            assert!(
+                !ci_steps(quick)
+                    .iter()
+                    .any(|c| matches!(c, Command::Coverage(_)))
+            );
+        }
     }
 
     #[test]
