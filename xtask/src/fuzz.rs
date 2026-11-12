@@ -517,12 +517,10 @@ mod tests {
         on_disk
     }
 
-    // Until every target exists (M2.1 Step 5) only this direction can hold. The full `ci` also
-    // runs ignored tests, so the test cannot simply be `#[ignore]`d in the meantime.
     #[test]
-    fn every_target_file_on_disk_is_listed() {
-        for file in target_files_on_disk() {
-            assert!(TARGETS.contains(&file.as_str()), "{file} is not in TARGETS");
-        }
+    fn targets_match_the_files_on_disk() {
+        let mut listed: Vec<String> = TARGETS.iter().map(|t| (*t).to_string()).collect();
+        listed.sort();
+        assert_eq!(listed, target_files_on_disk());
     }
 }
