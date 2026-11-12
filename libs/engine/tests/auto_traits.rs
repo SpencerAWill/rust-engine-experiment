@@ -2,6 +2,7 @@
 //!
 //! Handles and allocators are generic over a phantom type, so they are checked with a
 //! non-`Send` type parameter (`Rc<u8>`) to prove the marker does not leak into them.
+#![forbid(unsafe_code)]
 
 use std::fmt::Debug;
 use std::rc::Rc;

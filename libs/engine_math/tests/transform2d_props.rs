@@ -2,6 +2,7 @@
 //!
 //! Scales are uniform where exactness against matrix composition is expected: the per-component
 //! contract matches matrix composition exactly only for a uniform parent scale.
+#![forbid(unsafe_code)]
 
 use core::f32::consts::{PI, TAU};
 

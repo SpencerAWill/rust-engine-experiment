@@ -1,4 +1,5 @@
 //! Property tests for `WorldTransform`: the large-world precision guarantee.
+#![forbid(unsafe_code)]
 
 use engine_math::{DVec3, Quat, Transform, Vec3, WorldTransform};
 use proptest::prelude::*;

@@ -2,6 +2,7 @@
 //!
 //! Scales are uniform: the per-component composition contract matches matrix composition
 //! exactly only then (non-uniform parent scale drops shear; see the `Transform` docs).
+#![forbid(unsafe_code)]
 
 use engine_math::{Mat4, Quat, Transform, Vec3};
 use proptest::prelude::*;

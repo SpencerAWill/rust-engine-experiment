@@ -1,5 +1,6 @@
 //! Snapshots: the whole simulation state is plain data, so cloning it mid-run and continuing
 //! both copies gives identical results (the basis for replays, save/load, and rollback).
+#![forbid(unsafe_code)]
 
 use engine::prelude::*;
 use fixed_step_sim::{Sim, SimConfig};

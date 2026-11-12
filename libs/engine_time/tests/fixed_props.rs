@@ -1,5 +1,6 @@
 //! Property test: splitting elapsed time differently never changes the tick sequence
 //! (as long as the step cap is not hit).
+#![forbid(unsafe_code)]
 
 use std::num::NonZeroU32;
 use std::time::Duration;

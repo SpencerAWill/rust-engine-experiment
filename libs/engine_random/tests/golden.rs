@@ -1,5 +1,6 @@
 //! Frozen golden values. Output streams are stable for all of 0.x: a change here is a
 //! breaking change that requires an ADR. Never regenerate these to make a test pass.
+#![forbid(unsafe_code)]
 
 use engine_random::Prng;
 

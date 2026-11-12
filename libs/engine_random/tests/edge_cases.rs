@@ -1,4 +1,5 @@
 //! Edge cases of the sampling API: full-width ranges, invalid ranges, degenerate inputs.
+#![forbid(unsafe_code)]
 
 use engine_random::Prng;
 

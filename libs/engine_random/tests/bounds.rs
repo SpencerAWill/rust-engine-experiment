@@ -1,5 +1,6 @@
 //! Property tests: `range` never leaves its bounds, and `try_range` rejects exactly the invalid
 //! ranges without drawing.
+#![forbid(unsafe_code)]
 
 use engine_random::Prng;
 use proptest::prelude::*;

@@ -1,5 +1,6 @@
 //! Determinism: the same configuration gives the same result, and only the seeds that matter
 //! change it.
+#![forbid(unsafe_code)]
 
 use fixed_step_sim::{SimConfig, run};
 

@@ -6,6 +6,7 @@
 //! - xoshiro256++ from the state `[1, 2, 3, 4]`: the first output follows by hand from the
 //!   definition, `rotl(1 + 4, 23) + 1 = 5 * 2^23 + 1 = 41943041`; the following values are the
 //!   reference test vector used by xoshiro implementations.
+#![forbid(unsafe_code)]
 
 use engine_random::Prng;
 

@@ -1,4 +1,5 @@
 //! Coordinate-system conversion: presets, round trips, and algebraic consistency.
+#![forbid(unsafe_code)]
 
 use engine_math::convert::{
     CoordinateSystem, SignedAxis, dvec3_from_engine, dvec3_to_engine, quat_from_engine,

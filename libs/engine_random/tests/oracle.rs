@@ -1,5 +1,6 @@
 //! Cross-checks against an independent implementation (`rand_xoshiro`, used as a test
 //! oracle only; nothing is copied from it).
+#![forbid(unsafe_code)]
 
 use engine_random::Prng;
 use rand_xoshiro::rand_core::{Rng, SeedableRng};

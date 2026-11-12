@@ -3,6 +3,7 @@
 //!
 //! Chi-square thresholds are the p = 0.001 critical values, so a correct generator fails a
 //! given fixed seed with probability 0.1%, and the outcome is deterministic.
+#![forbid(unsafe_code)]
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,

@@ -1,5 +1,6 @@
 //! Steady-state allocation test, in its own binary because it installs a global allocator.
 //! `dhat` runs in testing mode, so no `unsafe` is needed in our code.
+#![forbid(unsafe_code)]
 
 use fixed_step_sim::{Sim, SimConfig};
 

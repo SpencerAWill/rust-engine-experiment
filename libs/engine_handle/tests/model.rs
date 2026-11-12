@@ -1,4 +1,5 @@
 //! Model-based property tests: `HandlePool` against a `BTreeMap` reference.
+#![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
 

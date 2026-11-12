@@ -1,4 +1,5 @@
 //! Auto-trait and size guarantees for `Handle`.
+#![forbid(unsafe_code)]
 
 use engine_handle::Handle;
 
