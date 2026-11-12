@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["libs/*", "benches", "xtask"]   # "examples/*" added with the first example (Task 19)
+members = ["libs/*", "examples/*", "benches", "xtask"]
 exclude = ["fuzz"]
 
 [workspace.package]
