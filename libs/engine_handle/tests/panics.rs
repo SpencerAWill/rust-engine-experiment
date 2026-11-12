@@ -1,4 +1,7 @@
 //! Documented panics: location (`#[track_caller]`) and message quality.
+//!
+//! Panics abort on WASI, so these tests run on native targets only (spec §4.7).
+#![cfg(not(target_os = "wasi"))]
 
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;

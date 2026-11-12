@@ -995,6 +995,8 @@ mod tests {
         );
     }
 
+    // Panics abort on WASI, so unwinding tests run on native targets only (spec §4.7).
+    #[cfg(not(target_os = "wasi"))]
     #[test]
     fn retain_panic_leaves_pool_consistent() {
         use std::panic::{AssertUnwindSafe, catch_unwind};
