@@ -1,6 +1,6 @@
 # M2.0 plan: Roadmap and process
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Accepted (2026-11-12)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. "Spec §X" means "use the exact content of that section".
 
 ## 1. Approach

@@ -1,6 +1,6 @@
 # M2.0: Roadmap and process
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Accepted (2026-11-12)
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** none · **Decides:** no ADR (process conventions, recorded in `docs/README.md`, `CONTRIBUTING.md` and `AGENTS.md`)
 - **Estimated size:** about 900 changed lines of Markdown, plus 1,483 lines restored verbatim (the M0+M1 plan)
 
