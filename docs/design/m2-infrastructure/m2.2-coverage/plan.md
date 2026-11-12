@@ -123,4 +123,13 @@ Choices the spec leaves to implementation:
 
 ## 4. Deviations
 
-<!-- Filled in during implementation: what differed from the plan and why. "None" if nothing did. -->
+Found by the probe and the local run on 2026-11-12 (cargo-llvm-cov 0.9.1, LLVM 23.1.1 from Rust 1.99.1, macOS):
+
+1. **`cargo-llvm-cov` skips every `examples/` directory by default** (its default ignore regex covers `tests`, `examples` and `benches`), which dropped `fixed_step_sim` from the lcov. Both report commands now pass `--no-default-ignore-filename-regex`. With the default off, dependency sources (`~/.cargo/registry/src/...`) and the standard library (`/rustc/<hash>/...`) are no longer filtered, so `ignore_regex` gained two alternatives, `|/(registry/src|git/checkouts)/|^/rustc/`; the summary's path check remains the safety net for anything else. Spec §4.3's sentence "Dependency sources are already excluded by `cargo-llvm-cov`" is corrected. R3 holds: only `libs/*/src` and `examples/*/src` are counted. The test `ignore_regex_lists_the_excluded_dirs` pins the longer string.
+2. **No `engine` row.** The facade crate has no instrumented line (it only re-exports), so it has no `SF` record and the table has five rows plus `Total`, not six. The verification's "exactly the rows" list in Step 3 is therefore without `engine`.
+3. **The HTML and the lcov count lines differently, so R16's cross-check does not hold exactly.** HTML total lines 2954; lcov `DA` lines 2900, which is the table's 1853 counted plus 1047 excluded, exactly. The per-file HTML counts are 1 to 4 percent higher (for example `lib.rs` of `fixed_step_sim`: 121 in the HTML, 119 `DA`). The table is consistent with its own input; the HTML is not the same measure. CONTRIBUTING says the HTML percentages are higher, and does not promise an exact difference.
+4. **`FN` has no end line and names are mangled** (`FN:146,_RNvM...`), so the optional end-line form is handled by the parser and its test but does not occur with this toolchain. Names contain no commas, so the comma test is a guard for demangled output only.
+5. **A benign warning** from `cargo llvm-cov report`: `88 functions have mismatched data` (profiles from several test binaries; generic instantiations). It does not fail the run and the numbers are unaffected.
+6. **Step 1 and 2 tests were written together with the code in one pass for Step 1** (the finder and its six tests), so the red run for Step 1 was replaced by a mutation check (making `requires_test` always false failed four of the six tests). Steps 2 and 3 were run red first (compile errors) as planned.
+7. **Local checks used the scratchpad for the symlink** instead of `/tmp`; the table was identical to the direct run.
+
