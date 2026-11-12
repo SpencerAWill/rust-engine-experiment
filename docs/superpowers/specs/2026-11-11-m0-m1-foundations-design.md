@@ -89,7 +89,7 @@ concurrency-allowlist.toml crates permitted to implement atomics/lock-free sync 
 LICENSE-MIT                (renamed from LICENSE)
 LICENSE-APACHE
 libs/
-  engine_handle/           generational handles, HandlePool<T>, HandleAllocator<T>   [no_std + alloc]
+  engine_handle/           generational handles, HandlePool<T>, HandleAllocator<T>, DenseHandleAllocator<T>   [no_std + alloc]
   engine_random/           deterministic PRNG                                         [no_std]
   engine_time/             Tick, FixedTimestep, TimeSource, clocks                    [no_std, `std` feature]
   engine_math/             glam re-exports, Transform, scalar helpers                 [std]
@@ -235,7 +235,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - **`#[track_caller]`** on every function with a documented panic (including `Index`/`IndexMut` impls), so the panic location points at the caller's line rather than the library.
   - **Actionable messages:** what was wrong, the offending value(s), and what to do instead. Example: `Prng::range: empty range 5..5 (start must be < end); use try_range to handle this without panicking`.
   - **`Debug` designed for humans:** `Handle<Particle>(3v2)`; `HandlePool` prints as a map `{Handle(..): value, ..}` rather than its slot vector; `Prng` prints its state (not secret; useful for replays).
-  - **Invariant checking:** internal invariants are guarded by `debug_assert!`. Each stateful type has a test-only `assert_invariants(&self)` that the property tests call after every operation.
+  - **Invariant checking:** internal invariants are guarded by `debug_assert!`. Each stateful type has a test-only `check_invariants(&self) -> Result<(), InvariantViolation>` (amended 2026-11-12: it returns the violation instead of panicking, so a caller can report it) that the property tests call after every operation.
 - **Tooling uses only public APIs (ADR 0009):** nothing the engine's own tools need (inspectors, editor, remote protocol, profilers) may require private access. If a tool needs it, it becomes a designed, documented public API. This keeps the API complete and honest for third-party tool builders.
 - **Strings:** UTF-8 (`&str`/`String`) everywhere. No platform string types in public APIs. Encoding conversion happens only in FFI/platform layers.
 - **Feature flags:** additive only. `std` is a default feature where applicable. No feature changes observable behavior of deterministic output.
@@ -432,6 +432,8 @@ Code below shows the public API surface. Private fields are indicative.
 
 ### 5.1 `engine_handle`
 
+> **Amended 2026-11-12, after implementation and review** (the API blocks below are updated in place and marked): the allocator is now two types, `HandleAllocator` (lean, no iteration) and `DenseHandleAllocator` (iterable), sharing one `SlotTable` with the pool ([ADR 0010](../../adr/0010-two-handle-allocators.md)); added `reserve`/`try_reserve`, `with_fixed_capacity`, `insert_with`, `allocate_many`, `From`/`TryFrom<u64>` for `Handle`, a `limit()` on `CapacityError`, and `check_invariants`; slots shrank to 8 bytes with a 2³¹−2 limit.
+
 **Purpose:** typed, generational, copyable identifiers and a pool that owns values behind them. Reused later for ECS entities (M2), assets, and FFI handles (M4).
 
 ```rust
@@ -456,6 +458,8 @@ impl<T> Handle<T> {
     pub const fn to_bits(self) -> u64;
     /// Inverse of `to_bits`. Returns `None` iff the generation (low) half is 0.
     pub const fn from_bits(bits: u64) -> Option<Self>;
+    // Also (amended 2026-11-12): `impl From<Handle<T>> for u64` (= to_bits) and
+    // `impl TryFrom<u64> for Handle<T>` (= from_bits, with the rejected bits in `InvalidHandleBits`).
 }
 ```
 
@@ -469,19 +473,33 @@ impl<T> Handle<T> {
 ```rust
 /// Dense ("sparse set with generations") storage: values are contiguous, so iteration is O(len).
 pub struct HandlePool<T> {
-    slots: Vec<Slot>,           // per index: generation + dense position (or next-free link / retired)
+    slots: SlotTable,           // shared with both allocators: per-index generation + link, LIFO free list, retirement, slot limit
     handles: Vec<Handle<T>>,    // dense, parallel to `values`
     values: Vec<T>,             // dense, contiguous
-    free_head: Option<u32>,
 }
 
 impl<T> HandlePool<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
+    /// Amended 2026-11-12. Allocates every array up front and never grows: once `capacity` slots
+    /// exist, `try_insert` returns `CapacityError`. Insert/remove/clear/retain/drain then never
+    /// touch the heap (tested with dhat). `reserve` is still an explicit request to allocate.
+    pub fn with_fixed_capacity(capacity: usize) -> Self;
+    /// Amended 2026-11-12. Room for `additional` more values, counted from `len()`.
+    /// # Panics: on capacity overflow or allocation failure (message names `try_reserve`). `#[track_caller]`.
+    pub fn reserve(&mut self, additional: usize);
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
     /// # Panics: if 2³¹−2 slots are already in use (see `try_insert`). `#[track_caller]`.
     #[must_use] pub fn insert(&mut self, value: T) -> Handle<T>;
     /// Fallible twin of `insert`; on failure, ownership of `value` is returned in the error.
     pub fn try_insert(&mut self, value: T) -> Result<Handle<T>, CapacityError<T>>;
+    /// Amended 2026-11-12. `make` receives the handle its value will have (for values that store
+    /// their own handle). It runs before the pool changes, so a panicking `make` leaves the pool
+    /// untouched. Issues exactly the handle `insert` would. # Panics: if full, without calling
+    /// `make` (use `try_insert_with`). `#[track_caller]`.
+    #[must_use] pub fn insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Handle<T>;
+    /// `None`, without calling `make`, if the pool is full.
+    pub fn try_insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Option<Handle<T>>;
     pub fn get(&self, handle: Handle<T>) -> Option<&T>;
     pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T>;
     pub fn remove(&mut self, handle: Handle<T>) -> Option<T>;
@@ -493,11 +511,11 @@ impl<T> HandlePool<T> {
     /// Keeps only the elements for which `keep` returns true, visiting in dense order.
     /// Removed elements behave exactly like `remove` (including swap-removal).
     pub fn retain(&mut self, keep: impl FnMut(Handle<T>, &mut T) -> bool);
-    pub fn len(&self) -> usize;
-    pub fn is_empty(&self) -> bool;
+    pub const fn len(&self) -> usize;       // len, is_empty and capacity are `const fn` (amended 2026-11-12)
+    pub const fn is_empty(&self) -> bool;
     /// Number of values the pool can hold without reallocating its dense value storage
     /// (std `Vec::capacity` semantics for `values`).
-    pub fn capacity(&self) -> usize;
+    pub const fn capacity(&self) -> usize;
     /// Shrinks the dense value/handle storage to fit `len()`. The slot array cannot shrink,
     /// because indices must stay stable; it costs 8 bytes per slot ever used.
     pub fn shrink_to_fit(&mut self);
@@ -515,8 +533,8 @@ impl<T> HandlePool<T> {
 
 /// Returned by `try_insert` when the pool is full; carries the rejected value back.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapacityError<T>(T);
-impl<T> CapacityError<T> { pub fn into_inner(self) -> T; }
+pub struct CapacityError<T> { value: T, limit: u32 }   // amended 2026-11-12: carries the pool's own slot limit
+impl<T> CapacityError<T> { pub fn into_inner(self) -> T; pub const fn limit(&self) -> u32; }
 // + Display, core::error::Error (T: Debug)
 // Also: Default, Debug (T: Debug), Clone (T: Clone), IntoIterator for &/&mut/owned,
 // Index<Handle<T>> and IndexMut<Handle<T>> (panic on stale; documented, like HashMap's Index).
@@ -525,28 +543,45 @@ impl<T> CapacityError<T> { pub fn into_inner(self) -> T; }
 ```
 
 ```rust
-/// Handle allocation without value storage (ECS entity allocator shape).
-pub struct HandleAllocator<T> { /* generations + free list */ }
+/// Lean handle allocation (ECS entity allocator shape). Amended 2026-11-12 (ADR 0010): one 8-byte
+/// slot per slot ever used plus a free list, and no live-handle list, so no iteration.
+pub struct HandleAllocator<T> { /* SlotTable + live count */ }
 
 impl<T> HandleAllocator<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
+    pub fn with_fixed_capacity(capacity: usize) -> Self;      // never grows; see HandlePool
+    pub fn reserve(&mut self, additional: usize);              // + try_reserve, as for HandlePool
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
     /// # Panics: if 2³¹−2 slots are in use. `#[track_caller]`.
     #[must_use] pub fn allocate(&mut self) -> Handle<T>;
     /// Fallible twin of `allocate`.
     pub fn try_allocate(&mut self) -> Option<Handle<T>>;
+    /// `n` handles at once, exactly the ones `n` calls to `allocate` would issue. About 2.5x
+    /// faster than a loop when it creates new slots, no faster when it reuses freed ones.
+    /// # Panics: if fewer than `n` slots are available; nothing is allocated. `#[track_caller]`.
+    #[must_use] pub fn allocate_many(&mut self, n: usize) -> Vec<Handle<T>>;
+    /// All-or-nothing: `None`, with nothing allocated, if fewer than `n` slots are available.
+    pub fn try_allocate_many(&mut self, n: usize) -> Option<Vec<Handle<T>>>;
     /// Returns `false` if the handle was already stale.
     pub fn free(&mut self, handle: Handle<T>) -> bool;
     pub fn is_alive(&self, handle: Handle<T>) -> bool;
-    pub fn len(&self) -> usize;
-    pub fn is_empty(&self) -> bool;
-    pub fn clear(&mut self);
-    pub fn iter(&self) -> AllocIter<'_, T>;    // live handles, dense order; ExactSize + Fused
+    pub const fn len(&self) -> usize;
+    pub const fn is_empty(&self) -> bool;
+    pub fn clear(&mut self);                                   // O(slots), not O(len)
+}
+
+/// The previous design, kept for callers that need to iterate live handles: a `HandlePool<()>`
+/// wrapper that also maintains the dense handle array. Same methods as `HandleAllocator`
+/// (without `allocate_many`), plus:
+pub struct DenseHandleAllocator<T> { /* HandlePool<()> */ }
+impl<T> DenseHandleAllocator<T> {
+    pub fn iter(&self) -> DenseAllocIter<'_, T>;    // live handles, dense order; ExactSize + Fused
     pub fn retain(&mut self, keep: impl FnMut(Handle<T>) -> bool);
 }
 ```
 
-**Semantics (identical for pool and allocator):**
+**Semantics (identical for the pool and both allocators; for the same sequence of insert/allocate, remove/free and clear calls all three issue identical handles, which a model test checks):**
 
 - New slots start at generation 1.
 - Removing or freeing bumps the slot's generation, so every outstanding handle to it becomes stale (`get` → `None`, `contains` → `false`).
@@ -562,7 +597,7 @@ impl<T> HandleAllocator<T> {
   - `insert`/`allocate`/`get`/`remove`/`free`/`contains` are O(1). `get` costs two array accesses (slot, then dense position).
   - Iteration, `retain`, `values()`, and `drain` are **O(len) over contiguous memory**.
 - **Memory:** 8 bytes per slot ever used (a `u32` generation plus one packed `u32`: dense position, free link, or retired marker; slots never shrink; asserted by a unit test), plus 8 bytes per live value (its dense `Handle`), plus the values. `shrink_to_fit` releases dense capacity after a spike.
-- Implementation is 100% safe Rust (`Vec<Slot>`, where `Slot` holds a generation and an enum `Occupied { dense: u32 } | Vacant { next_free: Option<u32> } | Retired`).
+- Implementation is 100% safe Rust. The slot logic (generations, LIFO free list, retirement, slot limit) lives in one private `SlotTable` shared by all three types (amended 2026-11-12), so the rules cannot drift apart. A `Slot` holds a generation and an enum `Occupied { dense: u32 } | Vacant { next_free: Option<u32> } | Retired` packed into one `u32`.
 
 ### 5.2 `engine_random`
 
@@ -936,9 +971,9 @@ pub mod convert {
     impl CoordinateSystem {
         pub const ENGINE: CoordinateSystem;    // identity
         pub const GLTF: CoordinateSystem;      // identity (asserted ENGINE == GLTF by test)
-        pub const BLENDER: CoordinateSystem;
+        // BLENDER and UNREAL are omitted (amended 2026-11-12): their axis conventions could not be
+        // verified against vendor documentation (ADR 0005). Only ENGINE, GLTF and UNITY ship.
         pub const UNITY: CoordinateSystem;
-        pub const UNREAL: CoordinateSystem;
         /// Returns `None` if two fields name the same source axis (ignoring sign).
         pub const fn new(x: SignedAxis, y: SignedAxis, z: SignedAxis) -> Option<Self>;
         pub const fn is_right_handed(self) -> bool;
@@ -962,7 +997,7 @@ pub mod convert {
 ### 5.5 `engine` facade
 
 - Re-exports each crate as a module: `engine::handle`, `engine::random`, `engine::time`, `engine::math`.
-- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when available), `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `Vec2`, `Vec3`, `Vec4`, `DVec2`, `DVec3`, `Quat`, `Mat4`, and the `axis` module.
+- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `DenseHandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when available), `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `Vec2`, `Vec3`, `Vec4`, `DVec2`, `DVec3`, `Quat`, `Mat4`, and the `axis` module.
 - Features: `std` (default), forwarded to leaf crates.
 - The crate root docs are the engine's "start here" page: crate map, guarantees, and a short example.
 
@@ -991,12 +1026,12 @@ The sim logic lives in the crate's `lib.rs`. `main.rs` is a thin CLI wrapper, so
 
 | Crate | Fallible operations | Mechanism |
 |---|---|---|
-| `engine_handle` | stale or invalid handles; capacity | `Option` (`get`, `remove`, `from_bits`, `get_disjoint_mut`, `try_allocate`), `bool` (`free`, `contains`), `Result<_, CapacityError<T>>` (`try_insert`). `insert`/`allocate` panic on capacity |
+| `engine_handle` | stale or invalid handles; capacity | `Option` (`get`, `remove`, `from_bits`, `get_disjoint_mut`, `try_allocate`, `try_allocate_many`, `try_insert_with`), `Result<(), TryReserveError>` (`try_reserve`), `bool` (`free`, `contains`), `Result<_, CapacityError<T>>` (`try_insert`). `insert`/`allocate` panic on capacity |
 | `engine_random` | invalid ranges | `try_range` → `Option`; `range` panics (`# Panics`, `#[track_caller]`) |
 | `engine_time` | zero step, non-monotonic `set`, tick overflow, invalid restored state | `try_new`/`from_state` → `Option`, `try_set` → `Result<(), NonMonotonicError>`, `checked_next` → `Option`; panicking twins documented |
 | `engine_math` | none | Documented NaN/non-finite behavior |
 
-M1 introduces two small error types: `engine_handle::CapacityError<T>`, which returns the rejected value, and `engine_time::NonMonotonicError`, which reports the current and requested timestamps. Both implement `Display` + `core::error::Error`. Broader `#[non_exhaustive]` error enums arrive when a crate has several failure modes (expected in M2/M4).
+M1 introduces these small error types: `engine_handle::CapacityError<T>`, which returns the rejected value and the pool's limit; `engine_handle::InvalidHandleBits` (amended 2026-11-12), the error of `TryFrom<u64> for Handle<T>`; `engine_handle::InvariantViolation` (test-only, from `check_invariants`); and `engine_time::NonMonotonicError`, which reports the current and requested timestamps. Both implement `Display` + `core::error::Error`. Broader `#[non_exhaustive]` error enums arrive when a crate has several failure modes (expected in M2/M4).
 
 ---
 
@@ -1049,7 +1084,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 | Subject | Compared against | Operations | Sizes |
 |---|---|---|---|
 | `HandlePool<T>` (T = `u64` and a 64-byte struct) | `slotmap::SlotMap`, `slotmap::DenseSlotMap`, `thunderdome::Arena` | insert N; get all (sequential and random handle order); remove all; iterate; churn (remove 50% randomly then reinsert) then get | 1k, 100k, 1M |
-| `HandleAllocator` | `slotmap` with `()` values | allocate N; free/reallocate churn; `is_alive` checks | 1k, 100k, 1M |
+| `HandleAllocator`, `DenseHandleAllocator` (amended 2026-11-12) | `slotmap` with `()` values | allocate N; free/reallocate churn; `is_alive` checks; `allocate_many` against a loop (fresh and recycled slots) | 1k, 100k, 1M |
 | `Prng` | `rand_xoshiro::Xoshiro256PlusPlus`, `rand::rngs::SmallRng`, `fastrand::Rng` | `next_u64` ×1M; `range(0..1000)` ×1M; `range(0.0..1.0)` ×1M; `shuffle` 10k | — |
 | `FixedTimestep` | — | `accumulate` + drain ×1M | — |
 | `fixed_step_sim` | — | full run, default args | — |
