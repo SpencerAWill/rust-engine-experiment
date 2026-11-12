@@ -60,7 +60,7 @@ The roadmap MUST contain, in this order:
 2. A milestone overview table: milestone, goal, exit criteria, status (`Done`, `Current`, `Next`, `Later`).
 3. For the current milestone, the **chunk table**: chunk ID, title, depends on, status, and links to its spec and plan once they exist. Chunk statuses are `Planned`, `Drafting`, `Accepted`, `In progress`, `Done (PR #n)` and `Dropped (reason)`.
 4. For each later milestone, a short section with: rough chunks, exit criteria, and the open question it resolves.
-5. A **milestone numbering note** with the mapping below, stating that documents dated before 2026-11-12 use the old numbers.
+5. A **milestone numbering note** with the mapping below, stating that documents written before the roadmap (all dated up to 2026-11-12) use the old numbers.
 6. The note that going public is not a milestone but the checklist in `docs/maintainers.md`, run at a milestone boundary chosen by the maintainer.
 
 Milestones, as approved on 2026-11-12:

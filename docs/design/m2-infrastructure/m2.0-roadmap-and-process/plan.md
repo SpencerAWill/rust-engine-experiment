@@ -30,7 +30,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 1: Spec and plan templates (R2, R3)
 
 - **Files:** create `docs/design/_template/spec.md`, `docs/design/_template/plan.md`.
-- **Check first:** `test -f docs/design/_template/spec.md && test -f docs/design/_template/plan.md` fails.
+- **Test first:** `test -f docs/design/_template/spec.md && test -f docs/design/_template/plan.md` fails.
 - **Change:** the spec template has the header and the eleven sections of spec §4.4, in that order and numbering; the plan template has the header and four sections of spec §4.5. Under each heading, one or two lines in italics or an HTML comment saying what goes there, taken from §4.4 and §4.5. The cross-cutting section lists all eleven concerns as a bulleted list with `n/a, because ...` placeholders. Each template starts with `Status: Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk.` so it satisfies the status-line convention.
 - **Verify:** the check passes; compare this chunk's `spec.md` and `plan.md` headings against the templates (`grep -n '^#' <file>` on each pair) and fix any drift in either direction (R3).
 - **Commit:** `docs: add chunk spec and plan templates (M2.0)`
@@ -38,7 +38,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 2: The roadmap (R1)
 
 - **Files:** create `docs/roadmap.md`.
-- **Check first:** `test -f docs/roadmap.md` fails.
+- **Test first:** `test -f docs/roadmap.md` fails.
 - **Change:** the six parts of spec §4.2 in its order. Use the milestone table, M2 chunk table, later-milestone table and the Miri note from spec §4.2. M0+M1 has status `Done`, M2 `Current`, M3 `Next`, the rest `Later`. Chunk statuses: M2.0 `In progress`, M2.1 to M2.4 `Planned`. M2.0's row links its spec and plan. The later milestones may be one section each or the single table from the spec; pick whichever reads better at its length. The numbering note is a table: old number, new number(s).
 - **Verify:** the check passes; read the roadmap side by side with spec §4.2 (review focus item 2).
 - **Commit:** `docs: add the roadmap with renumbered milestones and M2 chunks (M2.0)`
@@ -46,7 +46,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 3: Restore the M0+M1 plan (R10)
 
 - **Files:** create `docs/design/m0-m1-foundations/plan.md`.
-- **Check first:** `test -f docs/design/m0-m1-foundations/plan.md` fails. If `0dc227c` is not available locally, fetch it first: `git fetch origin pull/3/head:refs/remotes/pr/3`.
+- **Test first:** `test -f docs/design/m0-m1-foundations/plan.md` fails. If `0dc227c` is not available locally, fetch it first: `git fetch origin pull/3/head:refs/remotes/pr/3`.
 - **Change:** `git show 0dc227c^:docs/design/m0-m1-foundations/plan.md > docs/design/m0-m1-foundations/plan.md`, then replace the status blockquote (lines 3 to 6, starting `> **Status: executed, and historical.**`) with exactly:
 
   ```markdown
@@ -63,7 +63,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 4: Docs index and the M0+M1 spec (R4, R9)
 
 - **Files:** modify `docs/README.md`, `docs/design/m0-m1-foundations/spec.md`.
-- **Check first:** `grep -rn "removed when\|until that milestone merges\|until the milestone merges\|sits beside it" docs README.md AGENTS.md CONTRIBUTING.md .github --include='*.md' | grep -v 'm0-m1-foundations/plan.md\|m2-infrastructure/'` lists the stale lines in `docs/README.md` and the M0+M1 spec. (This chunk's own spec and plan quote the pattern, hence the exclusion.)
+- **Test first:** `grep -rn "removed when\|removed at merge\|until that milestone merges\|until the milestone merges\|sits beside it" docs README.md AGENTS.md CONTRIBUTING.md .github --include='*.md' | grep -v 'm0-m1-foundations/plan.md\|m2-infrastructure/'` lists the stale lines in `docs/README.md` and the M0+M1 spec. (This chunk's own spec and plan quote the pattern, hence the exclusion.)
 - **Change, `docs/README.md`:**
   - Add a first row to the table: `[roadmap.md](roadmap.md)`, "Milestones, their exit criteria, and the current milestone's chunks with their status", kind "Reference", trust "**Authoritative for what is planned and its status.**"
   - The `design/` row reads: "One folder per milestone, containing one folder per chunk with its `spec.md` and `plan.md`; [`_template/`](design/_template/) holds the templates. `m0-m1-foundations/` predates chunks and holds one spec and one plan for the whole milestone."
@@ -82,7 +82,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 5: Maintainer checklists and the pull request template (R5, R6)
 
 - **Files:** modify `docs/maintainers.md`, `.github/PULL_REQUEST_TEMPLATE.md`.
-- **Check first:** `grep -n "Remove the implementation plan" docs/maintainers.md` finds a line; `grep -n "Chunk" .github/PULL_REQUEST_TEMPLATE.md` finds nothing.
+- **Test first:** `grep -n "Remove the implementation plan" docs/maintainers.md` finds a line; `grep -n "Chunk" .github/PULL_REQUEST_TEMPLATE.md` finds nothing.
 - **Change, `docs/maintainers.md`:** replace the section "Before merging a milestone" with:
 
   ```markdown
@@ -121,7 +121,7 @@ There is no code, so "test first" means: run the step's check before the change 
 ### Step 6: Contributor and agent entry points, README, changelog (R7, R8, R11, R12)
 
 - **Files:** modify `CONTRIBUTING.md`, `AGENTS.md`, `README.md`, `CHANGELOG.md`.
-- **Check first:** `grep -c "roadmap" CONTRIBUTING.md AGENTS.md README.md CHANGELOG.md` is 0 for each.
+- **Test first:** `grep -c "roadmap" CONTRIBUTING.md AGENTS.md README.md CHANGELOG.md` is 0 for each.
 - **Change, `CONTRIBUTING.md`:** a section "How work is organized" after the opening paragraph, of about six lines: work is planned in [docs/roadmap.md](docs/roadmap.md) as milestones broken into chunks, one pull request each; each chunk has a spec and a plan copied from [docs/design/_template/](docs/design/_template/); pull request titles end with the chunk ID; ideas and bugs that are not scheduled go into issues. Change "decisions are deliberately deferred (see `docs/design/`)" to point at the roadmap.
 - **Change, `AGENTS.md`:** in the first paragraph, add "What is planned next, and its status, is in [docs/roadmap.md](docs/roadmap.md)." Under "How to work here", add a bullet:
   - "**Chunks and gates.** Work happens in chunks (see the roadmap). Write the chunk's spec and plan from [docs/design/_template/](docs/design/_template/) and stop for the maintainer to review both. If the chunk adds or changes an ADR, a public API, or a frozen format, stop after the spec, and write the plan only once the spec is accepted. Record anything that differs from the plan in its Deviations section."
@@ -130,7 +130,7 @@ There is no code, so "test first" means: run the step's check before the change 
 - **Verify:** the check-first grep is at least 1 for each file.
 - **Commit:** `docs: point contributors and agents at the roadmap and templates (M2.0)`
 
-### Step 7: Statuses at review and at merge
+### Step 7: Statuses at review and at merge (R4, R5)
 
 - After the maintainer approves the spec and plan: set both to `Accepted (date)` in a commit `docs: accept the M2.0 spec and plan (M2.0)`. (They are approved before Steps 1 to 6 run, so this is the branch's first commit after this plan's own.)
 - After the pull request is opened: the spec becomes `Implemented (PR #n, date)`, this plan `Historical: executed in PR #n (date); the spec and the code are authoritative`, the roadmap row `Done (PR #n)`. Commit `docs: mark M2.0 implemented (M2.0)`.
@@ -138,10 +138,10 @@ There is no code, so "test first" means: run the step's check before the change 
 ## 3. Final verification
 
 1. `cargo xtask ci` passes.
-2. The link check (R13) prints nothing. Run from the repository root:
+2. The link check (R13) prints nothing. This plan is excluded because it quotes links meant for other files. Run from the repository root:
 
    ```sh
-   git diff --name-only main...HEAD -- '*.md' | python3 -I -c '
+   git diff --name-only main...HEAD -- '*.md' | grep -v m2.0-roadmap-and-process/plan.md | python3 -I -c '
    import re, sys, pathlib
    bad = 0
    for name in sys.stdin.read().split():
@@ -160,4 +160,7 @@ There is no code, so "test first" means: run the step's check before the change 
 
 ## 4. Deviations
 
-None yet.
+- **Roadmap later milestones:** one table (rough chunks and open question), with exit criteria in the overview table, as Step 2 allows.
+- **Step 4 grep:** the fresh review found a stale "removed at merge" line in M0+M1 spec §13 that the grep's pattern missed; fixed in the review pass, and the pattern now includes `removed at merge`.
+- **Step 6 changelog:** the entry went under `### Changed` (a Keep a Changelog category) instead of a new `### Documentation` heading.
+- **Review pass:** a fresh review (Opus) also led to: the numbering-note wording ("written before this roadmap", because the old documents are dated up to 2026-11-12), the going-public note moved to the end of the roadmap, the row-status note, "Spec statuses" and "Plan statuses" in the templates, "exactly one pull request" in CONTRIBUTING, `Dropped` and `Template` in the status vocabulary, the stale "hosted service" line in `maintainers.md`, and this plan's link check excluding itself.

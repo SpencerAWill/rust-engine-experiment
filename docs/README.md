@@ -17,10 +17,10 @@ Rules that are checked mechanically (lints, `unsafe`, determinism bans, workflow
 
 ## Conventions
 
-- **Every document states its status** near the top: `Draft`, `Accepted`, `Amended`, `Implemented`, `Superseded` or `Historical`, with a date.
+- **Every document states its status** near the top: `Draft`, `Accepted`, `Amended`, `Implemented`, `Superseded`, `Dropped`, `Historical` (or `Template`, for a template), with a date.
 - **ADRs** are `adr/NNNN-kebab-title.md` with Status, Context, Decision and Consequences. Add one for any decision that would be expensive to reverse. Do not rewrite an accepted ADR to change the decision; write a new one that supersedes it.
 - **Design folders** are `design/m<N>-<topic>/m<N>.<n>-<topic>/`, holding the chunk's `spec.md` and `plan.md`, copied from [`design/_template/`](design/_template/). A spec keeps stable section numbers because code and config cite them (for example "spec §4.9"); add sections, do not renumber.
 - **Plans are kept.** A plan is written before implementation and records what differed in its Deviations section. When its pull request merges, its status becomes `Historical`: it records how the work was done, and the spec, the ADRs and the code are authoritative.
-- **Milestone numbers changed on 2026-11-12.** Documents dated before then (the M0+M1 spec, ADRs 0001 to 0011, `benchmarks.md`) use the old numbers; [the roadmap](roadmap.md) has the mapping.
+- **Milestone numbers changed on 2026-11-12.** Documents written before the roadmap (the M0+M1 spec, ADRs 0001 to 0011, `benchmarks.md`; all dated up to that day) use the old numbers; [the roadmap](roadmap.md) has the mapping.
 - **Prefer a link to a copy.** If a rule is enforced by a command, document the command and let the tool be the source of truth.
 - **Numbers need provenance.** A benchmark claim says what was measured, on what machine, in what conditions, and what was not measured.

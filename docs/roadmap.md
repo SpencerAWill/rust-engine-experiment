@@ -18,11 +18,9 @@ Work is organized as **milestones** (a goal with exit criteria) broken into **ch
 | M8 | C ABI and C# | A C# program drives the world and defines a component at runtime | Later |
 | M9 | Diagnostics and tooling | An external tool connects to the running sample, browses entities and edits a field | Later |
 
-Going public is not a milestone. It is the checklist in [maintainers.md](maintainers.md), run at a milestone boundary the maintainer chooses.
-
 ## M2 chunks
 
-Chunk statuses: `Planned`, `Drafting`, `Accepted`, `In progress`, `Done (PR #n)`, `Dropped (reason)`.
+Row statuses: `Planned`, `Drafting`, `Accepted`, `In progress`, `Done (PR #n)`, `Dropped (reason)`. `Drafting` to `In progress` are set on the chunk's branch, so on `main` a row normally goes from `Planned` straight to `Done`.
 
 | Chunk | Title | Depends on | Status | Spec and plan |
 |---|---|---|---|---|
@@ -51,7 +49,7 @@ Rough lists, refined when each becomes current.
 
 ## Milestone numbering note
 
-Documents dated before 2026-11-12 (the M0+M1 spec, ADRs 0001 to 0011, `benchmarks.md`) use the old milestone numbers. Read them through this table.
+Documents written before this roadmap (the M0+M1 spec, ADRs 0001 to 0011, `benchmarks.md`; all dated up to 2026-11-12) use the old milestone numbers. Read them through this table.
 
 | Old | New |
 |---|---|
@@ -62,3 +60,5 @@ Documents dated before 2026-11-12 (the M0+M1 spec, ADRs 0001 to 0011, `benchmark
 | M3 (scheduler) | M7 |
 | M4 (C ABI and C#) | M8 |
 | M5 (diagnostics and tooling) | M9 |
+
+Going public is not a milestone. It is the checklist in [maintainers.md](maintainers.md), run at a milestone boundary the maintainer chooses.

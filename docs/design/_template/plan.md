@@ -1,6 +1,6 @@
 # M<N>.<n> plan: <title>
 
-- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Chunk statuses: `Draft (date)`, `Accepted (date)`, `Historical: executed in PR #n (date); the spec and the code are authoritative`.
+- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Plan statuses: `Draft (date)`, `Accepted (date)`, `Historical: executed in PR #n (date); the spec and the code are authoritative`.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

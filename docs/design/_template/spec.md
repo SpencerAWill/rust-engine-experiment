@@ -1,6 +1,6 @@
 # M<N>.<n>: <title>
 
-- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Chunk statuses: `Draft (date)`, `Accepted (date)`, `Implemented (PR #n, date)`, `Superseded by <link> (date)`, `Dropped (reason, date)`.
+- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Spec statuses: `Draft (date)`, `Accepted (date)`, `Implemented (PR #n, date)`, `Superseded by <link> (date)`, `Dropped (reason, date)`.
 - **Milestone:** M<N> (<milestone goal>) · **Depends on:** M<N>.<k>, or none · **Decides:** ADR NNNN, or "no ADR"
 - **Estimated size:** about <n> changed lines, excluding tests, lockfiles and generated files
 
