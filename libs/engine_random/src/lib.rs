@@ -40,6 +40,8 @@
 //! ```
 
 mod prng;
+mod sample;
 mod splitmix;
 
 pub use prng::Prng;
+pub use sample::SampleRange;
