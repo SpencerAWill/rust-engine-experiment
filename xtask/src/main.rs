@@ -8,6 +8,7 @@
 
 //! `cargo xtask <command>`: the single entry point that CI and humans both run.
 
+mod bench_report;
 mod check_statics;
 mod check_unsafe;
 mod cmd;
@@ -39,6 +40,7 @@ enum Command {
         bytes: Option<u64>,
     },
     BenchBuild,
+    BenchReport(bench_report::Options),
     Bench {
         save: Option<String>,
         compare: Option<(String, String)>,
@@ -78,6 +80,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "wasm" => only(&[]).map(|()| Command::Wasm),
         "bench-build" => only(&[]).map(|()| Command::BenchBuild),
         "bench" => parse_bench(flags),
+        "bench-report" => bench_report::parse_flags(flags).map(Command::BenchReport),
         "ci" => only(&["--quick"]).map(|()| Command::Ci {
             quick: has("--quick"),
         }),
@@ -305,6 +308,7 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::Wasm => wasm(),
         Command::BenchBuild => run("cargo", &["bench", "--workspace", "--no-run"], &[]),
         Command::Bench { save, compare } => bench(save.as_deref(), compare.as_ref()),
+        Command::BenchReport(options) => bench_report::run(options),
         Command::Ci { quick } => ci(*quick),
     }
 }

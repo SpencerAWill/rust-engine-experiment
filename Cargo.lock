@@ -788,8 +788,10 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "engine_math",
  "engine_random",
  "proc-macro2",
+ "serde_json",
  "syn 2.0.119",
 ]
 

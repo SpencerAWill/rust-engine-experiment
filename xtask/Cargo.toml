@@ -14,3 +14,5 @@ workspace = true
 syn = { version = "2", features = ["full", "visit"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 engine_random.workspace = true
+engine_math.workspace = true
+serde_json = "1"
