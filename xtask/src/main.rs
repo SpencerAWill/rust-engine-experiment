@@ -14,6 +14,7 @@ mod check_statics;
 mod check_unsafe;
 mod check_workflows;
 mod cmd;
+mod coverage;
 mod fuzz;
 mod prng_stats;
 
