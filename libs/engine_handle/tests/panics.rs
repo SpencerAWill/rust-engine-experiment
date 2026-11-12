@@ -39,8 +39,7 @@ fn panic_info(f: impl FnOnce()) -> (String, String) {
     panic::set_hook(Box::new(|info| {
         let file = info
             .location()
-            .map(|l| l.file().replace('\\', "/"))
-            .unwrap_or_default();
+            .map_or_default(|l| l.file().replace('\\', "/"));
         let message = info.payload_as_str().unwrap_or_default().to_string();
         *CAPTURED.lock().expect("captured") = Some((file, message));
     }));

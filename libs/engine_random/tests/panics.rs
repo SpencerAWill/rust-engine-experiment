@@ -18,8 +18,7 @@ fn empty_range_panics_at_caller_with_actionable_message() {
     panic::set_hook(Box::new(|info| {
         let file = info
             .location()
-            .map(|l| l.file().replace('\\', "/"))
-            .unwrap_or_default();
+            .map_or_default(|l| l.file().replace('\\', "/"));
         let message = info.payload_as_str().unwrap_or_default().to_string();
         *CAPTURED.lock().unwrap() = Some((file, message));
     }));
