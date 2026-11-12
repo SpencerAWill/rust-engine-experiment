@@ -36,6 +36,8 @@
 mod helpers;
 mod layout;
 pub mod scalar;
+mod transform;
+mod world;
 
 pub use glam;
 pub use glam::{
@@ -43,3 +45,5 @@ pub use glam::{
     IVec3, IVec4, Mat2, Mat3, Mat3A, Mat4, Quat, UVec2, UVec3, UVec4, Vec2, Vec3, Vec3A, Vec4,
 };
 pub use helpers::{approx_eq, inverse_lerp, lerp, remap};
+pub use transform::Transform;
+pub use world::WorldTransform;
