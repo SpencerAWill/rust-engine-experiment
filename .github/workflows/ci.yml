@@ -165,6 +165,25 @@ jobs:
       - run: cargo xtask bench-build
       - run: cargo xtask bench-smoke
 
+  # The fuzz targets are not run here, but they must keep compiling: a change to engine_handle that
+  # breaks `fuzz/` fails this job instead of surfacing at the nightly run.
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            .
+            fuzz
+      - run: rustup toolchain install "$(cargo xtask fuzz-toolchain)" --profile minimal
+      # install-action has no cargo-fuzz manifest, so build it from source (the cache keeps it).
+      - run: cargo install --locked cargo-fuzz
+      - run: cargo xtask fuzz-build
+
   os-matrix:
     strategy:
       fail-fast: false
