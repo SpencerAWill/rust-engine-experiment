@@ -11,6 +11,7 @@
 mod bench_report;
 mod check_statics;
 mod check_unsafe;
+mod check_workflows;
 mod cmd;
 mod prng_stats;
 
@@ -33,6 +34,7 @@ enum Command {
     Deny,
     CheckUnsafe,
     CheckStatics,
+    CheckWorkflows,
     NoStd,
     Wasm,
     PrngStats {
@@ -75,6 +77,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "deny" => only(&[]).map(|()| Command::Deny),
         "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
         "check-statics" => only(&[]).map(|()| Command::CheckStatics),
+        "check-workflows" => only(&[]).map(|()| Command::CheckWorkflows),
         "prng-stats" => parse_prng_stats(flags),
         "no-std" => only(&[]).map(|()| Command::NoStd),
         "wasm" => only(&[]).map(|()| Command::Wasm),
@@ -255,6 +258,7 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::Wasm,
             Command::CheckUnsafe,
             Command::CheckStatics,
+            Command::CheckWorkflows,
             Command::Deny,
             Command::BenchBuild,
         ]);
@@ -303,6 +307,7 @@ fn execute(command: &Command) -> Result<(), String> {
         }
         Command::CheckUnsafe => check_unsafe::run(),
         Command::CheckStatics => check_statics::run(),
+        Command::CheckWorkflows => check_workflows::run(),
         Command::NoStd => no_std(),
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
@@ -372,6 +377,14 @@ mod tests {
         );
         assert!(parse(&["prng-stats", "--bytes"]).is_err());
         assert!(parse(&["prng-stats", "--seed", "x"]).is_err());
+    }
+
+    #[test]
+    fn check_workflows_parses_and_runs_in_the_full_ci_only() {
+        assert_eq!(parse(&["check-workflows"]), Ok(Command::CheckWorkflows));
+        assert!(parse(&["check-workflows", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::CheckWorkflows));
+        assert!(!ci_steps(true).contains(&Command::CheckWorkflows));
     }
 
     #[test]

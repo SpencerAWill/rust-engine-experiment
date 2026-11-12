@@ -30,7 +30,7 @@ cargo xtask ci          # everything CI runs, in order
 cargo xtask ci --quick  # fmt check, clippy, tests only
 ```
 
-`cargo xtask` is the single entry point for both CI and local runs. Other commands: `bench [--save NAME] [--compare A B]`, `bench-report [--baseline NAME] [--against NAME] [--notes FILE] [--out FILE]` (turns saved criterion results into one self-contained HTML page with charts, and with `--against` a noise-aware before/after view; it writes `target/bench-report/index.html`), `prng-stats` (streams PRNG output for PractRand), `no-std`, `wasm`, `check-unsafe`, `check-statics`. It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
+`cargo xtask` is the single entry point for both CI and local runs. Other commands: `bench [--save NAME] [--compare A B]`, `bench-report [--baseline NAME] [--against NAME] [--notes FILE] [--out FILE]` (turns saved criterion results into one self-contained HTML page with charts, and with `--against` a noise-aware before/after view; it writes `target/bench-report/index.html`), `prng-stats` (streams PRNG output for PractRand), `no-std`, `wasm`, `check-unsafe`, `check-statics`, `check-workflows` (every GitHub Action pinned to a commit hash, read-only token permissions, no persisted checkout credentials, no `pull_request_target`). It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
 
 ## Using the engine in your project
 
@@ -54,6 +54,11 @@ glam's `fast-math` and `scalar-math` features are unsupported. Any crate in your
 - WASM test notes:
   - proptest is used with `default-features = false`, because its default `fork` and `timeout` features do not compile for WASI.
   - libtest ignores `#[should_panic]` tests on wasm targets other than emscripten, and panics abort on WASI. The documented `# Panics` contracts are therefore tested on native targets only, and proptest failures on WASI abort without shrinking. Reproduce on a native target to shrink.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the rules CI enforces and how to set up, and
+[SECURITY.md](SECURITY.md) for how to report a vulnerability privately.
 
 ## License
 
