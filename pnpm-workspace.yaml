@@ -1,0 +1,10 @@
+# Node tooling that sits beside the Rust workspace. Nothing here ships with the engine.
+packages:
+  - "infra/*"
+minimumReleaseAgeExclude:
+  - "@pulumi/pulumi@3.276.0"
+
+# Dependency install scripts stay off unless listed here. protobufjs's postinstall only prints a
+# version notice; Pulumi works without it.
+allowBuilds:
+  protobufjs: false

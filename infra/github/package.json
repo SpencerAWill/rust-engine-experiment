@@ -1,0 +1,17 @@
+{
+  "name": "rust-engine-experiment-github-infra",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@pulumi/github": "6.15.1",
+    "@pulumi/pulumi": "3.276.0"
+  }
+}

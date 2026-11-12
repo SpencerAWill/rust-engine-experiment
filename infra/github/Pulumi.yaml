@@ -1,0 +1,7 @@
+name: github
+description: GitHub configuration for SpencerAWill/rust-engine-experiment (repository settings, ruleset on main, labels, Actions)
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+    typescript: true
