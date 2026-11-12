@@ -345,7 +345,7 @@ mod tests {
     fn flags_default_to_the_documented_run() {
         let o = parse_flags(&[]).unwrap();
         assert_eq!(o.baseline, "final");
-        assert!(o.env_files.is_empty());
+        assert_eq!(o.env_files, Vec::<PathBuf>::new());
         assert_eq!(o.doc, PathBuf::from("docs/benchmarks.md"));
     }
 

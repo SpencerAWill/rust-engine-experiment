@@ -170,6 +170,6 @@ mod tests {
     fn parses_allowlist_names() {
         let toml = "# c\n[[crate]]\nname = \"engine_ffi\"\nadr = \"docs/adr/0010-x.md\"\n";
         assert_eq!(parse_allowlist(toml), vec!["engine_ffi".to_string()]);
-        assert!(parse_allowlist("# empty\n").is_empty());
+        assert_eq!(parse_allowlist("# empty\n"), Vec::<String>::new());
     }
 }

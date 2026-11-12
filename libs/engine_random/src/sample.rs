@@ -334,11 +334,10 @@ impl Prng {
     /// assert_ne!(buf, [0; 13]);
     /// ```
     pub fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let mut chunks = dest.chunks_exact_mut(8);
-        for chunk in &mut chunks {
-            chunk.copy_from_slice(&self.next_u64().to_le_bytes());
+        let (chunks, rest) = dest.as_chunks_mut::<8>();
+        for chunk in chunks {
+            *chunk = self.next_u64().to_le_bytes();
         }
-        let rest = chunks.into_remainder();
         if !rest.is_empty() {
             let word = self.next_u64().to_le_bytes();
             rest.copy_from_slice(&word[..rest.len()]);
