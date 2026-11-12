@@ -1,0 +1,5 @@
+# Spell-check configuration for `cargo xtask typos` (the `typos` tool).
+
+[default.extend-words]
+# Unreal Engine abbreviations in the spec's list of sources (UE5, UE).
+UE = "UE"

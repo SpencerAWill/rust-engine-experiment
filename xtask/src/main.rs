@@ -8,6 +8,7 @@
 
 //! `cargo xtask <command>`: the single entry point that CI and humans both run.
 
+mod bench_doc;
 mod bench_report;
 mod check_statics;
 mod check_unsafe;
@@ -17,7 +18,7 @@ mod prng_stats;
 
 use std::process::ExitCode;
 
-use cmd::{require_tool, run};
+use cmd::{require_cargo_subcommand, require_tool, run};
 
 /// A parsed `cargo xtask` subcommand.
 #[derive(Debug, PartialEq, Eq)]
@@ -43,6 +44,9 @@ enum Command {
     },
     BenchBuild,
     BenchSmoke,
+    BenchDoc(bench_doc::Options),
+    Hack,
+    Typos,
     BenchReport(bench_report::Options),
     Bench {
         save: Option<String>,
@@ -84,6 +88,9 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "wasm" => only(&[]).map(|()| Command::Wasm),
         "bench-build" => only(&[]).map(|()| Command::BenchBuild),
         "bench-smoke" => only(&[]).map(|()| Command::BenchSmoke),
+        "bench-doc" => bench_doc::parse_flags(flags).map(Command::BenchDoc),
+        "hack" => only(&[]).map(|()| Command::Hack),
+        "typos" => only(&[]).map(|()| Command::Typos),
         "bench" => parse_bench(flags),
         "bench-report" => bench_report::parse_flags(flags).map(Command::BenchReport),
         "ci" => only(&["--quick"]).map(|()| Command::Ci {
@@ -238,6 +245,21 @@ fn bench_args(save: Option<&str>) -> Vec<String> {
     args
 }
 
+/// The `cargo hack` command line: check every package with each of its features alone, and with
+/// none. `--no-dev-deps` keeps `engine_handle`'s self dev-dependency (which turns on
+/// `test-invariants`) from hiding a feature-gated build break.
+fn hack_args() -> Vec<String> {
+    [
+        "hack",
+        "check",
+        "--workspace",
+        "--each-feature",
+        "--no-dev-deps",
+    ]
+    .map(String::from)
+    .into()
+}
+
 /// The `cargo bench` command line for `bench-smoke`: run every benchmark once, in criterion's test
 /// mode, so a benchmark that panics or rots fails CI. It measures nothing.
 ///
@@ -271,6 +293,8 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::CheckUnsafe,
             Command::CheckStatics,
             Command::CheckWorkflows,
+            Command::Hack,
+            Command::Typos,
             Command::Deny,
             Command::BenchBuild,
             Command::BenchSmoke,
@@ -325,6 +349,19 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
         Command::BenchBuild => run("cargo", &["bench", "--workspace", "--no-run"], &[]),
+        Command::BenchDoc(options) => bench_doc::run(options),
+        Command::Hack => {
+            require_cargo_subcommand("hack", "cargo install --locked cargo-hack")?;
+            run(
+                "cargo",
+                &hack_args().iter().map(String::as_str).collect::<Vec<_>>(),
+                &[],
+            )
+        }
+        Command::Typos => {
+            require_tool("typos", "cargo install --locked typos-cli")?;
+            run("typos", &[], &[])
+        }
         Command::BenchSmoke => run(
             "cargo",
             &bench_smoke_args()
@@ -435,6 +472,47 @@ mod tests {
         let separator = args.iter().position(|a| a == "--").unwrap();
         assert_eq!(&args[..separator], ["bench", "--workspace", "--bench", "*"]);
         assert_eq!(&args[separator..], ["--", "--test"]);
+    }
+
+    #[test]
+    fn bench_doc_parses_its_flags_and_is_not_part_of_ci() {
+        assert_eq!(
+            parse(&["bench-doc", "--baseline", "m2"]),
+            Ok(Command::BenchDoc(bench_doc::Options {
+                baseline: "m2".into(),
+                env_files: Vec::new(),
+                doc: "docs/benchmarks.md".into(),
+            }))
+        );
+        assert!(parse(&["bench-doc", "--x"]).is_err());
+    }
+
+    #[test]
+    fn hack_checks_each_feature_without_dev_dependencies() {
+        assert_eq!(parse(&["hack"]), Ok(Command::Hack));
+        assert!(parse(&["hack", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::Hack));
+        assert!(!ci_steps(true).contains(&Command::Hack));
+        // `--no-dev-deps` matters: engine_handle's self dev-dependency would otherwise turn on
+        // `test-invariants` everywhere and hide feature-gated breakage.
+        assert_eq!(
+            hack_args(),
+            [
+                "hack",
+                "check",
+                "--workspace",
+                "--each-feature",
+                "--no-dev-deps"
+            ]
+        );
+    }
+
+    #[test]
+    fn typos_parses_and_runs_in_the_full_ci_only() {
+        assert_eq!(parse(&["typos"]), Ok(Command::Typos));
+        assert!(parse(&["typos", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::Typos));
+        assert!(!ci_steps(true).contains(&Command::Typos));
     }
 
     #[test]

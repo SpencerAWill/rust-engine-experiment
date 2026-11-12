@@ -8,15 +8,15 @@
 //! `--against`, the page leads with what changed between the two baselines.
 
 mod html;
-mod load;
-mod model;
-mod svg;
+pub(crate) mod load;
+pub(crate) mod model;
+pub(crate) mod svg;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Where criterion keeps its results.
-const CRITERION_DIR: &str = "target/criterion";
+pub(crate) const CRITERION_DIR: &str = "target/criterion";
 
 /// The parsed `bench-report` flags.
 #[derive(Debug, PartialEq, Eq)]
