@@ -37,6 +37,7 @@ mod helpers;
 mod layout;
 pub mod scalar;
 mod transform;
+mod transform2d;
 mod world;
 
 pub use glam;
@@ -46,4 +47,5 @@ pub use glam::{
 };
 pub use helpers::{approx_eq, inverse_lerp, lerp, remap};
 pub use transform::Transform;
+pub use transform2d::{Transform2d, WorldTransform2d};
 pub use world::WorldTransform;

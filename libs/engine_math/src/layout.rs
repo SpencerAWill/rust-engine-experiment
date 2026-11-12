@@ -7,7 +7,7 @@
 
 use core::mem::{align_of, size_of};
 
-use crate::{Transform, WorldTransform};
+use crate::{Transform, Transform2d, WorldTransform, WorldTransform2d};
 
 // Measured on aarch64 (native) and wasm32; identical because glam keeps `Quat` 16-byte aligned
 // on every target unless its `scalar-math` feature is on. A mismatch here means a glam feature
@@ -29,11 +29,28 @@ const _: () = {
         align_of::<WorldTransform>() == 16,
         "WorldTransform alignment changed (glam scalar-math? see ADR 0006)"
     );
+    // The 2D types contain no SIMD-backed fields, so these hold on every target.
+    assert!(
+        size_of::<Transform2d>() == 20,
+        "Transform2d size changed (see ADR 0006)"
+    );
+    assert!(
+        align_of::<Transform2d>() == 4,
+        "Transform2d alignment changed (see ADR 0006)"
+    );
+    assert!(
+        size_of::<WorldTransform2d>() == 32,
+        "WorldTransform2d size changed (see ADR 0006)"
+    );
+    assert!(
+        align_of::<WorldTransform2d>() == 8,
+        "WorldTransform2d alignment changed (see ADR 0006)"
+    );
 };
 
 #[cfg(test)]
 mod tests {
-    use crate::{Transform, WorldTransform};
+    use crate::{Transform, Transform2d, WorldTransform, WorldTransform2d};
     use core::mem::{align_of, size_of};
 
     /// Prints the layout of every transform type, so CI logs show the values per target
@@ -51,6 +68,16 @@ mod tests {
             "layout WorldTransform size={} align={}",
             size_of::<WorldTransform>(),
             align_of::<WorldTransform>()
+        );
+        println!(
+            "layout Transform2d size={} align={}",
+            size_of::<Transform2d>(),
+            align_of::<Transform2d>()
+        );
+        println!(
+            "layout WorldTransform2d size={} align={}",
+            size_of::<WorldTransform2d>(),
+            align_of::<WorldTransform2d>()
         );
     }
 }
