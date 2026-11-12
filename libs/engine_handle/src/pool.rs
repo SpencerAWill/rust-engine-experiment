@@ -271,9 +271,11 @@ impl<T> HandlePool<T> {
     #[inline]
     fn resolve(&self, handle: Handle<T>) -> Option<usize> {
         let slot = self.slots.get(handle.index() as usize)?;
-        // Occupied slots have the top bit clear, so `link` is the dense position.
-        (slot.generation == handle.generation() && slot.link & VACANT_BIT == 0)
-            .then_some(slot.link as usize)
+        // Occupied slots have the top bit clear, so `link` is the dense position. Vacant and
+        // retired links are at least `VACANT_BIT`, which exceeds any dense length, so one range
+        // check against the dense length replaces a separate state test.
+        let dense = slot.link as usize;
+        (slot.generation == handle.generation() && dense < self.values.len()).then_some(dense)
     }
 
     /// Returns a reference to the value `handle` names, or `None` if it is stale.
@@ -893,6 +895,19 @@ mod tests {
             assert_eq!(p[*h], i + 1);
         }
         p.assert_invariants();
+    }
+
+    #[test]
+    fn forged_handle_to_vacant_slot_is_stale_not_a_panic() {
+        let mut p = HandlePool::new();
+        let h = p.insert(1);
+        p.remove(h);
+        // A vacant slot stores the generation its next occupant will get; forge exactly that.
+        let forged = Handle::<i32>::from_bits(h.to_bits() + 1).unwrap();
+        assert_eq!(p.get(forged), None);
+        assert_eq!(p.get_mut(forged), None);
+        assert!(!p.contains(forged));
+        assert_eq!(p.remove(forged), None);
     }
 
     #[test]
