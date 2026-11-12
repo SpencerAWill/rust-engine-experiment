@@ -22,3 +22,10 @@ path = "fuzz_targets/handle_from_bits.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "handle_pool_ops"
+path = "fuzz_targets/handle_pool_ops.rs"
+test = false
+doc = false
+bench = false
