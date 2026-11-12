@@ -3,7 +3,7 @@
 - **Date:** 2026-11-11
 - **Status:** Draft, awaiting review
 - **Working name:** `engine` (crates `engine_*`); rename before any publishing.
-- **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic RNG, simulation time, math (M1).
+- **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
 
 ---
 
@@ -25,7 +25,7 @@ Project trajectory: learning/experimentation first → foundation for the author
 | Interop | Stable C ABI first, C# as the first real binding; C++/Python/Go possible later |
 | Platforms | macOS (native), Linux (devcontainer + CI), Windows. Web/mobile/console are desirable later and must not be precluded |
 | Determinism | **Same-build determinism**: same binary + same platform + same inputs ⇒ identical results. Not cross-platform bit-exact |
-| Build vs buy | Own the core (ECS, scheduler, FFI layer, RNG, handles, time). Reuse mature crates at the edges (`glam`, later `winit`, `wgpu`, …) |
+| Build vs buy | Own the core (ECS, scheduler, FFI layer, PRNG, handles, time). Reuse mature crates at the edges (`glam`, later `winit`, `wgpu`, …) |
 | Logic style (when the ECS arrives) | Systems over queries; read/write access sets drive parallelism. No entity relationships in the first ECS milestone |
 | `unsafe` | Forbidden by default; named, audited exception crates only (see §4.3) |
 | Originality | **No code copied from Bevy or any other project.** Designs, papers, talks, and blog posts may be studied and cited; all implementation is original. Algorithms are implemented from their published specifications |
@@ -48,9 +48,9 @@ These findings shaped this spec and the roadmap. Sources are listed in §12.
 
 1. **ECS storage is a trade-off.** Sparse sets make component add/remove cheap but iterate slower at scale. Archetypes iterate fastest but pay on composition changes. Bevy offers per-component choice (table default, sparse opt-in). skypjack (EnTT author) argues hybrid schemes "look better than they are". → M2 spike benchmarks all three on identical workloads.
 2. **Interop forces runtime component identity.** Rust `TypeId` is not stable across compilations, so it cannot cross FFI. Bevy retrofitted runtime `ComponentId`s for scripting. Flecs is C-first with runtime components and language-agnostic reflection, and its .NET binding is blittable with no marshalling. → If C#/mods define components, the core identity model must be runtime IDs plus layout descriptors, with Rust generics as a typed layer on top.
-3. **Scheduling.** Implicit ordering of conflicting systems produces nondeterminism. Bevy requires explicit ordering and reports ambiguities. Naughty Dog's fiber job system parks waiting jobs rather than blocking threads, uses atomic counters, and had no work stealing. → M3 concern; M1's `Rng::stream` is designed so randomness does not depend on execution order.
+3. **Scheduling.** Implicit ordering of conflicting systems produces nondeterminism. Bevy requires explicit ordering and reports ambiguities. Naughty Dog's fiber job system parks waiting jobs rather than blocking threads, uses atomic counters, and had no work stealing. → M3 concern; M1's `Prng::stream` is designed so randomness does not depend on execution order.
 4. **Handles over pointers at boundaries.** Index plus generation handles are serializable, detect staleness, and are only dereferenced by the owning side, which is the right shape for FFI. → `engine_handle` in M1, with a stable 64-bit encoding.
-5. **Determinism must be chosen up front.** Rapier offers only local determinism by default. Frontier's GDC 2024 talk shows cross-platform float determinism needs "extreme care" (they chose fixed-point). → We commit to same-build determinism and own our RNG so dependency updates cannot change output.
+5. **Determinism must be chosen up front.** Rapier offers only local determinism by default. Frontier's GDC 2024 talk shows cross-platform float determinism needs "extreme care" (they chose fixed-point). → We commit to same-build determinism and own our PRNG so dependency updates cannot change output.
 6. **Benchmarking.** The classic `ecs_bench_suite` is archived. divan lacks built-in baseline save/compare. Criterion supports saved baselines (critcmp compares them). Gungraun (formerly iai-callgrind) gives CI-stable instruction-count benchmarks. → Criterion locally, Gungraun in CI (§8).
 7. **Old-engine mistakes to avoid.** Individually allocated objects, data scattered in memory, logic scattered across "a million components", and OO gameplay layers tightly coupled to data layout. → Data-oriented crates with plain data and free functions where possible, and stable handles instead of object references.
 
@@ -162,9 +162,9 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
 
 - **Naming:** RFC 430 casing. Conversions are `as_`/`to_`/`into_`. Constructors are `new`, `with_*`, `from_*`. No `get_` prefix on getters.
 - **Common traits:** implement `Debug` always. Implement `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash`, `PartialOrd`, `Ord`, `Default` wherever semantically meaningful. Every public type is `Send + Sync` unless there is a documented reason not to be. Static assertions in tests verify this.
-- **`#[must_use]`** on functions whose result being ignored is almost certainly a bug (e.g. `HandlePool::insert`, `Rng::stream`).
+- **`#[must_use]`** on functions whose result being ignored is almost certainly a bug (e.g. `HandlePool::insert`, `Prng::stream`).
 - **Errors:** each crate defines its own error enum with hand-written `Display` + `core::error::Error`, marked `#[non_exhaustive]`. No `thiserror`/`anyhow` in libraries.
-- **Panics:** library code panics only on documented contract violations (e.g. an empty range passed to `Rng::range`), each with a `# Panics` doc section. Otherwise it returns `Option`/`Result`.
+- **Panics:** library code panics only on documented contract violations (e.g. an empty range passed to `Prng::range`), each with a `# Panics` doc section. Otherwise it returns `Option`/`Result`.
 - **Docs:** every public item is documented. Every public type and most public functions include a runnable example (doctest). Each crate's root docs explain purpose, guarantees (determinism, complexity), and a quick start.
 - **Prelude:** only the facade crate has a prelude. Leaf crates expose a flat, small public surface.
 - **Feature flags:** additive only. `std` is a default feature where applicable. No feature changes observable behavior of deterministic output.
@@ -210,7 +210,7 @@ Dependabot gains the `cargo` (weekly, grouped) and `github-actions` (weekly) eco
 
 ### 4.8 `xtask` commands
 
-`ci` (runs fmt-check, clippy, test, doc, no-std, check-unsafe, deny in sequence), `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `check-unsafe`, `miri`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `bench-regress`, `fuzz <target> [--time <secs>]`, `rng-stats` (streams RNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand).
+`ci` (runs fmt-check, clippy, test, doc, no-std, check-unsafe, deny in sequence), `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `check-unsafe`, `miri`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `bench-regress`, `fuzz <target> [--time <secs>]`, `prng-stats` (streams PRNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand).
 
 `xtask` has minimal dependencies (std plus, at most, a small argument parser). It shells out to `cargo` and external tools, and prints an actionable install hint when a tool (`cargo-nextest`, `cargo-deny`, `cargo-llvm-cov`, `gungraun-runner`, `cargo-fuzz`, `critcmp`) is missing.
 
@@ -307,14 +307,16 @@ impl<T> HandleAllocator<T> {
 
 **Purpose:** a fast, deterministic, versioned-stable PRNG for simulation. Not cryptographically secure (stated prominently in docs).
 
+**Naming:** the type is `Prng`, not `Rng`, so every call site states that the output is pseudorandom: a deterministic function of the seed, not a source of true or cryptographic randomness. Following Rust's convention for acronyms in type names (`Uuid`, `Tcp…`), it is written `Prng`. The crate keeps the broader name `engine_random`, so it can later hold related, non-generator code (distributions, noise) without a rename.
+
 ```rust
 #![no_std]
 
 /// xoshiro256++ generator; state seeded via SplitMix64.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Rng { s: [u64; 4] }
+pub struct Prng { s: [u64; 4] }
 
-impl Rng {
+impl Prng {
     /// Expands `seed` into 256 bits of state using four successive SplitMix64 outputs.
     pub const fn from_seed(seed: u64) -> Self;
     pub fn next_u32(&mut self) -> u32;          // upper 32 bits of next_u64
@@ -327,7 +329,7 @@ impl Rng {
     pub fn shuffle<T>(&mut self, slice: &mut [T]);
     pub fn choose<'a, T>(&mut self, slice: &'a [T]) -> Option<&'a T>;
     pub fn fill_bytes(&mut self, dest: &mut [u8]);
-    #[must_use] pub fn stream(&self, id: u64) -> Rng;
+    #[must_use] pub fn stream(&self, id: u64) -> Prng;
 }
 
 /// Implemented for `Range` and `RangeInclusive` over u8..u64, usize, i8..i64, isize, f32, f64.
@@ -342,7 +344,7 @@ pub trait SampleRange: sealed::Sealed { type Output; /* sampling method is priva
 - **`shuffle`:** Fisher–Yates using unbiased bounded integers.
 - **`choose`:** `None` for an empty slice. Consumes one bounded draw otherwise.
 - **`stream(id)`:** returns an independent generator that is a pure function of `(self's current state, id)` and does not advance `self`. Definition:
-  `seed = mix(s0 ^ s1.rotate_left(17) ^ s2.rotate_left(31) ^ s3.rotate_left(47) ^ mix(id))`, then `Rng::from_seed(seed)`, where `mix` is the SplitMix64 finalizer. Typical use: `let mut r = world_rng.stream(entity.to_bits());`. The same entity gets the same sequence regardless of system execution order or thread assignment.
+  `seed = mix(s0 ^ s1.rotate_left(17) ^ s2.rotate_left(31) ^ s3.rotate_left(47) ^ mix(id))`, then `Prng::from_seed(seed)`, where `mix` is the SplitMix64 finalizer. Typical use: `let mut r = world_prng.stream(entity.to_bits());`. The same entity gets the same sequence regardless of system execution order or thread assignment.
 - **Stream stability guarantee:** for a given seed, every method's output sequence is frozen across all 0.x releases. Golden tests enforce this; any change is a breaking change requiring an ADR.
 - No `rand_core` trait impls in M1 (YAGNI). An optional, additive `rand_core` feature may be added later.
 
@@ -462,7 +464,7 @@ Only `f32` helpers in M1. `f64` variants are added when something needs them.
 ### 5.5 `engine` facade
 
 - Re-exports each crate as a module: `engine::handle`, `engine::random`, `engine::time`, `engine::math`.
-- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `Rng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when `std`), `Transform`, `Vec2`, `Vec3`, `Vec4`, `Quat`, `Mat4`.
+- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when `std`), `Transform`, `Vec2`, `Vec3`, `Vec4`, `Quat`, `Mat4`.
 - Features: `std` (default), forwarded to leaf crates.
 - The crate root docs are the engine's "start here" page: crate map, guarantees, and a short example.
 
@@ -471,11 +473,11 @@ Only `f32` helpers in M1. `f64` variants are added when something needs them.
 A headless binary demonstrating the M1 crates together:
 
 1. CLI arguments: `--seed <u64>` (default 42), `--ticks <u64>` (default 600), `--particles <usize>` (default 10 000).
-2. Creates a `HandlePool<Particle { position: Vec3, velocity: Vec3, ttl: u32 }>` seeded via `Rng::from_seed(seed)`.
+2. Creates a `HandlePool<Particle { position: Vec3, velocity: Vec3, ttl: u32 }>` seeded via `Prng::from_seed(seed)`.
 3. Drives a `FixedTimestep` (1/60 s) from a `ManualClock`, advancing by a deterministic pseudo-random frame time each loop iteration (simulating jittery frames). For each step:
    - integrate particles;
    - decrement `ttl` and remove expired particles;
-   - respawn replacements using `rng.stream(handle.to_bits())`.
+   - respawn replacements using `prng.stream(handle.to_bits())`.
 4. Prints the final tick, live count, slot capacity, and a 64-bit FNV-1a checksum over `(handle bits, position bits, velocity bits)` in iteration order.
 5. Integration test (`examples/fixed_step_sim/tests/determinism.rs`) runs the simulation logic as a library function twice with the same seed and asserts equal checksums. A different seed must produce a different checksum. A different frame-time split must produce the same checksum (cap not hit).
 
@@ -503,10 +505,10 @@ All layers run in CI unless noted.
 | Layer | Tool | M0+M1 coverage |
 |---|---|---|
 | Unit | `#[test]` in-module | Generation increments; retire-on-exhaustion (tested by constructing a slot near `u32::MAX` via a `#[cfg(test)]` constructor); LIFO reuse; `clear` semantics; `from_bits(0)` → `None`; `Tick::next`; `FixedTimestep` cap and `dropped_time`; `alpha` range; float-range rejection path; `chance` edge cases (`0`, `1`, `NaN`, negatives); `Transform` identities |
-| Doc | rustdoc | Every public example runs. `compile_fail` doctests: `Handle<A>` passed where `Handle<B>` is expected; `Rng::range` with an unsupported type |
+| Doc | rustdoc | Every public example runs. `compile_fail` doctests: `Handle<A>` passed where `Handle<B>` is expected; `Prng::range` with an unsupported type |
 | Trait/auto-trait assertions | static asserts in tests | `Handle<T>: Send + Sync + Copy` for non-`Send` `T`; size assertions (`size_of::<Handle<T>>() == 8`, `size_of::<Option<Handle<T>>>() == 8`) |
-| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/clear/iterate). Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Rng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
-| Golden values | plain tests | xoshiro256++ and SplitMix64 outputs checked against published test vectors. First 16 outputs of every public `Rng` method for seeds `{0, 1, 42, u64::MAX}` frozen in `tests/golden.rs`. `stream` outputs frozen. `fixed_step_sim` checksum for the default arguments frozen |
+| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/clear/iterate). Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
+| Golden values | plain tests | xoshiro256++ and SplitMix64 outputs checked against published test vectors. First 16 outputs of every public `Prng` method for seeds `{0, 1, 42, u64::MAX}` frozen in `tests/golden.rs`. `stream` outputs frozen. `fixed_step_sim` checksum for the default arguments frozen |
 | Statistical sanity | plain tests (release-mode, `#[ignore]` by default, run in CI via `--include-ignored` on ubuntu) | Chi-square goodness-of-fit for `range` over small and non-power-of-two bounds, `f32`/`f64` bucket uniformity, `bool` balance, `shuffle` permutation uniformity on 4 elements. Fixed seeds and thresholds, so tests are deterministic |
 | Determinism | integration test | §5.6 |
 | Undefined behavior | Miri | `engine_handle` (and all future allowlisted crates) |
@@ -535,7 +537,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 |---|---|---|---|
 | `HandlePool<T>` (T = `u64` and a 64-byte struct) | `slotmap::SlotMap`, `thunderdome::Arena` | insert N; get all (sequential and random handle order); remove all; iterate; churn (remove 50% randomly then reinsert) then get | 1k, 100k, 1M |
 | `HandleAllocator` | `slotmap` with `()` values | allocate N; free/reallocate churn; `is_alive` checks | 1k, 100k, 1M |
-| `Rng` | `rand_xoshiro::Xoshiro256PlusPlus`, `rand::rngs::SmallRng`, `fastrand::Rng` | `next_u64` ×1M; `range(0..1000)` ×1M; `range(0.0..1.0)` ×1M; `shuffle` 10k | — |
+| `Prng` | `rand_xoshiro::Xoshiro256PlusPlus`, `rand::rngs::SmallRng`, `fastrand::Rng` | `next_u64` ×1M; `range(0..1000)` ×1M; `range(0.0..1.0)` ×1M; `shuffle` 10k | — |
 | `FixedTimestep` | — | `accumulate` + drain ×1M | — |
 | `fixed_step_sim` | — | full run, default args | — |
 
@@ -562,7 +564,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 - Scheduler and job system (M3).
 - C ABI, C# bindings, header generation (M4).
 - Windowing, input, rendering, audio, assets, physics, scripting, networking, editor tooling.
-- Publishing to crates.io, semver guarantees beyond "golden RNG streams are frozen in 0.x".
+- Publishing to crates.io, semver guarantees beyond "golden PRNG streams are frozen in 0.x".
 - Cross-platform bit-exact determinism, fixed-point math.
 - `rand_core` trait interop, `f64` math helpers, dense iteration in `HandlePool`.
 
