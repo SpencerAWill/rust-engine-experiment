@@ -304,6 +304,29 @@ fn bench_churn_then_get<S: Store<V>, V: Value>(c: &mut Criterion) {
     }
 }
 
+/// Remove a seeded-random half and never reinsert, then iterate what is left.
+/// A sparse container must step over the vacant slots; a dense one does not.
+fn bench_iterate_after_churn<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for n in SIZES {
+        let (mut store, mut keys) = filled::<S, V>(n);
+        shuffle(&mut keys);
+        for k in keys.split_off(n / 2) {
+            store.remove(k);
+        }
+        let mut g = group(c, "iterate_after_churn", n);
+        g.bench_function(id::<S, V>(n), |b| b.iter(|| store.fold_all()));
+        if store.fold_slice().is_some() {
+            g.bench_function(
+                BenchmarkId::new(
+                    format!("{}_values_slice", S::NAME),
+                    format!("{}/{n}", V::NAME),
+                ),
+                |b| b.iter(|| store.fold_slice()),
+            );
+        }
+    }
+}
+
 // --- allocator benchmarks (no values: slotmap with `()` is the comparison) --------------------
 
 trait Alloc {
@@ -426,6 +449,7 @@ fn pool_benches(c: &mut Criterion) {
     all_stores!(c, bench_remove_all);
     all_stores!(c, bench_iterate);
     all_stores!(c, bench_churn_then_get);
+    all_stores!(c, bench_iterate_after_churn);
 }
 
 fn allocator_benches(c: &mut Criterion) {
