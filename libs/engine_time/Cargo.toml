@@ -1,0 +1,27 @@
+[package]
+name = "engine_time"
+description = "Simulation time primitives: ticks, fixed timesteps, and deterministic time sources"
+keywords = ["fixed-timestep", "simulation", "gamedev", "no-std"]
+categories = ["game-development", "no-std"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["std"]
+# Enables `SystemClock`. Everything else is `no_std`.
+std = []
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "fixed_timestep"
+harness = false
+
+[lints]
+workspace = true

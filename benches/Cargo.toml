@@ -1,0 +1,30 @@
+[package]
+name = "engine_benches"
+description = "Cross-library comparison benchmarks (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bench]]
+name = "handles"
+harness = false
+
+[[bench]]
+name = "prng"
+harness = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+engine_handle.workspace = true
+engine_random.workspace = true
+fastrand = "2.5.0"
+rand = "0.10.3"
+rand_xoshiro = "0.8.1"
+slotmap = "1.1.1"
+thunderdome = "0.6.1"

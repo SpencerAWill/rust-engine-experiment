@@ -1,0 +1,9 @@
+date: 2026-11-12T15:52:04Z
+cpu: Apple M4 Pro (Mac16,8)
+memory_gb: 24
+cores: 8 performance + 4 efficiency
+os: macOS 26.6.2 (25G83)
+rustc: rustc 1.97.0 (2d8144b78 2026-07-07)
+power: AC Power until 11:24 local, then battery with two idle sleeps (those results were re-run)
+load_before: { 2.19 2.76 2.79 } (waited 70s for load < 2.5)
+git: 6780faa

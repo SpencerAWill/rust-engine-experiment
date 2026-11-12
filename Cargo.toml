@@ -1,5 +1,52 @@
 [workspace]
 resolver = "3"
-members = [
-    "libs/*"
-]
+members = ["libs/*", "examples/*", "benches", "xtask"]
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/SpencerAWill/rust-engine-experiment"
+publish = false
+
+[workspace.dependencies]
+# internal crates (path + version)
+engine_handle = { path = "libs/engine_handle", version = "0.1.0" }
+engine_random = { path = "libs/engine_random", version = "0.1.0" }
+engine_time = { path = "libs/engine_time", version = "0.1.0", default-features = false }
+engine_math = { path = "libs/engine_math", version = "0.1.0" }
+engine = { path = "libs/engine", version = "0.1.0" }
+glam = { version = "0.30", default-features = false }
+proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"   # engine_handle::HandlePool etc. read better with the prefix
+must_use_candidate = "allow"        # #[must_use] is applied deliberately (spec §4.4)
+undocumented_unsafe_blocks = "deny"
+unwrap_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
+
+[profile.dev]
+opt-level = 1
+[profile.dev.package."*"]
+opt-level = 3
+[profile.bench]
+lto = "thin"
+codegen-units = 1
+debug = true

@@ -1,0 +1,543 @@
+//! [`DenseHandleAllocator`]: handle allocation without value storage, with iteration over live handles.
+
+use alloc::collections::TryReserveError;
+use core::fmt;
+use core::iter::FusedIterator;
+use core::marker::PhantomData;
+
+use crate::handle::{Handle, write_short_type_name};
+use crate::pool::{HandlePool, Iter};
+
+/// Re-types a handle. Internal only: the public API never exposes a cast (see [`Handle`]).
+#[inline]
+fn retype<A, B>(handle: Handle<A>) -> Handle<B> {
+    Handle::new(handle.index(), handle.generation())
+}
+
+/// Handle allocation without value storage: the shape of an ECS entity allocator.
+///
+/// It hands out [`Handle`]s and tracks which are alive, but stores no values.
+/// Semantics are identical to [`HandlePool`], by construction: it wraps a
+/// `HandlePool<()>`. In particular, new slots start at generation 1; freeing bumps
+/// the generation (or retires the slot on exhaustion); freed slots are reused LIFO;
+/// [`clear`](Self::clear) returns slots in ascending index order; iteration is in
+/// dense order (swap-removal on free).
+///
+/// # Examples
+///
+/// ```
+/// use engine_handle::DenseHandleAllocator;
+///
+/// struct Entity;
+///
+/// let mut entities = DenseHandleAllocator::<Entity>::new();
+/// let a = entities.allocate();
+/// assert!(entities.is_alive(a));
+/// assert!(entities.free(a));
+/// assert!(!entities.is_alive(a)); // stale
+/// let b = entities.allocate(); // same slot, next generation
+/// assert_eq!((b.index(), b.generation().get()), (a.index(), 2));
+/// ```
+///
+/// Handles are typed, so one allocator cannot free another's:
+///
+/// ```compile_fail,E0308
+/// use engine_handle::DenseHandleAllocator;
+///
+/// struct A;
+/// struct B;
+///
+/// let mut a = DenseHandleAllocator::<A>::new();
+/// let from_b = DenseHandleAllocator::<B>::new().allocate();
+/// a.free(from_b); // error: expected `Handle<A>`, found `Handle<B>`
+/// ```
+pub struct DenseHandleAllocator<T> {
+    pool: HandlePool<()>,
+    _marker: PhantomData<fn() -> T>,
+}
+
+impl<T> DenseHandleAllocator<T> {
+    /// Creates an empty allocator. Does not allocate.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// assert!(DenseHandleAllocator::<u8>::new().is_empty());
+    /// ```
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            pool: HandlePool::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Creates an empty allocator with room for `capacity` live handles.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let _ = DenseHandleAllocator::<u8>::with_capacity(64);
+    /// ```
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            pool: HandlePool::with_capacity(capacity),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Reserves room for at least `additional` more live handles without reallocating.
+    ///
+    /// The room is counted from the live handles now: after `reserve(n)`, the next `n`
+    /// allocations do not reallocate.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`, or if the allocator fails, exactly like
+    /// `Vec::reserve`. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut x = DenseHandleAllocator::<u8>::new();
+    /// x.reserve(1000);
+    /// ```
+    #[track_caller]
+    pub fn reserve(&mut self, additional: usize) {
+        if let Err(error) = self.try_reserve(additional) {
+            panic!(
+                "DenseHandleAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
+                 use try_reserve to handle this without panicking"
+            );
+        }
+    }
+
+    /// Fallible twin of [`reserve`](Self::reserve).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TryReserveError`] if the capacity overflows or the allocator fails. On error
+    /// some of the internal arrays may already have grown, which is harmless.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut x = DenseHandleAllocator::<u8>::new();
+    /// assert!(x.try_reserve(16).is_ok());
+    /// assert!(x.try_reserve(usize::MAX).is_err());
+    /// ```
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.pool.try_reserve(additional)
+    }
+
+    /// Creates an empty allocator that holds at most `capacity` live handles, allocating all the memory it will
+    /// ever need up front.
+    ///
+    /// After this call, `allocate`, `free`, `clear`, `retain` and `iter` never touch the heap: once full, `try_allocate` returns `None`. Use it when
+    /// the exact heap behaviour must be known in advance, such as a frame budget with no
+    /// allocation or an embedded target. Allocation failure is handled as for
+    /// `Vec::with_capacity`.
+    ///
+    /// The capacity counts slots, and a slot that has been reused 2³²−1 times is retired for
+    /// good, so a very long-lived container can end up with slightly less room than `capacity`.
+    /// Calling [`reserve`](Self::reserve) can still grow the memory, because it is an explicit
+    /// request to allocate; the capacity limit keeps applying.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::with_fixed_capacity(2);
+    /// let a = alloc.allocate();
+    /// let _b = alloc.allocate();
+    /// assert!(alloc.try_allocate().is_none()); // full: no growth
+    /// alloc.free(a);
+    /// assert!(alloc.try_allocate().is_some()); // a freed slot is reused
+    /// ```
+    pub fn with_fixed_capacity(capacity: usize) -> Self {
+        Self {
+            pool: HandlePool::with_fixed_capacity(capacity),
+            _marker: PhantomData,
+        }
+    }
+
+    /// An allocator that holds at most `limit` slots, for testing the full path.
+    #[cfg(test)]
+    pub(crate) fn with_slot_limit(limit: u32) -> Self {
+        Self {
+            pool: HandlePool::with_slot_limit(limit),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Allocates a fresh handle.
+    ///
+    /// # Panics
+    ///
+    /// Panics if 2³¹−2 slots are in use or retired. Use
+    /// [`try_allocate`](Self::try_allocate) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let h = alloc.allocate();
+    /// assert!(alloc.is_alive(h));
+    /// ```
+    #[must_use = "dropping the handle leaks a live slot until clear() or retain()"]
+    #[track_caller]
+    pub fn allocate(&mut self) -> Handle<T> {
+        let Some(handle) = self.try_allocate() else {
+            panic!(
+                "DenseHandleAllocator::allocate: allocator is full ({} slots in use or retired); \
+                 use try_allocate to handle this without panicking",
+                self.pool.slot_limit()
+            )
+        };
+        handle
+    }
+
+    /// Fallible twin of [`allocate`](Self::allocate): `None` if the allocator is full.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// assert!(alloc.try_allocate().is_some());
+    /// ```
+    pub fn try_allocate(&mut self) -> Option<Handle<T>> {
+        self.pool.try_insert(()).ok().map(retype)
+    }
+
+    /// Frees `handle`, making it and every copy of it stale. Returns `false` if it
+    /// was already stale.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let h = alloc.allocate();
+    /// assert!(alloc.free(h));
+    /// assert!(!alloc.free(h));
+    /// ```
+    pub fn free(&mut self, handle: Handle<T>) -> bool {
+        self.pool.remove(retype(handle)).is_some()
+    }
+
+    /// Returns `true` if `handle` has been allocated and not yet freed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let h = alloc.allocate();
+    /// assert!(alloc.is_alive(h));
+    /// ```
+    #[inline]
+    pub fn is_alive(&self, handle: Handle<T>) -> bool {
+        self.pool.contains(retype(handle))
+    }
+
+    /// Number of live handles.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let _ = alloc.allocate();
+    /// assert_eq!(alloc.len(), 1);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.pool.len()
+    }
+
+    /// Returns `true` if no handle is alive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// assert!(DenseHandleAllocator::<u8>::new().is_empty());
+    /// ```
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.pool.is_empty()
+    }
+
+    /// Frees every handle. Slots are then reused in ascending index order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let h = alloc.allocate();
+    /// alloc.clear();
+    /// assert!(!alloc.is_alive(h));
+    /// ```
+    pub fn clear(&mut self) {
+        self.pool.clear();
+    }
+
+    /// Iterates the live handles in dense order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// let a = alloc.allocate();
+    /// assert_eq!(alloc.iter().next(), Some(a));
+    /// ```
+    pub fn iter(&self) -> DenseAllocIter<'_, T> {
+        DenseAllocIter {
+            inner: self.pool.iter(),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Keeps only the handles for which `keep` returns `true`, visiting in dense order.
+    /// Removed handles behave exactly like [`free`](Self::free).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::DenseHandleAllocator;
+    /// let mut alloc = DenseHandleAllocator::<u8>::new();
+    /// for _ in 0..4 {
+    ///     let _ = alloc.allocate();
+    /// }
+    /// alloc.retain(|h| h.index() < 2);
+    /// assert_eq!(alloc.len(), 2);
+    /// ```
+    pub fn retain(&mut self, mut keep: impl FnMut(Handle<T>) -> bool) {
+        self.pool.retain(|handle, ()| keep(retype(handle)));
+    }
+
+    /// Checks every internal invariant and reports the first violation.
+    ///
+    /// Available in tests and with the `test-invariants` feature; not part of the stable API.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`InvariantViolation`](crate::InvariantViolation) if any invariant does not
+    /// hold, which would be a bug in this crate.
+    #[cfg(any(test, feature = "test-invariants"))]
+    pub fn check_invariants(&self) -> Result<(), crate::InvariantViolation> {
+        self.pool.check_invariants()
+    }
+}
+
+impl<T> Default for DenseHandleAllocator<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Clone for DenseHandleAllocator<T> {
+    fn clone(&self) -> Self {
+        Self {
+            pool: self.pool.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T> fmt::Debug for DenseHandleAllocator<T> {
+    /// Prints `DenseHandleAllocator<T> [Handle<T>(0v1), ...]`, listing the live handles.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("DenseHandleAllocator<")?;
+        write_short_type_name::<T>(f)?;
+        f.write_str("> ")?;
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a DenseHandleAllocator<T> {
+    type Item = Handle<T>;
+    type IntoIter = DenseAllocIter<'a, T>;
+
+    fn into_iter(self) -> DenseAllocIter<'a, T> {
+        self.iter()
+    }
+}
+
+/// Iterator over the live handles of a [`DenseHandleAllocator`], in dense order.
+///
+/// Returned by [`DenseHandleAllocator::iter`]; it is `ExactSizeIterator + FusedIterator`.
+pub struct DenseAllocIter<'a, T> {
+    inner: Iter<'a, ()>,
+    _marker: PhantomData<fn() -> T>,
+}
+
+impl<T> Clone for DenseAllocIter<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Iterator for DenseAllocIter<'_, T> {
+    type Item = Handle<T>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Handle<T>> {
+        self.inner.next().map(|(handle, ())| retype(handle))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<T> ExactSizeIterator for DenseAllocIter<'_, T> {}
+impl<T> FusedIterator for DenseAllocIter<'_, T> {}
+
+impl<T> fmt::Debug for DenseAllocIter<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DenseAllocIter")
+            .field("remaining", &self.len())
+            .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn fixed_capacity_dense_allocator_never_grows_and_reports_full() {
+        let mut a = DenseHandleAllocator::<u8>::with_fixed_capacity(4);
+        let slots = a.pool.slot_capacity();
+        let mut hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
+        assert!(a.try_allocate().is_none());
+        for _ in 0..50 {
+            for h in &hs {
+                assert!(a.free(*h));
+            }
+            hs = (0..4).map(|_| a.allocate()).collect();
+        }
+        a.check_invariants().expect("invariants hold");
+        assert_eq!(a.pool.slot_capacity(), slots);
+    }
+
+    #[test]
+    fn reserve_makes_room_in_every_array() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        a.reserve(100);
+        assert!(a.pool.slot_capacity() >= 100);
+        assert!(a.try_reserve(usize::MAX).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "try_reserve")]
+    fn reserve_panics_on_capacity_overflow() {
+        DenseHandleAllocator::<u8>::new().reserve(usize::MAX);
+    }
+
+    #[test]
+    #[allow(
+        clippy::len_zero,
+        reason = "the point is to call `len` in a const context"
+    )]
+    fn length_queries_are_const() {
+        const _: () = {
+            let a = DenseHandleAllocator::<u8>::new();
+            assert!(a.is_empty());
+            assert!(a.len() == 0);
+            core::mem::forget(a); // a const context cannot run `Drop`
+        };
+    }
+
+    #[test]
+    fn free_returns_false_for_stale_handle() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        let h = a.allocate();
+        assert!(a.is_alive(h));
+        assert!(a.free(h));
+        assert!(!a.free(h));
+        assert!(!a.is_alive(h));
+        a.check_invariants().expect("invariants hold");
+    }
+
+    #[test]
+    fn allocate_after_free_reuses_slot_lifo_with_next_generation() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        let first = a.allocate();
+        let second = a.allocate();
+        a.free(first);
+        a.free(second);
+        let third = a.allocate(); // LIFO: second's slot
+        assert_eq!(third.index(), second.index());
+        assert_eq!(third.generation().get(), second.generation().get() + 1);
+        let fourth = a.allocate();
+        assert_eq!(fourth.index(), first.index());
+        a.check_invariants().expect("invariants hold");
+    }
+
+    #[test]
+    fn try_allocate_returns_none_at_the_slot_limit() {
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(2);
+        assert!(a.try_allocate().is_some());
+        assert!(a.try_allocate().is_some());
+        assert!(a.try_allocate().is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "full (1 slots")]
+    fn allocate_past_a_small_limit_names_that_limit() {
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(1);
+        let _ = a.allocate();
+        let _ = a.allocate();
+    }
+
+    #[test]
+    #[should_panic(expected = "try_allocate")]
+    fn allocate_past_limit_panics_with_hint() {
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(1);
+        let _ = a.allocate();
+        let _ = a.allocate();
+    }
+
+    #[test]
+    fn iter_retain_clear_and_len() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        let hs: Vec<_> = (0..6).map(|_| a.allocate()).collect();
+        assert_eq!(a.len(), 6);
+        assert_eq!(a.iter().len(), 6);
+        a.retain(|h| h.index() % 2 == 0);
+        assert_eq!(a.len(), 3);
+        assert_eq!(a.iter().count(), 3);
+        assert!(a.is_alive(hs[0]) && !a.is_alive(hs[1]));
+        a.clear();
+        assert!(a.is_empty() && !a.is_alive(hs[0]));
+        let again = a.allocate();
+        assert_eq!((again.index(), again.generation().get()), (0, 2));
+        a.check_invariants().expect("invariants hold");
+    }
+
+    #[test]
+    fn debug_lists_live_handles() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        let _ = a.allocate();
+        let _ = a.allocate();
+        assert_eq!(
+            alloc::format!("{a:?}"),
+            "DenseHandleAllocator<u8> [Handle<u8>(0v1), Handle<u8>(1v1)]"
+        );
+    }
+}

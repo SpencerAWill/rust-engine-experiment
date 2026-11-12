@@ -1,0 +1,6 @@
+# Crates permitted to use global/shared concurrent state (spec §4.11, ADR 0008).
+# Format (one table per crate, with the ADR that justifies it):
+#
+#   [[crate]]
+#   name = "engine_example"
+#   adr = "docs/adr/0011-example.md"

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 19b6f417ddef95627b6c5866d151b38d4f873351dc80af4aa36996b757fd37e6 # shrinks to t = Transform { translation: Vec3(0.0, -974.50507, 0.0), rotation: Quat(0.32498008, -0.8626489, -0.3707361, 0.11304725), scale: Vec3(8.949468, 8.949468, 8.949468) }, p = [966.06146, 832.85126, 536.24713]

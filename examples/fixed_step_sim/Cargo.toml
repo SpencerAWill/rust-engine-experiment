@@ -1,0 +1,23 @@
+[package]
+name = "fixed_step_sim"
+description = "Headless deterministic simulation demonstrating the M1 crates together"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+
+[dev-dependencies]
+dhat = "0.3"
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "sim"
+harness = false
+
+[lints]
+workspace = true
