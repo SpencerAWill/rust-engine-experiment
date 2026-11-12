@@ -104,6 +104,18 @@ Choices the spec leaves to implementation:
 
 ## 4. Deviations
 
-<!-- Filled in during implementation. Expected entries: the R16 outcome (forbid or fallback), the chosen pin and why, any devcontainer placement change from Step 7. -->
+Differences from the plan above (and, where noted, from the spec), in step order.
 
-None yet.
+- **Step 1.** `build_mode` takes `(preflight: Result<(), String>, strict: bool)` instead of `(tools_present, windows, ci_env)`: the skip or fail message then carries the install line for whichever tool is missing, and Windows is reported through the same path (`preflight(windows, tools)`). `TARGETS` is in spec §4.1 order (the order `fuzz all` runs), not sorted; the on-disk test compares sorted copies. `--replay` combined with `--time` is rejected, since the time limit would be ignored.
+- **Steps 1 to 5, the `TARGETS` test.** The plan said to `#[ignore]` it until Step 5. The full `ci` also runs ignored tests (`--run-ignored all`), so that failed it. Steps 2 to 4 used a weaker test (every file on disk is listed in `TARGETS`); Step 5 made it an exact match.
+- **Step 2.** The pin is `nightly-2026-11-12`, the newest nightly tried, so no stepping back was needed. R16: `#![forbid(unsafe_code)]` compiles with the `fuzz_target!` expansion, so there is no fallback and no `allow`. The pin was first verified only on macOS; push CI run 43301765069 and nightly run 43301837579 verified it on `ubuntu-latest`.
+- **Steps 3 to 5, the targets.**
+  - A `ProbeNear(usize, i8)` op (an issued handle's slot with a nearby generation) is in all three operation targets, because a random `u64` almost never lands on an in-range index.
+  - The pool target's issued list is `Vec<Handle<Tracked>>` (handles are typed by the value type), and `Retain` and the allocators' `Retain` use `k % 8 + 1`.
+  - `Drain` became `Drain(u8)` after review: an even value drains fully, an odd one stops early and drops the iterator.
+  - `handle_allocator_ops` checks every successful batch against the same number of single allocations replayed on a clone, and, after a refused batch, that the next allocation matches the untouched clone. Batch counts are `n % 65`.
+  - `dense_allocator_ops` checks that `retain` visits each live handle exactly once.
+  - Measured on a temporary counter (not committed): stale handles were about 1% of ops and full-pool rejects about 0.9%, a little under the plan's "few percent" (review focus 2 and 6).
+- **Step 6.** Both jobs install `cargo-fuzz` with `cargo install --locked cargo-fuzz`, not `taiki-e/install-action`, which has no `cargo-fuzz` manifest at the pinned commit. The Rust cache uses `workspaces: . fuzz` (which hashes `fuzz/Cargo.lock`) and comes before the toolchain install, since `cargo xtask fuzz-toolchain` compiles `xtask`. The nightly `stable-toolchain` job installs the same two tools, because the full `ci` it runs includes a `fuzz-build` that is strict under `CI` (found in review).
+- **Step 7.** The devcontainer placement is unchanged (`postCreateCommand` runs with the workspace mounted), but the fuzz tool install is non-fatal so a failure there does not abort the container. The roadmap row was already `In progress`. The README's command list was also updated. The "Reviews before a pull request" section in CONTRIBUTING.md and its AGENTS.md pointer were added at the maintainer's request and are outside this spec.
+- **Known gaps, accepted.** `cargo xtask fmt --check` does not cover `fuzz/`, which is outside the workspace; the target files are formatted with `rustfmt` by hand. The corpus is not minimised (spec §4.6 relies on cache eviction); the saved corpus was about 0.5 MiB after one night. `cargo xtask ci` on a stable toolchain newer than the pin (the nightly `stable-toolchain` job) currently fails earlier, at a Rust 1.100 clippy lint in code from M0+M1.
