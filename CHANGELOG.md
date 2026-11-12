@@ -4,6 +4,12 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependencies:** updated `glam` to 0.34 (from 0.30) and `xtask`'s `syn` to 3. glam 0.33 made every non-`f32` type an opt-in feature, so `engine_math` now enables `f64`, `i32` and `u32` to keep exactly the same public types. The layout assertions, goldens and the `fixed_step_sim` checksum are unchanged.
+- **Toolchain:** pinned Rust is now 1.99.1 (from 1.97.0), and `rust-version` (the MSRV) is 1.99. `Prng::fill_bytes` uses `as_chunks_mut` (a new clippy lint); its output is unchanged and covered by the golden tests.
+- **CI:** `actions/checkout` 7.0.1 and `actions/upload-artifact` 7.0.2 (still pinned to commit hashes), and the devcontainer `rust` feature 1.6.1.
+
 ### Added
 
 - **Workspace and policy (M0):** pinned toolchain, lint policy, determinism bans in `clippy.toml`, `cargo-deny`, dual MIT/Apache licensing, ADRs 0001-0011, and `cargo xtask` (fmt, clippy, test, doc, deny, no-std, wasm, check-unsafe, check-statics, check-workflows, bench, bench-smoke, bench-report, prng-stats, ci). GitHub Actions are pinned to commit hashes and use a read-only token.
