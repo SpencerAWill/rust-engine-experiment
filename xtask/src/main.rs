@@ -213,11 +213,24 @@ fn bench(save: Option<&str>, compare: Option<&(String, String)>) -> Result<(), S
         require_tool("critcmp", "cargo install --locked critcmp")?;
         return run("critcmp", &[a, b], &[]);
     }
-    let mut args = vec!["bench", "--workspace"];
-    if let Some(name) = save {
-        args.extend(["--", "--save-baseline", name]);
-    }
+    let args = bench_args(save);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
     run("cargo", &args, &[])
+}
+
+/// The `cargo bench` command line for `bench [--save <name>]`.
+///
+/// `--bench '*'` restricts it to the `[[bench]]` targets. Without it, flags after `--` (such as
+/// `--save-baseline`) are also passed to the unit-test harness of every library crate, which does
+/// not understand them and fails.
+fn bench_args(save: Option<&str>) -> Vec<String> {
+    let mut args: Vec<String> = ["bench", "--workspace", "--bench", "*"]
+        .map(String::from)
+        .into();
+    if let Some(name) = save {
+        args.extend(["--", "--save-baseline", name].map(String::from));
+    }
+    args
 }
 
 fn ci(quick: bool) -> Result<(), String> {
@@ -348,5 +361,16 @@ mod tests {
         );
         assert!(parse(&["prng-stats", "--bytes"]).is_err());
         assert!(parse(&["prng-stats", "--seed", "x"]).is_err());
+    }
+
+    #[test]
+    fn bench_args_select_only_bench_targets_before_passing_flags_through() {
+        // Without `--bench '*'`, criterion flags such as `--save-baseline` also reach the unit-test
+        // harness of every library crate, which rejects them.
+        let args = bench_args(Some("m1"));
+        let separator = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(&args[..separator], ["bench", "--workspace", "--bench", "*"]);
+        assert_eq!(&args[separator..], ["--", "--save-baseline", "m1"]);
+        assert_eq!(bench_args(None), ["bench", "--workspace", "--bench", "*"]);
     }
 }
