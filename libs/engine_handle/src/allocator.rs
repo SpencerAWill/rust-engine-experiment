@@ -293,7 +293,7 @@ impl<T> HandleAllocator<T> {
     /// assert_eq!(alloc.len(), 1);
     /// ```
     #[inline]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.live
     }
 
@@ -306,7 +306,7 @@ impl<T> HandleAllocator<T> {
     /// assert!(HandleAllocator::<u8>::new().is_empty());
     /// ```
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.live == 0
     }
 
@@ -463,6 +463,20 @@ mod tests {
                 .try_reserve(usize::MAX)
                 .is_err()
         );
+    }
+
+    #[test]
+    #[allow(
+        clippy::len_zero,
+        reason = "the point is to call `len` in a const context"
+    )]
+    fn length_queries_are_const() {
+        const _: () = {
+            let a = HandleAllocator::<u8>::new();
+            assert!(a.is_empty());
+            assert!(a.len() == 0);
+            core::mem::forget(a); // a const context cannot run `Drop`
+        };
     }
 
     #[test]

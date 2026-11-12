@@ -342,7 +342,7 @@ impl<T> HandlePool<T> {
     /// assert_eq!(pool.len(), 1);
     /// ```
     #[inline]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.values.len()
     }
 
@@ -355,7 +355,7 @@ impl<T> HandlePool<T> {
     /// assert!(HandlePool::<u8>::new().is_empty());
     /// ```
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
 
@@ -368,7 +368,7 @@ impl<T> HandlePool<T> {
     /// # use engine_handle::HandlePool;
     /// assert!(HandlePool::<u8>::with_capacity(8).capacity() >= 8);
     /// ```
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.values.capacity()
     }
 
@@ -796,6 +796,21 @@ mod tests {
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
         assert_eq!(p.remove(forged), None);
+    }
+
+    #[test]
+    #[allow(
+        clippy::len_zero,
+        reason = "the point is to call `len` in a const context"
+    )]
+    fn length_and_capacity_queries_are_const() {
+        const _: () = {
+            let pool = HandlePool::<u8>::new();
+            assert!(pool.is_empty());
+            assert!(pool.len() == 0);
+            assert!(pool.capacity() == 0);
+            core::mem::forget(pool); // a const context cannot run `Drop`
+        };
     }
 
     #[test]
