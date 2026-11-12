@@ -33,6 +33,8 @@
 //! assert_eq!(Vec3::X + Vec3::Y, Vec3::new(1.0, 1.0, 0.0));
 //! ```
 
+pub mod axis;
+pub mod convert;
 mod helpers;
 mod layout;
 pub mod scalar;
