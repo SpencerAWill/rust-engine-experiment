@@ -11,6 +11,7 @@
 mod check_statics;
 mod check_unsafe;
 mod cmd;
+mod prng_stats;
 
 use std::process::ExitCode;
 
@@ -33,6 +34,10 @@ enum Command {
     CheckStatics,
     NoStd,
     Wasm,
+    PrngStats {
+        seed: u64,
+        bytes: Option<u64>,
+    },
     BenchBuild,
     Bench {
         save: Option<String>,
@@ -68,6 +73,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "deny" => only(&[]).map(|()| Command::Deny),
         "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
         "check-statics" => only(&[]).map(|()| Command::CheckStatics),
+        "prng-stats" => parse_prng_stats(flags),
         "no-std" => only(&[]).map(|()| Command::NoStd),
         "wasm" => only(&[]).map(|()| Command::Wasm),
         "bench-build" => only(&[]).map(|()| Command::BenchBuild),
@@ -77,6 +83,28 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         }),
         other => Err(format!("unknown command `{other}`")),
     }
+}
+
+/// Parses `prng-stats [--seed <n>] [--bytes <n>]` (defaults: seed 0, unlimited output).
+fn parse_prng_stats(flags: &[&str]) -> Result<Command, String> {
+    let (mut seed, mut bytes) = (0_u64, None);
+    let mut it = flags.iter();
+    while let Some(flag) = it.next() {
+        let mut number = |name: &str| -> Result<u64, String> {
+            let value = it
+                .next()
+                .ok_or_else(|| format!("`{name}` needs a number"))?;
+            value
+                .parse()
+                .map_err(|_| format!("`{name}` needs a number, got `{value}`"))
+        };
+        match *flag {
+            "--seed" => seed = number("--seed")?,
+            "--bytes" => bytes = Some(number("--bytes")?),
+            other => return Err(format!("unknown flag `{other}` for `prng-stats`")),
+        }
+    }
+    Ok(Command::PrngStats { seed, bytes })
 }
 
 /// Parses `bench [--save <name>] [--compare <a> <b>]`.
@@ -258,6 +286,7 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::CheckUnsafe => check_unsafe::run(),
         Command::CheckStatics => check_statics::run(),
         Command::NoStd => no_std(),
+        Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
         Command::BenchBuild => run("cargo", &["bench", "--workspace", "--no-run"], &[]),
         Command::Bench { save, compare } => bench(save.as_deref(), compare.as_ref()),
@@ -304,5 +333,25 @@ mod tests {
                 .unwrap_err()
                 .contains("unknown command `nope`")
         );
+    }
+
+    #[test]
+    fn parses_prng_stats() {
+        assert_eq!(
+            parse(&["prng-stats"]),
+            Ok(Command::PrngStats {
+                seed: 0,
+                bytes: None
+            })
+        );
+        assert_eq!(
+            parse(&["prng-stats", "--seed", "7", "--bytes", "16"]),
+            Ok(Command::PrngStats {
+                seed: 7,
+                bytes: Some(16)
+            })
+        );
+        assert!(parse(&["prng-stats", "--bytes"]).is_err());
+        assert!(parse(&["prng-stats", "--seed", "x"]).is_err());
     }
 }
