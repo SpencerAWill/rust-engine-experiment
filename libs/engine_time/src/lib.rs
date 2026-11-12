@@ -28,6 +28,7 @@
 
 mod clock;
 mod error;
+mod fixed;
 mod tick;
 mod timestamp;
 
@@ -38,5 +39,6 @@ mod timestamp;
 pub use clock::SystemClock;
 pub use clock::{ManualClock, TimeSource};
 pub use error::NonMonotonicError;
+pub use fixed::{FixedTimestep, FixedTimestepState, Steps};
 pub use tick::Tick;
 pub use timestamp::Timestamp;

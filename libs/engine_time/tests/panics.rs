@@ -7,7 +7,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use engine_time::{ManualClock, Tick, Timestamp};
+use engine_time::{FixedTimestep, ManualClock, Tick, Timestamp};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -51,4 +51,13 @@ fn panics_point_at_the_caller_and_name_the_fallible_twin() {
         message.contains("checked_next"),
         "next: message was {message}"
     );
+
+    let (file, message) = capture(|| {
+        let _ = FixedTimestep::new(Duration::ZERO);
+    });
+    assert!(
+        file.ends_with("tests/panics.rs"),
+        "new: location was {file}"
+    );
+    assert!(message.contains("try_new"), "new: message was {message}");
 }
