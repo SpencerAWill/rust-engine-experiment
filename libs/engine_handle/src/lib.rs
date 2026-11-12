@@ -35,10 +35,12 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
+mod allocator;
 mod error;
 mod handle;
 mod pool;
 
+pub use allocator::{AllocIter, HandleAllocator};
 pub use error::CapacityError;
 pub use handle::Handle;
 pub use pool::{Drain, HandlePool, IntoIter, Iter, IterMut};

@@ -1,8 +1,8 @@
 //! Model-based property tests: `HandlePool` against a `BTreeMap` reference.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use engine_handle::{Handle, HandlePool};
+use engine_handle::{Handle, HandleAllocator, HandlePool};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -126,5 +126,84 @@ proptest! {
         let first = run(&ops);
         let second = run(&ops);
         prop_assert_eq!(first, second); // same handles AND same iteration order
+    }
+}
+
+#[derive(Debug, Clone)]
+enum AllocOp {
+    Allocate,
+    Free(usize),
+    IsAlive(usize),
+    /// Keep a handle if `index % k != 0`.
+    Retain(u32),
+    Clear,
+}
+
+fn alloc_op() -> impl Strategy<Value = AllocOp> {
+    prop_oneof![
+        4 => Just(AllocOp::Allocate),
+        3 => any::<usize>().prop_map(AllocOp::Free),
+        2 => any::<usize>().prop_map(AllocOp::IsAlive),
+        1 => (1_u32..8).prop_map(AllocOp::Retain),
+        1 => Just(AllocOp::Clear),
+    ]
+}
+
+/// Runs `ops` against the allocator and a `BTreeSet` model; returns every handle issued
+/// and the `iter()` order after each step.
+fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
+    let mut alloc = HandleAllocator::<u8>::new();
+    let mut model = BTreeSet::<u64>::new();
+    let mut issued: Vec<Handle<u8>> = Vec::new();
+    let mut trace = Vec::new();
+
+    for op in ops {
+        let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
+        match *op {
+            AllocOp::Allocate => {
+                let h = alloc.allocate();
+                assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
+                issued.push(h);
+            }
+            AllocOp::Free(i) => {
+                if let Some(h) = pick(i) {
+                    assert_eq!(alloc.free(h), model.remove(&h.to_bits()));
+                }
+            }
+            AllocOp::IsAlive(i) => {
+                if let Some(h) = pick(i) {
+                    assert_eq!(alloc.is_alive(h), model.contains(&h.to_bits()));
+                }
+            }
+            AllocOp::Retain(k) => {
+                alloc.retain(|h| h.index() % k != 0);
+                model.retain(|bits| u32::try_from(bits >> 32).expect("index") % k != 0);
+            }
+            AllocOp::Clear => {
+                alloc.clear();
+                model.clear();
+            }
+        }
+
+        alloc.assert_invariants();
+        assert_eq!(alloc.len(), model.len());
+        let snapshot: Vec<u64> = alloc.iter().map(Handle::to_bits).collect();
+        assert_eq!(snapshot.iter().copied().collect::<BTreeSet<_>>(), model);
+        for h in &issued {
+            assert_eq!(alloc.is_alive(*h), model.contains(&h.to_bits()));
+        }
+        trace.push(snapshot);
+    }
+    (issued.iter().map(|h| h.to_bits()).collect(), trace)
+}
+
+proptest! {
+    #![proptest_config(config())]
+
+    #[test]
+    fn allocator_matches_model_and_is_deterministic(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+        let first = run_alloc(&ops);
+        let second = run_alloc(&ops);
+        prop_assert_eq!(first, second);
     }
 }
