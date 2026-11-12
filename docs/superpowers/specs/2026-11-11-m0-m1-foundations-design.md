@@ -184,6 +184,20 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
 - **Panics:** library code panics only on documented contract violations (e.g. an empty range passed to `Prng::range`), each with a `# Panics` doc section. Otherwise it returns `Option`/`Result`.
 - **Docs:** every public item is documented. Every public type and most public functions include a runnable example (doctest). Each crate's root docs explain purpose, guarantees (determinism, complexity), and a quick start.
 - **Prelude:** only the facade crate has a prelude. Leaf crates expose a flat, small public surface.
+- **Ownership-first design:**
+  - Cross-object references are `Copy` handles, never Rust references stored in data. Borrows happen only at the moment of access.
+  - Return values that don't need to borrow their source don't (e.g. `Steps`).
+  - Simultaneous mutable access to several elements is provided explicitly (`get_disjoint_mut`), so users aren't pushed toward `RefCell` or `unsafe`.
+  - Builders take and return `self` by value and are `#[must_use]`.
+  - Invalid states are made unrepresentable where it costs little (`NonZeroU32`, `Option`-returning constructors for state restoration).
+- **Escape hatches are explicit:** no API silently erases or converts types (e.g. no `Handle::cast`).
+- **`#[inline]` policy:** Rust only inlines non-generic functions across crate boundaries when they are marked `#[inline]` or LTO is on. Because the engine is many crates:
+  - small, hot, non-generic public functions are `#[inline]` (e.g. `Prng::next_u64`, `Handle::index`/`to_bits`, `Tick::next`, `scalar::*`);
+  - generic functions (e.g. `HandlePool<T>` methods) are compiled into the caller's crate and need no annotation;
+  - `#[inline(always)]` is not used without a benchmark justifying it;
+  - benchmarks verify the policy.
+- **Dev-build performance:** game code is often unusably slow at `opt-level = 0`. The workspace sets `[profile.dev] opt-level = 1` and `[profile.dev.package."*"] opt-level = 3` (dependencies fully optimized). The README tells downstream users to do the same, since a library cannot set its users' profiles.
+- **Workspace dependency gotcha:** `[workspace.dependencies]` entries for crates with a `std` feature declare `default-features = false`. Each member enables `std` explicitly, so `no_std` builds don't silently pull in `std` through Cargo feature unification.
 - **Strings:** UTF-8 (`&str`/`String`) everywhere. No platform string types in public APIs. Encoding conversion happens only in FFI/platform layers.
 - **Feature flags:** additive only. `std` is a default feature where applicable. No feature changes observable behavior of deterministic output.
 
@@ -328,10 +342,11 @@ impl<T> Handle<T> {
     pub const fn to_bits(self) -> u64;
     /// Inverse of `to_bits`. Returns `None` iff the generation half is 0.
     pub const fn from_bits(bits: u64) -> Option<Self>;
-    /// Reinterpret as a handle to another type (explicit escape hatch; safe, purely type-level).
-    pub const fn cast<U>(self) -> Handle<U>;
 }
 ```
+
+- **There is deliberately no `cast<U>()`.** It would silently defeat the type safety the phantom type exists to provide. Type-erased uses (FFI, serialization) go through `to_bits`/`from_bits`, where the type change is explicit at both ends.
+- **Known limitation (documented, not fixed):** a `Handle<T>` issued by one pool, used on a *different* pool of the same `T`, can resolve to an unrelated element. Detecting this would need extra bits per handle (breaking the 8-byte size and the FFI encoding) or branded-lifetime tricks that make the API much harder to use. The M2 ECS may add per-world tagging if needed.
 
 - `Copy`, `Clone`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` (by `(index, generation)`), `Hash`, and `Debug` (`Handle<TypeName>(index v generation)`) are implemented manually, without bounds on `T`.
 - `PhantomData<fn() -> T>` keeps the handle covariant in `T` and `Send + Sync` regardless of `T`, with no drop-check implications. A handle refers to a `T` but never owns one.
@@ -346,7 +361,14 @@ impl<T> HandlePool<T> {
     pub fn get(&self, handle: Handle<T>) -> Option<&T>;
     pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T>;
     pub fn remove(&mut self, handle: Handle<T>) -> Option<T>;
+    /// Mutable access to several distinct elements at once (e.g. both bodies in a collision).
+    /// Returns `None` if any handle is stale or two handles refer to the same slot.
+    /// Built on std's `slice::get_disjoint_mut`; no `unsafe`.
+    pub fn get_disjoint_mut<const N: usize>(&mut self, handles: [Handle<T>; N]) -> Option<[&mut T; N]>;
     pub fn contains(&self, handle: Handle<T>) -> bool;
+    /// Keeps only the elements for which `keep` returns true, visiting in ascending slot
+    /// index order. Removed slots behave exactly like `remove`.
+    pub fn retain(&mut self, keep: impl FnMut(Handle<T>, &mut T) -> bool);
     pub fn len(&self) -> usize;
     pub fn is_empty(&self) -> bool;
     pub fn capacity(&self) -> usize;
@@ -355,7 +377,10 @@ impl<T> HandlePool<T> {
     pub fn iter_mut(&mut self) -> IterMut<'_, T>; // Item = (Handle<T>, &mut T), ascending slot index
     pub fn drain(&mut self) -> Drain<'_, T>;     // Item = (Handle<T>, T), ascending slot index
 }
-// Also: Default, Debug (T: Debug), Clone (T: Clone), IntoIterator for &/&mut/owned, Index<Handle<T>> (panics on stale).
+// Also: Default, Debug (T: Debug), Clone (T: Clone), IntoIterator for &/&mut/owned,
+// Index<Handle<T>> and IndexMut<Handle<T>> (panic on stale; documented, like HashMap's Index).
+// All iterators are named types implementing ExactSizeIterator + FusedIterator
+// (the remaining live count is tracked).
 ```
 
 ```rust
@@ -372,7 +397,8 @@ impl<T> HandleAllocator<T> {
     pub fn len(&self) -> usize;
     pub fn is_empty(&self) -> bool;
     pub fn clear(&mut self);
-    pub fn iter(&self) -> AllocIter<'_, T>;    // live handles, ascending slot index
+    pub fn iter(&self) -> AllocIter<'_, T>;    // live handles, ascending slot index; ExactSize + Fused
+    pub fn retain(&mut self, keep: impl FnMut(Handle<T>) -> bool);
 }
 ```
 
@@ -403,13 +429,14 @@ pub struct Prng { s: [u64; 4] }
 impl Prng {
     /// Expands `seed` into 256 bits of state using four successive SplitMix64 outputs.
     pub const fn from_seed(seed: u64) -> Self;
+    // Raw draws are named `next_*`; operations are verbs.
     pub fn next_u32(&mut self) -> u32;          // upper 32 bits of next_u64
     pub fn next_u64(&mut self) -> u64;
-    pub fn f32(&mut self) -> f32;               // (next_u64 >> 40) as f32 * 2^-24, in [0, 1)
-    pub fn f64(&mut self) -> f64;               // (next_u64 >> 11) as f64 * 2^-53, in [0, 1)
+    pub fn next_f32(&mut self) -> f32;          // (next_u64 >> 40) as f32 * 2^-24, in [0, 1)
+    pub fn next_f64(&mut self) -> f64;          // (next_u64 >> 11) as f64 * 2^-53, in [0, 1)
+    pub fn next_bool(&mut self) -> bool;        // top bit of next_u64
     pub fn range<R: SampleRange>(&mut self, range: R) -> R::Output;
-    pub fn bool(&mut self) -> bool;             // top bit of next_u64
-    pub fn chance(&mut self, p: f64) -> bool;   // f64() < p
+    pub fn chance(&mut self, p: f64) -> bool;   // next_f64() < p
     pub fn shuffle<T>(&mut self, slice: &mut [T]);
     pub fn choose<'a, T>(&mut self, slice: &'a [T]) -> Option<&'a T>;
     pub fn fill_bytes(&mut self, dest: &mut [u8]);
@@ -437,6 +464,9 @@ pub trait SampleRange: sealed::Sealed { type Output; /* sampling method is priva
   `seed = mix(s0 ^ s1.rotate_left(17) ^ s2.rotate_left(31) ^ s3.rotate_left(47) ^ mix(id))`, then `Prng::from_seed(seed)`, where `mix` is the SplitMix64 finalizer. Typical use: `let mut r = world_prng.stream(entity.to_bits());`. The same entity gets the same sequence regardless of system execution order or thread assignment.
 - **Stream stability guarantee:** for a given seed, every method's output sequence is frozen across all 0.x releases. Golden tests enforce this; any change is a breaking change requiring an ADR.
 - No `rand_core` trait impls in M1 (YAGNI). An optional, additive `rand_core` feature may be added later.
+- **Deliberate non-impls** (documented on the type so nobody "fixes" them):
+  - **Not `Copy`:** an implicit copy silently duplicates the generator, which produces correlated "random" values. Duplication must be an explicit `clone()` (or `stream`).
+  - **Not `Default`:** a default would hide the seed, which is the input that determines everything.
 
 ### 5.3 `engine_time`
 
@@ -457,14 +487,14 @@ impl Tick {
 
 /// Converts variable elapsed time into a whole number of fixed simulation steps.
 #[derive(Clone, Debug)]
-pub struct FixedTimestep { step: Duration, accumulator: Duration, max_steps: u32, tick: Tick, dropped: Duration }
+pub struct FixedTimestep { step: Duration, accumulator: Duration, max_steps: NonZeroU32, tick: Tick, dropped: Duration }
 
 impl FixedTimestep {
-    pub const DEFAULT_MAX_STEPS_PER_UPDATE: u32 = 8;
+    pub const DEFAULT_MAX_STEPS_PER_UPDATE: NonZeroU32;   // 8
     /// # Panics: if `step` is zero.
     pub fn new(step: Duration) -> Self;
-    /// # Panics: if `max_steps` is zero.
-    pub fn with_max_steps_per_update(self, max_steps: u32) -> Self;
+    /// `NonZeroU32` makes a zero cap unrepresentable instead of a runtime panic.
+    #[must_use] pub fn with_max_steps_per_update(self, max_steps: NonZeroU32) -> Self;
     /// Adds `elapsed`, commits up to `max_steps` whole steps, and returns them.
     /// Excess time beyond `max_steps * step` is discarded and added to `dropped_time()`.
     pub fn accumulate(&mut self, elapsed: Duration) -> Steps;
@@ -474,7 +504,7 @@ impl FixedTimestep {
     pub fn current_tick(&self) -> Tick;        // tick of the next step to be produced
     pub fn dropped_time(&self) -> Duration;    // total time discarded by the step cap
     pub fn to_state(&self) -> FixedTimestepState;
-    /// Returns `None` if `step` or `max_steps_per_update` is zero, or `accumulator >= step`
+    /// Returns `None` if `step` is zero or `accumulator >= step`
     /// (unreachable through normal use).
     pub fn from_state(state: FixedTimestepState) -> Option<Self>;
 }
@@ -484,7 +514,7 @@ impl FixedTimestep {
 pub struct FixedTimestepState {
     pub step: Duration,
     pub accumulator: Duration,
-    pub max_steps_per_update: u32,
+    pub max_steps_per_update: NonZeroU32,
     pub next_tick: Tick,
     pub dropped: Duration,
 }
@@ -506,7 +536,11 @@ impl Timestamp {
     pub fn saturating_duration_since(self, earlier: Timestamp) -> Duration;
 }
 
-pub trait TimeSource { fn now(&self) -> Timestamp; }
+pub trait TimeSource { fn now(&self) -> Timestamp; }   // object-safe: `&dyn TimeSource` works
+// Blanket impls, following std's `impl Read for &mut R` pattern, so `impl TimeSource`
+// parameters accept borrowed clocks:
+impl<T: TimeSource + ?Sized> TimeSource for &T { .. }
+impl<T: TimeSource + ?Sized> TimeSource for &mut T { .. }
 
 /// Not available on `wasm32-unknown-unknown`, where `std::time::Instant::now()` panics.
 /// Platforms without a std clock supply their own `TimeSource` (e.g. one backed by `performance.now()`).
@@ -723,7 +757,7 @@ A headless binary demonstrating the M1 crates together:
 2. Creates a `HandlePool<Particle { position: Vec3, velocity: Vec3, ttl: u32 }>` seeded via `Prng::from_seed(seed)`.
 3. Drives a `FixedTimestep` (1/60 s) from a `ManualClock`, advancing by a deterministic pseudo-random frame time each loop iteration (simulating jittery frames). For each step:
    - integrate particles;
-   - decrement `ttl` and remove expired particles;
+   - decrement `ttl` and remove expired particles via `retain`;
    - respawn replacements using `prng.stream(handle.to_bits())`.
 4. Prints the final tick, live count, slot capacity, and a 64-bit FNV-1a checksum over `(handle bits, position bits, velocity bits)` in iteration order.
 5. Integration test (`examples/fixed_step_sim/tests/determinism.rs`) runs the simulation logic as a library function twice with the same seed and asserts equal checksums. A different seed must produce a different checksum. A different frame-time split must produce the same checksum (cap not hit).
@@ -758,9 +792,9 @@ All layers run in CI unless noted.
 | Unit | `#[test]` in-module | Generation increments; retire-on-exhaustion (tested by constructing a slot near `u32::MAX` via a `#[cfg(test)]` constructor); LIFO reuse; `clear` semantics; `from_bits(0)` → `None`; `Tick::next`; `FixedTimestep` cap and `dropped_time`; `alpha` range; float-range rejection path; `chance` edge cases (`0`, `1`, `NaN`, negatives); `Transform` identities |
 | Doc | rustdoc | Every public example runs. `compile_fail` doctests: `Handle<A>` passed where `Handle<B>` is expected; `Prng::range` with an unsupported type |
 | Trait/auto-trait assertions | static asserts in tests | `Handle<T>: Send + Sync + Copy` for non-`Send` `T`; size assertions (`size_of::<Handle<T>>() == 8`, `size_of::<Option<Handle<T>>>() == 8`) |
-| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/clear/iterate). Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
+| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/get_disjoint_mut/retain/clear/iterate; get_disjoint_mut with duplicate or stale handles returns None). Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
 | Golden values | plain tests | xoshiro256++ and SplitMix64 outputs checked against published test vectors. First 16 outputs of every public `Prng` method for seeds `{0, 1, 42, u64::MAX}` frozen in `tests/golden.rs`. `stream` outputs frozen. `fixed_step_sim` checksum for the default arguments frozen |
-| Statistical sanity | plain tests (release-mode, `#[ignore]` by default, run in CI via `--include-ignored` on ubuntu) | Chi-square goodness-of-fit for `range` over small and non-power-of-two bounds, `f32`/`f64` bucket uniformity, `bool` balance, `shuffle` permutation uniformity on 4 elements. Fixed seeds and thresholds, so tests are deterministic |
+| Statistical sanity | plain tests (release-mode, `#[ignore]` by default, run in CI via `--include-ignored` on ubuntu) | Chi-square goodness-of-fit for `range` over small and non-power-of-two bounds, `next_f32`/`next_f64` bucket uniformity, `next_bool` balance, `shuffle` permutation uniformity on 4 elements. Fixed seeds and thresholds, so tests are deterministic |
 | Determinism | integration test | §5.6, including the cross-architecture golden checksum |
 | Snapshot/restore | integration + unit | §5.6 item 6. `Prng::from_state(p.to_state())` continues identically. `FixedTimestep::from_state` rejects invalid states. `from_state([0; 4])` → `None` |
 | Allocation discipline | `dhat` (testing mode) | §5.6 item 7: zero steady-state allocations per tick |
@@ -823,7 +857,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 - Scheduler and job system (M3).
 - C ABI, C# bindings, header generation (M4).
 - Windowing, input, rendering, audio, assets, physics, scripting, networking, editor tooling.
-- Publishing to crates.io, semver guarantees beyond "golden PRNG streams are frozen in 0.x".
+- Publishing to crates.io, semver guarantees beyond "golden PRNG streams are frozen in 0.x". When publishing is decided, add `cargo-semver-checks` to CI. Optionally, commit per-crate public-API snapshots (`cargo public-api`) so API changes appear as reviewable diffs.
 - Cross-platform bit-exact determinism, fixed-point math.
 - `rand_core` trait interop, `f64` scalar helpers, dense iteration in `HandlePool`.
 - On-disk serialization of `HandlePool`/`HandleAllocator` internals and `serde` support. In-memory snapshots via `Clone` are in scope; persistent serialization is designed in M2 together with the type registry.
