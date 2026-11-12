@@ -30,7 +30,7 @@ cargo xtask ci          # everything CI runs, in order
 cargo xtask ci --quick  # fmt check, clippy, tests only
 ```
 
-`cargo xtask` is the single entry point for both CI and local runs. Other commands: `bench [--save NAME] [--compare A B]`, `prng-stats` (streams PRNG output for PractRand), `no-std`, `wasm`, `check-unsafe`, `check-statics`. It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
+`cargo xtask` is the single entry point for both CI and local runs. Other commands: `bench [--save NAME] [--compare A B]`, `bench-report [--baseline NAME] [--against NAME] [--notes FILE] [--out FILE]` (turns saved criterion results into one self-contained HTML page with charts, and with `--against` a noise-aware before/after view; it writes `target/bench-report/index.html`), `prng-stats` (streams PRNG output for PractRand), `no-std`, `wasm`, `check-unsafe`, `check-statics`. It prints an install hint when a required tool is missing (`cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`).
 
 ## Using the engine in your project
 
