@@ -37,6 +37,14 @@ fn close(a: f32, b: f32, relative: f32) -> bool {
     (a - b).abs() <= relative * (1.0 + a.abs().max(b.abs()))
 }
 
+/// Rounding slack for results formed by adding terms that can cancel: error scales with the
+/// size of the terms (about 5e-7 relative to them, measured), not with the result.
+const CANCELLATION: f32 = 2e-6;
+
+fn vec_close_with_slack(a: Vec2, b: Vec2, relative: f32, slack: f32) -> bool {
+    (a - b).length() <= relative * (1.0 + a.length().max(b.length())) + slack
+}
+
 fn vec_close(a: Vec2, b: Vec2, relative: f32) -> bool {
     close(a.x, b.x, relative) && close(a.y, b.y, relative)
 }
@@ -55,7 +63,8 @@ proptest! {
         let composed = (a * b).to_affine();
         let by_matrix = a.to_affine() * b.to_affine();
         for (x, y) in composed.to_cols_array().iter().zip(by_matrix.to_cols_array()) {
-            prop_assert!(close(*x, y, 1e-3), "{composed:?} vs {by_matrix:?}");
+            let slack = CANCELLATION * (1.0 + a.translation.length() + a.scale.x * b.translation.length());
+            prop_assert!(close(*x, y, 1e-3) || (x - y).abs() <= slack, "{composed:?} vs {by_matrix:?}");
         }
         prop_assert_eq!(a.mul_transform(b), a * b);
     }
@@ -73,9 +82,10 @@ proptest! {
     fn transform_point_agrees_with_affine_and_mat3(t in uniform_transform2d(), p in prop::array::uniform2(-1e3_f32..1e3)) {
         let p = Vec2::from(p);
         let direct = t.transform_point(p);
-        prop_assert!(vec_close(direct, t.to_affine().transform_point2(p), 1e-3));
+        let slack = CANCELLATION * (1.0 + t.translation.length() + t.scale.x * p.length());
+        prop_assert!(vec_close_with_slack(direct, t.to_affine().transform_point2(p), 1e-3, slack));
         let h = t.to_mat3() * p.extend(1.0);
-        prop_assert!(vec_close(direct, Vec2::new(h.x, h.y), 1e-3));
+        prop_assert!(vec_close_with_slack(direct, Vec2::new(h.x, h.y), 1e-3, slack));
         prop_assert!(close(h.z, 1.0, 1e-6));
         prop_assert!(vec_close(t.transform_vector(p), t.to_affine().transform_vector2(p), 1e-3));
     }

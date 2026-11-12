@@ -48,10 +48,25 @@ fn close(a: f32, b: f32, relative: f32) -> bool {
 }
 
 fn mat_close(a: Mat4, b: Mat4, relative: f32) -> bool {
+    mat_close_with_slack(a, b, relative, 0.0)
+}
+
+/// Like [`mat_close`], with extra absolute slack per entry. Needed when entries are meant to
+/// cancel to zero: rounding error then scales with the size of the cancelling terms, not with
+/// the (tiny) result.
+fn mat_close_with_slack(a: Mat4, b: Mat4, relative: f32, slack: f32) -> bool {
     a.to_cols_array()
         .iter()
         .zip(b.to_cols_array())
-        .all(|(x, y)| close(*x, y, relative))
+        .all(|(x, y)| close(*x, y, relative) || (x - y).abs() <= slack)
+}
+
+/// Rounding slack for results formed by adding terms that can cancel: error scales with the
+/// size of the terms (about 5e-7 relative to them, measured), not with the result.
+const CANCELLATION: f32 = 2e-6;
+
+fn vec_close_with_slack(a: Vec3, b: Vec3, relative: f32, slack: f32) -> bool {
+    (a - b).length() <= relative * (1.0 + a.length().max(b.length())) + slack
 }
 
 fn vec_close(a: Vec3, b: Vec3, relative: f32) -> bool {
@@ -63,23 +78,30 @@ proptest! {
 
     #[test]
     fn composition_matches_matrix_composition(a in uniform_transform(), b in uniform_transform()) {
-        prop_assert!(mat_close((a * b).to_matrix(), a.to_matrix() * b.to_matrix(), 1e-3));
+        let slack = CANCELLATION * (1.0 + a.translation.length() + a.scale.x * b.translation.length());
+        prop_assert!(mat_close_with_slack((a * b).to_matrix(), a.to_matrix() * b.to_matrix(), 1e-3, slack));
         prop_assert_eq!(a.mul_transform(b), a * b);
     }
 
     #[test]
     fn inverse_composes_to_identity(t in uniform_transform()) {
+        // The translation entries cancel to zero, so their rounding error scales with |translation|
+        // (measured worst case: about 5e-7 * |t| over 300k samples). A flat 1e-3 was within 9% of
+        // that and failed rarely; 1e-5 * (1 + |t|) leaves about 20x headroom.
+        let slack = 1e-5 * (1.0 + t.translation.length());
         let identity = (t * t.inverse()).to_matrix();
-        prop_assert!(mat_close(identity, Mat4::IDENTITY, 1e-3), "{identity:?}");
+        prop_assert!(mat_close_with_slack(identity, Mat4::IDENTITY, 1e-3, slack), "{identity:?}");
         let identity = (t.inverse() * t).to_matrix();
-        prop_assert!(mat_close(identity, Mat4::IDENTITY, 1e-3), "{identity:?}");
+        prop_assert!(mat_close_with_slack(identity, Mat4::IDENTITY, 1e-3, slack), "{identity:?}");
     }
 
     #[test]
     fn transform_point_matches_the_matrix(t in uniform_transform(), p in prop::array::uniform3(-1e3_f32..1e3)) {
         let p = Vec3::from(p);
-        prop_assert!(vec_close(t.transform_point(p), t.to_matrix().transform_point3(p), 1e-3));
-        prop_assert!(vec_close(t.transform_point(p), t.to_affine().transform_point3(p), 1e-3));
+        // translation + rotated(scale * p) can cancel, so allow slack proportional to both terms.
+        let slack = CANCELLATION * (1.0 + t.translation.length() + t.scale.x * p.length());
+        prop_assert!(vec_close_with_slack(t.transform_point(p), t.to_matrix().transform_point3(p), 1e-3, slack));
+        prop_assert!(vec_close_with_slack(t.transform_point(p), t.to_affine().transform_point3(p), 1e-3, slack));
         prop_assert!(vec_close(t.transform_vector(p), t.to_matrix().transform_vector3(p), 1e-3));
     }
 
