@@ -70,10 +70,6 @@ fn vec_close_with_slack(a: Vec3, b: Vec3, relative: f32, slack: f32) -> bool {
     (a - b).length() <= relative * (1.0 + a.length().max(b.length())) + slack
 }
 
-fn vec_close(a: Vec3, b: Vec3, relative: f32) -> bool {
-    close(a.x, b.x, relative) && close(a.y, b.y, relative) && close(a.z, b.z, relative)
-}
-
 proptest! {
     #![proptest_config(config())]
 
@@ -103,7 +99,9 @@ proptest! {
         let slack = CANCELLATION * (1.0 + t.translation.length() + t.scale.x * p.length());
         prop_assert!(vec_close_with_slack(t.transform_point(p), t.to_matrix().transform_point3(p), 1e-3, slack));
         prop_assert!(vec_close_with_slack(t.transform_point(p), t.to_affine().transform_point3(p), 1e-3, slack));
-        prop_assert!(vec_close(t.transform_vector(p), t.to_matrix().transform_vector3(p), 1e-3));
+        // A rotated component can cancel to ~0 while the terms being summed are ~scale * |p|.
+        let vector_slack = CANCELLATION * (1.0 + t.scale.x * p.length());
+        prop_assert!(vec_close_with_slack(t.transform_vector(p), t.to_matrix().transform_vector3(p), 1e-3, vector_slack));
     }
 
     #[test]
@@ -111,4 +109,22 @@ proptest! {
         prop_assert_eq!(Transform::IDENTITY * t, t);
         prop_assert!(mat_close((t * Transform::IDENTITY).to_matrix(), t.to_matrix(), 1e-6));
     }
+}
+
+#[test]
+fn transform_vector_cancellation_regression() {
+    // Found by CI on Windows: one rotated component cancels to ~0 while the terms are ~1e4.
+    let t = Transform {
+        translation: Vec3::ZERO,
+        rotation: Quat::from_xyzw(-0.242_964, -0.475_230_46, 0.816_761_2, 0.219_147_52),
+        scale: Vec3::splat(9.301_457),
+    };
+    let p = Vec3::new(-529.317_57, -363.504_8, -977.875_24);
+    let slack = CANCELLATION * (1.0 + t.scale.x * p.length());
+    assert!(vec_close_with_slack(
+        t.transform_vector(p),
+        t.to_matrix().transform_vector3(p),
+        1e-3,
+        slack
+    ));
 }
