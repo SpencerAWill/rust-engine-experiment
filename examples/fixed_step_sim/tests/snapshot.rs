@@ -27,21 +27,38 @@ fn split_runs_equal_single_run() {
     assert_eq!(split.summary(), single.summary());
 }
 
+/// Restoring raw state must give a component that *continues* identically, not merely one that
+/// reports the same state back: advance each component, snapshot, restore, and keep going.
 #[test]
-fn raw_state_roundtrips_mid_run() {
-    let mut sim = Sim::new(&SimConfig::default());
-    sim.run_ticks(300);
+fn restored_components_continue_identically() {
+    use core::time::Duration;
 
-    assert_eq!(
-        Prng::from_state(sim.prng().to_state()).as_ref(),
-        Some(sim.prng())
-    );
+    // Prng: draw some values first so the state is not the freshly seeded one.
+    let mut prng = Prng::from_seed(7);
+    for _ in 0..50 {
+        prng.next_u64();
+    }
+    let mut restored = Prng::from_state(prng.to_state()).unwrap();
+    for _ in 0..100 {
+        assert_eq!(prng.next_u64(), restored.next_u64());
+    }
 
-    let restored = FixedTimestep::from_state(sim.timestep().to_state()).unwrap();
-    assert_eq!(restored.to_state(), sim.timestep().to_state());
+    // FixedTimestep: accumulate leftover time, restore, then feed both the same frames.
+    let mut timestep = FixedTimestep::from_hz(core::num::NonZeroU32::new(60).unwrap());
+    let _ = timestep.accumulate(Duration::from_millis(25)).count();
+    let mut twin = FixedTimestep::from_state(timestep.to_state()).unwrap();
+    for frame in [7_000_000_u64, 40_000_000, 3_000_000, 16_666_667] {
+        let a = timestep.accumulate(Duration::from_nanos(frame)).count();
+        let b = twin.accumulate(Duration::from_nanos(frame)).count();
+        assert_eq!(a, b);
+        assert_eq!(timestep.alpha().to_bits(), twin.alpha().to_bits());
+    }
 
-    assert_eq!(
-        ManualClock::starting_at(sim.clock().now()).now(),
-        sim.clock().now()
-    );
+    // ManualClock: a clock restored at `now()` advances in lockstep with the original.
+    let mut clock = ManualClock::new();
+    clock.advance(Duration::from_millis(123));
+    let mut clone = ManualClock::starting_at(clock.now());
+    clock.advance(Duration::from_millis(5));
+    clone.advance(Duration::from_millis(5));
+    assert_eq!(clock.now(), clone.now());
 }
