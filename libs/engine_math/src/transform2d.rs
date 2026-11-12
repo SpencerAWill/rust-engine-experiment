@@ -14,7 +14,13 @@ use glam::{Affine2, DAffine2, DMat2, DVec2, DVec3, Mat2, Mat3, Quat, Vec2, Vec3}
 use crate::{Transform, WorldTransform, scalar};
 
 /// Wraps an angle into `(-pi, pi]`.
+///
+/// Angles already in range are returned unchanged: shifting by `PI` first would round small
+/// angles onto the coarse `f32` grid near 3.14 (about 2.4e-7 apart).
 fn wrap_angle(angle: f32) -> f32 {
+    if angle > -PI && angle <= PI {
+        return angle;
+    }
     let wrapped = (angle + PI).rem_euclid(TAU) - PI;
     if wrapped <= -PI { PI } else { wrapped }
 }
@@ -587,6 +593,30 @@ mod tests {
         let t2 = t.to_2d();
         assert_eq!(t2.translation, Vec2::new(1.0, 2.0));
         assert_eq!(t2.scale, Vec2::new(4.0, 5.0));
+    }
+
+    #[test]
+    fn wrap_angle_preserves_small_angles_exactly() {
+        for a in [1e-6_f32, -3e-7, 1e-4, -1e-9, 0.5, -0.5, PI, 0.0] {
+            assert_eq!(
+                wrap_angle(a).to_bits(),
+                a.to_bits(),
+                "wrap_angle({a:e}) changed it"
+            );
+        }
+        assert_eq!(wrap_angle(-PI).to_bits(), PI.to_bits());
+        assert!(approx_eq(wrap_angle(3.0 * PI), PI, 1e-5));
+        assert!(approx_eq(wrap_angle(TAU + 1e-3), 1e-3, 1e-5));
+    }
+
+    #[test]
+    fn composing_tiny_rotations_keeps_them() {
+        let a = Transform2d {
+            rotation: 1e-6,
+            ..Transform2d::IDENTITY
+        };
+        let c = Transform2d::IDENTITY.mul_transform(a);
+        assert_eq!(c.rotation.to_bits(), 1e-6_f32.to_bits());
     }
 
     #[test]
