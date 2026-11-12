@@ -126,6 +126,9 @@ fn parse_bench(flags: &[&str]) -> Result<Command, String> {
             other => return Err(format!("unknown flag `{other}` for `bench`")),
         }
     }
+    if save.is_some() && compare.is_some() {
+        return Err("`--save` and `--compare` cannot be combined: run them separately".to_string());
+    }
     Ok(Command::Bench { save, compare })
 }
 
@@ -139,17 +142,11 @@ fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
         args.extend(["--run-ignored", "all"]);
     }
     run("cargo", &args, &[])?;
-    // `cargo test --doc` errors when the workspace has no library target yet.
-    if std::path::Path::new("libs").is_dir() {
-        run(
-            "cargo",
-            &["test", "--doc", "--workspace", "--all-features"],
-            &[],
-        )?;
-    } else {
-        println!("skipping doctests: no library crates yet");
-    }
-    Ok(())
+    run(
+        "cargo",
+        &["test", "--doc", "--workspace", "--all-features"],
+        &[],
+    )
 }
 
 /// The `no_std` leaf crates, built without default features for a bare-metal target.
@@ -233,7 +230,9 @@ fn bench_args(save: Option<&str>) -> Vec<String> {
     args
 }
 
-fn ci(quick: bool) -> Result<(), String> {
+/// The steps of `ci`, in order. The full run mirrors the GitHub workflow, including the release
+/// pass over ignored (statistical) tests.
+fn ci_steps(quick: bool) -> Vec<Command> {
     let mut steps = vec![
         Command::Fmt { check: true },
         Command::Clippy,
@@ -244,6 +243,10 @@ fn ci(quick: bool) -> Result<(), String> {
     ];
     if !quick {
         steps.extend([
+            Command::Test {
+                release: true,
+                include_ignored: true,
+            },
             Command::Doc,
             Command::NoStd,
             Command::Wasm,
@@ -253,7 +256,11 @@ fn ci(quick: bool) -> Result<(), String> {
             Command::BenchBuild,
         ]);
     }
-    steps.iter().try_for_each(execute)
+    steps
+}
+
+fn ci(quick: bool) -> Result<(), String> {
+    ci_steps(quick).iter().try_for_each(execute)
 }
 
 fn execute(command: &Command) -> Result<(), String> {
@@ -361,6 +368,22 @@ mod tests {
         );
         assert!(parse(&["prng-stats", "--bytes"]).is_err());
         assert!(parse(&["prng-stats", "--seed", "x"]).is_err());
+    }
+
+    #[test]
+    fn bench_rejects_save_combined_with_compare() {
+        assert!(parse(&["bench", "--save", "m1", "--compare", "a", "b"]).is_err());
+        assert!(parse(&["bench", "--compare", "a", "b", "--save", "m1"]).is_err());
+    }
+
+    #[test]
+    fn full_ci_runs_the_release_ignored_pass_that_github_runs() {
+        let release_ignored = Command::Test {
+            release: true,
+            include_ignored: true,
+        };
+        assert!(ci_steps(false).contains(&release_ignored));
+        assert!(!ci_steps(true).contains(&release_ignored));
     }
 
     #[test]
