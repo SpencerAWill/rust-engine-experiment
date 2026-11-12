@@ -61,6 +61,30 @@ pub(crate) fn workspace_crates() -> Vec<PathBuf> {
     crates
 }
 
+/// Every crate-root source file of the crate in `dir`: the library and binary roots, `build.rs`,
+/// and each file (or `<name>/main.rs`) under `src/bin`, `examples`, `benches` and `tests`.
+pub(crate) fn crate_roots(dir: &Path) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = ["src/lib.rs", "src/main.rs", "build.rs"]
+        .iter()
+        .map(|r| dir.join(r))
+        .filter(|p| p.is_file())
+        .collect();
+    for sub in ["src/bin", "examples", "benches", "tests"] {
+        let Ok(entries) = fs::read_dir(dir.join(sub)) else {
+            continue;
+        };
+        for path in entries.filter_map(Result::ok).map(|e| e.path()) {
+            if path.extension().is_some_and(|e| e == "rs") {
+                roots.push(path);
+            } else if path.join("main.rs").is_file() {
+                roots.push(path.join("main.rs"));
+            }
+        }
+    }
+    roots.sort();
+    roots
+}
+
 /// Runs the check over the whole workspace.
 pub(crate) fn run() -> Result<(), String> {
     let allow = parse_allowlist(&fs::read_to_string("unsafe-allowlist.toml").unwrap_or_default());
@@ -69,8 +93,7 @@ pub(crate) fn run() -> Result<(), String> {
         if package_name(&dir).is_some_and(|n| allow.contains(&n)) {
             continue;
         }
-        for root in ["src/lib.rs", "src/main.rs"] {
-            let path = dir.join(root);
+        for path in crate_roots(&dir) {
             if let Ok(src) = fs::read_to_string(&path)
                 && !crate_root_forbids_unsafe(&src)
             {
@@ -100,6 +123,41 @@ mod tests {
         ));
         assert!(!crate_root_forbids_unsafe("#![deny(unsafe_code)]\n"));
         assert!(!crate_root_forbids_unsafe("// #![forbid(unsafe_code)]\n"));
+    }
+
+    #[test]
+    fn finds_every_crate_root_kind() {
+        let dir = std::env::temp_dir().join(format!("xtask-roots-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        for f in [
+            "src/lib.rs",
+            "src/bin/tool.rs",
+            "src/bin/multi/main.rs",
+            "build.rs",
+            "examples/ex.rs",
+            "benches/b.rs",
+            "tests/t.rs",
+        ] {
+            let p = dir.join(f);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, "").unwrap();
+        }
+        let found: Vec<String> = crate_roots(&dir)
+            .iter()
+            .map(|p| p.strip_prefix(&dir).unwrap().to_string_lossy().into_owned())
+            .collect();
+        fs::remove_dir_all(&dir).unwrap();
+        for want in [
+            "src/lib.rs",
+            "src/bin/tool.rs",
+            "src/bin/multi/main.rs",
+            "build.rs",
+            "examples/ex.rs",
+            "benches/b.rs",
+            "tests/t.rs",
+        ] {
+            assert!(found.iter().any(|f| f == want), "missing {want}: {found:?}");
+        }
     }
 
     #[test]
