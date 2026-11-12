@@ -1,6 +1,6 @@
 # M2.2 plan: Coverage
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Historical: executed in PR #16 (2026-11-12); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

@@ -1,6 +1,6 @@
 # M2.2: Coverage
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Implemented (PR #16, 2026-11-12)
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.0 · **Decides:** no ADR
 - **Estimated size:** about 400 changed lines, excluding tests, lockfiles and generated files (`xtask` about 310, workflow and devcontainer about 30, docs about 60)
 
@@ -266,10 +266,10 @@ coverage:
 
 ## 9. Done when
 
-- [ ] All requirements in §5 are verified as in §8, with the evidence (command output, run links) in the pull request description.
-- [ ] `cargo xtask ci` passes locally on macOS and in CI on all legs, and `cargo xtask coverage` passes locally on macOS and in the `coverage` job.
-- [ ] CONTRIBUTING.md, README.md, AGENTS.md, the roadmap row (to `Done`), CHANGELOG and this spec's status (`Implemented (PR #n, date)`) are updated.
-- [ ] The pull request title is `feat(xtask): coverage report through cargo-llvm-cov (M2.2)` and says an assistant was used.
+- [x] All requirements in §5 are verified as in §8, with the evidence (command output, run links) in the pull request description.
+- [x] `cargo xtask ci` passes locally on macOS and in CI on all legs, and `cargo xtask coverage` passes locally on macOS and in the `coverage` job.
+- [x] CONTRIBUTING.md, README.md, AGENTS.md, the roadmap row (to `Done`), CHANGELOG and this spec's status (`Implemented (PR #n, date)`) are updated.
+- [x] The pull request title is `feat(xtask): coverage report through cargo-llvm-cov (M2.2)` and says an assistant was used.
 
 ## 10. Open questions
 
