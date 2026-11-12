@@ -149,6 +149,18 @@ impl SlotTable {
         Some((index, NonZeroU32::MIN))
     }
 
+    /// The index and generation the next [`acquire`](Self::acquire) will return, without
+    /// changing anything, or `None` at the slot limit.
+    pub(crate) fn peek_next(&self) -> Option<(u32, NonZeroU32)> {
+        if let Some(index) = self.free_head {
+            Some((index, self.slots[index as usize].generation))
+        } else if self.slots.len() < self.limit as usize {
+            Some((to_u32(self.slots.len()), NonZeroU32::MIN))
+        } else {
+            None
+        }
+    }
+
     /// Acquires up to `n` slots exactly as `n` calls to [`acquire`](Self::acquire) would (free
     /// list first, then fresh slots in ascending order), calling `emit` with each. Returns how
     /// many it acquired, which is less than `n` only at the slot limit.

@@ -235,6 +235,70 @@ impl<T> HandlePool<T> {
         Ok(handle)
     }
 
+    /// Inserts the value `make` builds from the handle that will name it, and returns that
+    /// handle.
+    ///
+    /// Use it for values that must store their own handle, such as a node that links to its
+    /// parent or a component that registers itself. The handle is exactly the one
+    /// [`insert`](Self::insert) would have issued. `make` runs before the pool changes, so if it
+    /// panics the pool is left untouched.
+    ///
+    /// # Panics
+    ///
+    /// Panics if 2³¹−2 slots are already in use or retired, without calling `make`. Use
+    /// [`try_insert_with`](Self::try_insert_with) to handle that without panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::{Handle, HandlePool};
+    /// struct Node {
+    ///     me: Handle<Node>,
+    ///     depth: u32,
+    /// }
+    ///
+    /// let mut nodes = HandlePool::new();
+    /// let root = nodes.insert_with(|me| Node { me, depth: 0 });
+    /// assert_eq!(nodes[root].me, root);
+    /// assert_eq!(nodes[root].depth, 0);
+    /// ```
+    #[must_use = "dropping the handle makes the value unreachable except by iteration"]
+    #[track_caller]
+    pub fn insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Handle<T> {
+        let Some(handle) = self.try_insert_with(make) else {
+            panic!(
+                "HandlePool::insert_with: pool is full ({} slots in use or retired); \
+                 use try_insert_with to handle this without panicking",
+                self.slots.limit()
+            )
+        };
+        handle
+    }
+
+    /// Fallible twin of [`insert_with`](Self::insert_with): returns `None`, without calling
+    /// `make`, if the pool is full.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let h = pool.try_insert_with(|h| h.index()).unwrap();
+    /// assert_eq!(pool[h], h.index());
+    /// ```
+    pub fn try_insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Option<Handle<T>> {
+        let (index, generation) = self.slots.peek_next()?;
+        let handle = Handle::new(index, generation);
+        // `make` cannot reach the pool, and the slot is not taken until it returns, so a panic
+        // inside it leaves the pool exactly as it was.
+        let value = make(handle);
+        let (taken, taken_generation) = self.slots.acquire(to_u32(self.handles.len()))?;
+        debug_assert_eq!((taken, taken_generation), (index, generation));
+        self.handles.push(handle);
+        self.values.push(value);
+        Some(handle)
+    }
+
     /// Dense position of the value `handle` names, if the handle is live.
     #[inline]
     fn resolve(&self, handle: Handle<T>) -> Option<usize> {
@@ -796,6 +860,80 @@ mod tests {
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
         assert_eq!(p.remove(forged), None);
+    }
+
+    #[test]
+    fn insert_with_passes_the_handle_the_value_will_have() {
+        #[derive(Debug, PartialEq)]
+        struct Node {
+            me: Handle<Node>,
+            tag: u8,
+        }
+        let mut p = HandlePool::<Node>::new();
+        let a = p.insert_with(|me| Node { me, tag: 1 });
+        assert_eq!(p[a].me, a);
+        p.remove(a);
+        let b = p.insert_with(|me| Node { me, tag: 2 }); // reuses a's slot, next generation
+        assert_eq!(p[b], Node { me: b, tag: 2 });
+        assert_eq!(b.index(), a.index());
+        assert_eq!(b.generation().get(), a.generation().get() + 1);
+        p.assert_invariants();
+    }
+
+    #[test]
+    fn insert_with_issues_the_same_handles_as_insert() {
+        let (mut with, mut plain) = (HandlePool::new(), HandlePool::new());
+        for i in 0..20_u32 {
+            let a = with.insert_with(|_| i);
+            let b = plain.insert(i);
+            assert_eq!(a, b);
+            if i % 3 == 0 {
+                with.remove(a);
+                plain.remove(b);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_os = "wasi"))]
+    fn a_panicking_insert_with_closure_leaves_the_pool_unchanged() {
+        let mut p = HandlePool::new();
+        let keep = p.insert(1);
+        let freed = p.insert(2);
+        p.remove(freed);
+        let before = (p.len(), p.iter().map(|(h, v)| (h, *v)).collect::<Vec<_>>());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            p.insert_with(|_| -> i32 { panic!("closure failed") })
+        }));
+        assert!(result.is_err());
+        p.assert_invariants();
+        assert_eq!(
+            (p.len(), p.iter().map(|(h, v)| (h, *v)).collect::<Vec<_>>()),
+            before
+        );
+        assert_eq!(p[keep], 1);
+        // The slot the failed call would have used is still the next one.
+        assert_eq!(p.insert(3).index(), freed.index());
+    }
+
+    #[test]
+    fn try_insert_with_does_not_call_the_closure_when_full() {
+        let mut p = HandlePool::with_slot_limit(1);
+        let _ = p.insert(1);
+        let mut called = false;
+        let got = p.try_insert_with(|_| {
+            called = true;
+            2
+        });
+        assert!(got.is_none() && !called);
+    }
+
+    #[test]
+    #[should_panic(expected = "try_insert_with")]
+    fn insert_with_past_limit_panics_with_hint() {
+        let mut p = HandlePool::with_slot_limit(1);
+        let _ = p.insert(1);
+        let _ = p.insert_with(|_| 2);
     }
 
     #[test]
