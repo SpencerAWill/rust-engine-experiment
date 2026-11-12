@@ -1,6 +1,6 @@
 # M2.0 plan: Roadmap and process
 
-- **Status:** Accepted (2026-11-12)
+- **Status:** Historical: executed in PR #12 (2026-11-12); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. "Spec §X" means "use the exact content of that section".
 
 ## 1. Approach
