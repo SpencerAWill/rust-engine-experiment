@@ -403,7 +403,7 @@ M1 contains no threads, but the rules are fixed now so M2/M3 inherit them rather
 **Cache efficiency:**
 - **Layout discipline:**
   - Hot types have static size and alignment assertions, and their docs state bytes per element (`Handle` = 8, transforms per §5.4).
-  - `HandlePool`'s slot overhead is documented.
+  - `HandlePool` is dense (contiguous values, O(len) iteration); its per-slot and per-value overhead is documented (§5.1).
   - The data-oriented storage decision (structure-of-arrays columns vs archetype tables) is M2's to make with benchmarks.
 - **False sharing:** mutable per-thread or per-worker data (counters, queues, accumulators) is padded and aligned to the destructive-interference size. That is 128 bytes on x86_64 (the spatial prefetcher pulls 64-byte line pairs) and on aarch64 including Apple Silicon (128-byte lines on performance cores). crossbeam-utils' `CachePadded` uses these values. M3 decides whether to depend on crossbeam-utils or define an equivalent.
 - **Access patterns:** APIs favor linear, batched iteration over scattered per-element lookups. Per-element lookups (`HandlePool::get`) exist for convenience; bulk work goes through iterators/queries.
@@ -467,7 +467,13 @@ impl<T> Handle<T> {
 - `PhantomData<fn() -> T>` keeps the handle covariant in `T` and `Send + Sync` regardless of `T`, with no drop-check implications. A handle refers to a `T` but never owns one.
 
 ```rust
-pub struct HandlePool<T> { slots: Vec<Slot<T>>, free_head: Option<u32>, len: u32 }
+/// Dense ("sparse set with generations") storage: values are contiguous, so iteration is O(len).
+pub struct HandlePool<T> {
+    slots: Vec<Slot>,           // per index: generation + dense position (or next-free link / retired)
+    handles: Vec<Handle<T>>,    // dense, parallel to `values`
+    values: Vec<T>,             // dense, contiguous
+    free_head: Option<u32>,
+}
 
 impl<T> HandlePool<T> {
     pub const fn new() -> Self;
@@ -484,18 +490,25 @@ impl<T> HandlePool<T> {
     /// Built on std's `slice::get_disjoint_mut`; no `unsafe`.
     pub fn get_disjoint_mut<const N: usize>(&mut self, handles: [Handle<T>; N]) -> Option<[&mut T; N]>;
     pub fn contains(&self, handle: Handle<T>) -> bool;
-    /// Keeps only the elements for which `keep` returns true, visiting in ascending slot
-    /// index order. Removed slots behave exactly like `remove`.
+    /// Keeps only the elements for which `keep` returns true, visiting in dense order.
+    /// Removed elements behave exactly like `remove` (including swap-removal).
     pub fn retain(&mut self, keep: impl FnMut(Handle<T>, &mut T) -> bool);
     pub fn len(&self) -> usize;
     pub fn is_empty(&self) -> bool;
-    /// Number of values the pool can hold without reallocating (std `Vec::capacity` semantics,
-    /// counting occupied plus reusable vacant slots; retired slots are excluded).
+    /// Number of values the pool can hold without reallocating its dense value storage
+    /// (std `Vec::capacity` semantics for `values`).
     pub fn capacity(&self) -> usize;
+    /// Shrinks the dense value/handle storage to fit `len()`. The slot array cannot shrink,
+    /// because indices must stay stable; it costs 8 bytes per slot ever used.
+    pub fn shrink_to_fit(&mut self);
+    /// All live values as one contiguous slice, in dense order (same order as `iter`).
+    /// The fastest way to process every value when handles aren't needed.
+    pub fn values(&self) -> &[T];
+    pub fn values_mut(&mut self) -> &mut [T];
     pub fn clear(&mut self);
-    pub fn iter(&self) -> Iter<'_, T>;          // Item = (Handle<T>, &T), ascending slot index
-    pub fn iter_mut(&mut self) -> IterMut<'_, T>; // Item = (Handle<T>, &mut T), ascending slot index
-    /// Removes all values, yielding them in ascending slot index order. When the `Drain` is
+    pub fn iter(&self) -> Iter<'_, T>;          // Item = (Handle<T>, &T), dense order
+    pub fn iter_mut(&mut self) -> IterMut<'_, T>; // Item = (Handle<T>, &mut T), dense order
+    /// Removes all values, yielding them in dense order. When the `Drain` is
     /// dropped (fully consumed or not), the pool is in exactly the state `clear()` would produce.
     pub fn drain(&mut self) -> Drain<'_, T>;     // Item = (Handle<T>, T)
 }
@@ -528,7 +541,7 @@ impl<T> HandleAllocator<T> {
     pub fn len(&self) -> usize;
     pub fn is_empty(&self) -> bool;
     pub fn clear(&mut self);
-    pub fn iter(&self) -> AllocIter<'_, T>;    // live handles, ascending slot index; ExactSize + Fused
+    pub fn iter(&self) -> AllocIter<'_, T>;    // live handles, dense order; ExactSize + Fused
     pub fn retain(&mut self, keep: impl FnMut(Handle<T>) -> bool);
 }
 ```
@@ -541,8 +554,15 @@ impl<T> HandleAllocator<T> {
 - **Generation exhaustion:** if bumping would overflow `u32::MAX`, the slot is permanently retired (never reused). This guarantees a stale handle can never become valid again, at the cost of one slot per 2³²−1 reuses.
 - `clear()` bumps every occupied slot's generation (outstanding handles become stale) and returns all non-retired slots to the free list in ascending index order. Reuse order after `clear` is therefore deterministic.
 - **Capacity:** at most `u32::MAX` slots. `insert`/`allocate` panic beyond that (`# Panics` documented).
-- **Complexity:** `insert`/`allocate`/`get`/`remove`/`free`/`contains` are O(1). Iteration is O(capacity) (skips vacant slots). Dense iteration is deliberately not provided in M1; the ECS will own dense storage.
-- Implementation is 100% safe Rust (`Vec<Slot<T>>` where `Slot` is an enum of occupied and vacant).
+- **Dense storage (decision 2026-11-12):** values live in a contiguous `Vec<T>`, with a parallel dense `Vec<Handle<T>>`. Each slot records its value's dense position.
+  - `insert` pushes to the dense arrays.
+  - `remove` **swap-removes**: the last dense element moves into the hole, and its slot's dense position is updated.
+- **Iteration order is dense order.** It is fully deterministic (a pure function of the operation sequence) but not ascending by slot index. Example: inserting a, b, c and removing a gives the order c, b.
+- **Complexity:**
+  - `insert`/`allocate`/`get`/`remove`/`free`/`contains` are O(1). `get` costs two array accesses (slot, then dense position).
+  - Iteration, `retain`, `values()`, and `drain` are **O(len) over contiguous memory**.
+- **Memory:** 8 bytes per slot ever used (a `u32` generation plus a `u32` dense position or free link; slots never shrink), plus 8 bytes per live value (its dense `Handle`), plus the values. `shrink_to_fit` releases dense capacity after a spike.
+- Implementation is 100% safe Rust (`Vec<Slot>`, where `Slot` holds a generation and an enum `Occupied { dense: u32 } | Vacant { next_free: Option<u32> } | Retired`).
 
 ### 5.2 `engine_random`
 
@@ -989,7 +1009,7 @@ All layers run in CI unless noted.
 | Unit | `#[test]` in-module | Generation increments; retire-on-exhaustion (tested by constructing a slot near `u32::MAX` via a `#[cfg(test)]` constructor); LIFO reuse; `clear` semantics; `from_bits(0)` → `None`; `Tick::next`; `FixedTimestep` cap and `dropped_time`; `alpha` range; float-range rejection path; `chance` edge cases (`0`, `1`, `NaN`, negatives); `Transform` identities |
 | Doc | rustdoc | Every public example runs. `compile_fail` doctests: `Handle<A>` passed where `Handle<B>` is expected; `Prng::range` with an unsupported type |
 | Trait/auto-trait assertions | static asserts in tests | `Handle<T>: Send + Sync + Copy` for non-`Send` `T`; size assertions (`size_of::<Handle<T>>() == 8`, `size_of::<Option<Handle<T>>>() == 8`) |
-| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/get_disjoint_mut/retain/clear/iterate; get_disjoint_mut with duplicate or stale handles returns None). `assert_invariants()` runs after every operation. Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
+| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/get_disjoint_mut/retain/clear/iterate; get_disjoint_mut with duplicate or stale handles returns None). `assert_invariants()` runs after every operation. Invariants: stale handles never resolve, `len` matches, iteration visits exactly the live set, and two runs of the same op sequence yield identical handles **and identical iteration order**. Every live slot's dense position points at a dense handle equal to that slot's handle. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
 | Golden values | plain tests | xoshiro256++ and SplitMix64 outputs checked against published test vectors. First 16 outputs of every public `Prng` method for seeds `{0, 1, 42, u64::MAX}` frozen in `tests/golden.rs`. `stream` outputs frozen. `fixed_step_sim` checksum for the default arguments frozen |
 | Statistical sanity | plain tests (release-mode, `#[ignore]` by default, run in CI via `--include-ignored` on ubuntu) | Chi-square goodness-of-fit for `range` over small and non-power-of-two bounds, `next_f32`/`next_f64` bucket uniformity, `next_bool` balance, `shuffle` permutation uniformity on 4 elements. Fixed seeds and thresholds, so tests are deterministic |
 | Determinism | integration test | §5.6, including the cross-architecture golden checksum |
@@ -1028,7 +1048,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 | Subject | Compared against | Operations | Sizes |
 |---|---|---|---|
-| `HandlePool<T>` (T = `u64` and a 64-byte struct) | `slotmap::SlotMap`, `thunderdome::Arena` | insert N; get all (sequential and random handle order); remove all; iterate; churn (remove 50% randomly then reinsert) then get | 1k, 100k, 1M |
+| `HandlePool<T>` (T = `u64` and a 64-byte struct) | `slotmap::SlotMap`, `slotmap::DenseSlotMap`, `thunderdome::Arena` | insert N; get all (sequential and random handle order); remove all; iterate; churn (remove 50% randomly then reinsert) then get | 1k, 100k, 1M |
 | `HandleAllocator` | `slotmap` with `()` values | allocate N; free/reallocate churn; `is_alive` checks | 1k, 100k, 1M |
 | `Prng` | `rand_xoshiro::Xoshiro256PlusPlus`, `rand::rngs::SmallRng`, `fastrand::Rng` | `next_u64` ×1M; `range(0..1000)` ×1M; `range(0.0..1.0)` ×1M; `shuffle` 10k | — |
 | `FixedTimestep` | — | `accumulate` + drain ×1M | — |

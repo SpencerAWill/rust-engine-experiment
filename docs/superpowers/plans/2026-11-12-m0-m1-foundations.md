@@ -37,7 +37,7 @@
 
 These inputs and conditions are implied by the spec but not exercised by its listed tests. Each now has a test in the owning task.
 
-1. **Zero-sized values** in `HandlePool<()>` / `HandlePool<ZST>`: insert/remove/iterate work exactly as for sized `T` (Task 6: `zero_sized_values_work`).
+1. **Zero-sized values** in `HandlePool<()>` / `HandlePool<ZST>`: insert/remove/swap-remove/iterate work exactly as for sized `T`, including `values()` on a ZST `Vec` (Task 6: `zero_sized_values_work`).
 2. **Full-width signed and unsigned ranges** (`i64::MIN..=i64::MAX`, `i8::MIN..=i8::MAX`, `0..=u64::MAX`): no overflow, and results cover negatives (Task 11: `full_range_signed_and_unsigned`).
 3. **Huge elapsed times** passed to `FixedTimestep::accumulate` (e.g. `Duration::MAX`, twice) must not panic. They yield `max_steps`, and `dropped_time` saturates (Task 14: `accumulate_huge_elapsed_saturates_without_panic`).
 4. **A panicking closure inside `HandlePool::retain`** must leave the pool consistent: `assert_invariants` passes after `catch_unwind` (Task 7: `retain_panic_leaves_pool_consistent`).
@@ -491,7 +491,7 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
 **Interfaces:**
 - Consumes: `Handle::new`.
 - Produces, from spec §5.1:
-  - `HandlePool<T>`: `new`, `with_capacity`, `insert`, `try_insert`, `get`, `get_mut`, `remove`, `contains`, `len`, `is_empty`, `capacity`, `clear`, plus `Index`/`IndexMut`, `Default`, and `Clone` (when `T: Clone`);
+  - `HandlePool<T>` with the dense layout of spec §5.1: `new`, `with_capacity`, `insert`, `try_insert`, `get`, `get_mut`, `remove`, `contains`, `len`, `is_empty`, `capacity`, `shrink_to_fit`, `values`, `values_mut`, `clear`, plus `Index`/`IndexMut`, `Default`, and `Clone` (when `T: Clone`);
   - `CapacityError<T>`.
 - Produces, test-only: `pub fn assert_invariants(&self)`, behind `#[cfg(any(test, feature = "test-invariants"))]`. Add feature `test-invariants = []` so the integration tests in Task 7 can use it.
 - Produces, crate-internal: `pub(crate) fn with_slot_limit(limit: u32) -> Self` (normal limit `u32::MAX`), and `#[cfg(test)] fn set_generation_for_test(index: u32, generation: u32)`.
@@ -521,6 +521,20 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
     p.assert_invariants();
 }
 #[test] fn clear_staleness_and_ascending_reuse() { /* insert 3, clear, all stale; next inserts get indices 0,1,2 in order */ }
+#[test] fn remove_swaps_last_into_hole() {
+    let mut p = HandlePool::new(); let a = p.insert('a'); let b = p.insert('b'); let c = p.insert('c');
+    assert_eq!(p.remove(a), Some('a'));
+    assert_eq!(p.values(), &['c', 'b']);            // dense order after swap-remove
+    assert_eq!(p[c], 'c'); assert_eq!(p[b], 'b');   // moved element still resolves
+    p.assert_invariants();
+}
+#[test] fn values_mut_and_shrink_to_fit() {
+    let mut p = HandlePool::new(); let hs: Vec<_> = (0..1000).map(|i| p.insert(i)).collect();
+    for h in &hs[10..] { p.remove(*h); }
+    for v in p.values_mut() { *v += 1; }
+    p.shrink_to_fit(); assert!(p.capacity() < 1000);
+    for (i, h) in hs[..10].iter().enumerate() { assert_eq!(p[*h], i + 1); }
+}
 #[test] fn try_insert_returns_value_when_full() {
     let mut p = HandlePool::with_slot_limit(1);
     let _ = p.insert(1);
@@ -547,22 +561,24 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-- **Slot layout:** `struct Slot<T> { generation: u32, state: SlotState<T> }` with `enum SlotState<T> { Occupied(T), Vacant { next_free: Option<u32> }, Retired }`.
+- **Slot layout (dense, spec §5.1):** `struct Slot { generation: u32, state: SlotState }` with `enum SlotState { Occupied { dense: u32 }, Vacant { next_free: Option<u32> }, Retired }`, plus the dense `handles: Vec<Handle<T>>` and `values: Vec<T>`.
   - For an occupied slot, `generation` is the live generation. For a vacant slot, it is the generation the next occupant receives.
   - New slots start at 1. `remove` bumps the generation, or retires the slot if it is at `u32::MAX`.
+  - **`remove`:** `swap_remove` on `handles` and `values`. If an element moved, set the moved handle's slot to `Occupied { dense: removed_position }`.
 - **Free list:** a LIFO stack through `next_free`.
 - **`clear`:** bump or retire every occupied slot, then rebuild the free list so that pops yield ascending indices.
-- **`capacity`:** `slots.capacity() - retired_count`.
+- **`capacity`:** `values.capacity()`. **`shrink_to_fit`:** shrinks `handles` and `values`.
 - **`CapacityError<T>`:**
   - `Display`: `"HandlePool is full: all {limit} slot indices are in use or retired; remove values or use another pool"`;
   - `core::error::Error` (when `T: Debug`);
   - `#[derive(Debug, Clone, PartialEq, Eq)]`.
 - **Panicking APIs:** `insert`, `Index`, and `IndexMut` are `#[track_caller]` with `# Panics` docs.
 - **`assert_invariants`:**
-  - `len` equals the occupied count;
+  - `handles.len() == values.len()` == the occupied count;
+  - for every dense position `i`, the slot at `handles[i].index()` is `Occupied { dense: i }` with generation `handles[i].generation()`;
   - the free list visits exactly the vacant slots, with no cycles;
   - no occupied slot has generation 0.
-- **Doc comment:** the slot overhead (spec §4.11), e.g. "each slot stores a `u32` generation plus the enum discriminant alongside `T`".
+- **Doc comment:** the memory overhead and complexity from spec §5.1 (8 bytes per slot, 8 bytes per live value, two array accesses per `get`, O(len) contiguous iteration).
 
 - [ ] **Step 4: Verify**
 
@@ -595,7 +611,7 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
 
 ```rust
 // pool.rs tests
-#[test] fn iteration_is_ascending_and_exact_size() { /* insert 0..5, remove 1 and 3; iter() yields indices [0,2,4]; len() == 3 at start and decrements */ }
+#[test] fn iteration_is_dense_and_exact_size() { /* insert 0..5, remove values 1 and 3; iter() yields exactly the dense order of values() ([0, 4, 2]: 4 moved into 1's hole, then 2 stays); len() == 3 at start and decrements */ }
 #[test] fn drain_dropped_early_equals_clear() {
     // pool A: insert 4, take 1 from drain then drop it
     // pool B: same inserts, clear()
@@ -605,7 +621,7 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
     // [a, b] distinct live -> Some; [a, a] -> None; [a, stale] -> None; mutation through both is visible
 }
 #[test] fn debug_prints_as_map() {
-    // HandlePool<u8> with values 7 at slot 0 and 9 at slot 2 (slot 1 removed)
+    // insert 7 (slot 0), 8 (slot 1), 9 (slot 2); remove 8 -> 9 swaps into dense position 1
     // format!("{p:?}") == "{Handle<u8>(0v1): 7, Handle<u8>(2v1): 9}"
 }
 #[test] fn retain_panic_leaves_pool_consistent() {
@@ -617,10 +633,10 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
 `tests/model.rs`: proptest over `Vec<Op>`, where `Op = Insert(u16) | Remove(usize) | Get(usize) | GetDisjoint(usize, usize) | Retain(u16 /*keep if v % k != 0*/) | Clear | Iterate`. Handle indices point into a vec of all handles ever issued, so stale handles get exercised. The reference model is a `BTreeMap<u64 /*to_bits*/, u16>`. After each op:
 - `assert_invariants()`;
 - `len` matches the model;
-- `iter()` matches the model's values in ascending index order;
+- the set of `(handle bits, value)` pairs from `iter()` equals the model, and `values()` equals `iter()`'s values in the same order;
 - every issued handle resolves iff the model contains it.
 
-Additionally, replaying the same op sequence twice yields identical handle bits. On `target_os = "wasi"`, use `ProptestConfig { failure_persistence: None, ..Default::default() }`, because there's no writable directory there.
+Additionally, replaying the same op sequence twice yields identical handle bits **and an identical `iter()` order**. On `target_os = "wasi"`, use `ProptestConfig { failure_persistence: None, ..Default::default() }`, because there's no writable directory there.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -629,10 +645,10 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-- **Iterators:** wrap `slice::Iter`/`IterMut` over the slots, skip non-occupied slots, and track a `remaining` count for `ExactSizeIterator`.
-- **`Drain`:** holds `&mut HandlePool` and a cursor. `Drop` finishes the clear (removing the remaining items) and then rebuilds the free list exactly as `clear` does.
-- **`retain`:** visit in index order and remove where `keep` returns false, keeping `len` and the free list consistent after each removal, so that a panic midway leaves a valid pool.
-- **`get_disjoint_mut`:** validate liveness and distinct indices first, then call `self.slots.get_disjoint_mut(indices)` and map each slot to `&mut T`. Use `unreachable!` for non-occupied slots; the validation above guarantees they can't appear.
+- **Iterators:** `Iter` = `zip(handles.iter().copied(), values.iter())`. `IterMut` zips `handles` with `values.iter_mut()`. Both are exact-size and fused for free.
+- **`Drain`:** yields `(handle, value)` from the dense arrays in dense order. On drop, the pool is left in exactly the state `clear()` produces: all generations bumped or retired, and the free list rebuilt ascending.
+- **`retain`:** walk dense position `i` from 0. When `keep` returns false, remove (swap-remove) without advancing `i`, so the swapped-in element is visited next. The pool is consistent after every removal, so a panic midway leaves a valid pool.
+- **`get_disjoint_mut`:** validate liveness and distinct indices, map the handles to their dense positions, then `self.values.get_disjoint_mut(positions)`.
 - **`Debug`:** `f.debug_map().entries(self.iter())`.
 
 - [ ] **Step 4: Verify**
@@ -708,7 +724,7 @@ git commit -m "feat(handle): add HandleAllocator sharing HandlePool semantics"
   - `iterate`;
   - `churn_then_get` (remove a seeded-random 50%, reinsert, then get all);
   - for `HandleAllocator`: `allocate`, `free_realloc_churn`, `is_alive`.
-- Each group benchmarks `engine_handle`, `slotmap::SlotMap`, and `thunderdome::Arena` side by side. `slotmap` with `()` values is the allocator comparison.
+- Each group benchmarks `engine_handle`, `slotmap::SlotMap`, `slotmap::DenseSlotMap`, and `thunderdome::Arena` side by side, plus `values()`-slice iteration for ours. `slotmap` with `()` values is the allocator comparison.
 - Use a seeded `engine_random::Prng` once it exists. Until then, shuffle with a small inline xorshift64 in the bench file, documented as bench-only.
 
 - [ ] **Step 2: Verify**
