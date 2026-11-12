@@ -144,7 +144,13 @@ mod tests {
         }
         let found: Vec<String> = crate_roots(&dir)
             .iter()
-            .map(|p| p.strip_prefix(&dir).unwrap().to_string_lossy().into_owned())
+            .map(|p| {
+                // Compare with `/` separators: on Windows the same path comes back as `src\bin\tool.rs`.
+                p.strip_prefix(&dir)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
             .collect();
         fs::remove_dir_all(&dir).unwrap();
         for want in [
