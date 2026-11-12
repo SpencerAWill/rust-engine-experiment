@@ -80,6 +80,8 @@ pub(crate) struct SlotTable {
     slots: Vec<Slot>,
     free_head: Option<u32>,
     limit: u32,
+    /// Slots retired for good: neither occupied nor ever handed out again.
+    retired: usize,
 }
 
 impl SlotTable {
@@ -88,6 +90,7 @@ impl SlotTable {
             slots: Vec::new(),
             free_head: None,
             limit: MAX_SLOTS,
+            retired: 0,
         }
     }
 
@@ -161,15 +164,22 @@ impl SlotTable {
         }
     }
 
-    /// Acquires up to `n` slots exactly as `n` calls to [`acquire`](Self::acquire) would (free
-    /// list first, then fresh slots in ascending order), calling `emit` with each. Returns how
-    /// many it acquired, which is less than `n` only at the slot limit.
-    pub(crate) fn acquire_many(
+    /// How many more slots can be acquired: the limit minus the occupied (`live`) and retired
+    /// ones.
+    pub(crate) fn obtainable(&self, live: usize) -> usize {
+        (self.limit as usize).saturating_sub(live + self.retired)
+    }
+
+    /// Acquires exactly `n` slots, as `n` calls to [`acquire`](Self::acquire) would (free list
+    /// first, then fresh slots in ascending order), calling `emit` with each.
+    ///
+    /// `n` must not exceed [`obtainable`](Self::obtainable); the caller checks it first.
+    pub(crate) fn acquire_exactly(
         &mut self,
         n: usize,
         link: u32,
         mut emit: impl FnMut(u32, NonZeroU32),
-    ) -> usize {
+    ) {
         debug_assert!(link < MAX_SLOTS, "link {link} out of range");
         let mut remaining = n;
         while remaining > 0 {
@@ -184,21 +194,22 @@ impl SlotTable {
             emit(index, slot.generation);
             remaining -= 1;
         }
-        let room = (self.limit as usize).saturating_sub(self.slots.len());
-        let fresh = remaining.min(room);
+        debug_assert!(
+            self.slots.len() + remaining <= self.limit as usize,
+            "acquire_exactly: {n} slots exceed what is obtainable"
+        );
         let start = self.slots.len();
-        self.slots.reserve(fresh);
+        self.slots.reserve(remaining);
         self.slots.extend(core::iter::repeat_n(
             Slot {
                 generation: NonZeroU32::MIN,
                 link,
             },
-            fresh,
+            remaining,
         ));
-        for index in start..start + fresh {
+        for index in start..start + remaining {
             emit(to_u32(index), NonZeroU32::MIN);
         }
-        n - remaining + fresh
     }
 
     /// The raw link of slot `index` if its generation is `generation`, else `None`.
@@ -230,6 +241,7 @@ impl SlotTable {
             self.free_head = Some(index);
         } else {
             slot.set_state(SlotState::Retired);
+            self.retired += 1;
         }
     }
 
@@ -243,6 +255,7 @@ impl SlotTable {
                     slot.set_state(SlotState::Vacant { next_free: None });
                 } else {
                     slot.set_state(SlotState::Retired);
+                    self.retired += 1;
                 }
             }
         }
@@ -313,6 +326,12 @@ impl SlotTable {
             cursor = next_free;
         }
         assert_eq!(visited, vacant, "free list misses vacant slots");
+        let retired = self
+            .slots
+            .iter()
+            .filter(|slot| matches!(slot.state(), SlotState::Retired))
+            .count();
+        assert_eq!(retired, self.retired, "retired count is out of sync");
         occupied
     }
 }

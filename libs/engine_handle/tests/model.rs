@@ -238,8 +238,7 @@ fn run_lean_against_dense(ops: &[AllocOp]) {
                 issued.push(a);
             }
             AllocOp::AllocateMany(n) => {
-                let mut batch = Vec::new();
-                lean.allocate_many(usize::from(n), &mut batch);
+                let batch = lean.allocate_many(usize::from(n));
                 for a in batch {
                     let b = dense.allocate();
                     assert_eq!(a, b, "batch and loop issued different handles");
