@@ -18,7 +18,7 @@ mod prng_stats;
 
 use std::process::ExitCode;
 
-use cmd::{require_cargo_subcommand, require_tool, run};
+use cmd::{battery_guard, caffeinate_args, require_cargo_subcommand, require_tool, run};
 
 /// A parsed `cargo xtask` subcommand.
 #[derive(Debug, PartialEq, Eq)]
@@ -51,6 +51,7 @@ enum Command {
     Bench {
         save: Option<String>,
         compare: Option<(String, String)>,
+        allow_battery: bool,
     },
     Ci {
         quick: bool,
@@ -122,9 +123,9 @@ fn parse_prng_stats(flags: &[&str]) -> Result<Command, String> {
     Ok(Command::PrngStats { seed, bytes })
 }
 
-/// Parses `bench [--save <name>] [--compare <a> <b>]`.
+/// Parses `bench [--save <name>] [--compare <a> <b>] [--allow-battery]`.
 fn parse_bench(flags: &[&str]) -> Result<Command, String> {
-    let (mut save, mut compare) = (None, None);
+    let (mut save, mut compare, mut allow_battery) = (None, None, false);
     let mut it = flags.iter();
     while let Some(flag) = it.next() {
         match *flag {
@@ -138,13 +139,18 @@ fn parse_bench(flags: &[&str]) -> Result<Command, String> {
                 };
                 compare = Some(((*a).to_string(), (*b).to_string()));
             }
+            "--allow-battery" => allow_battery = true,
             other => return Err(format!("unknown flag `{other}` for `bench`")),
         }
     }
     if save.is_some() && compare.is_some() {
         return Err("`--save` and `--compare` cannot be combined: run them separately".to_string());
     }
-    Ok(Command::Bench { save, compare })
+    Ok(Command::Bench {
+        save,
+        compare,
+        allow_battery,
+    })
 }
 
 fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
@@ -220,12 +226,29 @@ fn wasm() -> Result<(), String> {
     )
 }
 
-fn bench(save: Option<&str>, compare: Option<&(String, String)>) -> Result<(), String> {
+fn bench(
+    save: Option<&str>,
+    compare: Option<&(String, String)>,
+    allow_battery: bool,
+) -> Result<(), String> {
     if let Some((a, b)) = compare {
         require_tool("critcmp", "cargo install --locked critcmp")?;
         return run("critcmp", &[a, b], &[]);
     }
     let args = bench_args(save);
+    if cfg!(target_os = "macos") {
+        // A run takes an hour: battery power throttles the CPU, and an idle sleep mid-run spoils
+        // the results (it did once). Refuse battery, and keep the machine awake.
+        let power = std::process::Command::new("pmset")
+            .args(["-g", "batt"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        battery_guard(&power, allow_battery)?;
+        let wrapped = caffeinate_args(&args);
+        let wrapped: Vec<&str> = wrapped.iter().map(String::as_str).collect();
+        return run("caffeinate", &wrapped, &[]);
+    }
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     run("cargo", &args, &[])
 }
@@ -370,7 +393,11 @@ fn execute(command: &Command) -> Result<(), String> {
                 .collect::<Vec<_>>(),
             &[],
         ),
-        Command::Bench { save, compare } => bench(save.as_deref(), compare.as_ref()),
+        Command::Bench {
+            save,
+            compare,
+            allow_battery,
+        } => bench(save.as_deref(), compare.as_ref(), *allow_battery),
         Command::BenchReport(options) => bench_report::run(options),
         Command::Ci { quick } => ci(*quick),
     }
@@ -407,7 +434,8 @@ mod tests {
             parse(&["bench", "--compare", "a", "b"]),
             Ok(Command::Bench {
                 save: None,
-                compare: Some(("a".into(), "b".into()))
+                compare: Some(("a".into(), "b".into())),
+                allow_battery: false,
             })
         );
         assert!(
@@ -443,6 +471,26 @@ mod tests {
         assert!(parse(&["check-workflows", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::CheckWorkflows));
         assert!(!ci_steps(true).contains(&Command::CheckWorkflows));
+    }
+
+    #[test]
+    fn bench_accepts_allow_battery_and_defaults_to_refusing() {
+        assert_eq!(
+            parse(&["bench", "--save", "x"]),
+            Ok(Command::Bench {
+                save: Some("x".into()),
+                compare: None,
+                allow_battery: false,
+            })
+        );
+        assert_eq!(
+            parse(&["bench", "--allow-battery"]),
+            Ok(Command::Bench {
+                save: None,
+                compare: None,
+                allow_battery: true,
+            })
+        );
     }
 
     #[test]
