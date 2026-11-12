@@ -57,6 +57,20 @@ glam's `fast-math` cannot be detected and is documented as unsupported.
 **What M1 does not decide.** Which of these types the ECS stores per entity is decided in M2. M1
 provides the vocabulary.
 
+**Guidance for M2 (not a decision).** `Transform` is a composition and interchange type, not a
+good default component for every entity. It is 48 bytes with 16-byte alignment, so an entity that
+only has a position (a particle, a pickup, a 2D agent) pays four to six times the memory of a bare
+`Vec3` or `Vec2`, and a memory-bound loop over many such entities reads that much more per frame.
+Data-oriented layouts split components by access pattern, so the expected shape is:
+
+- a small `Position` component (`Vec3`, or `Vec2` in 2D) for entities that only have a location;
+- separate `Rotation` and `Scale` components added only to entities that use them;
+- `Transform` (or `WorldTransform`) built on demand where composition is needed: scene graphs,
+  parent-to-child offsets, GPU upload, and import/export.
+
+M2 should confirm this with its position-only benchmark (the 2D-heavy workload already planned),
+because the right split depends on how often systems read the parts together.
+
 ## Consequences
 
 - Positions stay precise at planetary scale without paying `f64` cost for rotation, scale, or

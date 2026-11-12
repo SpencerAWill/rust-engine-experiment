@@ -11,6 +11,11 @@ use glam::{Affine3A, Mat4, Quat, Vec3};
 /// the origin; `Transform` is for local data: parent-to-child offsets, GPU data, and
 /// physics-local space.
 ///
+/// `Transform` is a composition and interchange type, not a good default component for every
+/// entity: it is 48 bytes, so something that only has a position should store a bare
+/// [`Vec3`] (or `Vec2`) and build a `Transform` only where it composes or hands data over
+/// (see ADR 0006).
+///
 /// Composition is per-component, not by multiplying matrices (see
 /// [`mul_transform`](Self::mul_transform)). It matches matrix composition exactly (within float
 /// epsilon) when the parent's scale is uniform.
