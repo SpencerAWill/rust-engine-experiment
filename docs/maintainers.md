@@ -7,7 +7,7 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] **Decide the commit email.** Existing commits carry a personal address as author, and it becomes public with the repository. Use GitHub's noreply address for future commits (`git config user.email`). Rewriting history is not planned.
 - [ ] **Enable private vulnerability reporting** (Settings, Code security). `SECURITY.md` and the issue chooser point at it.
 - [ ] **Add `CODE_OF_CONDUCT.md`** once there is a contact method for conduct reports (the Contributor Covenant needs one).
-- [ ] **Branch protection on `main`:** require a pull request, require these status checks (the job names in `ci.yml`): `fmt`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `check-statics`, `check-workflows`, `deny`, `bench-build`, `os-matrix`; no force pushes; require branches to be up to date.
+- [ ] **Branch protection on `main`:** require a pull request, require these status checks (the job names in `ci.yml`): `fmt`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `check-statics`, `check-workflows`, `hack`, `typos`, `deny`, `bench-build`, `os-matrix`; no force pushes; require branches to be up to date.
 - [ ] **Run the macOS and Windows jobs on every push:** remove the `if: github.event_name == 'pull_request'` condition (and its comment) from `os-matrix` in `ci.yml`. It is only there to save private-repo minutes.
 - [ ] Enable Dependabot security updates; set the repository description and topics; decide whether to enable Discussions.
 - [ ] **Never use a self-hosted runner for pull requests from forks.** A runner executes the pull request's code. If one is ever added, restrict it to scheduled jobs on `main`.
