@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "placeholder"
+name = "xtask"
 version = "0.1.0"
