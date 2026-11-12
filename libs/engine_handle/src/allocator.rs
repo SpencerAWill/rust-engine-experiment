@@ -44,6 +44,19 @@ use crate::slots::{SlotTable, VACANT_BIT};
 /// let b = entities.allocate(); // same slot, next generation
 /// assert_eq!((b.index(), b.generation().get()), (a.index(), 2));
 /// ```
+///
+/// Handles are typed, so one allocator cannot free another's:
+///
+/// ```compile_fail,E0308
+/// use engine_handle::HandleAllocator;
+///
+/// struct A;
+/// struct B;
+///
+/// let mut a = HandleAllocator::<A>::new();
+/// let from_b = HandleAllocator::<B>::new().allocate();
+/// a.free(from_b); // error: expected `Handle<A>`, found `Handle<B>`
+/// ```
 pub struct HandleAllocator<T> {
     slots: SlotTable,
     live: usize,

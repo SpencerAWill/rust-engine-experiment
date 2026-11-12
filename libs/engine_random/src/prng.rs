@@ -23,6 +23,21 @@ const F64_UNIT: f64 = 1.0 / 9_007_199_254_740_992.0;
 /// - **Not `Default`:** a default would hide the seed, which is the one input that determines
 ///   everything. Pick a seed on purpose.
 ///
+/// ```compile_fail,E0382
+/// use engine_random::Prng;
+///
+/// let a = Prng::from_seed(1);
+/// let b = a; // a move, not a copy
+/// let _ = a.clone(); // error: `a` was moved
+/// # let _ = b;
+/// ```
+///
+/// ```compile_fail,E0599
+/// use engine_random::Prng;
+///
+/// let _ = Prng::default(); // there is no default seed
+/// ```
+///
 /// # Examples
 ///
 /// ```

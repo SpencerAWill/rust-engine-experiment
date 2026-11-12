@@ -38,6 +38,19 @@ fn retype<A, B>(handle: Handle<A>) -> Handle<B> {
 /// let b = entities.allocate(); // same slot, next generation
 /// assert_eq!((b.index(), b.generation().get()), (a.index(), 2));
 /// ```
+///
+/// Handles are typed, so one allocator cannot free another's:
+///
+/// ```compile_fail,E0308
+/// use engine_handle::DenseHandleAllocator;
+///
+/// struct A;
+/// struct B;
+///
+/// let mut a = DenseHandleAllocator::<A>::new();
+/// let from_b = DenseHandleAllocator::<B>::new().allocate();
+/// a.free(from_b); // error: expected `Handle<A>`, found `Handle<B>`
+/// ```
 pub struct DenseHandleAllocator<T> {
     pool: HandlePool<()>,
     _marker: PhantomData<fn() -> T>,

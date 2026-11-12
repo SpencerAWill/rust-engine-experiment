@@ -360,6 +360,17 @@ impl<T> HandlePool<T> {
     /// pool.remove(h);
     /// assert_eq!(pool.get(h), None);
     /// ```
+    ///
+    /// The reference borrows the pool, so it cannot outlive a change to it:
+    ///
+    /// ```compile_fail,E0502
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert(1);
+    /// let first = pool.get(a).unwrap();
+    /// let _b = pool.insert(2); // needs `&mut pool` while `first` still borrows it
+    /// println!("{first}");
+    /// ```
     #[inline]
     pub fn get(&self, handle: Handle<T>) -> Option<&T> {
         self.resolve(handle).map(|dense| &self.values[dense])
@@ -577,6 +588,18 @@ impl<T> HandlePool<T> {
     /// assert_eq!((pool[a], pool[b]), (2, 1));
     /// assert!(pool.get_disjoint_mut([a, a]).is_none());
     /// ```
+    ///
+    /// The references borrow the whole pool, so it cannot be used again while they are alive:
+    ///
+    /// ```compile_fail,E0502
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert(1);
+    /// let b = pool.insert(2);
+    /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
+    /// let _len = pool.len(); // still mutably borrowed by `x` and `y`
+    /// *x += *y;
+    /// ```
     pub fn get_disjoint_mut<const N: usize>(
         &mut self,
         handles: [Handle<T>; N],
@@ -597,6 +620,18 @@ impl<T> HandlePool<T> {
     /// let mut pool = HandlePool::new();
     /// let a = pool.insert('a');
     /// assert_eq!(pool.iter().next(), Some((a, &'a')));
+    /// ```
+    ///
+    /// Iterating borrows the pool, so values cannot be removed from inside the loop (collect the
+    /// handles first, or use [`retain`](Self::retain)):
+    ///
+    /// ```compile_fail,E0502
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let _ = pool.insert(1);
+    /// for (h, _) in &pool {
+    ///     pool.remove(h);
+    /// }
     /// ```
     pub fn iter(&self) -> Iter<'_, T> {
         Iter {
