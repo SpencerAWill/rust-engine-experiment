@@ -33,7 +33,10 @@ Project trajectory: learning/experimentation first → foundation for the author
 | License | Dual `MIT OR Apache-2.0` |
 | World scale | **Large worlds are possible** (planet/space/large open-world sims). World placement uses f64 translation (`WorldTransform`); local/relative data uses f32 (`Transform`); conversion is explicit, relative to an origin (§5.4, ADR 0006) |
 | Coordinate convention | **One internal convention: right-handed, +Y up, +X right, −Z forward (camera/look direction)**, matching glTF. SI units (meters, seconds, radians, kilograms). Other conventions are converted explicitly at import/export edges (§5.4, ADR 0005) |
-| Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library crates (§4.9) |
+| Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library crates. All transcendental math goes through `engine_math::scalar`, so cross-platform determinism can be enabled later as a contained switch (§4.9) |
+| Instance isolation | **No global mutable state.** Every engine instance is self-contained, and many can coexist in one process (parallel tests, multi-match servers, editor + play-mode worlds, rollback worlds). The future C API takes an explicit context handle on every call (§4.10, ADR 0008) |
+| Strings | UTF-8 everywhere inside the engine. FFI layers convert at the boundary (e.g. UTF-16 for C#) |
+| CI cost | The repo is private for now, so CI is **tiered**: ubuntu on every push; macOS/Windows on PRs into `main` and nightly. Expected to go public soon, at which point the full matrix runs on every push (§4.7) |
 | Dimensionality | **2D, 3D, and 2.5D games are all first-class targets.** 2D world space is the XY plane of the 3D convention (+X right, +Y up, Z = depth/layer, meters). Screen/UI space (+Y down, pixels) is a separate space, reached only through explicit conversion. M1 provides both 2D and 3D math vocabularies with bridges (§5.4). M2 decides storage |
 | Loop ownership | **The host owns the loop (library-first).** The engine never takes over a thread it wasn't given. Hosts (Rust games, C# apps, editors, servers, tests, browsers) call into the engine, e.g. `step(...)`. A convenience "app runner" may be layered on top later, but nothing may require it (ADR 0007) |
 | Snapshot-able state | All simulation state is plain data and fully capturable/restorable (Clone at minimum; raw-state accessors for value-like state). This is what enables replays, save/load, rollback, and "record a bug, replay it" |
@@ -63,7 +66,9 @@ These findings shaped this spec and the roadmap. Sources are listed in §12.
 9. **Large-world precision is a one-way door.** f32 gives about 1 mm precision at 8 km from the origin and about 6 cm at 1,000 km. Unreal Engine 5 retrofitted double-precision "Large World Coordinates". Its pain points included serialized struct sizes changing, codebase-wide precision audits, jitter that persisted until 5.4, and physics/shader gaps. → f64 world placement from day one, f32 elsewhere (§5.4).
 10. **Platform traps.** `std::time::Instant::now()` panics on `wasm32-unknown-unknown`. On 32-bit targets `usize` is 32 bits. → wasm32 CI checks; `SystemClock` is unavailable on that target (§4.7, §5.3).
 11. **Reflection is the backbone engines add too late.** Serialization, editors, scripting, FFI, mods, and networking all need runtime type information. Rust's built-in reflection is minimal, which is why Bevy built `bevy_reflect` with a type registry. → The M2 component-identity design includes the type registry (§11).
-12. **Coordinate conventions.** glTF 2.0 is right-handed, +Y up, meters/radians, with asset fronts facing +Z. → Adopted as the internal convention (§5.4).
+12. **Transcendental functions are the cross-platform determinism hazard.** Rapier's networked desyncs were traced to `sin_cos` differences. The pure-Rust `libm` crate (a port of musl's libm) and glam's `libm` feature are the standard remedy. → Funnel now, switch later (§4.9).
+13. **Private-repo CI pricing.** GitHub bills macOS at 10x and Windows at 2x against 2,000 included minutes/month (Free plan). → Tiered CI (§4.7).
+14. **Coordinate conventions.** glTF 2.0 is right-handed, +Y up, meters/radians, with asset fronts facing +Z. → Adopted as the internal convention (§5.4).
 
 ---
 
@@ -179,12 +184,14 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
 - **Panics:** library code panics only on documented contract violations (e.g. an empty range passed to `Prng::range`), each with a `# Panics` doc section. Otherwise it returns `Option`/`Result`.
 - **Docs:** every public item is documented. Every public type and most public functions include a runnable example (doctest). Each crate's root docs explain purpose, guarantees (determinism, complexity), and a quick start.
 - **Prelude:** only the facade crate has a prelude. Leaf crates expose a flat, small public surface.
+- **Strings:** UTF-8 (`&str`/`String`) everywhere. No platform string types in public APIs. Encoding conversion happens only in FFI/platform layers.
 - **Feature flags:** additive only. `std` is a default feature where applicable. No feature changes observable behavior of deterministic output.
 
 ### 4.5 Licensing and originality (ADR 0002)
 
 - Rename `LICENSE` → `LICENSE-MIT`, add `LICENSE-APACHE` (Apache-2.0 text), and add a "License" section to `README.md` with the standard dual-license contribution clause.
 - `deny.toml` allows only: `MIT`, `Apache-2.0`, `Apache-2.0 WITH LLVM-exception`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`, `Unicode-3.0`. Unknown registries and git sources are denied. Duplicate versions warn. Security advisories deny.
+- **AI-assisted development:** code is written from specifications and papers. Code from other repositories is never pasted in. Where an implementation closely follows a known published design, the docs cite that design.
 - No code is copied from other projects. When a design is inspired by published work, the crate docs or ADR cite it. Published algorithms (xoshiro256++, SplitMix64, Lemire's bounded random integers, Fisher–Yates) are implemented from their papers/specifications. Their published test vectors may be used as golden values.
 
 ### 4.6 Process
@@ -197,6 +204,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - `0005-coordinate-system-and-units.md`
   - `0006-large-world-precision.md`
   - `0007-host-owns-the-loop.md`
+  - `0008-no-global-state.md`
 
   ADR 0003 also covers the determinism guardrails (§4.9) and the snapshot-able state principle.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `ci:`, `chore:`).
@@ -207,6 +215,13 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
 
 All jobs invoke `cargo xtask <task>` so local and CI runs are identical.
 
+**Tiering (while the repo is private).** GitHub bills private-repo minutes at 10x for macOS and 2x for Windows, against 2,000 included minutes/month on the Free plan.
+- **Every push:** all ubuntu jobs.
+- **PRs into `main`, plus the nightly workflow:** the macOS and Windows legs of the clippy/test jobs.
+- **All workflows:** `concurrency` groups cancel superseded runs, and the cargo registry, git dependencies, and build target directories are cached (`Swatinem/rust-cache`).
+
+When the repo goes public (minutes become free), the macOS/Windows legs move to every push. This is a one-line trigger change, recorded in the workflow file as a comment.
+
 | Job | Runner(s) | Command | Gate |
 |---|---|---|---|
 | fmt | ubuntu | `cargo xtask fmt --check` | yes |
@@ -216,6 +231,7 @@ All jobs invoke `cargo xtask <task>` so local and CI runs are identical.
 | no_std | ubuntu | `cargo xtask no-std` (build `engine_handle`, `engine_random`, `engine_time` with `--no-default-features` for `thumbv7em-none-eabihf`) | yes |
 | wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run the leaf crates' tests on `wasm32-wasip1` under `wasmtime` (a 32-bit target, so 32-bit `usize` is covered). Any test that is incompatible with WASI because of a dev-dependency is `cfg`'d out with a comment, and the list is recorded in the README's "Platform support" section | yes |
 | check-unsafe | ubuntu | `cargo xtask check-unsafe` | yes |
+| check-statics | ubuntu | `cargo xtask check-statics` (§4.10) | yes |
 | miri | ubuntu (pinned nightly) | `cargo xtask miri` | yes |
 | deny | ubuntu | `cargo xtask deny` | yes |
 | bench-build | ubuntu | `cargo bench --no-run` | yes |
@@ -257,6 +273,30 @@ disallowed-methods = [
   - Rust does not contract `a * b + c` into fused multiply-add (FMA) implicitly, and we never enable fast-math.
   - Basic IEEE operations (`+ − × ÷ sqrt`) are bit-reproducible.
   - Transcendental functions (`sin`, `exp`, …) call the platform's math library and may differ *across* platforms, but not within one build.
+
+**Transcendental math funnel.** Same-build determinism rules out lockstep multiplayer across different platforms (e.g. Windows x86 vs macOS ARM). Server-authoritative and same-platform rollback models are unaffected. To keep a later upgrade to cross-platform determinism cheap:
+
+- `engine_math::scalar` provides generic free functions over a sealed `Float` trait (implemented for `f32`, `f64`): `sin`, `cos`, `tan`, `sin_cos`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `exp`, `exp2`, `exp_m1`, `ln`, `ln_1p`, `log2`, `log10`, `powf`, `powi`, `cbrt`, `hypot`. Usage: `scalar::sin(x)`, with the type inferred.
+- In M1 these delegate to `std`.
+- `clippy.toml` `disallowed-methods` bans the corresponding inherent methods (`f32::sin`, `f64::sin`, …, `f32::powi`, …) in all crates. `engine_math::scalar` carries the one sanctioned `#[expect]`. `xtask`, benches, and tests may opt out.
+- Correctly-rounded IEEE operations stay allowed: `+ − × ÷`, `sqrt`, `mul_add`, `abs`, `floor`/`ceil`/`round`/`trunc`, `min`/`max`, `rem_euclid`, `copysign`.
+- **Upgrade path (future ADR, not M1):** back `scalar` with the pure-Rust `libm` crate and enable glam's `libm` feature, which covers glam's internal `sin_cos` in quaternion/rotation constructors. Because it changes output values, this is a deliberate, versioned engine-wide decision, not a Cargo feature (§4.4: features never change deterministic output). The golden values would be regenerated once and then become identical across all targets.
+- M1 code that needs trigonometry (e.g. `Transform2d::to_affine`, `to_2d`'s twist extraction) calls `scalar`, not std directly.
+
+### 4.10 Instance isolation (ADR 0008)
+
+**Principle:** there is no global mutable state anywhere in the engine. All state lives in instances that the caller creates and passes explicitly. Any number of instances can coexist in one process and on any threads, and none can observe another.
+
+- **Lint:** `static mut` is already rejected (it requires `unsafe`).
+- **Check:** `cargo xtask check-statics` parses every library crate (using `syn`) and fails on:
+  - a `static` item whose type contains interior mutability (`Cell`, `RefCell`, `UnsafeCell`, `Mutex`, `RwLock`, `Atomic*`, `OnceCell`, `OnceLock`, `LazyLock`, `LazyCell`);
+  - any `thread_local!` invocation.
+- **Exceptions** require a preceding `// engine:allow-global-state: <reason>` comment, and `check-statics` reports each one. M1 has none.
+- **Immutable statics and consts** (lookup tables, constants) are fine.
+- **Consequences for later milestones:**
+  - M2's type registry and component IDs are per-world (or per explicitly-shared registry instance), never process-global.
+  - M3's thread pool is an instance the host creates.
+  - M4's C API passes an explicit context handle to every function.
 
 ---
 
@@ -772,7 +812,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 6. ADRs 0001–0004 are written. README, dual license files, `deny.toml`, `unsafe-allowlist.toml` (empty), and dependabot config are in place.
 7. `examples/fixed_step_sim` runs, and its determinism test passes.
 8. A `cargo-mutants` run has been triaged.
-9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), and 0007 (host owns the loop) are written. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
+9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), 0007 (host owns the loop), and 0008 (no global state) are written. The `check-statics` job is green. The transcendental-method bans are active, with only the `engine_math::scalar` exception. The devcontainer has every tool `cargo xtask ci` needs. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
 10. The `wasm` CI job is green. The snapshot, allocation, large-world precision, and coordinate-conversion tests pass.
 
 ---
@@ -847,6 +887,10 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 - glTF coordinate conventions (summary) — https://asam-ev.github.io/OpenMATERIAL/asamopenmaterial/latest/specification/geometry/file-format-support.html
 - wit-bindgen — https://lib.rs/crates/wit-bindgen-cli
 - WASI language support — https://wasi.dev/languages
+- glam discussion on libm / Rapier `sin_cos` desync — https://github-redirect.dependabot.com/bitshifter/glam-rs/discussions/350
+- glam features — https://lib.rs/crates/glam/features
+- libm crate — https://docs.rs/crate/libm/latest
+- GitHub Actions billing — https://docs.github.com/en/billing/concepts/product-billing/github-actions
 
 ---
 
@@ -854,7 +898,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR:
 
-1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007, `xtask`, CI workflows, dependabot.
+1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004, 0007, and 0008, `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (Valgrind, wasmtime, cargo-nextest, cargo-deny, cargo-llvm-cov, cargo-fuzz, critcmp, gungraun-runner, the extra rustup targets, and the pinned nightly with Miri) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
 2. **`engine_handle`:** handles, pool, allocator; unit/property/Miri tests; fuzz targets; benchmarks.
 3. **`engine_random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
 4. **`engine_time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
