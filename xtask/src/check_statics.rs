@@ -16,6 +16,12 @@ const INTERIOR_MUTABLE: &[&str] = &[
     "OnceLock",
     "LazyLock",
     "LazyCell",
+    "Lazy",
+    "LazyLock",
+    "OnceBox",
+    "Once",
+    "Condvar",
+    "Barrier",
 ];
 
 /// Marker comment that sanctions a finding when placed on the line above it.
@@ -50,9 +56,15 @@ impl<'ast> Visit<'ast> for Scanner {
             .0
             .iter()
             .any(|i| INTERIOR_MUTABLE.contains(&i.as_str()) || i.starts_with("Atomic"));
-        if bad {
+        let line = item.static_token.span.start().line;
+        if matches!(item.mutability, syn::StaticMutability::Mut(_)) {
             self.hits.push((
-                item.static_token.span.start().line,
+                line,
+                format!("`static mut {}` is global mutable state", item.ident),
+            ));
+        } else if bad {
+            self.hits.push((
+                line,
                 format!("static `{}` has interior mutability", item.ident),
             ));
         }
@@ -162,6 +174,22 @@ mod tests {
                    thread_local! { static D: u8 = 0; }\n";
         let f = scan_statics(Path::new("x.rs"), src);
         assert_eq!(f.iter().map(|f| f.line).collect::<Vec<_>>(), vec![1, 2, 4]);
+    }
+
+    #[test]
+    fn flags_static_mut_and_more_lazy_types() {
+        let src = "static mut A: u32 = 0;\n\
+                   static B: Lazy<u8> = Lazy::new(|| 0);\n\
+                   static C: OnceBox<u8> = OnceBox::new();\n\
+                   static D: Once = Once::new();\n\
+                   static E: Condvar = Condvar::new();\n\
+                   static F: Barrier = Barrier::new(1);\n\
+                   static G: [u8; 2] = [0, 1];\n";
+        let f = scan_statics(Path::new("x.rs"), src);
+        assert_eq!(
+            f.iter().map(|f| f.line).collect::<Vec<_>>(),
+            vec![1, 2, 3, 4, 5, 6]
+        );
     }
 
     #[test]
