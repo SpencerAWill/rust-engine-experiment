@@ -279,6 +279,7 @@ dependencies = [
 name = "engine_random"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "rand_xoshiro",
 ]
 

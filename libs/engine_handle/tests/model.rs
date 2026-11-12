@@ -207,3 +207,20 @@ proptest! {
         prop_assert_eq!(first, second);
     }
 }
+
+proptest! {
+    #![proptest_config(config())]
+
+    /// `to_bits` and `from_bits` are inverse for every `u64` that is a valid handle, and
+    /// `from_bits` rejects exactly the values whose generation (low) half is zero.
+    #[test]
+    fn bits_roundtrip(bits in any::<u64>()) {
+        if let Some(handle) = Handle::<u8>::from_bits(bits) {
+            prop_assert_ne!(bits & 0xFFFF_FFFF, 0);
+            prop_assert_eq!(handle.to_bits(), bits);
+            prop_assert_eq!(u64::from(handle.index()), bits >> 32);
+        } else {
+            prop_assert_eq!(bits & 0xFFFF_FFFF, 0);
+        }
+    }
+}
