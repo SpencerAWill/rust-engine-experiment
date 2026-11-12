@@ -307,7 +307,7 @@ disallowed-macros = [
 
 - **Sanctioned item-level exceptions** use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. `expect`, not `allow`, so the exception is flagged once it becomes unnecessary. M1 has exactly two: `SystemClock` in `engine_time`, and the `engine_math::scalar` funnel.
 - **Crate-level opt-outs** for non-simulation crates (`xtask`, `engine_benches`) use `#![allow(...)]` with a comment, not `#![expect(...)]`. A crate-level `expect` that never fires produces an `unfulfilled_lint_expectations` warning, which fails CI under `-D warnings`.
-- **Tests** may use `unwrap`/`expect` via the `allow-*-in-tests` settings above (replacing the `cfg_attr` approach in §4.2).
+- **Tests** may use `unwrap`/`expect` via the `allow-*-in-tests` settings above (see §4.2).
 - **Deterministic hash collections:** M1 needs none. The `std` path bans also cover `std::collections::HashMap<K, V, S>` with a custom hasher, which is intended. Deterministic maps will be `engine_collections`' own types (expected in M2), built on a fixed-seed hasher. Whenever a hashing crate is added (e.g. hashbrown, foldhash), its randomly-seeded default types are added to this ban list in the same PR.
 - **Float notes for same-build determinism:**
   - Rust does not contract `a * b + c` into fused multiply-add (FMA) implicitly, and we never enable fast-math.
