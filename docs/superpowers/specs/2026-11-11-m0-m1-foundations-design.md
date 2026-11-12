@@ -460,6 +460,7 @@ impl<T> Handle<T> {
 ```
 
 - **There is deliberately no `cast<U>()`.** It would silently defeat the type safety the phantom type exists to provide. Type-erased uses (FFI, serialization) go through `to_bits`/`from_bits`, where the type change is explicit at both ends.
+- **Layout decision (2026-11-12): 32-bit index + 32-bit generation, no pool/world tag.** This matches mainstream practice: Bevy, Unity DOTS, flecs, and EnTT all use index + generation without a world tag, and treat IDs as meaningful only within the issuing world. Reserved ID bits in other engines (e.g. flecs' relationship-pair flags) carry ECS-level meaning. They belong to M2's own entity-ID type, which may have its own layout and is not bound by `Handle`'s frozen encoding.
 - **Known limitation (documented, not fixed):** a `Handle<T>` issued by one pool, used on a *different* pool of the same `T`, can resolve to an unrelated element. Detecting this would need extra bits per handle (breaking the 8-byte size and the FFI encoding) or branded-lifetime tricks that make the API much harder to use. The M2 ECS may add per-world tagging if needed.
 
 - `Copy`, `Clone`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` (by `(index, generation)`, identical to the numeric order of `to_bits`), `Hash`, and `Debug` are implemented manually, without bounds on `T`. `Debug` prints `Handle<Particle>(3v2)`, i.e. slot 3, generation 2, using the short type name.
@@ -1033,7 +1034,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 | `FixedTimestep` | — | `accumulate` + drain ×1M | — |
 | `fixed_step_sim` | — | full run, default args | — |
 
-**Reporting:** `docs/benchmarks.md` records methodology (toolchain, profile settings, CPU model, OS, power settings), results tables per milestone, and interpretation. It records results honestly, including where we lose. Wall-clock (Criterion) numbers come from the author's Apple M4 Pro (aarch64 macOS). Instruction counts (Gungraun) come from x86_64 Linux CI. The two measure different things and are never compared with each other. The release benchmark profile uses `lto = "thin"`, `codegen-units = 1`, `debug = true` (for profiling).
+**Reporting:** `docs/benchmarks.md` records methodology (toolchain, profile settings, CPU model, OS, power settings), results tables per milestone, and interpretation. It records results honestly, including where we lose. In M1, losing to a competitor is recorded and analyzed, not fixed: optimization waits for real workloads (M2+). Wall-clock (Criterion) numbers come from the author's Apple M4 Pro (aarch64 macOS). Instruction counts (Gungraun) come from x86_64 Linux CI. The two measure different things and are never compared with each other. The release benchmark profile uses `lto = "thin"`, `codegen-units = 1`, `debug = true` (for profiling).
 
 ---
 

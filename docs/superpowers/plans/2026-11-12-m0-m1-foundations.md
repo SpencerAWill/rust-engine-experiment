@@ -29,6 +29,8 @@
 - Every `proptest!` block uses a config with `failure_persistence: None` when `cfg(target_os = "wasi")`, because there is no writable directory under wasmtime. Define it once per test file as a `fn config() -> ProptestConfig`.
 - Conventional commits; every commit message ends with the `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` trailer. **Commit by explicit path, never `git commit -a`.**
 - Work on branch `m0-m1-foundations`. Push at the end of each phase; **ask the user before the first push**.
+- **Stop after each phase:** push, post the phase summary with explanations, and wait for the user's go-ahead before starting the next phase.
+- Benchmark losses against competitors are recorded honestly in `docs/benchmarks.md` and do not block M1 (spec §8).
 - Explanations for the user (intermediate Rust): each phase summary explains the key Rust/engine decisions, such as sealed traits, `PhantomData` variance, `#[track_caller]`, and ownership choices.
 
 ## Review Focus
