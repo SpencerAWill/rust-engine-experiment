@@ -227,7 +227,7 @@ impl<T> HandlePool<T> {
     /// ```
     pub fn try_insert(&mut self, value: T) -> Result<Handle<T>, CapacityError<T>> {
         let Some((index, generation)) = self.slots.acquire(to_u32(self.handles.len())) else {
-            return Err(CapacityError(value));
+            return Err(CapacityError::new(value, self.slots.limit()));
         };
         let handle = Handle::new(index, generation);
         self.handles.push(handle);
@@ -796,6 +796,19 @@ mod tests {
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
         assert_eq!(p.remove(forged), None);
+    }
+
+    #[test]
+    fn capacity_error_reports_the_pools_own_limit() {
+        let mut p = HandlePool::with_slot_limit(3);
+        for i in 0..3 {
+            let _ = p.insert(i);
+        }
+        let e = p.try_insert(9).unwrap_err();
+        assert_eq!(e.limit(), 3);
+        let message = alloc::format!("{e}");
+        assert!(message.contains("all 3 slot"), "message was {message}");
+        assert_eq!(e.into_inner(), 9);
     }
 
     #[test]

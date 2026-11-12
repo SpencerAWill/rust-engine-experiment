@@ -18,9 +18,31 @@ use core::fmt;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct CapacityError<T>(pub(crate) T);
+pub struct CapacityError<T> {
+    value: T,
+    limit: u32,
+}
 
 impl<T> CapacityError<T> {
+    pub(crate) const fn new(value: T, limit: u32) -> Self {
+        Self { value, limit }
+    }
+
+    /// The most slots the pool that rejected the value can hold.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// if let Err(e) = pool.try_insert(1) {
+    ///     assert!(e.limit() > 0);
+    /// }
+    /// ```
+    pub const fn limit(&self) -> u32 {
+        self.limit
+    }
+
     /// Returns the value that could not be inserted.
     ///
     /// # Examples
@@ -35,7 +57,7 @@ impl<T> CapacityError<T> {
     /// }
     /// ```
     pub fn into_inner(self) -> T {
-        self.0
+        self.value
     }
 }
 
@@ -44,7 +66,7 @@ impl<T> fmt::Display for CapacityError<T> {
         write!(
             f,
             "HandlePool is full: all {} slot indices are in use or retired; remove values or use another pool",
-            crate::slots::MAX_SLOTS
+            self.limit
         )
     }
 }
