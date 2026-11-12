@@ -5,7 +5,8 @@ This file is a short entry point. The rules are in [CONTRIBUTING.md](CONTRIBUTIN
 ## Commands
 
 ```sh
-cargo xtask ci          # everything CI runs; run it before saying work is done
+cargo xtask ci          # every check CI gates on; run it before saying work is done
+                        # the coverage job and the nightly fuzz run are report-only and run outside it
 cargo xtask ci --quick  # fmt check, clippy, and tests only
 cargo xtask test        # nextest plus doctests
                         # the other commands are listed in the README
