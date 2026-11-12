@@ -12,3 +12,7 @@ cargo install --locked cargo-nextest cargo-deny critcmp wasmtime-cli
   cargo install --locked cargo-llvm-cov &&
     rustup component add llvm-tools-preview
 } || echo "warning: coverage tools were not installed; run the two commands above by hand" >&2
+# Mutation testing: cargo-mutants, at the version pinned as MUTANTS_VERSION in xtask/src/mutants.rs
+# (a unit test checks they agree). Optional, like the tools above.
+cargo install --locked cargo-mutants --version 27.1.0 ||
+  echo "warning: cargo-mutants was not installed; run the command above by hand" >&2

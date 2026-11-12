@@ -1,0 +1,47 @@
+name: Mutants
+
+# Report-only mutation testing of the triaged crates (docs/mutation-triage.md). It fails only
+# when the setup is broken, never because a mutant was missed. The pull_request trigger is limited
+# to the mutants tooling so that a change to it runs the job before merge; a workflow can only be
+# dispatched by hand once it exists on the default branch.
+on:
+  schedule:
+    - cron: "0 8 * * 0" # Sundays 08:00 UTC, after the nightly run
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .cargo/mutants.toml
+      - .github/workflows/mutants.yml
+      - xtask/src/mutants.rs
+      - xtask/src/mutants/**
+
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # The cargo-mutants version is pinned: 26.0 and 27.0 each changed defaults. It must equal
+      # MUTANTS_VERSION in xtask/src/mutants.rs (a unit test checks).
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-mutants@27.1.0,cargo-nextest
+      - run: cargo xtask mutants -j 2
+      # Runs only on success: a failed run has no summary.
+      - run: cat target/mutants/summary.md >> "$GITHUB_STEP_SUMMARY"
+      # Also after a failure: the logs of a failed run explain it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutants-out
+          path: target/mutants/mutants.out
+          retention-days: 30

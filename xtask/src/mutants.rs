@@ -435,4 +435,19 @@ mod tests {
         );
         assert!(errors[0].contains("matches no mutant"), "{errors:?}");
     }
+
+    #[test]
+    fn mutants_version_is_pinned_everywhere() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).unwrap();
+        let workflow = read(".github/workflows/mutants.yml");
+        let install = format!("cargo-mutants@{MUTANTS_VERSION}");
+        assert!(workflow.contains(&install), "mutants.yml lacks `{install}`");
+        let script = read(".devcontainer/install-tools.sh");
+        let install = format!("cargo-mutants --version {MUTANTS_VERSION}");
+        assert!(
+            script.contains(&install),
+            "install-tools.sh lacks `{install}`"
+        );
+    }
 }
