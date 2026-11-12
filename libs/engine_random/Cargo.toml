@@ -1,6 +1,8 @@
 [package]
 name = "engine_random"
 description = "Deterministic, versioned-stable pseudorandom number generator for simulation"
+keywords = ["prng", "xoshiro", "deterministic", "gamedev", "no-std"]
+categories = ["algorithms", "no-std"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

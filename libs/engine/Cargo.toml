@@ -1,6 +1,8 @@
 [package]
 name = "engine"
 description = "Facade for the engine: one dependency that re-exports the handle, random, time, and math crates"
+keywords = ["gamedev", "simulation", "determinism"]
+categories = ["game-engines"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

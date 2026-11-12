@@ -8,6 +8,7 @@ API reference is the rustdoc of each crate (`cargo doc --open`); start at the `e
 |---|---|---|---|
 | [`adr/`](adr/) | Architecture decision records: one short file per decision that is hard to reverse (context, decision, consequences) | Explanation | **Authoritative.** Each has a `Status` line. A later ADR may supersede an earlier one. |
 | [`design/`](design/) | One folder per milestone with its design `spec.md` and, until the milestone merges, its implementation `plan.md` | Explanation | The **spec** is a living design document: where it differs from the code or an ADR, the code and the ADR win. The **plan** is historical. |
+| [`maintainers.md`](maintainers.md) | Repository settings and the checklists for going public and merging | How-to | Operational; update it when the process changes. |
 | [`benchmarks.md`](benchmarks.md) | Methodology, hardware, results, and what the numbers do and do not show | Reference | Evidence for specific claims on one machine; read its caveats before quoting a number. |
 
 Rules that are checked mechanically (lints, `unsafe`, determinism bans, workflows) live in the tooling and in [CONTRIBUTING.md](../CONTRIBUTING.md), not here. Reporting a vulnerability is in [SECURITY.md](../SECURITY.md).

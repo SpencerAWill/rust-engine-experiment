@@ -1,6 +1,8 @@
 [package]
 name = "engine_math"
 description = "The engine's math vocabulary: glam re-exports, transforms (including large-world), conversions"
+keywords = ["math", "transform", "glam", "gamedev", "coordinates"]
+categories = ["mathematics", "game-development"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

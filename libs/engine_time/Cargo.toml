@@ -1,6 +1,8 @@
 [package]
 name = "engine_time"
 description = "Simulation time primitives: ticks, fixed timesteps, and deterministic time sources"
+keywords = ["fixed-timestep", "simulation", "gamedev", "no-std"]
+categories = ["game-development", "no-std"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
