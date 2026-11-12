@@ -7,11 +7,36 @@ use std::process::{Command, Stdio};
 /// Returns `Err` with the failing command line if the process cannot be started
 /// or exits unsuccessfully.
 pub(crate) fn run(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<(), String> {
+    run_with(None, program, args, env)
+}
+
+/// Like [`run`], but starts the process in the directory `dir` (relative to the current one).
+pub(crate) fn run_in(
+    dir: &str,
+    program: &str,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Result<(), String> {
+    run_with(Some(dir), program, args, env)
+}
+
+fn run_with(
+    dir: Option<&str>,
+    program: &str,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Result<(), String> {
     let line = format!("{program} {}", args.join(" "));
-    println!("$ {line}");
-    let status = Command::new(program)
-        .args(args)
-        .envs(env.iter().copied())
+    match dir {
+        Some(dir) => println!("$ (in {dir}) {line}"),
+        None => println!("$ {line}"),
+    }
+    let mut command = Command::new(program);
+    command.args(args).envs(env.iter().copied());
+    if let Some(dir) = dir {
+        command.current_dir(dir);
+    }
+    let status = command
         .status()
         .map_err(|e| format!("failed to start `{line}`: {e}"))?;
     if status.success() {
