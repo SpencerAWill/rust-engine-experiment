@@ -42,6 +42,7 @@ enum Command {
         bytes: Option<u64>,
     },
     BenchBuild,
+    BenchSmoke,
     BenchReport(bench_report::Options),
     Bench {
         save: Option<String>,
@@ -82,6 +83,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "no-std" => only(&[]).map(|()| Command::NoStd),
         "wasm" => only(&[]).map(|()| Command::Wasm),
         "bench-build" => only(&[]).map(|()| Command::BenchBuild),
+        "bench-smoke" => only(&[]).map(|()| Command::BenchSmoke),
         "bench" => parse_bench(flags),
         "bench-report" => bench_report::parse_flags(flags).map(Command::BenchReport),
         "ci" => only(&["--quick"]).map(|()| Command::Ci {
@@ -236,6 +238,16 @@ fn bench_args(save: Option<&str>) -> Vec<String> {
     args
 }
 
+/// The `cargo bench` command line for `bench-smoke`: run every benchmark once, in criterion's test
+/// mode, so a benchmark that panics or rots fails CI. It measures nothing.
+///
+/// As for [`bench_args`], `--bench '*'` keeps the flag away from the unit-test harnesses.
+fn bench_smoke_args() -> Vec<String> {
+    ["bench", "--workspace", "--bench", "*", "--", "--test"]
+        .map(String::from)
+        .into()
+}
+
 /// The steps of `ci`, in order. The full run mirrors the GitHub workflow, including the release
 /// pass over ignored (statistical) tests.
 fn ci_steps(quick: bool) -> Vec<Command> {
@@ -261,6 +273,7 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::CheckWorkflows,
             Command::Deny,
             Command::BenchBuild,
+            Command::BenchSmoke,
         ]);
     }
     steps
@@ -312,6 +325,14 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
         Command::BenchBuild => run("cargo", &["bench", "--workspace", "--no-run"], &[]),
+        Command::BenchSmoke => run(
+            "cargo",
+            &bench_smoke_args()
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            &[],
+        ),
         Command::Bench { save, compare } => bench(save.as_deref(), compare.as_ref()),
         Command::BenchReport(options) => bench_report::run(options),
         Command::Ci { quick } => ci(*quick),
@@ -401,6 +422,19 @@ mod tests {
         };
         assert!(ci_steps(false).contains(&release_ignored));
         assert!(!ci_steps(true).contains(&release_ignored));
+    }
+
+    #[test]
+    fn bench_smoke_runs_each_benchmark_once_in_test_mode() {
+        assert_eq!(parse(&["bench-smoke"]), Ok(Command::BenchSmoke));
+        assert!(parse(&["bench-smoke", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::BenchSmoke));
+        assert!(!ci_steps(true).contains(&Command::BenchSmoke));
+        // Criterion's `--test` flag must reach only the `[[bench]]` targets, like `--save-baseline`.
+        let args = bench_smoke_args();
+        let separator = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(&args[..separator], ["bench", "--workspace", "--bench", "*"]);
+        assert_eq!(&args[separator..], ["--", "--test"]);
     }
 
     #[test]

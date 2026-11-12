@@ -137,6 +137,7 @@ jobs:
       - run: rustup show
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo xtask bench-build
+      - run: cargo xtask bench-smoke
 
   # macOS and Windows legs run on pull requests only, to conserve private-repo minutes.
   # When the repo is public: remove this if (spec §4.7).
