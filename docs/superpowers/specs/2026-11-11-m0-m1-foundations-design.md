@@ -36,6 +36,8 @@ Project trajectory: learning/experimentation first → foundation for the author
 | Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library crates. All transcendental math goes through `engine_math::scalar`, so cross-platform determinism can be enabled later as a contained switch (§4.9) |
 | Instance isolation | **No global mutable state.** Every engine instance is self-contained, and many can coexist in one process (parallel tests, multi-match servers, editor + play-mode worlds, rollback worlds). The future C API takes an explicit context handle on every call (§4.10, ADR 0008) |
 | Strings | UTF-8 everywhere inside the engine. FFI layers convert at the boundary (e.g. UTF-16 for C#) |
+| Tooling & DX | A future game **editor** is a planned product, leaning **out-of-process** (it talks to a running engine over a protocol; UI technology undecided). **Tools and the editor use only public engine APIs, with no privileged backdoors** (ADR 0009). Debuggability is a first-class goal: `#[track_caller]` panics, actionable messages, readable `Debug`, invariant checks (§4.4) |
+| Concurrency & cache | Correct, cache-efficient parallelism is a core requirement. M1 adds no threads but fixes the rules: determinism independent of thread count, concurrency primitives confined to designated crates with model-checked tests, false-sharing avoidance, and layout and cache-behavior measurement (§4.11) |
 | CI cost | The repo is private for now, so CI is **tiered**: ubuntu on every push; macOS/Windows on PRs into `main` and nightly. Expected to go public soon, at which point the full matrix runs on every push (§4.7) |
 | Dimensionality | **2D, 3D, and 2.5D games are all first-class targets.** 2D world space is the XY plane of the 3D convention (+X right, +Y up, Z = depth/layer, meters). Screen/UI space (+Y down, pixels) is a separate space, reached only through explicit conversion. M1 provides both 2D and 3D math vocabularies with bridges (§5.4). M2 decides storage |
 | Loop ownership | **The host owns the loop (library-first).** The engine never takes over a thread it wasn't given. Hosts (Rust games, C# apps, editors, servers, tests, browsers) call into the engine, e.g. `step(...)`. A convenience "app runner" may be layered on top later, but nothing may require it (ADR 0007) |
@@ -69,6 +71,8 @@ These findings shaped this spec and the roadmap. Sources are listed in §12.
 12. **Transcendental functions are the cross-platform determinism hazard.** Rapier's networked desyncs were traced to `sin_cos` differences. The pure-Rust `libm` crate (a port of musl's libm) and glam's `libm` feature are the standard remedy. → Funnel now, switch later (§4.9).
 13. **Private-repo CI pricing.** GitHub bills macOS at 10x and Windows at 2x against 2,000 included minutes/month (Free plan). → Tiered CI (§4.7).
 14. **Coordinate conventions.** glTF 2.0 is right-handed, +Y up, meters/radians, with asset fronts facing +Z. → Adopted as the internal convention (§5.4).
+15. **Concurrency correctness and cache behavior are measurable, not aspirational.** loom model-checks interleavings under the C11 memory model (with documented gaps). crossbeam-utils pads to 128 bytes on x86_64 and aarch64 to avoid false sharing. Reproducible parallel reductions require a fixed reduction order independent of core count. → §4.11, §4.9.
+16. **Review-found pitfalls.** glam's SSE2 and NEON backends use different horizontal-sum orders (verified in source); proptest's default features don't build for WASI; libtest skips `#[should_panic]` on non-emscripten wasm. → §4.7, §4.9, §5.6.
 
 ---
 
@@ -81,6 +85,7 @@ rustfmt.toml               stable options only
 clippy.toml                determinism bans: disallowed types/methods (§4.9)
 deny.toml                  cargo-deny: licenses, advisories, bans, sources
 unsafe-allowlist.toml      crates permitted to use `unsafe` (empty in M0+M1)
+concurrency-allowlist.toml crates permitted to implement atomics/lock-free sync (empty in M0+M1; §4.11)
 LICENSE-MIT                (renamed from LICENSE)
 LICENSE-APACHE
 libs/
@@ -153,7 +158,7 @@ Leaf crates do not depend on each other unless a real need appears.
 - **rustc:** `unsafe_code = "deny"`, `missing_docs = "warn"`, `unreachable_pub = "warn"`, `rust_2018_idioms = { level = "warn", priority = -1 }`, `missing_debug_implementations = "warn"`.
 - **clippy:** `pedantic = { level = "warn", priority = -1 }`, `undocumented_unsafe_blocks = "deny"`, `unwrap_used = "warn"`, `dbg_macro = "warn"`, `todo = "warn"`, `print_stdout = "warn"` (libraries only; examples/xtask/benches allow it). Pedantic allowances are listed in `Cargo.toml` with a one-line justification each. Starting allowances: `module_name_repetitions`, `must_use_candidate` (we apply `#[must_use]` deliberately instead).
 - **rustdoc:** `broken_intra_doc_links = "deny"`, `private_intra_doc_links = "warn"`.
-- Tests, examples, benches, and xtask may use `unwrap`/`expect` (`#![cfg_attr(test, allow(clippy::unwrap_used))]` in libraries).
+- Tests, examples, benches, and xtask may use `unwrap`/`expect`. Library tests get this via `clippy.toml`'s `allow-unwrap-in-tests`/`allow-expect-in-tests` (§4.9); examples/benches/xtask allow it at the crate root.
 - CI treats warnings as errors (`RUSTFLAGS="-D warnings"`, `RUSTDOCFLAGS="-D warnings"`).
 
 ### 4.3 `unsafe` policy (ADR 0001)
@@ -198,6 +203,13 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - benchmarks verify the policy.
 - **Dev-build performance:** game code is often unusably slow at `opt-level = 0`. The workspace sets `[profile.dev] opt-level = 1` and `[profile.dev.package."*"] opt-level = 3` (dependencies fully optimized). The README tells downstream users to do the same, since a library cannot set its users' profiles.
 - **Workspace dependency gotcha:** `[workspace.dependencies]` entries for crates with a `std` feature declare `default-features = false`. Each member enables `std` explicitly, so `no_std` builds don't silently pull in `std` through Cargo feature unification.
+- **Fallible twins:** every public API with a documented panic also has a non-panicking counterpart: std's `checked_*` naming for arithmetic-like operations (`Tick::checked_next`), `try_*` otherwise (`HandlePool::try_insert`, `Prng::try_range`, `FixedTimestep::try_new`, `ManualClock::try_set`). The panicking version stays as the ergonomic default for Rust callers. The fallible one serves FFI, mods, and untrusted input, so the M4 C layer never has to duplicate preconditions. `Index`'s twin is `get`.
+- **Debuggability:**
+  - **`#[track_caller]`** on every function with a documented panic (including `Index`/`IndexMut` impls), so the panic location points at the caller's line rather than the library.
+  - **Actionable messages:** what was wrong, the offending value(s), and what to do instead. Example: `Prng::range: empty range 5..5 (start must be < end); use try_range to handle this without panicking`.
+  - **`Debug` designed for humans:** `Handle<Particle>(3v2)`; `HandlePool` prints as a map `{Handle(..): value, ..}` rather than its slot vector; `Prng` prints its state (not secret; useful for replays).
+  - **Invariant checking:** internal invariants are guarded by `debug_assert!`. Each stateful type has a test-only `assert_invariants(&self)` that the property tests call after every operation.
+- **Tooling uses only public APIs (ADR 0009):** nothing the engine's own tools need (inspectors, editor, remote protocol, profilers) may require private access. If a tool needs it, it becomes a designed, documented public API. This keeps the API complete and honest for third-party tool builders.
 - **Strings:** UTF-8 (`&str`/`String`) everywhere. No platform string types in public APIs. Encoding conversion happens only in FFI/platform layers.
 - **Feature flags:** additive only. `std` is a default feature where applicable. No feature changes observable behavior of deterministic output.
 
@@ -219,6 +231,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - `0006-large-world-precision.md`
   - `0007-host-owns-the-loop.md`
   - `0008-no-global-state.md`
+  - `0009-tooling-uses-public-apis.md`
 
   ADR 0003 also covers the determinism guardrails (§4.9) and the snapshot-able state principle.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `ci:`, `chore:`).
@@ -243,14 +256,19 @@ When the repo goes public (minutes become free), the macOS/Windows legs move to 
 | test | ubuntu, macOS, windows | `cargo xtask test` (`cargo nextest run` + `cargo test --doc`); on ubuntu also `cargo xtask test --release --include-ignored` for the statistical tests (§7) | yes |
 | doc | ubuntu | `cargo xtask doc` | yes |
 | no_std | ubuntu | `cargo xtask no-std` (build `engine_handle`, `engine_random`, `engine_time` with `--no-default-features` for `thumbv7em-none-eabihf`) | yes |
-| wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run the leaf crates' tests on `wasm32-wasip1` under `wasmtime` (a 32-bit target, so 32-bit `usize` is covered). Any test that is incompatible with WASI because of a dev-dependency is `cfg`'d out with a comment, and the list is recorded in the README's "Platform support" section | yes |
+| wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run the leaf crates' and `engine_math`'s tests (including the PRNG golden tests) on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered. See the WASM test notes below | yes |
 | check-unsafe | ubuntu | `cargo xtask check-unsafe` | yes |
 | check-statics | ubuntu | `cargo xtask check-statics` (§4.10) | yes |
 | miri | ubuntu (pinned nightly) | `cargo xtask miri` | yes |
 | deny | ubuntu | `cargo xtask deny` | yes |
 | bench-build | ubuntu | `cargo bench --no-run` | yes |
-| bench-regress | ubuntu (Valgrind via `gungraun/setup-gungraun`) | `cargo xtask bench-regress` (instruction counts vs `main`, fail if > 5%) | yes, once a `main` baseline exists |
+| bench-regress | ubuntu (Valgrind via `gungraun/setup-gungraun`) | `cargo xtask bench-regress` (instruction counts vs the PR's merge-base, measured in the same job; fail if > 5%; see §8) | yes; a `perf-regression-accepted` PR label downgrades it to report-only |
 | coverage | ubuntu | `cargo llvm-cov nextest` → summary in job output | report only |
+
+**WASM test notes:**
+- proptest is declared as `proptest = { version = "…", default-features = false, features = ["std"] }` in `[workspace.dependencies]`. Its default `fork`/`timeout` features pull in `rusty-fork` → `wait-timeout`, which only compiles for unix/windows. A broken dev-dependency fails the entire test build for a target, so per-test `cfg` cannot work around it.
+- libtest ignores `#[should_panic]` tests on every wasm target except emscripten, and panics abort on WASI. So the `# Panics` contracts are tested on native targets only, and proptest failures on WASI abort without shrinking (shrink by reproducing on native).
+- The README's "Platform support" section records both facts.
 
 `.github/workflows/nightly.yml` runs on a daily schedule: each fuzz target for 10 minutes, plus `cargo xtask ci` against the latest stable toolchain (an early warning for toolchain bumps). It is report-only.
 
@@ -258,9 +276,9 @@ Dependabot gains the `cargo` (weekly, grouped) and `github-actions` (weekly) eco
 
 ### 4.8 `xtask` commands
 
-`ci` (runs fmt-check, clippy, test, doc, no-std, wasm, check-unsafe, deny in sequence), `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `miri`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `bench-regress`, `fuzz <target> [--time <secs>]`, `prng-stats` (streams PRNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand).
+`ci` runs **every gating job in §4.7**, in sequence: fmt-check, clippy, test, doc, no-std, wasm, check-unsafe, check-statics, miri, deny, bench-build. `bench-regress` is the exception: it needs a merge-base and Valgrind, so it runs via its own command. `ci --quick` runs only fmt-check, clippy, and test for fast local iteration. Other commands: `fmt [--check]`, `clippy`, `test`, `doc`, `no-std`, `wasm`, `check-unsafe`, `miri`, `deny`, `bench [--save <name>] [--compare <a> <b>]`, `bench-regress`, `fuzz <target> [--time <secs>]`, `prng-stats` (streams PRNG output to stdout for piping into PractRand; documents usage, does not bundle PractRand).
 
-`xtask` has minimal dependencies (std plus, at most, a small argument parser). It shells out to `cargo` and external tools, and prints an actionable install hint when a tool (`cargo-nextest`, `cargo-deny`, `cargo-llvm-cov`, `gungraun-runner`, `cargo-fuzz`, `critcmp`, `wasmtime`) is missing.
+`xtask` has minimal dependencies: std, at most a small argument parser, and `syn` for `check-statics`. It shells out to `cargo` and external tools, and prints an actionable install hint when a tool (`cargo-nextest`, `cargo-deny`, `cargo-llvm-cov`, `gungraun-runner`, `cargo-fuzz`, `critcmp`, `wasmtime`) is missing.
 
 ### 4.9 Determinism guardrails (part of ADR 0003)
 
@@ -269,24 +287,41 @@ Dependabot gains the `cargo` (weekly, grouped) and `github-actions` (weekly) eco
 **Enforcement:** the workspace-root `clippy.toml` applies to every crate:
 
 ```toml
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
 disallowed-types = [
-  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use BTreeMap or a fixed-seed hasher" },
-  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use BTreeSet or a fixed-seed hasher" },
+  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use BTreeMap (or engine_collections' deterministic map once it exists)" },
+  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use BTreeSet (or engine_collections' deterministic set once it exists)" },
   { path = "std::hash::RandomState",    reason = "OS-seeded; breaks same-build determinism" },
 ]
 disallowed-methods = [
   { path = "std::time::Instant::now",    reason = "ambient time; take a TimeSource parameter" },
   { path = "std::time::SystemTime::now", reason = "ambient time; take a TimeSource parameter" },
+  # + the transcendental float methods listed below
+]
+disallowed-macros = [
+  { path = "std::thread_local", reason = "global state; see ADR 0008" },
 ]
 ```
 
-- **Sanctioned exceptions** use a local `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. M1 has exactly one: `SystemClock::new`/`now` in `engine_time`.
-- **Non-simulation crates** (`xtask`, `engine_benches`) may opt out at the crate root with `#![expect(...)]` and a reason.
-- **Deterministic hash collections:** M1 needs none. When one is first needed (expected in M2), it gets a fixed-seed hasher in a small `engine_collections` crate, per the splitting rule.
+- **Sanctioned item-level exceptions** use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. `expect`, not `allow`, so the exception is flagged once it becomes unnecessary. M1 has exactly two: `SystemClock` in `engine_time`, and the `engine_math::scalar` funnel.
+- **Crate-level opt-outs** for non-simulation crates (`xtask`, `engine_benches`) use `#![allow(...)]` with a comment, not `#![expect(...)]`. A crate-level `expect` that never fires produces an `unfulfilled_lint_expectations` warning, which fails CI under `-D warnings`.
+- **Tests** may use `unwrap`/`expect` via the `allow-*-in-tests` settings above (replacing the `cfg_attr` approach in §4.2).
+- **Deterministic hash collections:** M1 needs none. The `std` path bans also cover `std::collections::HashMap<K, V, S>` with a custom hasher, which is intended. Deterministic maps will be `engine_collections`' own types (expected in M2), built on a fixed-seed hasher. Whenever a hashing crate is added (e.g. hashbrown, foldhash), its randomly-seeded default types are added to this ban list in the same PR.
 - **Float notes for same-build determinism:**
   - Rust does not contract `a * b + c` into fused multiply-add (FMA) implicitly, and we never enable fast-math.
   - Basic IEEE operations (`+ − × ÷ sqrt`) are bit-reproducible.
   - Transcendental functions (`sin`, `exp`, …) call the platform's math library and may differ *across* platforms, but not within one build.
+  - **SIMD reduction order differs across architectures.** glam's SIMD-backed types (`Vec3A`, `Vec4`, `Quat`, `Mat3A`, `Mat4`, `Affine3A`) compute horizontal sums in backend-specific orders. Verified in glam 0.30.10: SSE2's 4-lane dot product sums `(x+z)+(y+w)`, NEON uses a pairwise horizontal add, and the scalar fallback sums left to right. So `dot`, `length`, `normalize`, and quaternion/matrix products can differ in the last bit between x86_64 and aarch64, even with identical inputs. This is consistent with same-build determinism, but it limits what can share a cross-architecture golden value (§5.6).
+- **Determinism is independent of thread count and timing.** The same build must produce identical results on a 4-core and a 14-core machine, and with 1 or N worker threads. Rules for M2/M3 and beyond:
+  - parallel work uses **fixed partitioning** (chunk boundaries depend on data size, never on thread count);
+  - **reductions combine partial results in a fixed tree/order** (floating-point addition is not associative);
+  - deferred commands from parallel systems are **merged in a deterministic order** (e.g. by system order, then chunk index), never in completion order;
+  - no floating-point accumulation through atomics.
+- **Handle allocation order is simulation input.** Because PRNG streams are commonly keyed by `handle.to_bits()`, which handle an entity receives affects simulation output. Rules:
+  1. Handles are allocated only at deterministic points: single-threaded code, or deferred commands applied in schedule order. No allocation order may depend on thread timing (relevant to M2/M3 parallel spawning).
+  2. The `to_bits` layout (§5.1) is part of the deterministic output. Changing it is a breaking change to golden values and requires an ADR.
 
 **Transcendental math funnel.** Same-build determinism rules out lockstep multiplayer across different platforms (e.g. Windows x86 vs macOS ARM). Server-authoritative and same-platform rollback models are unaffected. To keep a later upgrade to cross-platform determinism cheap:
 
@@ -294,7 +329,15 @@ disallowed-methods = [
 - In M1 these delegate to `std`.
 - `clippy.toml` `disallowed-methods` bans the corresponding inherent methods (`f32::sin`, `f64::sin`, …, `f32::powi`, …) in all crates. `engine_math::scalar` carries the one sanctioned `#[expect]`. `xtask`, benches, and tests may opt out.
 - Correctly-rounded IEEE operations stay allowed: `+ − × ÷`, `sqrt`, `mul_add`, `abs`, `floor`/`ceil`/`round`/`trunc`, `min`/`max`, `rem_euclid`, `copysign`.
-- **Upgrade path (future ADR, not M1):** back `scalar` with the pure-Rust `libm` crate and enable glam's `libm` feature, which covers glam's internal `sin_cos` in quaternion/rotation constructors. Because it changes output values, this is a deliberate, versioned engine-wide decision, not a Cargo feature (§4.4: features never change deterministic output). The golden values would be regenerated once and then become identical across all targets.
+- **Upgrade path (future ADR, not M1):** three changes together:
+  1. back `scalar` with the pure-Rust `libm` crate;
+  2. enable glam's `libm` feature (routes glam's internal transcendentals, e.g. `sin_cos` in rotation constructors, through libm);
+  3. enable glam's `scalar-math` feature (removes the architecture-specific SIMD reduction orders).
+
+  `scalar-math` **changes the size and alignment** of `Vec3A`/`Vec4`/`Quat`/`Mat3A`/`Mat4`, and therefore of `Transform`/`WorldTransform`. That breaks any layout C#, snapshots, or serialized data depend on (the same failure mode as Unreal's Large World Coordinates migration). The static layout assertions in §5.4 exist to make such a change loud.
+
+  Because the switch changes output values and layout, it is a deliberate, versioned, engine-wide decision, not a Cargo feature (§4.4: features never change deterministic output). Golden values would be regenerated once and then become identical across all targets.
+- **Feature-unification hazard:** any crate in a downstream dependency graph can enable glam's `fast-math` or `scalar-math` features and silently change our numerics. `engine_math`'s static layout assertions catch `scalar-math`. `fast-math` cannot be detected, so the README documents it as unsupported.
 - M1 code that needs trigonometry (e.g. `Transform2d::to_affine`, `to_2d`'s twist extraction) calls `scalar`, not std directly.
 
 ### 4.10 Instance isolation (ADR 0008)
@@ -306,11 +349,41 @@ disallowed-methods = [
   - a `static` item whose type contains interior mutability (`Cell`, `RefCell`, `UnsafeCell`, `Mutex`, `RwLock`, `Atomic*`, `OnceCell`, `OnceLock`, `LazyLock`, `LazyCell`);
   - any `thread_local!` invocation.
 - **Exceptions** require a preceding `// engine:allow-global-state: <reason>` comment, and `check-statics` reports each one. M1 has none.
+- **The check is best-effort, not a proof.** It matches type names syntactically, so `type` aliases, user structs that wrap a `Mutex`, and third-party lazy-static macros can evade it. Code review remains the backstop, and `disallowed-macros` covers `thread_local!`.
+- **Dependencies can carry global state** (logging/tracing dispatchers, rayon's global pool, the global allocator). Policy:
+  - **Diagnostics facades** (logging, tracing, profiling) are the one sanctioned category of process-global state. Engine code only *emits* events; only the host installs subscribers. This carve-out is decided now because M3's profiling and the tooling milestone depend on it.
+  - **Thread pools** are always explicit instances. When rayon (or similar) is added, its global-pool entry points (`rayon::spawn`, `rayon::join`, `par_iter` on the global pool, etc.) are added to `disallowed-methods`.
+  - **The global allocator** belongs to the host application, never to an engine library.
 - **Immutable statics and consts** (lookup tables, constants) are fine.
 - **Consequences for later milestones:**
   - M2's type registry and component IDs are per-world (or per explicitly-shared registry instance), never process-global.
   - M3's thread pool is an instance the host creates.
   - M4's C API passes an explicit context handle to every function.
+
+### 4.11 Concurrency, parallelism, and cache efficiency
+
+M1 contains no threads, but the rules are fixed now so M2/M3 inherit them rather than retrofit them.
+
+**Correctness of concurrent code:**
+- **Confinement:** atomics, lock-free structures, and custom synchronization live only in designated crates (expected: the M3 scheduler and the M2 storage internals), listed in `concurrency-allowlist.toml` with an ADR link, mirroring the `unsafe` allowlist. Elsewhere, concurrency comes from those crates' safe APIs.
+- **Verification required for every allowlisted crate:**
+  - **`loom`** model tests for each synchronization protocol. loom exhaustively explores interleavings under the C11 memory model. It is not a proof (it has known gaps, e.g. some SeqCst and load-buffering behaviors), so it complements rather than replaces the other checks.
+  - **Miri** (already required for `unsafe`), which also detects data races and some weak-memory behaviors.
+  - **ThreadSanitizer** (`-Zsanitizer=thread`, pinned nightly) on the stress tests in CI.
+  - **Stress tests** run under random scheduling. `shuttle`, a randomized scheduling-exploration tool, is an optional addition.
+- **`Send`/`Sync` audits:** static assertions for every public type (already in §7). Any manual `unsafe impl Send/Sync` falls under the `unsafe` policy.
+
+**Cache efficiency:**
+- **Layout discipline:**
+  - Hot types have static size and alignment assertions, and their docs state bytes per element (`Handle` = 8, transforms per §5.4).
+  - `HandlePool`'s slot overhead is documented.
+  - The data-oriented storage decision (structure-of-arrays columns vs archetype tables) is M2's to make with benchmarks.
+- **False sharing:** mutable per-thread or per-worker data (counters, queues, accumulators) is padded and aligned to the destructive-interference size. That is 128 bytes on x86_64 (the spatial prefetcher pulls 64-byte line pairs) and on aarch64 including Apple Silicon (128-byte lines on performance cores). crossbeam-utils' `CachePadded` uses these values. M3 decides whether to depend on crossbeam-utils or define an equivalent.
+- **Access patterns:** APIs favor linear, batched iteration over scattered per-element lookups. Per-element lookups (`HandlePool::get`) exist for convenience; bulk work goes through iterators/queries.
+- **Measurement (§8):**
+  - Benchmark sizes straddle the benchmark machine's cache hierarchy (L1/L2/SLC/DRAM, recorded in `docs/benchmarks.md`), with both sequential and random access.
+  - Gungraun benchmarks enable Callgrind's cache simulation and report estimated L1/last-level-cache miss counts alongside instruction counts.
+  - Hardware-counter profiling (Instruments CPU Counters on macOS, `perf stat` on Linux) is documented for investigations.
 
 ---
 
@@ -338,9 +411,11 @@ impl<T> Handle<T> {
     pub const fn index(self) -> u32;
     /// Generation of the slot when this handle was issued.
     pub const fn generation(self) -> core::num::NonZeroU32;
-    /// Stable encoding: `(generation as u64) << 32 | index as u64`. Never 0.
+    /// Stable encoding: `(index as u64) << 32 | generation as u64`. Never 0.
+    /// Index is in the high half, so numeric order of bits == `Ord` order of handles.
+    /// This layout is frozen: it feeds PRNG stream ids, so it is part of deterministic output (§4.9).
     pub const fn to_bits(self) -> u64;
-    /// Inverse of `to_bits`. Returns `None` iff the generation half is 0.
+    /// Inverse of `to_bits`. Returns `None` iff the generation (low) half is 0.
     pub const fn from_bits(bits: u64) -> Option<Self>;
 }
 ```
@@ -348,7 +423,7 @@ impl<T> Handle<T> {
 - **There is deliberately no `cast<U>()`.** It would silently defeat the type safety the phantom type exists to provide. Type-erased uses (FFI, serialization) go through `to_bits`/`from_bits`, where the type change is explicit at both ends.
 - **Known limitation (documented, not fixed):** a `Handle<T>` issued by one pool, used on a *different* pool of the same `T`, can resolve to an unrelated element. Detecting this would need extra bits per handle (breaking the 8-byte size and the FFI encoding) or branded-lifetime tricks that make the API much harder to use. The M2 ECS may add per-world tagging if needed.
 
-- `Copy`, `Clone`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` (by `(index, generation)`), `Hash`, and `Debug` (`Handle<TypeName>(index v generation)`) are implemented manually, without bounds on `T`.
+- `Copy`, `Clone`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` (by `(index, generation)`, identical to the numeric order of `to_bits`), `Hash`, and `Debug` are implemented manually, without bounds on `T`. `Debug` prints `Handle<Particle>(3v2)`, i.e. slot 3, generation 2, using the short type name.
 - `PhantomData<fn() -> T>` keeps the handle covariant in `T` and `Send + Sync` regardless of `T`, with no drop-check implications. A handle refers to a `T` but never owns one.
 
 ```rust
@@ -357,7 +432,10 @@ pub struct HandlePool<T> { slots: Vec<Slot<T>>, free_head: Option<u32>, len: u32
 impl<T> HandlePool<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
+    /// # Panics: if `u32::MAX` slots are already in use (see `try_insert`). `#[track_caller]`.
     #[must_use] pub fn insert(&mut self, value: T) -> Handle<T>;
+    /// Fallible twin of `insert`; on failure, ownership of `value` is returned in the error.
+    pub fn try_insert(&mut self, value: T) -> Result<Handle<T>, CapacityError<T>>;
     pub fn get(&self, handle: Handle<T>) -> Option<&T>;
     pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T>;
     pub fn remove(&mut self, handle: Handle<T>) -> Option<T>;
@@ -371,12 +449,22 @@ impl<T> HandlePool<T> {
     pub fn retain(&mut self, keep: impl FnMut(Handle<T>, &mut T) -> bool);
     pub fn len(&self) -> usize;
     pub fn is_empty(&self) -> bool;
+    /// Number of values the pool can hold without reallocating (std `Vec::capacity` semantics,
+    /// counting occupied plus reusable vacant slots; retired slots are excluded).
     pub fn capacity(&self) -> usize;
     pub fn clear(&mut self);
     pub fn iter(&self) -> Iter<'_, T>;          // Item = (Handle<T>, &T), ascending slot index
     pub fn iter_mut(&mut self) -> IterMut<'_, T>; // Item = (Handle<T>, &mut T), ascending slot index
-    pub fn drain(&mut self) -> Drain<'_, T>;     // Item = (Handle<T>, T), ascending slot index
+    /// Removes all values, yielding them in ascending slot index order. When the `Drain` is
+    /// dropped (fully consumed or not), the pool is in exactly the state `clear()` would produce.
+    pub fn drain(&mut self) -> Drain<'_, T>;     // Item = (Handle<T>, T)
 }
+
+/// Returned by `try_insert` when the pool is full; carries the rejected value back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapacityError<T>(T);
+impl<T> CapacityError<T> { pub fn into_inner(self) -> T; }
+// + Display, core::error::Error (T: Debug)
 // Also: Default, Debug (T: Debug), Clone (T: Clone), IntoIterator for &/&mut/owned,
 // Index<Handle<T>> and IndexMut<Handle<T>> (panic on stale; documented, like HashMap's Index).
 // All iterators are named types implementing ExactSizeIterator + FusedIterator
@@ -390,7 +478,10 @@ pub struct HandleAllocator<T> { /* generations + free list */ }
 impl<T> HandleAllocator<T> {
     pub const fn new() -> Self;
     pub fn with_capacity(capacity: usize) -> Self;
+    /// # Panics: if `u32::MAX` slots are in use. `#[track_caller]`.
     #[must_use] pub fn allocate(&mut self) -> Handle<T>;
+    /// Fallible twin of `allocate`.
+    pub fn try_allocate(&mut self) -> Option<Handle<T>>;
     /// Returns `false` if the handle was already stale.
     pub fn free(&mut self, handle: Handle<T>) -> bool;
     pub fn is_alive(&self, handle: Handle<T>) -> bool;
@@ -435,7 +526,10 @@ impl Prng {
     pub fn next_f32(&mut self) -> f32;          // (next_u64 >> 40) as f32 * 2^-24, in [0, 1)
     pub fn next_f64(&mut self) -> f64;          // (next_u64 >> 11) as f64 * 2^-53, in [0, 1)
     pub fn next_bool(&mut self) -> bool;        // top bit of next_u64
+    /// # Panics: on an empty or invalid range (see below). `#[track_caller]`.
     pub fn range<R: SampleRange>(&mut self, range: R) -> R::Output;
+    /// Fallible twin of `range`: `None` instead of panicking. Draws nothing when it returns `None`.
+    pub fn try_range<R: SampleRange>(&mut self, range: R) -> Option<R::Output>;
     pub fn chance(&mut self, p: f64) -> bool;   // next_f64() < p
     pub fn shuffle<T>(&mut self, slice: &mut [T]);
     pub fn choose<'a, T>(&mut self, slice: &'a [T]) -> Option<&'a T>;
@@ -455,11 +549,38 @@ pub trait SampleRange: sealed::Sealed { type Output; /* sampling method is priva
 
 **Semantics:**
 
-- **Integers in ranges:** Lemire's nearly-divisionless bounded method (unbiased). An empty range panics (`# Panics`). An inclusive full-width range (e.g. `0..=u64::MAX`) is handled without overflow.
-- **Floats in ranges:** `lo + (hi - lo) * unit`. `Range` guarantees results in `[lo, hi)`: if rounding produces `hi`, the sample is rejected and redrawn. `RangeInclusive` returns results in `[lo, hi]`. Non-finite bounds or `lo > hi` panic.
+**Normative algorithms.** Because every output stream is frozen (below), these definitions are part of the contract. Two implementations following them must produce identical values on every target, including 32-bit wasm.
+
+- **`bounded_u64(n)`** returns a uniform value in `[0, n)` for `n ≥ 1`, using Lemire's nearly-divisionless method in 64 bits:
+  ```text
+  m = (next_u64() as u128) * (n as u128); lo = m as u64
+  if lo < n:
+      t = n.wrapping_neg() % n
+      while lo < t: m = (next_u64() as u128) * (n as u128); lo = m as u64
+  return (m >> 64) as u64
+  ```
+- **Integer ranges, all integer types:** `u8`–`u64`, `i8`–`i64`, `usize`, `isize`.
+  - Convert to an inclusive range `[lo, hi]`. For `Range`, `hi = end − 1`, and an empty range is invalid.
+  - Widen both bounds to 64 bits: unsigned types via `as u64`; signed types via `as i64`, then reinterpret as `u64`.
+  - Let `span = hi.wrapping_sub(lo)`, computed in `u64`.
+  - If `span == u64::MAX` (full 64-bit range), the result is `lo.wrapping_add(next_u64())`. Otherwise it is `lo.wrapping_add(bounded_u64(span + 1))`.
+  - Narrow back to the original type.
+  - **Every integer type, including `usize`/`isize`, uses this 64-bit path on every target.** Results never depend on pointer width.
+- **Float `Range` (`lo..hi`):**
+  - Invalid unless `lo` and `hi` are finite, `lo < hi`, and `hi − lo` is finite. This rejects `lo..lo`, which would otherwise loop forever, and overflow cases such as `-MAX..MAX`, which would otherwise produce `inf`/NaN.
+  - Loop: `u = next_f32()` (or `next_f64()`); `x = lo + (hi − lo) * u`; return `x` if `x < hi`, otherwise redraw. Since `u = 0` gives `lo < hi`, the loop terminates with probability 1.
+- **Float `RangeInclusive` (`lo..=hi`):**
+  - Invalid unless both bounds are finite, `lo ≤ hi`, and `hi − lo` is finite.
+  - `u = (next_u64() >> 40) as f32 / (2^24 − 1) as f32` for `f32` (for `f64`: `>> 11`, divided by `2^53 − 1`), which is uniform over [0, 1] inclusive.
+  - Return `min(lo + (hi − lo) * u, hi)`. `lo..=lo` returns `lo`.
+- **`try_range`** performs exactly the validity checks above and returns `None` without drawing. `range` panics with an actionable message naming the bounds received.
+- **`shuffle`:** Fisher–Yates, descending: `for i in (1..len).rev() { j = bounded_u64(i + 1); swap(i, j) }`. Empty and length-1 slices draw nothing.
+- **`choose`:** `None` for an empty slice (no draw); otherwise `slice[bounded_u64(len)]`.
+- **`fill_bytes`:**
+  - Fill in 8-byte chunks, each `next_u64().to_le_bytes()`.
+  - A final partial chunk of `k` bytes takes the first `k` bytes of one more `next_u64().to_le_bytes()` and discards the rest.
+  - Little-endian on every target.
 - **`chance(p)`:** `p <= 0.0` never true, `p >= 1.0` always true, `NaN` always false. It never panics.
-- **`shuffle`:** Fisher–Yates using unbiased bounded integers.
-- **`choose`:** `None` for an empty slice. Consumes one bounded draw otherwise.
 - **`stream(id)`:** returns an independent generator that is a pure function of `(self's current state, id)` and does not advance `self`. Definition:
   `seed = mix(s0 ^ s1.rotate_left(17) ^ s2.rotate_left(31) ^ s3.rotate_left(47) ^ mix(id))`, then `Prng::from_seed(seed)`, where `mix` is the SplitMix64 finalizer. Typical use: `let mut r = world_prng.stream(entity.to_bits());`. The same entity gets the same sequence regardless of system execution order or thread assignment.
 - **Stream stability guarantee:** for a given seed, every method's output sequence is frozen across all 0.x releases. Golden tests enforce this; any change is a breaking change requiring an ADR.
@@ -481,7 +602,10 @@ pub struct Tick(u64);
 impl Tick {
     pub const ZERO: Tick;
     pub const fn new(value: u64) -> Tick;
-    pub const fn next(self) -> Tick;           // panics on overflow (documented; ~9.7e9 years at 60 Hz)
+    /// # Panics: on overflow (~9.7e9 years at 60 Hz). `#[track_caller]`.
+    pub const fn next(self) -> Tick;
+    /// Fallible twin of `next` (std `checked_*` naming).
+    pub const fn checked_next(self) -> Option<Tick>;
     pub const fn get(self) -> u64;
 }
 
@@ -492,13 +616,20 @@ pub struct FixedTimestep { step: Duration, accumulator: Duration, max_steps: Non
 impl FixedTimestep {
     pub const DEFAULT_MAX_STEPS_PER_UPDATE: NonZeroU32;   // 8
     /// # Panics: if `step` is zero.
-    pub fn new(step: Duration) -> Self;
+    pub fn new(step: Duration) -> Self;           // #[track_caller]
+    /// Fallible twin of `new`: `None` if `step` is zero.
+    pub fn try_new(step: Duration) -> Option<Self>;
+    /// Step of exactly `round(1e9 / hz)` nanoseconds, computed as `(1_000_000_000 + hz/2) / hz`
+    /// in integer arithmetic (e.g. 60 Hz → 16_666_667 ns). Never panics.
+    pub fn from_hz(hz: NonZeroU32) -> Self;
     /// `NonZeroU32` makes a zero cap unrepresentable instead of a runtime panic.
     #[must_use] pub fn with_max_steps_per_update(self, max_steps: NonZeroU32) -> Self;
     /// Adds `elapsed`, commits up to `max_steps` whole steps, and returns them.
     /// Excess time beyond `max_steps * step` is discarded and added to `dropped_time()`.
     pub fn accumulate(&mut self, elapsed: Duration) -> Steps;
-    /// Leftover fraction of a step in [0, 1), for render interpolation.
+    /// Leftover fraction of a step in [0, 1), for render interpolation. Computed as
+    /// `(accumulator_ns as f64 / step_ns as f64) as f32`, then clamped to
+    /// `1.0_f32.next_down()` (f32 rounding alone can produce exactly 1.0).
     pub fn alpha(&self) -> f32;
     pub fn step(&self) -> Duration;
     pub fn current_tick(&self) -> Tick;        // tick of the next step to be produced
@@ -554,7 +685,9 @@ impl ManualClock {
     pub const fn new() -> Self;
     pub const fn starting_at(now: Timestamp) -> Self;   // restore from a snapshot
     pub fn advance(&mut self, by: Duration);
-    pub fn set(&mut self, to: Timestamp);       // # Panics: if `to` < current (monotonicity)
+    pub fn set(&mut self, to: Timestamp);       // # Panics: if `to` < current (monotonicity). #[track_caller]
+    /// Fallible twin of `set`.
+    pub fn try_set(&mut self, to: Timestamp) -> Result<(), NonMonotonicError>;
 }
 ```
 
@@ -573,11 +706,13 @@ impl ManualClock {
   - the `IVec*`/`UVec*` families.
 
   `glam` is re-exported as `engine_math::glam` for escape-hatch access.
+- **Layout assertions:** `const` assertions pin `size_of`/`align_of` for `Transform`, `WorldTransform`, `Transform2d`, and `WorldTransform2d` on each CI target, with the expected values recorded in ADR 0006. Any change (e.g. a glam `scalar-math` feature flip via feature unification, or a glam upgrade) fails the build loudly instead of silently changing snapshot/FFI layouts.
 - glam's version is part of our public API. Bumping glam's major/minor version is a breaking change for us (acceptable at 0.x). The FFI layer (M4) defines its own `#[repr(C)]` plain-data math types and does not expose glam.
 
 ```rust
-/// Translation, rotation, scale.
+/// Translation, rotation, scale. `#[repr(C)]` fixes field order; layout is pinned by static assertions.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
 pub struct Transform { pub translation: Vec3, pub rotation: Quat, pub scale: Vec3 }
 
 impl Transform {
@@ -586,10 +721,16 @@ impl Transform {
     pub const fn from_rotation(r: Quat) -> Self;
     pub const fn from_scale(s: Vec3) -> Self;
     pub fn with_translation(self, t: Vec3) -> Self;  // + with_rotation, with_scale
-    /// `self * child`. Exact for uniform scale; for non-uniform scale with rotation the result
-    /// is the closest TRS approximation (documented, tested against Mat4 composition within eps).
+    /// `self * child`, by per-component composition:
+    ///   translation = self.translation + self.rotation * (self.scale * child.translation)
+    ///   rotation    = self.rotation * child.rotation
+    ///   scale       = self.scale * child.scale
+    /// Matches Mat4 composition exactly (within float eps) when `self.scale` is uniform. With
+    /// non-uniform parent scale and a rotated child, the shear a matrix would carry is dropped
+    /// (documented; not an approximation within eps).
     pub fn mul_transform(self, child: Transform) -> Transform;
-    /// Exact inverse for uniform scale; documented approximation otherwise. Zero scale yields non-finite values.
+    /// Inverse by per-component inversion. Exact (`t * t.inverse() ≈ IDENTITY`) when scale is
+    /// uniform; documented otherwise. Zero scale yields non-finite values.
     pub fn inverse(self) -> Transform;
     pub fn to_matrix(self) -> Mat4;
     pub fn to_affine(self) -> Affine3A;
@@ -613,6 +754,7 @@ Scalar helpers are `f32`-only in M1. `f64` variants are added when something nee
 /// High-precision placement in the world. Translation is f64. Rotation and scale stay f32:
 /// their magnitudes are bounded, so they don't lose precision far from the origin.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
 pub struct WorldTransform { pub translation: DVec3, pub rotation: Quat, pub scale: Vec3 }
 
 impl WorldTransform {
@@ -647,6 +789,7 @@ impl Transform {
 ```rust
 /// 2D transform in the XY plane. `rotation` is radians, counter-clockwise (about +Z).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
 pub struct Transform2d { pub translation: Vec2, pub rotation: f32, pub scale: Vec2 }
 
 impl Transform2d {
@@ -655,7 +798,8 @@ impl Transform2d {
     pub const fn from_rotation(radians: f32) -> Self;
     pub const fn from_scale(s: Vec2) -> Self;
     pub fn with_translation(self, t: Vec2) -> Self;  // + with_rotation, with_scale
-    /// `self * child`. Same exactness caveat as 3D (exact for uniform scale).
+    /// `self * child`, per-component composition with the same contract as 3D
+    /// (rotation = sum of angles; exact vs `to_affine` composition when `self.scale` is uniform).
     /// The resulting rotation is wrapped into (-π, π].
     pub fn mul_transform(self, child: Transform2d) -> Transform2d;
     pub fn inverse(self) -> Transform2d;
@@ -672,6 +816,7 @@ impl core::ops::Mul for Transform2d { /* mul_transform */ }
 
 /// Large-world 2D placement (f64 translation), mirroring `WorldTransform`.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
 pub struct WorldTransform2d { pub translation: DVec2, pub rotation: f32, pub scale: Vec2 }
 
 impl WorldTransform2d {
@@ -696,36 +841,46 @@ impl WorldTransform {
 
 - **2.5D** is supported by construction. A 2D object is a 3D object on the XY plane, and Z gives depth or layer. `to_3d` is exact; `to_2d` is a documented projection.
 - **Screen/UI space** (+Y down, pixel units, origin top-left) is defined by convention in ADR 0005. Conversion functions between world and screen need camera/viewport data, so they ship with the camera in the rendering milestone, not in M1.
-- **2D axis constants:** `axis::RIGHT_2D = Vec2::X`, `axis::UP_2D = Vec2::Y`.
+- **2D axis constants:** `axis::RIGHT_2D = Vec2::X`, `axis::UP_2D = Vec2::Y` (defined in the `axis` module above).
 
 #### Coordinate system and units (ADR 0005)
 
-- **Internal convention (fixed, not configurable):** right-handed; +X right, +Y up, −Z forward (the camera/look direction); glTF asset fronts face +Z. Units are meters, seconds, radians, kilograms. Matrices follow glam: column-major storage, column vectors, `M * v`.
+- **Internal convention (fixed, not configurable):** right-handed, identical to glTF 2.0's axes. Units are meters, seconds, radians, kilograms. Matrices follow glam: column-major storage, column vectors, `M * v`.
+- **Two distinct meanings of "forward" are both named, never conflated:**
+  - **View forward = −Z.** The direction a default camera looks, with +X to the viewer's right and +Y up (glam `look_to_rh`).
+  - **Asset front = +Z.** The direction an imported asset's front faces (glTF: "the front of a glTF asset faces +Z"). Assets therefore face a default camera. From the asset's own point of view its right is −X, which is exactly how the glTF spec phrases it ("+Z forward, −X right").
+  - Conventions disagree on these: Unity's camera and asset fronts both point along +Z, for example. That is why `CoordinateSystem` below avoids the word "forward" entirely.
 
 ```rust
 /// Named directions in the engine's convention.
 pub mod axis {
     pub const RIGHT: Vec3 = Vec3::X;    pub const LEFT: Vec3 = Vec3::NEG_X;
     pub const UP: Vec3 = Vec3::Y;       pub const DOWN: Vec3 = Vec3::NEG_Y;
-    pub const FORWARD: Vec3 = Vec3::NEG_Z; pub const BACK: Vec3 = Vec3::Z;
+    /// View forward: the direction a default camera looks.
+    pub const VIEW_FORWARD: Vec3 = Vec3::NEG_Z;
+    /// Asset front: the direction an imported asset's front faces (glTF convention).
+    pub const ASSET_FRONT: Vec3 = Vec3::Z;
+    pub const RIGHT_2D: Vec2 = Vec2::X;  pub const UP_2D: Vec2 = Vec2::Y;
 }
 
 /// Explicit conversion from other conventions, for import/export edges only.
 pub mod convert {
-    /// A convention, described by which signed axis means right, up, and forward.
+    /// A source convention, described purely as a basis: which signed *source* axis corresponds
+    /// to each engine axis. Engine +Y is "up"; engine +Z is the asset-front direction.
+    /// No semantic "forward" is involved, so there is no camera-vs-asset ambiguity.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    pub struct CoordinateSystem { pub right: SignedAxis, pub up: SignedAxis, pub forward: SignedAxis }
+    pub struct CoordinateSystem { pub x: SignedAxis, pub y: SignedAxis, pub z: SignedAxis }
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub enum SignedAxis { PosX, NegX, PosY, NegY, PosZ, NegZ }
 
     impl CoordinateSystem {
-        pub const ENGINE: CoordinateSystem;    // = glTF
-        pub const GLTF: CoordinateSystem;
+        pub const ENGINE: CoordinateSystem;    // identity
+        pub const GLTF: CoordinateSystem;      // identity (asserted ENGINE == GLTF by test)
         pub const BLENDER: CoordinateSystem;
         pub const UNITY: CoordinateSystem;
         pub const UNREAL: CoordinateSystem;
-        /// Returns `None` if the three axes are not mutually perpendicular (e.g. right = up).
-        pub const fn new(right: SignedAxis, up: SignedAxis, forward: SignedAxis) -> Option<Self>;
+        /// Returns `None` if two fields name the same source axis (ignoring sign).
+        pub const fn new(x: SignedAxis, y: SignedAxis, z: SignedAxis) -> Option<Self>;
         pub const fn is_right_handed(self) -> bool;
         /// Signed permutation matrix mapping vectors in `self` to engine space.
         pub fn to_engine_matrix(self) -> Mat3;
@@ -739,7 +894,9 @@ pub mod convert {
 }
 ```
 
-- Each preset's axis mapping cites the vendor's documentation in ADR 0005. A preset that cannot be verified against documentation is omitted rather than guessed.
+- **Preset rule:** a preset maps the source's up axis to engine +Y and the source's asset-front axis to engine +Z. The remaining axis follows from handedness; when handedness flips, the flipped axis is the asset-right axis, matching common glTF importers (e.g. Unity's convention of negating X).
+- Each preset's mapping cites the vendor's documentation and that tool's glTF importer/exporter behavior in ADR 0005. A preset that cannot be verified is omitted rather than guessed.
+- **Tests:** `ENGINE == GLTF`; a glTF asset's +Z front stays +Z and +Y up stays +Y through `*_to_engine(_, GLTF)`; for every preset, the source's documented up and asset-front axes land on engine +Y and +Z.
 - **Why this convention:** see ADR 0005. In short, it gives zero-conversion import of glTF (the primary planned asset format), works with glam's `*_rh` helpers and the Rust graphics ecosystem, and makes right-handed math and physics formulas apply directly.
 
 ### 5.5 `engine` facade
@@ -753,18 +910,18 @@ pub mod convert {
 
 A headless binary demonstrating the M1 crates together:
 
-1. CLI arguments: `--seed <u64>` (default 42), `--ticks <u64>` (default 600), `--particles <usize>` (default 10 000).
+1. CLI arguments: `--seed <u64>` (default 42), `--jitter-seed <u64>` (default 7), `--ticks <u64>` (default 600), `--particles <usize>` (default 10 000).
 2. Creates a `HandlePool<Particle { position: Vec3, velocity: Vec3, ttl: u32 }>` seeded via `Prng::from_seed(seed)`.
-3. Drives a `FixedTimestep` (1/60 s) from a `ManualClock`, advancing by a deterministic pseudo-random frame time each loop iteration (simulating jittery frames). For each step:
+3. Drives a `FixedTimestep::from_hz(60)` (exactly 16_666_667 ns) from a `ManualClock`. Each loop iteration advances the clock by a pseudo-random frame time in [4 ms, 40 ms], simulating jittery frames. This stays below the step cap, so no time is dropped. Frame times come from a **separate** `Prng::from_seed(jitter_seed)`, so the frame-time split never consumes the simulation's random numbers. For each step:
    - integrate particles;
    - decrement `ttl` and remove expired particles via `retain`;
    - respawn replacements using `prng.stream(handle.to_bits())`.
 4. Prints the final tick, live count, slot capacity, and a 64-bit FNV-1a checksum over `(handle bits, position bits, velocity bits)` in iteration order.
-5. Integration test (`examples/fixed_step_sim/tests/determinism.rs`) runs the simulation logic as a library function twice with the same seed and asserts equal checksums. A different seed must produce a different checksum. A different frame-time split must produce the same checksum (cap not hit).
+5. Integration test (`examples/fixed_step_sim/tests/determinism.rs`) runs the simulation logic as a library function twice with the same seed and asserts equal checksums. A different seed must produce a different checksum. A different `--jitter-seed` (i.e. a different frame-time split) must produce the same checksum.
 
 6. **Snapshot test** (`tests/snapshot.rs`): run 300 ticks, clone the complete sim state (pool, PRNG, timestep, clock), run both copies 300 more ticks, and assert equal checksums. Also round-trip `Prng`/`FixedTimestep`/`ManualClock` through their raw-state accessors mid-run.
 7. **Allocation test** (`tests/allocations.rs`, its own test binary, using `dhat` in testing mode, so no `unsafe` is needed in our code): pre-size the pool, warm up 120 ticks, then assert **zero new heap allocations** across the next 600 ticks.
-8. **Golden checksum across architectures:** the sim uses only basic IEEE operations (no transcendental functions), so its frozen checksum must match on aarch64 (local Apple Silicon) and x86_64 (CI). If a future change needs `sin`/`cos`/etc., the golden value becomes per-target, with the reason documented.
+8. **Golden checksum across architectures:** the sim uses only `Vec3`/`f32` basic IEEE operations: no transcendental functions, and no SIMD-backed glam types (`Vec3A`, `Vec4`, `Quat`, `Mat4`), whose reduction order differs per architecture (§4.9). So its frozen checksum must match on aarch64 (local Apple Silicon) and x86_64 (CI). If a future change needs `sin`/`cos`/etc., the golden value becomes per-target, with the reason documented.
 
 The sim logic lives in the crate's `lib.rs`. `main.rs` is a thin CLI wrapper, so tests and benches can call it directly.
 
@@ -774,12 +931,12 @@ The sim logic lives in the crate's `lib.rs`. `main.rs` is a thin CLI wrapper, so
 
 | Crate | Fallible operations | Mechanism |
 |---|---|---|
-| `engine_handle` | stale or invalid handles | `Option` (`get`, `remove`, `from_bits`), `bool` (`free`, `contains`). Capacity overflow panics |
-| `engine_random` | none at runtime | Contract violations (empty/invalid range) panic with `# Panics` docs |
-| `engine_time` | zero step, non-monotonic `set` | Panic with `# Panics` docs |
+| `engine_handle` | stale or invalid handles; capacity | `Option` (`get`, `remove`, `from_bits`, `get_disjoint_mut`, `try_allocate`), `bool` (`free`, `contains`), `Result<_, CapacityError<T>>` (`try_insert`). `insert`/`allocate` panic on capacity |
+| `engine_random` | invalid ranges | `try_range` → `Option`; `range` panics (`# Panics`, `#[track_caller]`) |
+| `engine_time` | zero step, non-monotonic `set`, tick overflow, invalid restored state | `try_new`/`from_state` → `Option`, `try_set` → `Result<(), NonMonotonicError>`, `checked_next` → `Option`; panicking twins documented |
 | `engine_math` | none | Documented NaN/non-finite behavior |
 
-No M1 crate needs an error enum. Per-crate `#[non_exhaustive]` error types are introduced when the first genuinely recoverable error appears (expected in M2/M4).
+M1 introduces two small error types: `engine_handle::CapacityError<T>`, which returns the rejected value, and `engine_time::NonMonotonicError`, which reports the current and requested timestamps. Both implement `Display` + `core::error::Error`. Broader `#[non_exhaustive]` error enums arrive when a crate has several failure modes (expected in M2/M4).
 
 ---
 
@@ -792,15 +949,20 @@ All layers run in CI unless noted.
 | Unit | `#[test]` in-module | Generation increments; retire-on-exhaustion (tested by constructing a slot near `u32::MAX` via a `#[cfg(test)]` constructor); LIFO reuse; `clear` semantics; `from_bits(0)` → `None`; `Tick::next`; `FixedTimestep` cap and `dropped_time`; `alpha` range; float-range rejection path; `chance` edge cases (`0`, `1`, `NaN`, negatives); `Transform` identities |
 | Doc | rustdoc | Every public example runs. `compile_fail` doctests: `Handle<A>` passed where `Handle<B>` is expected; `Prng::range` with an unsupported type |
 | Trait/auto-trait assertions | static asserts in tests | `Handle<T>: Send + Sync + Copy` for non-`Send` `T`; size assertions (`size_of::<Handle<T>>() == 8`, `size_of::<Option<Handle<T>>>() == 8`) |
-| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/get_disjoint_mut/retain/clear/iterate; get_disjoint_mut with duplicate or stale handles returns None). Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
+| Property / model-based | `proptest` | `HandlePool` and `HandleAllocator` vs a `HashMap`/`BTreeMap` reference model over random op sequences (insert/remove/get/get_disjoint_mut/retain/clear/iterate; get_disjoint_mut with duplicate or stale handles returns None). `assert_invariants()` runs after every operation. Invariants: stale handles never resolve, `len` matches, iteration order is ascending by index, two runs of the same op sequence yield identical handles. `to_bits`/`from_bits` round-trips. `FixedTimestep` split-invariance. `Prng::range` results always within bounds. `Transform` compose/inverse round-trips within eps for uniform scale; `transform_point` matches `to_matrix` |
 | Golden values | plain tests | xoshiro256++ and SplitMix64 outputs checked against published test vectors. First 16 outputs of every public `Prng` method for seeds `{0, 1, 42, u64::MAX}` frozen in `tests/golden.rs`. `stream` outputs frozen. `fixed_step_sim` checksum for the default arguments frozen |
 | Statistical sanity | plain tests (release-mode, `#[ignore]` by default, run in CI via `--include-ignored` on ubuntu) | Chi-square goodness-of-fit for `range` over small and non-power-of-two bounds, `next_f32`/`next_f64` bucket uniformity, `next_bool` balance, `shuffle` permutation uniformity on 4 elements. Fixed seeds and thresholds, so tests are deterministic |
 | Determinism | integration test | §5.6, including the cross-architecture golden checksum |
 | Snapshot/restore | integration + unit | §5.6 item 6. `Prng::from_state(p.to_state())` continues identically. `FixedTimestep::from_state` rejects invalid states. `from_state([0; 4])` → `None` |
 | Allocation discipline | `dhat` (testing mode) | §5.6 item 7: zero steady-state allocations per tick |
 | Large-world precision | property tests | `relative_to`/`to_world` round-trip ≤ 1 mm for magnitudes up to 1e9 m and offsets ≤ 10 km. `WorldTransform::transform_point` agrees with `to_daffine` |
-| Coordinate conversion | unit + property | Every preset: `*_from_engine(*_to_engine(x)) == x`. Converted quaternions stay unit-length and proper (det = +1). Handedness is detected correctly. `new` rejects non-perpendicular axes. Each preset's mapping of right/up/forward is checked against `axis::*` |
+| Coordinate conversion | unit + property | Every preset: `*_from_engine(*_to_engine(x)) == x`. Converted quaternions stay unit-length and proper (det = +1). Handedness is detected correctly. `new` rejects non-perpendicular axes. Each preset's up and asset-front axes land on engine +Y/+Z (§5.4) |
 | 2D / 2.5D | unit + property | `Transform2d` compose/inverse round-trips (uniform scale). `transform_point` agrees with `to_affine`/`to_mat3`. Rotation wrapping into (-π, π]. `t.to_3d(z).to_2d() == t` within eps. `to_2d` of a pure-Z rotation is exact and drops tilt as documented. `WorldTransform2d` precision guarantee identical to 3D |
+| Panic contracts & fallible twins | unit (native only; see WASM notes) | Every documented panic is triggered and its message checked. A panic hook asserts that `#[track_caller]` reports the *test file* as the location. Each `try_*`/`checked_*` twin returns the error on exactly the same inputs where the panicking version panics, and leaves state untouched (`try_range` draws nothing) |
+| PRNG normative algorithms | golden + unit | Goldens cover every integer type including `usize`/`isize` (identical on wasm32), `shuffle`, `choose`, `fill_bytes` (lengths 0–17), and float `Range`/`RangeInclusive`. Edge cases: `lo..lo` is invalid, `-MAX..MAX` is invalid, `lo..=lo` returns `lo`, inclusive bounds attainable |
+| Time edge cases | unit | `alpha()` stays < 1.0 when the accumulator is `step - 1ns` (for 1/60 s and 100 ms steps). `from_hz(60)` is exactly 16_666_667 ns |
+| Layout | `const` assertions + tests | Sizes/alignments of `Handle`, `Option<Handle>`, transforms per ADR 0006 |
+| Debug output | unit | Snapshot tests of `Debug` for `Handle`, `HandlePool`, `Prng` |
 | 32-bit / WASM | CI `wasm` job | Leaf-crate tests on `wasm32-wasip1`; `engine` builds for `wasm32-unknown-unknown` |
 | Undefined behavior | Miri | `engine_handle` (and all future allowlisted crates) |
 | Fuzzing | `cargo-fuzz` (nightly workflow) | `handle_pool_ops` (arbitrary op sequences checked against the model), `handle_from_bits` |
@@ -815,7 +977,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 **Tools:**
 
 - **Criterion** (+ **critcmp**): local wall-clock benchmarks with named baselines. `cargo xtask bench --save <name>` runs `cargo bench -- --save-baseline <name>`; `cargo xtask bench --compare <a> <b>` runs critcmp.
-- **Gungraun** (formerly iai-callgrind): instruction-count benchmarks under Valgrind for CI regression gating (Linux only; runs in CI and the devcontainer, not natively on macOS). On every push to `main`, CI saves the Gungraun summary as a workflow artifact. PR jobs download the most recent `main` artifact, compare against it, and fail on > 5% instruction-count regression in any benchmark. If no `main` artifact exists yet, the job reports only.
+- **Gungraun** (formerly iai-callgrind): instruction-count benchmarks under Valgrind for CI regression gating (Linux only; runs in CI and the devcontainer, not natively on macOS). The PR job builds and runs the benchmarks at the PR's **merge-base**, then at the PR head, in the **same job on the same runner**, and compares the two. No artifacts are needed, so nothing expires and there is no stale-baseline drift. It fails on a > 5% instruction-count regression in any benchmark. The `perf-regression-accepted` PR label downgrades the gate to report-only for intended trade-offs; the PR description must justify it. Callgrind's cache simulation is enabled, so estimated L1/last-level-cache misses are reported too, but they are not gated. Instruction counts from the aarch64 devcontainer are not comparable with x86_64 CI counts, and are never mixed.
 
 **Layout:**
 
@@ -848,6 +1010,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 8. A `cargo-mutants` run has been triaged.
 9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), 0007 (host owns the loop), and 0008 (no global state) are written. The `check-statics` job is green. The transcendental-method bans are active, with only the `engine_math::scalar` exception. The devcontainer has every tool `cargo xtask ci` needs. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
 10. The `wasm` CI job is green. The snapshot, allocation, large-world precision, and coordinate-conversion tests pass.
+11. Every documented-panic API has a fallible twin and `#[track_caller]`. The panic-contract, PRNG-normative, layout, and `Debug` tests pass. ADR 0009 is written, and `concurrency-allowlist.toml` exists (empty).
 
 ---
 
@@ -869,10 +1032,11 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
-| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
-| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread | Threading model (thread pool vs fibers vs work stealing) |
+| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
+| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread. Determinism independent of thread count (§4.9). The concurrency allowlist, loom, TSan, and stress tests apply (§4.11). Per-worker state is cache-padded. The work-distribution strategy (work stealing vs fixed assignment) is chosen with benchmarks, and its merges must stay deterministic | Threading model (thread pool vs fibers vs work stealing) |
 | M4: C ABI + C# | `engine_ffi` crate (allowlisted `unsafe`), handle-based C API, generated header, C# binding (generator choice evaluated: Interoptopus vs cbindgen + hand-written P/Invoke vs csbindgen), C# sample. **Also:** evaluate the WebAssembly component model (WIT + `wit-bindgen`) for sandboxed, multi-language mods alongside the C ABI for embedding. Define the FFI panic policy: a panic unwinding out of `extern "C"` aborts the host, so the FFI layer validates inputs before calling APIs with documented panics | Binding generator; ownership/lifetime rules across the boundary; native vs WASM for mods |
-| Later | Windowing/input (`winit`) → rendering (`wgpu`; 2D sprite/batching path, pixel-perfect cameras, world↔screen conversion, 3D path, 2.5D via orthographic/perspective cameras over the same world) → assets → audio → physics (2D and 3D are separate solvers in practice) → modding/plugin loading → optional convenience app runner | — |
+| M5: Diagnostics & tooling foundation | Diagnostics facade (logging/tracing; host-installed subscribers per §4.10); profiler integration; **remote inspection protocol** (localhost by default, auth token; entity/component browsing via reflection, change subscriptions, edit commands); record/replay with automatic desync detection (per-tick state checksums) | Protocol transport and encoding; the editor's main integration path |
+| Later | Windowing/input (`winit`) → rendering (`wgpu`; 2D sprite/batching path, pixel-perfect cameras, world↔screen conversion, 3D path, 2.5D via orthographic/perspective cameras over the same world) → assets → audio → physics (2D and 3D are separate solvers in practice) → modding/plugin loading → optional convenience app runner → **editor product** (separate app over the M5 protocol and public APIs only) | — |
 
 ---
 
@@ -925,14 +1089,19 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 - glam features — https://lib.rs/crates/glam/features
 - libm crate — https://docs.rs/crate/libm/latest
 - GitHub Actions billing — https://docs.github.com/en/billing/concepts/product-billing/github-actions
+- glTF 2.0 specification (coordinate system) — https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
+- crossbeam-utils `CachePadded` — https://docs.rs/crossbeam-utils/latest/src/crossbeam_utils/cache_padded.rs.html
+- loom — https://docs.rs/crate/loom/0.7.2/source/README.md
+- Core-count independent reproducible reduce — https://ae.iti.kit.edu/english/4480.php
+- ReproBLAS — https://bebop.cs.berkeley.edu/reproblas
 
 ---
 
 ## 13. Implementation phasing
 
-The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR:
+The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
 
-1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004, 0007, and 0008, `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (Valgrind, wasmtime, cargo-nextest, cargo-deny, cargo-llvm-cov, cargo-fuzz, critcmp, gungraun-runner, the extra rustup targets, and the pinned nightly with Miri) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
+1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (Valgrind, wasmtime, cargo-nextest, cargo-deny, cargo-llvm-cov, cargo-fuzz, critcmp, gungraun-runner, the extra rustup targets, and the pinned nightly with Miri) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
 2. **`engine_handle`:** handles, pool, allocator; unit/property/Miri tests; fuzz targets; benchmarks.
 3. **`engine_random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
 4. **`engine_time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
