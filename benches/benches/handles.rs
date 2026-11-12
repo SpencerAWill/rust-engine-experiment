@@ -14,6 +14,7 @@
 //! bench-only (it keeps the shuffles identical across runs and across libraries).
 
 use std::hint::black_box;
+use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use engine_handle::{Handle, HandleAllocator, HandlePool};
@@ -21,6 +22,8 @@ use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
 
 const SIZES: [usize; 3] = [1_000, 100_000, 1_000_000];
+/// Sizes for the scenario groups: most simulations live in the cache-resident range.
+const REAL_SIZES: [usize; 4] = [100, 1_000, 10_000, 100_000];
 
 // --- bench-only PRNG ---------------------------------------------------------------------
 
@@ -55,6 +58,8 @@ trait Value: Clone + 'static {
     const NAME: &'static str;
     fn make(i: u64) -> Self;
     fn fold(&self) -> u64;
+    /// A mutating per-element update (stands in for "integrate one field").
+    fn bump(&mut self);
 }
 
 impl Value for u64 {
@@ -65,6 +70,22 @@ impl Value for u64 {
     fn fold(&self) -> u64 {
         *self
     }
+    fn bump(&mut self) {
+        *self = self.wrapping_add(1);
+    }
+}
+
+impl Value for [u64; 2] {
+    const NAME: &'static str = "16B";
+    fn make(i: u64) -> Self {
+        [i; 2]
+    }
+    fn fold(&self) -> u64 {
+        self[0]
+    }
+    fn bump(&mut self) {
+        self[0] = self[0].wrapping_add(1);
+    }
 }
 
 impl Value for [u64; 8] {
@@ -74,6 +95,9 @@ impl Value for [u64; 8] {
     }
     fn fold(&self) -> u64 {
         self[0]
+    }
+    fn bump(&mut self) {
+        self[0] = self[0].wrapping_add(1);
     }
 }
 
@@ -90,6 +114,12 @@ trait Store<V: Value> {
     /// Extra fast path for containers that expose their values as a slice.
     fn fold_slice(&self) -> Option<u64> {
         None
+    }
+    /// Applies `Value::bump` to every element through the container's own iteration.
+    fn update_all(&mut self);
+    /// Like `update_all` through a contiguous slice; `false` if the container has none.
+    fn update_slice(&mut self) -> bool {
+        false
     }
 }
 
@@ -119,6 +149,15 @@ impl<V: Value> Store<V> for Pool<V> {
     fn fold_slice(&self) -> Option<u64> {
         Some(self.0.values().iter().map(Value::fold).sum())
     }
+    fn update_all(&mut self) {
+        for (_, v) in &mut self.0 {
+            v.bump();
+        }
+    }
+    fn update_slice(&mut self) -> bool {
+        self.0.values_mut().iter_mut().for_each(V::bump);
+        true
+    }
 }
 
 impl<V: Value> Store<V> for Slot<V> {
@@ -138,6 +177,9 @@ impl<V: Value> Store<V> for Slot<V> {
     }
     fn fold_all(&self) -> u64 {
         self.0.values().map(Value::fold).sum()
+    }
+    fn update_all(&mut self) {
+        self.0.values_mut().for_each(V::bump);
     }
 }
 
@@ -159,6 +201,9 @@ impl<V: Value> Store<V> for Dense<V> {
     fn fold_all(&self) -> u64 {
         self.0.values().map(Value::fold).sum()
     }
+    fn update_all(&mut self) {
+        self.0.values_mut().for_each(V::bump);
+    }
 }
 
 impl<V: Value> Store<V> for Thunder<V> {
@@ -178,6 +223,11 @@ impl<V: Value> Store<V> for Thunder<V> {
     }
     fn fold_all(&self) -> u64 {
         self.0.iter().map(|(_, v)| v.fold()).sum()
+    }
+    fn update_all(&mut self) {
+        for (_, v) in &mut self.0 {
+            v.bump();
+        }
     }
 }
 
@@ -327,6 +377,142 @@ fn bench_iterate_after_churn<S: Store<V>, V: Value>(c: &mut Criterion) {
     }
 }
 
+// --- realistic scenarios ------------------------------------------------------------------------
+//
+// These model how a simulation uses a handle container, not single operations in isolation.
+// Sizes are mostly cache-resident (100..100k), and values are 16 B and 64 B.
+
+fn real_group<'a>(
+    c: &'a mut Criterion,
+    name: &str,
+    n: usize,
+) -> criterion::BenchmarkGroup<'a, criterion::measurement::WallTime> {
+    let mut g = c.benchmark_group(name);
+    g.throughput(Throughput::Elements(n as u64));
+    g.warm_up_time(Duration::from_secs(1));
+    g.measurement_time(Duration::from_secs(3));
+    g
+}
+
+/// The per-frame hot loop: mutate every element through the container's iteration.
+fn bench_frame_update<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for n in REAL_SIZES {
+        let (mut store, _keys) = filled::<S, V>(n);
+        let mut g = real_group(c, "scenario/frame_update", n);
+        g.bench_function(id::<S, V>(n), |b| {
+            b.iter(|| {
+                store.update_all();
+                black_box(&store);
+            });
+        });
+        if store.update_slice() {
+            g.bench_function(
+                BenchmarkId::new(
+                    format!("{}_values_slice", S::NAME),
+                    format!("{}/{n}", V::NAME),
+                ),
+                |b| {
+                    b.iter(|| {
+                        store.update_slice();
+                        black_box(&store);
+                    });
+                },
+            );
+        }
+    }
+}
+
+/// Bullets and NPCs: a fixed population where 2% die and 2% spawn every frame, then
+/// everything is updated. State persists across iterations, so this is steady-state.
+fn bench_steady_churn<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for n in REAL_SIZES {
+        let (mut store, mut keys) = filled::<S, V>(n);
+        let mut rng = XorShift64(0xD1B5_4A32_D192_ED03);
+        let turnover = (n / 50).max(1);
+        let mut next = n as u64;
+        real_group(c, "scenario/steady_churn_frame", n).bench_function(id::<S, V>(n), |b| {
+            b.iter(|| {
+                for _ in 0..turnover {
+                    let victim = keys.swap_remove(rng.below(keys.len()));
+                    black_box(store.remove(victim));
+                }
+                for _ in 0..turnover {
+                    next += 1;
+                    keys.push(store.insert(V::make(next)));
+                }
+                store.update_all();
+                black_box(&store);
+            });
+        });
+    }
+}
+
+/// Deaths happen in game order, not insertion order: despawn everything in shuffled order.
+fn bench_despawn_random_order<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for n in REAL_SIZES {
+        real_group(c, "scenario/despawn_random_order", n).bench_function(id::<S, V>(n), |b| {
+            b.iter_batched(
+                || {
+                    let (store, mut keys) = filled::<S, V>(n);
+                    shuffle(&mut keys);
+                    (store, keys)
+                },
+                |(mut store, keys)| {
+                    for k in keys {
+                        black_box(store.remove(k));
+                    }
+                    store
+                },
+                BatchSize::LargeInput,
+            );
+        });
+    }
+}
+
+/// Each entity resolves its own handle and the handle of a random "target" entity.
+fn bench_resolve_target<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for n in REAL_SIZES {
+        let (store, keys) = filled::<S, V>(n);
+        let mut targets = keys.clone();
+        shuffle(&mut targets);
+        real_group(c, "scenario/resolve_target", n).bench_function(id::<S, V>(n), |b| {
+            b.iter(|| {
+                keys.iter()
+                    .zip(&targets)
+                    .map(|(k, t)| {
+                        store.get(*k).map_or(0, Value::fold) ^ store.get(*t).map_or(0, Value::fold)
+                    })
+                    .sum::<u64>()
+            });
+        });
+    }
+}
+
+/// Dangling references: a fraction of the handles being resolved were despawned (stale),
+/// so `get` must take its miss path.
+fn bench_get_stale<S: Store<V>, V: Value>(c: &mut Criterion) {
+    for pct in [10_usize, 50] {
+        for n in REAL_SIZES {
+            let (mut store, mut keys) = filled::<S, V>(n);
+            shuffle(&mut keys);
+            for k in &keys[..n * pct / 100] {
+                store.remove(*k);
+            }
+            shuffle(&mut keys);
+            real_group(c, &format!("scenario/get_stale_{pct}pct"), n).bench_function(
+                id::<S, V>(n),
+                |b| {
+                    b.iter(|| {
+                        keys.iter()
+                            .map(|k| store.get(*k).map_or(0, Value::fold))
+                            .sum::<u64>()
+                    });
+                },
+            );
+        }
+    }
+}
+
 // --- allocator benchmarks (no values: slotmap with `()` is the comparison) --------------------
 
 trait Alloc {
@@ -442,6 +628,28 @@ macro_rules! all_stores {
     };
 }
 
+/// Like `all_stores!`, for the scenario groups: 16 B and 64 B values.
+macro_rules! real_stores {
+    ($c:expr, $bench:ident) => {
+        $bench::<Pool<[u64; 2]>, [u64; 2]>($c);
+        $bench::<Slot<[u64; 2]>, [u64; 2]>($c);
+        $bench::<Dense<[u64; 2]>, [u64; 2]>($c);
+        $bench::<Thunder<[u64; 2]>, [u64; 2]>($c);
+        $bench::<Pool<[u64; 8]>, [u64; 8]>($c);
+        $bench::<Slot<[u64; 8]>, [u64; 8]>($c);
+        $bench::<Dense<[u64; 8]>, [u64; 8]>($c);
+        $bench::<Thunder<[u64; 8]>, [u64; 8]>($c);
+    };
+}
+
+fn scenario_benches(c: &mut Criterion) {
+    real_stores!(c, bench_frame_update);
+    real_stores!(c, bench_steady_churn);
+    real_stores!(c, bench_despawn_random_order);
+    real_stores!(c, bench_resolve_target);
+    real_stores!(c, bench_get_stale);
+}
+
 fn pool_benches(c: &mut Criterion) {
     all_stores!(c, bench_insert);
     all_stores!(c, bench_get_sequential);
@@ -461,5 +669,5 @@ fn allocator_benches(c: &mut Criterion) {
     bench_is_alive::<SlotAlloc>(c);
 }
 
-criterion_group!(benches, pool_benches, allocator_benches);
+criterion_group!(benches, pool_benches, allocator_benches, scenario_benches);
 criterion_main!(benches);
