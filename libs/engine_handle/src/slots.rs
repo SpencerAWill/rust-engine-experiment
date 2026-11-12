@@ -114,32 +114,26 @@ impl SlotTable {
     /// Takes a free slot (most recently freed first), or creates one, and marks it occupied
     /// with `link`. Returns its index and live generation, or `None` at the slot limit.
     pub(crate) fn acquire(&mut self, link: u32) -> Option<(u32, NonZeroU32)> {
-        let index = if let Some(index) = self.pop_free() {
-            index
-        } else {
-            if self.slots.len() >= self.limit as usize {
+        debug_assert!(link < MAX_SLOTS, "link {link} out of range");
+        if let Some(index) = self.free_head {
+            let slot = &mut self.slots[index as usize];
+            let SlotState::Vacant { next_free } = slot.state() else {
+                debug_assert!(false, "free list points at non-vacant slot {index}");
                 return None;
-            }
-            self.slots.push(Slot {
-                generation: NonZeroU32::MIN,
-                link: NO_FREE,
-            });
-            to_u32(self.slots.len() - 1)
-        };
-        let slot = &mut self.slots[index as usize];
-        slot.set_state(SlotState::Occupied { dense: link });
-        Some((index, slot.generation))
-    }
-
-    /// Pops the most recently freed slot off the free list.
-    fn pop_free(&mut self) -> Option<u32> {
-        let head = self.free_head?;
-        let SlotState::Vacant { next_free } = self.slots[head as usize].state() else {
-            debug_assert!(false, "free list points at non-vacant slot {head}");
+            };
+            self.free_head = next_free;
+            slot.link = link;
+            return Some((index, slot.generation));
+        }
+        if self.slots.len() >= self.limit as usize {
             return None;
-        };
-        self.free_head = next_free;
-        Some(head)
+        }
+        let index = to_u32(self.slots.len());
+        self.slots.push(Slot {
+            generation: NonZeroU32::MIN,
+            link,
+        });
+        Some((index, NonZeroU32::MIN))
     }
 
     /// The raw link of slot `index` if its generation is `generation`, else `None`.
