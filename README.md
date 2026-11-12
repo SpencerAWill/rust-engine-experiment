@@ -4,7 +4,7 @@ A high-performance, real-time game and simulation engine in Rust, built as a set
 
 ## Status
 
-Experimental. All crates are `0.x`, `publish = false`, and their APIs are explicitly unstable. Current scope is milestones M0 (workspace and policy) and M1 (foundation crates). The design lives in `docs/design/`, and decisions are recorded as ADRs in `docs/adr/`.
+Experimental. All crates are `0.x`, `publish = false`, and their APIs are explicitly unstable. M0+M1 (workspace, policy and the foundation crates) is done; what comes next is in [docs/roadmap.md](docs/roadmap.md). The design lives in `docs/design/`, and decisions are recorded as ADRs in `docs/adr/`.
 
 ## Crate map
 

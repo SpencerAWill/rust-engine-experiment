@@ -13,13 +13,20 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] **Never use a self-hosted runner for pull requests from forks.** A runner executes the pull request's code. If one is ever added, restrict it to scheduled jobs on `main`.
 - [ ] Re-read `docs/` and the history once more for anything private (the last scan found no secrets, private paths, or large binaries).
 
-## Before merging a milestone
+## Before merging a chunk
 
 - [ ] `cargo xtask ci` passes and the GitHub run is green, including the macOS and Windows jobs.
-- [ ] **Remove the implementation plan** (`docs/design/<milestone>/plan.md`) in a final commit on the branch, and fix any links to it. The spec and ADRs stay; the plan is recoverable with `git log`.
-- [ ] `CHANGELOG.md` is updated and the spec carries a status line.
+- [ ] The pull request title ends with the chunk ID, for example `(M2.1)`.
+- [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the roadmap row is `Done (PR #n)`.
+- [ ] `CHANGELOG.md` is updated.
 - [ ] Merge only on the maintainer's explicit go-ahead.
+
+## When a milestone completes
+
+- [ ] Tag the commit that completed it: `git tag -a m<N> -m "M<N>: <goal>"`, then `git push origin m<N>`.
+- [ ] In the roadmap, mark the milestone `Done` and the next one `Current`, and break the next one into chunks.
+- [ ] Decide whether this is the boundary at which to run "Before the repository goes public".
 
 ## Benchmarking
 
-Wall-clock numbers from a shared CI runner are noise, so CI only compiles and smoke-runs the benchmarks (`cargo xtask bench-smoke`). Record real numbers on AC power with other apps closed. On macOS `cargo xtask bench` refuses to start on battery power (override with `--allow-battery`) and runs under `caffeinate -i` so the machine cannot idle-sleep, but it cannot stop someone unplugging mid-run, so check the power log afterwards (`pmset -g log`) for any power-source change or sleep during the run. Compare runs with `cargo xtask bench-report --baseline NEW --against OLD`, and treat differences under about 5% as noise. Instruction-count regression gating (Gungraun) and a hosted service are planned for M2.
+Wall-clock numbers from a shared CI runner are noise, so CI only compiles and smoke-runs the benchmarks (`cargo xtask bench-smoke`). Record real numbers on AC power with other apps closed. On macOS `cargo xtask bench` refuses to start on battery power (override with `--allow-battery`) and runs under `caffeinate -i` so the machine cannot idle-sleep, but it cannot stop someone unplugging mid-run, so check the power log afterwards (`pmset -g log`) for any power-source change or sleep during the run. Compare runs with `cargo xtask bench-report --baseline NEW --against OLD`, and treat differences under about 5% as noise. Instruction-count regression gating (Gungraun) is planned for M2 (chunk M2.4); a hosted benchmark service is not scheduled.

@@ -9,6 +9,7 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 - **Dependencies:** updated `glam` to 0.34 (from 0.30) and `xtask`'s `syn` to 3. glam 0.33 made every non-`f32` type an opt-in feature, so `engine_math` now enables `f64`, `i32` and `u32` to keep exactly the same public types. The layout assertions, goldens and the `fixed_step_sim` checksum are unchanged.
 - **Toolchain:** pinned Rust is now 1.99.1 (from 1.97.0), and `rust-version` (the MSRV) is 1.99. `Prng::fill_bytes` uses `as_chunks_mut` (a new clippy lint); its output is unchanged and covered by the golden tests.
 - **CI:** `actions/checkout` 7.0.1 and `actions/upload-artifact` 7.0.2 (still pinned to commit hashes), and the devcontainer `rust` feature 1.6.1.
+- **Process:** work is now planned in `docs/roadmap.md` as small chunks, each with a spec and plan from `docs/design/_template/`. Milestones after M0+M1 are renumbered (the roadmap maps old to new numbers); plans are kept as historical records, and the M0+M1 plan is restored.
 
 ### Added
 

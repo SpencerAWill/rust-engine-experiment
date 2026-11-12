@@ -4,6 +4,7 @@
 - **Status:** Implemented. Approved 2026-11-12 and amended after implementation (amendments are marked "amended 2026-11-12" inline). The code and the ADRs are authoritative where they differ.
 - **Working name:** `engine` (crates `engine_*`); rename before any publishing.
 - **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
+- **Milestone numbering:** this document uses the milestone numbers in force before 2026-11-12. [The roadmap](../../roadmap.md) maps them to the current ones and supersedes §11.
 
 ---
 
@@ -19,7 +20,7 @@
 | How it is tested and benchmarked | §7, §8 |
 | What "done" meant for M0+M1, and what comes next | §9, §10, §11 |
 
-For decisions, prefer the ADRs in `docs/adr/`. The implementation plan for this milestone was removed when it merged; recover it with `git log --diff-filter=D --name-only -- docs/design/m0-m1-foundations/plan.md` and `git show <commit>^:docs/design/m0-m1-foundations/plan.md`.
+For decisions, prefer the ADRs in `docs/adr/`. The implementation plan is [plan.md](plan.md), kept as a historical record.
 
 ---
 
@@ -118,7 +119,7 @@ fuzz/                      cargo-fuzz targets (excluded from workspace; nightly)
 docs/
   adr/                     architecture decision records
   benchmarks.md            methodology, hardware, recorded results
-  design/<milestone>/      design spec for each milestone (this file); its plan sits beside it until the milestone merges
+  design/<milestone>/      design specs and plans, one folder per milestone or chunk (see docs/README.md)
 .github/
   workflows/ci.yml         PR/push CI
   workflows/nightly.yml    scheduled latest-stable CI run (fuzzing added in M2)
@@ -1142,6 +1143,8 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 ## 11. Roadmap after M0+M1
 
+*Superseded by [the roadmap](../../roadmap.md) on 2026-11-12. Kept for the reasoning; the milestone numbers here are the old ones.*
+
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
 | **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit at the bottom of the crate graph (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout. **Infrastructure arriving with M2** (§4.12): Miri, fuzzing, Gungraun gate, coverage, mutation triage. **Dogfooding sample:** a minimal visual example (e.g. thousands of 2D agents drawn into a simple pixel-buffer window; the windowing crate is an example-only dependency, never an engine dependency). It validates ECS ergonomics with a real consumer, doubles as a realistic benchmark, and makes progress visible | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
@@ -1216,7 +1219,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 ## 13. Implementation phasing
 
-The implementation plan (removed at merge, see the reading guide) split M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
+The implementation plan ([plan.md](plan.md), kept as a historical record) split M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
 
 1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (wasmtime, cargo-nextest, cargo-deny, critcmp, the extra rustup targets; Valgrind, gungraun-runner, cargo-llvm-cov, cargo-fuzz, and the pinned nightly with Miri arrive in M2) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
 2. **`engine_handle`:** handles, pool, allocator; unit and property tests; benchmarks.
