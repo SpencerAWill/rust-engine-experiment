@@ -29,3 +29,10 @@ path = "fuzz_targets/handle_pool_ops.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "handle_allocator_ops"
+path = "fuzz_targets/handle_allocator_ops.rs"
+test = false
+doc = false
+bench = false
