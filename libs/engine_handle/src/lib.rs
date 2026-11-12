@@ -31,10 +31,12 @@
 //! assert_eq!(Handle::<Enemy>::from_bits(h.to_bits()), Some(h));
 //! ```
 
-// Becomes unconditional with the pool (Task 6).
-#[cfg(test)]
 extern crate alloc;
 
+mod error;
 mod handle;
+mod pool;
 
+pub use error::CapacityError;
 pub use handle::Handle;
+pub use pool::HandlePool;
