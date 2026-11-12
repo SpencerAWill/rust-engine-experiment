@@ -1,0 +1,9 @@
+date: 2026-11-12T17:00:01Z
+cpu: Apple M4 Pro (Mac16,8)
+memory_gb: 24
+cores: 8 performance + 4 efficiency
+os: macOS 26.6.2 (25G83)
+rustc: rustc 1.97.0 (2d8144b78 2026-07-07)
+power: Now drawing from 'AC Power'
+load_before: { 2.48 2.49 2.22 } (waited 0s for AC, 50s for load < 2.5)
+git: 381cedf
