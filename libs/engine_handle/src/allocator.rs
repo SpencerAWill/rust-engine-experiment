@@ -87,7 +87,7 @@ impl<T> HandleAllocator<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `u32::MAX` slots are in use or retired. Use
+    /// Panics if 2³¹−2 slots are in use or retired. Use
     /// [`try_allocate`](Self::try_allocate) to handle that without panicking.
     ///
     /// # Examples
@@ -103,7 +103,7 @@ impl<T> HandleAllocator<T> {
     pub fn allocate(&mut self) -> Handle<T> {
         let Some(handle) = self.try_allocate() else {
             panic!(
-                "HandleAllocator::allocate: allocator is full (u32::MAX slots in use or retired); \
+                "HandleAllocator::allocate: allocator is full (2^31-2 slots in use or retired); \
                  use try_allocate to handle this without panicking"
             )
         };

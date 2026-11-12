@@ -12,15 +12,63 @@ mod iter;
 
 pub use iter::{Drain, IntoIter, Iter, IterMut};
 
+/// The most slots a pool can hold: indices `0..MAX_SLOTS`.
+///
+/// A slot is 8 bytes: a generation and one `u32` that encodes its [`SlotState`].
+/// That `u32` spends its top bit on "vacant", and reserves the two largest values as
+/// sentinels (`NO_FREE` and `RETIRED`), which caps indices at `0x7FFF_FFFD`.
+pub(crate) const MAX_SLOTS: u32 = 0x7FFF_FFFE;
+
+/// Top bit of `Slot::link`: set for vacant and retired slots, clear for occupied ones.
+const VACANT_BIT: u32 = 1 << 31;
+/// Vacant slot at the end of the free list.
+const NO_FREE: u32 = u32::MAX;
+/// Retired slot.
+const RETIRED: u32 = u32::MAX - 1;
+
 #[derive(Debug, Clone)]
 struct Slot {
     /// For an occupied slot, the live generation. For a vacant slot, the
     /// generation the next occupant receives. Retired slots stay at `u32::MAX`.
     generation: NonZeroU32,
-    state: SlotState,
+    /// Packed [`SlotState`]; see [`Slot::state`].
+    link: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Slot {
+    /// Decodes the packed state. Occupied slots have the top bit clear.
+    #[inline]
+    fn state(&self) -> SlotState {
+        match self.link {
+            RETIRED => SlotState::Retired,
+            NO_FREE => SlotState::Vacant { next_free: None },
+            link if link & VACANT_BIT != 0 => SlotState::Vacant {
+                next_free: Some(link & !VACANT_BIT),
+            },
+            dense => SlotState::Occupied { dense },
+        }
+    }
+
+    #[inline]
+    fn set_state(&mut self, state: SlotState) {
+        self.link = match state {
+            SlotState::Occupied { dense } => {
+                debug_assert!(dense < MAX_SLOTS, "dense position {dense} out of range");
+                dense
+            }
+            SlotState::Vacant { next_free: None } => NO_FREE,
+            SlotState::Vacant {
+                next_free: Some(next),
+            } => {
+                debug_assert!(next < MAX_SLOTS, "free link {next} out of range");
+                VACANT_BIT | next
+            }
+            SlotState::Retired => RETIRED,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SlotState {
     /// Holds the value at position `dense` of the dense arrays.
     Occupied { dense: u32 },
@@ -54,7 +102,7 @@ enum SlotState {
 ///   the hole. Iteration order is therefore dense order: fully deterministic (a pure
 ///   function of the operation sequence) but not ascending by slot index.
 ///   Inserting a, b, c and removing a gives the order c, b.
-/// - At most `u32::MAX` slots exist; [`insert`](Self::insert) panics beyond that
+/// - At most 2³¹−2 (`0x7FFF_FFFE`) slots exist, because a slot packs its state into 32 bits; [`insert`](Self::insert) panics beyond that
 ///   and [`try_insert`](Self::try_insert) reports it.
 ///
 /// # Complexity and memory
@@ -111,7 +159,7 @@ impl<T> HandlePool<T> {
             handles: Vec::new(),
             values: Vec::new(),
             free_head: None,
-            slot_limit: u32::MAX,
+            slot_limit: MAX_SLOTS,
         }
     }
 
@@ -146,7 +194,7 @@ impl<T> HandlePool<T> {
     ///
     /// # Panics
     ///
-    /// Panics if `u32::MAX` slots are already in use or retired. Use
+    /// Panics if 2³¹−2 slots are already in use or retired. Use
     /// [`try_insert`](Self::try_insert) to handle that without panicking.
     ///
     /// # Examples
@@ -175,7 +223,7 @@ impl<T> HandlePool<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`CapacityError`] if `u32::MAX` slots are already in use or retired.
+    /// Returns [`CapacityError`] if 2³¹−2 slots are already in use or retired.
     ///
     /// # Examples
     ///
@@ -194,14 +242,14 @@ impl<T> HandlePool<T> {
             }
             self.slots.push(Slot {
                 generation: NonZeroU32::MIN,
-                state: SlotState::Vacant { next_free: None },
+                link: NO_FREE,
             });
             to_u32(self.slots.len() - 1)
         };
         let slot = &mut self.slots[index as usize];
-        slot.state = SlotState::Occupied {
+        slot.set_state(SlotState::Occupied {
             dense: to_u32(self.handles.len()),
-        };
+        });
         let handle = Handle::new(index, slot.generation);
         self.handles.push(handle);
         self.values.push(value);
@@ -211,7 +259,7 @@ impl<T> HandlePool<T> {
     /// Pops the most recently freed slot off the free list.
     fn pop_free(&mut self) -> Option<u32> {
         let head = self.free_head?;
-        let SlotState::Vacant { next_free } = self.slots[head as usize].state else {
+        let SlotState::Vacant { next_free } = self.slots[head as usize].state() else {
             debug_assert!(false, "free list points at non-vacant slot {head}");
             return None;
         };
@@ -223,12 +271,9 @@ impl<T> HandlePool<T> {
     #[inline]
     fn resolve(&self, handle: Handle<T>) -> Option<usize> {
         let slot = self.slots.get(handle.index() as usize)?;
-        match slot.state {
-            SlotState::Occupied { dense } if slot.generation == handle.generation() => {
-                Some(dense as usize)
-            }
-            _ => None,
-        }
+        // Occupied slots have the top bit clear, so `link` is the dense position.
+        (slot.generation == handle.generation() && slot.link & VACANT_BIT == 0)
+            .then_some(slot.link as usize)
     }
 
     /// Returns a reference to the value `handle` names, or `None` if it is stale.
@@ -287,12 +332,12 @@ impl<T> HandlePool<T> {
         let slot = &mut self.slots[index as usize];
         if let Some(next) = slot.generation.checked_add(1) {
             slot.generation = next;
-            slot.state = SlotState::Vacant {
+            slot.set_state(SlotState::Vacant {
                 next_free: free_head,
-            };
+            });
             self.free_head = Some(index);
         } else {
-            slot.state = SlotState::Retired;
+            slot.set_state(SlotState::Retired);
         }
     }
 
@@ -327,9 +372,9 @@ impl<T> HandlePool<T> {
         self.handles.swap_remove(dense);
         let value = self.values.swap_remove(dense);
         if let Some(moved) = self.handles.get(dense) {
-            self.slots[moved.index() as usize].state = SlotState::Occupied {
+            self.slots[moved.index() as usize].set_state(SlotState::Occupied {
                 dense: to_u32(dense),
-            };
+            });
         }
         value
     }
@@ -554,19 +599,21 @@ impl<T> HandlePool<T> {
     /// so that successive pops yield ascending indices.
     fn release_all_slots(&mut self) {
         for slot in &mut self.slots {
-            if let SlotState::Occupied { .. } = slot.state {
+            if let SlotState::Occupied { .. } = slot.state() {
                 if let Some(next) = slot.generation.checked_add(1) {
                     slot.generation = next;
-                    slot.state = SlotState::Vacant { next_free: None };
+                    slot.set_state(SlotState::Vacant { next_free: None });
                 } else {
-                    slot.state = SlotState::Retired;
+                    slot.set_state(SlotState::Retired);
                 }
             }
         }
         self.free_head = None;
         for (index, slot) in self.slots.iter_mut().enumerate().rev() {
-            if let SlotState::Vacant { next_free } = &mut slot.state {
-                *next_free = self.free_head;
+            if let SlotState::Vacant { .. } = slot.state() {
+                slot.set_state(SlotState::Vacant {
+                    next_free: self.free_head,
+                });
                 self.free_head = Some(to_u32(index));
             }
         }
@@ -608,7 +655,7 @@ impl<T> HandlePool<T> {
         let mut occupied = 0;
         let mut vacant = 0;
         for (index, slot) in self.slots.iter().enumerate() {
-            match slot.state {
+            match slot.state() {
                 SlotState::Occupied { .. } => occupied += 1,
                 SlotState::Vacant { .. } => vacant += 1,
                 SlotState::Retired => {
@@ -628,7 +675,7 @@ impl<T> HandlePool<T> {
         for (i, handle) in self.handles.iter().enumerate() {
             let slot = &self.slots[handle.index() as usize];
             assert!(
-                matches!(slot.state, SlotState::Occupied { dense } if dense as usize == i),
+                matches!(slot.state(), SlotState::Occupied { dense } if dense as usize == i),
                 "slot of {handle:?} does not point back at dense position {i}"
             );
             assert_eq!(
@@ -640,7 +687,7 @@ impl<T> HandlePool<T> {
         let mut visited = 0;
         let mut cursor = self.free_head;
         while let Some(index) = cursor {
-            let SlotState::Vacant { next_free } = self.slots[index as usize].state else {
+            let SlotState::Vacant { next_free } = self.slots[index as usize].state() else {
                 panic!("free list reaches non-vacant slot {index}");
             };
             visited += 1;
@@ -659,7 +706,7 @@ impl<T> HandlePool<T> {
         let generation = NonZeroU32::new(generation).unwrap();
         let slot = &mut self.slots[index as usize];
         slot.generation = generation;
-        if let SlotState::Occupied { dense } = slot.state {
+        if let SlotState::Occupied { dense } = slot.state() {
             self.handles[dense as usize] = Handle::new(index, generation);
         }
     }
@@ -738,7 +785,7 @@ impl<T> IndexMut<Handle<T>> for HandlePool<T> {
     }
 }
 
-/// Converts a length or position that is bounded by the slot limit (at most `u32::MAX`).
+/// Converts a length or position that is bounded by the slot limit (below [`MAX_SLOTS`], which is under `u32::MAX`).
 #[inline]
 #[expect(
     clippy::cast_possible_truncation,
@@ -1014,5 +1061,53 @@ mod tests {
             assert_eq!(p[h], *v);
         }
         assert_eq!(hs.iter().filter(|h| p.contains(**h)).count(), p.len());
+    }
+
+    #[test]
+    fn slot_is_eight_bytes() {
+        // The documented per-slot overhead: a u32 generation plus one u32 of state.
+        assert_eq!(size_of::<Slot>(), 8);
+    }
+
+    #[test]
+    fn slot_state_encoding_roundtrips_at_the_boundaries() {
+        let last = MAX_SLOTS - 1; // highest valid slot index and dense position
+        let states = [
+            SlotState::Occupied { dense: 0 },
+            SlotState::Occupied { dense: last },
+            SlotState::Vacant { next_free: None },
+            SlotState::Vacant { next_free: Some(0) },
+            SlotState::Vacant {
+                next_free: Some(last),
+            },
+            SlotState::Retired,
+        ];
+        for state in states {
+            let mut slot = Slot {
+                generation: NonZeroU32::MIN,
+                link: 0,
+            };
+            slot.set_state(state);
+            assert_eq!(slot.state(), state, "{state:?} did not roundtrip");
+        }
+        // Every state maps to a distinct encoding.
+        let mut links = Vec::new();
+        for state in states {
+            let mut slot = Slot {
+                generation: NonZeroU32::MIN,
+                link: 0,
+            };
+            slot.set_state(state);
+            links.push(slot.link);
+        }
+        links.sort_unstable();
+        links.dedup();
+        assert_eq!(links.len(), states.len());
+    }
+
+    #[test]
+    fn slot_limit_leaves_room_for_the_tag_bit_and_sentinels() {
+        assert_eq!(MAX_SLOTS, 0x7FFF_FFFE);
+        assert_eq!(HandlePool::<u8>::new().slot_limit, MAX_SLOTS);
     }
 }

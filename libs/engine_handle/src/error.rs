@@ -27,7 +27,7 @@ impl<T> CapacityError<T> {
     ///
     /// ```
     /// # use engine_handle::HandlePool;
-    /// // A pool only fills up after `u32::MAX` slots, so this just shows the API shape:
+    /// // A pool only fills up after 2³¹−2 slots, so this just shows the API shape:
     /// let mut pool = HandlePool::new();
     /// match pool.try_insert(7) {
     ///     Ok(handle) => assert_eq!(pool[handle], 7),
@@ -44,7 +44,7 @@ impl<T> fmt::Display for CapacityError<T> {
         write!(
             f,
             "HandlePool is full: all {} slot indices are in use or retired; remove values or use another pool",
-            u32::MAX
+            crate::pool::MAX_SLOTS
         )
     }
 }
