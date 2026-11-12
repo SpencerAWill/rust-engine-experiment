@@ -126,7 +126,7 @@ impl<T> HandlePool<T> {
     /// # Panics
     ///
     /// Panics if the new capacity overflows `usize`, or if the allocator fails, exactly like
-    /// [`Vec::reserve`]. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
+    /// `Vec::reserve`. Use [`try_reserve`](Self::try_reserve) to handle that without panicking.
     ///
     /// # Examples
     ///
