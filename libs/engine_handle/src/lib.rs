@@ -39,6 +39,7 @@ mod dense_allocator;
 mod error;
 mod handle;
 mod pool;
+mod slots;
 
 pub use dense_allocator::{DenseAllocIter, DenseHandleAllocator};
 pub use error::CapacityError;

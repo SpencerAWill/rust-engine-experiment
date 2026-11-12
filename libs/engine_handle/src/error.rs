@@ -44,7 +44,7 @@ impl<T> fmt::Display for CapacityError<T> {
         write!(
             f,
             "HandlePool is full: all {} slot indices are in use or retired; remove values or use another pool",
-            crate::pool::MAX_SLOTS
+            crate::slots::MAX_SLOTS
         )
     }
 }
