@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest. This is an experimental engine: APIs change, and some decisions are deliberately deferred (see `docs/superpowers/specs/`). For anything beyond a small fix, **open an issue first** so we can agree on the direction before you spend time on it.
+Thanks for your interest. This is an experimental engine: APIs change, and some decisions are deliberately deferred (see `docs/design/`). For anything beyond a small fix, **open an issue first** so we can agree on the direction before you spend time on it.
 
 ## Licence and originality
 

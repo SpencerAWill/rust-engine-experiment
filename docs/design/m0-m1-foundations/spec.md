@@ -1,9 +1,25 @@
 # M0+M1: Engineering Foundations and Core Primitives — Design Spec
 
 - **Date:** 2026-11-11
-- **Status:** Approved 2026-11-12
+- **Status:** Implemented. Approved 2026-11-12 and amended after implementation (amendments are marked "amended 2026-11-12" inline). The code and the ADRs are authoritative where they differ.
 - **Working name:** `engine` (crates `engine_*`); rename before any publishing.
 - **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
+
+---
+
+**Reading guide.** This document is long, and other files cite it by section number (for example "spec §4.9"), so the numbering is stable. Find what you need:
+
+| If you want | Read |
+|---|---|
+| Why the project exists, what is settled and what is deferred | §1 |
+| The workspace layout and dependency graph | §3 |
+| The rules every change must follow (lints, `unsafe`, determinism, panics, CI, no global state) | §4 |
+| The API design of one crate | §5.1 `engine_handle`, §5.2 `engine_random`, §5.3 `engine_time`, §5.4 `engine_math`, §5.5 `engine`, §5.6 the sample |
+| How failures are reported | §6 |
+| How it is tested and benchmarked | §7, §8 |
+| What "done" meant for M0+M1, and what comes next | §9, §10, §11 |
+
+For decisions, prefer the ADRs in `docs/adr/`. The implementation plan for this milestone is [plan.md](plan.md); it is historical.
 
 ---
 
@@ -102,7 +118,7 @@ fuzz/                      cargo-fuzz targets (excluded from workspace; nightly)
 docs/
   adr/                     architecture decision records
   benchmarks.md            methodology, hardware, recorded results
-  superpowers/specs/       design specs (this file)
+  design/<milestone>/      design spec and implementation plan for each milestone (this file)
 .github/
   workflows/ci.yml         PR/push CI
   workflows/nightly.yml    scheduled latest-stable CI run (fuzzing added in M2)

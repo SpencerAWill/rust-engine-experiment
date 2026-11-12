@@ -1,0 +1,22 @@
+# Documentation
+
+API reference is the rustdoc of each crate (`cargo doc --open`); start at the `engine` crate. This folder holds the rest: why things are the way they are, how they were designed, and what was measured.
+
+## What is here
+
+| Path | What it is | Kind | How far to trust it |
+|---|---|---|---|
+| [`adr/`](adr/) | Architecture decision records: one short file per decision that is hard to reverse (context, decision, consequences) | Explanation | **Authoritative.** Each has a `Status` line. A later ADR may supersede an earlier one. |
+| [`design/`](design/) | One folder per milestone with its design `spec.md` and, until the milestone merges, its implementation `plan.md` | Explanation | The **spec** is a living design document: where it differs from the code or an ADR, the code and the ADR win. The **plan** is historical. |
+| [`benchmarks.md`](benchmarks.md) | Methodology, hardware, results, and what the numbers do and do not show | Reference | Evidence for specific claims on one machine; read its caveats before quoting a number. |
+
+Rules that are checked mechanically (lints, `unsafe`, determinism bans, workflows) live in the tooling and in [CONTRIBUTING.md](../CONTRIBUTING.md), not here. Reporting a vulnerability is in [SECURITY.md](../SECURITY.md).
+
+## Conventions
+
+- **Every document states its status** near the top: `Draft`, `Accepted`, `Amended`, `Implemented`, `Superseded` or `Historical`, with a date.
+- **ADRs** are `adr/NNNN-kebab-title.md` with Status, Context, Decision and Consequences. Add one for any decision that would be expensive to reverse. Do not rewrite an accepted ADR to change the decision; write a new one that supersedes it.
+- **Design folders** are `design/<milestone>-<topic>/`, with the spec and plan side by side. The spec keeps stable section numbers because code and config cite them (for example "spec §4.9"); add sections, do not renumber.
+- **Plans are scaffolding.** They are written before implementation, go stale as the work teaches us things, and are removed when the pull request merges (recover them with `git log`). The spec and the ADRs are what remain.
+- **Prefer a link to a copy.** If a rule is enforced by a command, document the command and let the tool be the source of truth.
+- **Numbers need provenance.** A benchmark claim says what was measured, on what machine, in what conditions, and what was not measured.

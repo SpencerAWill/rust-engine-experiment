@@ -1,6 +1,9 @@
 # M0+M1 Foundations Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: executed, and historical.** This plan was written before implementation and followed
+> task by task; the code and the [spec](spec.md) now supersede it. They differ where the work taught us
+> something (for example the allocator became two types, see ADR 0010). It is kept next to the
+> spec only until the pull request merges, then removed: use `git log` to recover it.
 
 **Goal:** Build the engine's engineering foundation (workspace, policy, xtask, CI, ADRs) and the first four core crates: `engine_handle`, `engine_random`, `engine_time`, and `engine_math`. Add the `engine` facade, a deterministic headless sample, and comparison benchmarks.
 
@@ -12,7 +15,7 @@
 
 **Tech Stack:** Rust 1.97.0 (edition 2024, resolver 3), glam 0.30, proptest (no default features), criterion + critcmp, dhat, syn (xtask), GitHub Actions, cargo-nextest, cargo-deny, wasmtime.
 
-**Spec:** `docs/superpowers/specs/2026-11-11-m0-m1-foundations-design.md`. This plan argues from the spec; read both. "Spec §X" means "copy the exact signatures and semantics from that section".
+**Spec:** [spec.md](spec.md). This plan argues from the spec; read both. "Spec §X" means "copy the exact signatures and semantics from that section".
 
 ## Global Constraints
 
