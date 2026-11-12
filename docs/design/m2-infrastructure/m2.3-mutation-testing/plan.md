@@ -1,6 +1,6 @@
 # M2.3 plan: Mutation testing
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Accepted (2026-11-12)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

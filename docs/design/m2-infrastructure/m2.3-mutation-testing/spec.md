@@ -1,6 +1,6 @@
 # M2.3: Mutation testing
 
-- **Status:** Draft (2026-11-12)
+- **Status:** Accepted (2026-11-12)
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.2 · **Decides:** no ADR
 - **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (`xtask` about 330, `.cargo/mutants.toml` about 40, workflow and devcontainer about 50, docs about 100, the triage record about 130), plus at most about 400 lines of new tests in `engine_handle` and `engine_random` (§4.8)
 
