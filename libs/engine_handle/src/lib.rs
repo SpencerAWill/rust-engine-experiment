@@ -32,6 +32,8 @@
 //! ```
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 mod error;
 mod handle;
@@ -39,4 +41,4 @@ mod pool;
 
 pub use error::CapacityError;
 pub use handle::Handle;
-pub use pool::HandlePool;
+pub use pool::{Drain, HandlePool, IntoIter, Iter, IterMut};

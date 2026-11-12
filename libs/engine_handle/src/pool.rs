@@ -8,6 +8,10 @@ use core::ops::{Index, IndexMut};
 use crate::error::CapacityError;
 use crate::handle::Handle;
 
+mod iter;
+
+pub use iter::{Drain, IntoIter, Iter, IterMut};
+
 #[derive(Debug, Clone)]
 struct Slot {
     /// For an occupied slot, the live generation. For a vacant slot, the
@@ -313,6 +317,12 @@ impl<T> HandlePool<T> {
     /// ```
     pub fn remove(&mut self, handle: Handle<T>) -> Option<T> {
         let dense = self.resolve(handle)?;
+        Some(self.remove_at(dense))
+    }
+
+    /// Swap-removes the element at dense position `dense`, keeping every slot consistent.
+    fn remove_at(&mut self, dense: usize) -> T {
+        let handle = self.handles[dense];
         self.release_slot(handle.index());
         self.handles.swap_remove(dense);
         let value = self.values.swap_remove(dense);
@@ -321,7 +331,7 @@ impl<T> HandlePool<T> {
                 dense: to_u32(dense),
             };
         }
-        Some(value)
+        value
     }
 
     /// Number of live values.
@@ -418,6 +428,126 @@ impl<T> HandlePool<T> {
     #[inline]
     pub fn values_mut(&mut self) -> &mut [T] {
         &mut self.values
+    }
+
+    /// Keeps only the elements for which `keep` returns `true`, visiting in dense order.
+    ///
+    /// Removed elements behave exactly like [`remove`](Self::remove), including
+    /// swap-removal. The pool is consistent after every removal, so if `keep`
+    /// panics the pool is left valid (elements not yet visited are kept).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// for i in 0..6 {
+    ///     let _ = pool.insert(i);
+    /// }
+    /// pool.retain(|_, v| *v % 2 == 0);
+    /// assert_eq!(pool.len(), 3);
+    /// ```
+    pub fn retain(&mut self, mut keep: impl FnMut(Handle<T>, &mut T) -> bool) {
+        let mut dense = 0;
+        while dense < self.values.len() {
+            let handle = self.handles[dense];
+            if keep(handle, &mut self.values[dense]) {
+                dense += 1;
+            } else {
+                // The last element is swapped into `dense`, so it is visited next.
+                drop(self.remove_at(dense));
+            }
+        }
+    }
+
+    /// Mutable access to several distinct elements at once (for example both
+    /// bodies in a collision), without `RefCell` or `unsafe`.
+    ///
+    /// Returns `None` if any handle is stale or two handles refer to the same slot.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert(1);
+    /// let b = pool.insert(2);
+    /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
+    /// std::mem::swap(x, y);
+    /// assert_eq!((pool[a], pool[b]), (2, 1));
+    /// assert!(pool.get_disjoint_mut([a, a]).is_none());
+    /// ```
+    pub fn get_disjoint_mut<const N: usize>(
+        &mut self,
+        handles: [Handle<T>; N],
+    ) -> Option<[&mut T; N]> {
+        let mut positions = [0_usize; N];
+        for (position, handle) in positions.iter_mut().zip(handles) {
+            *position = self.resolve(handle)?;
+        }
+        self.values.get_disjoint_mut(positions).ok()
+    }
+
+    /// Iterates `(handle, &value)` pairs in dense order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert('a');
+    /// assert_eq!(pool.iter().next(), Some((a, &'a')));
+    /// ```
+    pub fn iter(&self) -> Iter<'_, T> {
+        Iter {
+            handles: self.handles.iter(),
+            values: self.values.iter(),
+        }
+    }
+
+    /// Iterates `(handle, &mut value)` pairs in dense order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert(1);
+    /// for (_, v) in pool.iter_mut() {
+    ///     *v += 1;
+    /// }
+    /// assert_eq!(pool[a], 2);
+    /// ```
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut {
+            handles: self.handles.iter(),
+            values: self.values.iter_mut(),
+        }
+    }
+
+    /// Removes all values, yielding `(handle, value)` in dense order.
+    ///
+    /// When the [`Drain`] is dropped (fully consumed or not) the pool is in
+    /// exactly the state [`clear`](Self::clear) would produce.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use engine_handle::HandlePool;
+    /// let mut pool = HandlePool::new();
+    /// let a = pool.insert(1);
+    /// let drained: Vec<_> = pool.drain().collect();
+    /// assert_eq!(drained, vec![(a, 1)]);
+    /// assert!(pool.is_empty() && !pool.contains(a));
+    /// ```
+    pub fn drain(&mut self) -> Drain<'_, T> {
+        // Release the slots first: from here on the pool already looks cleared,
+        // even if the `Drain` is leaked.
+        self.release_all_slots();
+        Drain {
+            handles: self.handles.drain(..),
+            values: self.values.drain(..),
+        }
     }
 
     /// Releases every occupied slot (bump or retire) and rebuilds the free list
@@ -544,9 +674,37 @@ impl<T> Default for HandlePool<T> {
 impl<T: fmt::Debug> fmt::Debug for HandlePool<T> {
     /// Prints as a map of live handles to values, in dense order.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map()
-            .entries(self.handles.iter().zip(&self.values))
-            .finish()
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a HandlePool<T> {
+    type Item = (Handle<T>, &'a T);
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut HandlePool<T> {
+    type Item = (Handle<T>, &'a mut T);
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> IterMut<'a, T> {
+        self.iter_mut()
+    }
+}
+
+impl<T> IntoIterator for HandlePool<T> {
+    type Item = (Handle<T>, T);
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter {
+            handles: self.handles.into_iter(),
+            values: self.values.into_iter(),
+        }
     }
 }
 
@@ -716,5 +874,143 @@ mod tests {
         assert!(p.contains(a) && p.contains(c) && !p.contains(b));
         assert_eq!(p.values().len(), 2);
         p.assert_invariants();
+    }
+
+    #[test]
+    fn iteration_is_dense_and_exact_size() {
+        let mut p = HandlePool::new();
+        let hs: Vec<_> = (0..5).map(|i| p.insert(i)).collect();
+        p.remove(hs[1]);
+        p.remove(hs[3]);
+        assert_eq!(p.values(), &[0, 4, 2]); // 4 moved into 1's hole, then 3 was last
+        let mut it = p.iter();
+        assert_eq!(it.len(), 3);
+        let seen: Vec<_> = it.by_ref().map(|(_, v)| *v).collect();
+        assert_eq!(seen, [0, 4, 2]);
+        assert_eq!(it.len(), 0);
+        assert!(it.next().is_none());
+        assert!(it.next().is_none()); // fused
+        let mut it = p.iter();
+        let _ = it.next();
+        assert_eq!(it.len(), 2);
+    }
+
+    #[test]
+    fn iter_mut_and_into_iter_cover_every_element() {
+        let mut p = HandlePool::new();
+        let hs: Vec<_> = (0..4).map(|i| p.insert(i)).collect();
+        for (h, v) in &mut p {
+            *v += i32::try_from(h.index()).unwrap() * 10;
+        }
+        assert_eq!((&p).into_iter().count(), 4);
+        assert_eq!(p[hs[3]], 33);
+        let owned: Vec<_> = p.into_iter().collect();
+        assert_eq!(owned.iter().map(|(h, _)| *h).collect::<Vec<_>>(), hs);
+        assert_eq!(
+            owned.iter().map(|(_, v)| *v).collect::<Vec<_>>(),
+            [0, 11, 22, 33]
+        );
+    }
+
+    #[test]
+    fn drain_dropped_early_equals_clear() {
+        let fill = |p: &mut HandlePool<i32>| (0..4).map(|i| p.insert(i)).collect::<Vec<_>>();
+        let mut a = HandlePool::new();
+        let old = fill(&mut a);
+        {
+            let mut d = a.drain();
+            assert_eq!(d.len(), 4);
+            assert_eq!(d.next().map(|(_, v)| v), Some(0));
+        }
+        let mut b = HandlePool::new();
+        fill(&mut b);
+        b.clear();
+        assert!(a.is_empty());
+        assert!(old.iter().all(|h| !a.contains(*h)));
+        a.assert_invariants();
+        let from_a = fill(&mut a);
+        let from_b = fill(&mut b);
+        assert_eq!(from_a, from_b);
+    }
+
+    #[test]
+    fn drain_yields_dense_order_and_forgotten_drain_is_safe() {
+        let mut p = HandlePool::new();
+        let hs: Vec<_> = (0..3).map(|i| p.insert(i)).collect();
+        p.remove(hs[0]);
+        let drained: Vec<_> = p.drain().map(|(_, v)| v).collect();
+        assert_eq!(drained, [2, 1]);
+        let mut q = HandlePool::new();
+        let _ = q.insert(1);
+        core::mem::forget(q.drain());
+        assert!(q.is_empty());
+        q.assert_invariants();
+    }
+
+    #[test]
+    fn retain_visits_dense_order_and_swaps_correctly() {
+        let mut p = HandlePool::new();
+        let hs: Vec<_> = (0..6).map(|i| p.insert(i)).collect();
+        let mut visited = Vec::new();
+        p.retain(|_, v| {
+            visited.push(*v);
+            *v % 2 == 0
+        });
+        // Removing 1 swaps 5 into its place, and removing 5 swaps 4 in: each element is
+        // visited exactly once, swapped-in elements immediately after the hole.
+        assert_eq!(visited, [0, 1, 5, 4, 2, 3]);
+        let mut kept: Vec<_> = p.values().to_vec();
+        kept.sort_unstable();
+        assert_eq!(kept, [0, 2, 4]);
+        assert!(p.contains(hs[0]) && !p.contains(hs[1]) && p.contains(hs[4]));
+        p.assert_invariants();
+    }
+
+    #[test]
+    fn get_disjoint_mut_rules() {
+        let mut pool = HandlePool::new();
+        let first = pool.insert(1);
+        let second = pool.insert(2);
+        let gone = pool.insert(3);
+        pool.remove(gone);
+        {
+            let [left, right] = pool.get_disjoint_mut([first, second]).unwrap();
+            core::mem::swap(left, right);
+        }
+        assert_eq!((pool[first], pool[second]), (2, 1)); // mutation through both is visible
+        assert!(pool.get_disjoint_mut([first, first]).is_none());
+        assert!(pool.get_disjoint_mut([first, gone]).is_none());
+    }
+
+    #[test]
+    fn debug_prints_as_map() {
+        let mut p = HandlePool::new();
+        let _ = p.insert(7_u8);
+        let b = p.insert(8_u8);
+        let _ = p.insert(9_u8);
+        p.remove(b); // 9 swaps into dense position 1
+        assert_eq!(
+            alloc::format!("{p:?}"),
+            "{Handle<u8>(0v1): 7, Handle<u8>(2v1): 9}"
+        );
+    }
+
+    #[test]
+    fn retain_panic_leaves_pool_consistent() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+        let mut p = HandlePool::new();
+        let hs: Vec<_> = (0..10).map(|i| p.insert(i)).collect();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            p.retain(|_, v| {
+                assert_ne!(*v, 5, "boom");
+                *v % 2 == 0
+            });
+        }));
+        assert!(result.is_err());
+        p.assert_invariants();
+        for (h, v) in &p {
+            assert_eq!(p[h], *v);
+        }
+        assert_eq!(hs.iter().filter(|h| p.contains(**h)).count(), p.len());
     }
 }
