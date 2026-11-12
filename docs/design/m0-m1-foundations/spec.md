@@ -19,7 +19,7 @@
 | How it is tested and benchmarked | §7, §8 |
 | What "done" meant for M0+M1, and what comes next | §9, §10, §11 |
 
-For decisions, prefer the ADRs in `docs/adr/`. The implementation plan for this milestone is [plan.md](plan.md); it is historical.
+For decisions, prefer the ADRs in `docs/adr/`. The implementation plan for this milestone was removed when it merged; recover it with `git log --diff-filter=D --name-only -- docs/design/m0-m1-foundations/plan.md` and `git show <commit>^:docs/design/m0-m1-foundations/plan.md`.
 
 ---
 
@@ -118,7 +118,7 @@ fuzz/                      cargo-fuzz targets (excluded from workspace; nightly)
 docs/
   adr/                     architecture decision records
   benchmarks.md            methodology, hardware, recorded results
-  design/<milestone>/      design spec and implementation plan for each milestone (this file)
+  design/<milestone>/      design spec for each milestone (this file); its plan sits beside it until the milestone merges
 .github/
   workflows/ci.yml         PR/push CI
   workflows/nightly.yml    scheduled latest-stable CI run (fuzzing added in M2)
@@ -1216,7 +1216,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 ## 13. Implementation phasing
 
-The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
+The implementation plan (removed at merge, see the reading guide) split M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
 
 1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (wasmtime, cargo-nextest, cargo-deny, critcmp, the extra rustup targets; Valgrind, gungraun-runner, cargo-llvm-cov, cargo-fuzz, and the pinned nightly with Miri arrive in M2) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
 2. **`engine_handle`:** handles, pool, allocator; unit and property tests; benchmarks.
