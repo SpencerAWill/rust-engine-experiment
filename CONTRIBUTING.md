@@ -78,6 +78,16 @@ You need `cargo-fuzz` and the pinned nightly; the command prints the install lin
 - Explain why, not just what. Mention any change to a public API, a frozen format, or a policy explicitly.
 - Add or update an ADR in `docs/adr/` for a decision that is hard to reverse.
 
+## Reviews before a pull request
+
+Before opening a pull request, review the change three ways, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards.
+
+- **Code review** (`/code-review`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
+- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes, and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps).
+- **Documentation review**, by hand: every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` and the roadmap row are current; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
+
+Triage every finding: fix it, or write in the pull request why you did not. The pull request description summarises the result of each review.
+
 ## Security
 
 Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md), not in public issues.
