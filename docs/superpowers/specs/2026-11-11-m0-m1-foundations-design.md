@@ -115,15 +115,42 @@ All crates: `version = "0.1.0"`, `edition = "2024"`, `publish = false` (until a 
 
 ### 3.1 Crate-splitting rule (ADR 0004)
 
-Create a separate crate when at least one of these differs from its neighbours:
+A crate is Rust's unit of compilation, coherence (trait impls), visibility, and versioning, so crate boundaries are decided deliberately, using a two-sided checklist.
+
+**Split into a separate crate when at least one of these holds:**
 
 1. **Dependencies.** It needs a dependency others shouldn't carry, or must stay dependency-free.
-2. **`unsafe` permission.** It needs an `unsafe` exception, or must be provably free of `unsafe`.
+2. **Permission boundary.** It needs an `unsafe` or concurrency exception (§4.3, §4.11), or must be provably free of them.
 3. **FFI exposure.** It is exposed (or not) across the C ABI.
-4. **Optionality.** Users should be able to omit it.
+4. **Optionality.** Users should be able to omit it, and it has heavy dependencies or a distinct API. Small additive extensions are Cargo features instead.
 5. **Platform.** `no_std` vs `std`, or platform-specific code.
+6. **Stability.** A small, rarely-changing interface (core traits/types) that others implement or build against is separated from fast-moving implementation, so dependents don't churn (the `rand_core`/`futures-core` pattern). The mod/plugin-facing API (M4+) is the prime candidate.
+7. **Enforced layering.** A lower layer must be provably unable to depend on a higher one. Crates make dependency cycles impossible; modules don't.
+8. **Measured compile time.** `cargo build --timings` shows the crate on the critical path and a split improves parallelism. This requires measurement, not intuition.
+9. **Forced by the language.** Procedural macros live in their own crate.
+
+**Keep code in one crate when any of these holds** (these override the split reasons unless an ADR says otherwise):
+
+1. **Coherence.** Splitting would make needed trait impls impossible under the orphan rule, or force newtype workarounds. Corollary: foundational traits that many crates implement (e.g. M2 reflection) live at the **bottom** of the dependency graph.
+2. **Shared internals.** The pieces need each other's private details. Splitting would force `#[doc(hidden)] pub` back doors, which also contradicts ADR 0009.
+3. **Lockstep change.** They always change together, so a split only adds release overhead.
+4. **Too small to stand alone.** No boundary from the list above, and fixed per-crate costs (metadata, build-graph nodes, maintenance) would outweigh any benefit.
 
 Topic alone is not a reason to split. Expect many crates over time, but no empty crates up front.
+
+**Every crate states its justification** (the split criteria it meets) in the first paragraph of its crate-level docs and in ADR 0004's crate table. M0+M1:
+
+| Crate | Justification |
+|---|---|
+| `engine_handle` | Platform (`no_std` + `alloc`), dependency-free; FFI exposure (handles cross the C ABI in M4); layering (foundation for the ECS, assets, FFI) |
+| `engine_random` | Stability (output streams frozen for all of 0.x, a different change cadence); platform (`no_std`, no `alloc`); independent reuse (optional on its own) |
+| `engine_time` | Platform (`no_std` core with a `std` feature for `SystemClock`); independent reuse; layering (no dependency on math or handles) |
+| `engine_math` | Dependencies (`glam`); platform (`std`) |
+| `engine` | Facade: the single dependency for users, re-exporting the above |
+
+**Layout and versioning:**
+- The layout stays flat (`libs/*`, `engine_` prefix), following common practice for large workspaces (matklad, "Large Rust Workspaces").
+- When publishing is decided, the expected default is **lockstep versioning**: every `engine_*` crate shares one version and is released together, with the facade as the main entry point. This gets its own ADR at publish time.
 
 ### 3.2 Dependency graph (M0+M1)
 
@@ -1032,7 +1059,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
-| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
+| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit at the bottom of the crate graph (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
 | M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread. Determinism independent of thread count (§4.9). The concurrency allowlist, loom, TSan, and stress tests apply (§4.11). Per-worker state is cache-padded. The work-distribution strategy (work stealing vs fixed assignment) is chosen with benchmarks, and its merges must stay deterministic | Threading model (thread pool vs fibers vs work stealing) |
 | M4: C ABI + C# | `engine_ffi` crate (allowlisted `unsafe`), handle-based C API, generated header, C# binding (generator choice evaluated: Interoptopus vs cbindgen + hand-written P/Invoke vs csbindgen), C# sample. **Also:** evaluate the WebAssembly component model (WIT + `wit-bindgen`) for sandboxed, multi-language mods alongside the C ABI for embedding. Define the FFI panic policy: a panic unwinding out of `extern "C"` aborts the host, so the FFI layer validates inputs before calling APIs with documented panics | Binding generator; ownership/lifetime rules across the boundary; native vs WASM for mods |
 | M5: Diagnostics & tooling foundation | Diagnostics facade (logging/tracing; host-installed subscribers per §4.10); profiler integration; **remote inspection protocol** (localhost by default, auth token; entity/component browsing via reflection, change subscriptions, edit commands); record/replay with automatic desync detection (per-tick state checksums) | Protocol transport and encoding; the editor's main integration path |
@@ -1073,6 +1100,11 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 - Aras Pranckevičius, ECS & DoD (2018) — https://aras-p.info/texts/files/2018Academy%20-%20ECS-DoD.pdf
 - Unity DOTS roundtable Q&A — https://blog.unity.com/engine-platform/dots-webinar-roundtable-q-a
 - Rust API Guidelines checklist — https://rust-lang.github.io/api-guidelines/checklist.html
+- matklad, Large Rust Workspaces — https://matklad.github.io/2021/08/22/large-rust-workspaces.html
+- Microsoft Rust project guidelines — https://microsoft.github.io/rust-guidelines/guidelines/project/
+- Materialize, Compile Times and Code Graphs — https://materialize.com/blog/compile-times-and-code-graphs/
+- extern-impl RFC (orphan-rule constraint on crate factoring) — https://github.com/jsgf/rfcs/blob/extern-impl/text/0000-extern-impl.md
+- DZone, architectural cost of the orphan rule — https://dzone.com/articles/architectural-cost-rust-orphan-rule
 - std `RandomState` source — https://doc.rust-lang.org/src/std/hash/random.rs.html
 - rust-lang/rust#36481 (HashMap iteration order) — https://github.com/rust-lang/rust/issues/36481
 - Materialize deterministic collections — https://dev.materialize.com/api/rust/mz_ore/collections/hash/index.html
