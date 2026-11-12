@@ -14,6 +14,7 @@ publish = false
 [workspace.dependencies]
 # internal crates (path + version)
 engine_handle = { path = "libs/engine_handle", version = "0.1.0" }
+engine_random = { path = "libs/engine_random", version = "0.1.0" }
 glam = { version = "0.30", default-features = false }
 proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)
 
