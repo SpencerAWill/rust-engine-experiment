@@ -13,6 +13,7 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 
 ### Added
 
+- **Fuzzing (M2.1):** four `cargo-fuzz` targets for `engine_handle` (operation sequences for `HandlePool`, `HandleAllocator` and `DenseHandleAllocator` against reference models with `check_invariants` and drop accounting, plus `Handle::from_bits`), `cargo xtask fuzz`, `fuzz-build` and `fuzz-toolchain`, a pinned nightly, a PR-time `fuzz-build` job, and a nightly `fuzz` job with a cached corpus.
 - **Workspace and policy (M0):** pinned toolchain, lint policy, determinism bans in `clippy.toml`, `cargo-deny`, dual MIT/Apache licensing, ADRs 0001-0011, and `cargo xtask` (fmt, clippy, test, doc, deny, no-std, wasm, check-unsafe, check-statics, check-workflows, bench, bench-smoke, bench-report, prng-stats, ci). GitHub Actions are pinned to commit hashes and use a read-only token.
 - **`engine_handle`:** typed generational `Handle<T>`; dense `HandlePool<T>` with 8-byte slots; the lean `HandleAllocator<T>` and the iterable `DenseHandleAllocator<T>`; `reserve`/`try_reserve`, `with_fixed_capacity`, `insert_with`, `allocate_many`; `From`/`TryFrom<u64>` for `Handle`.
 - **`engine_random`:** `Prng` (xoshiro256++ seeded by SplitMix64) with normative sampling algorithms and frozen output streams.

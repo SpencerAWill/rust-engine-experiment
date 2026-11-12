@@ -17,6 +17,13 @@ updates:
    groups:
      all:
        patterns: ["*"]
+ - package-ecosystem: "cargo"
+   directory: "/fuzz"
+   schedule:
+     interval: weekly
+   groups:
+     all:
+       patterns: ["*"]
  - package-ecosystem: "github-actions"
    directory: "/"
    schedule:

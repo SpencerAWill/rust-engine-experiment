@@ -28,7 +28,7 @@ cargo xtask ci              # everything CI runs, in order
 cargo xtask ci --quick      # fmt check, clippy, and tests only
 ```
 
-`cargo xtask` prints an install hint when a tool is missing. The extra tools are `cargo-nextest`, `cargo-deny`, `critcmp`, and `wasmtime`; `.devcontainer/install-tools.sh` installs them.
+`cargo xtask` prints an install hint when a tool is missing. The extra tools are `cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`, and, for fuzzing, `cargo-fuzz` plus a pinned nightly toolchain; `.devcontainer/install-tools.sh` installs them.
 
 ## What CI enforces
 
@@ -54,6 +54,23 @@ Performance claims need measurements. Wall-clock numbers from a laptop or shared
 - Run on AC power with other apps closed, and record the machine and conditions. On macOS `cargo xtask bench` refuses to start on battery and keeps the machine awake; afterwards, check `pmset -g log` for a power change or sleep during the run.
 - Compare against a saved baseline: `cargo xtask bench --save NAME`, then `cargo xtask bench-report --baseline NEW --against OLD`. The report only calls a change real if it exceeds 5% and the confidence intervals do not overlap.
 - Say what you measured and what you did not.
+
+## Fuzzing
+
+Coverage-guided fuzz targets for `engine_handle` live in `fuzz/` (outside the workspace). Three drive `HandlePool`, `HandleAllocator` and `DenseHandleAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `Handle::from_bits` and `to_bits`.
+
+```sh
+cargo xtask fuzz handle_pool_ops --time 60      # one target for 60 s (the default)
+cargo xtask fuzz all                            # every target, 10 min each, as the nightly job does
+cargo xtask fuzz handle_pool_ops --replay fuzz/artifacts/handle_pool_ops/crash-<hash>
+cargo xtask fuzz-build                          # compile only; CI does this on every pull request
+```
+
+You need `cargo-fuzz` and the pinned nightly; the command prints the install lines when either is missing. Fuzzing does not work on Windows (libFuzzer needs a non-MSVC toolchain): use the devcontainer or WSL. `cargo xtask ci` skips `fuzz-build` with a loud note when the tools are missing, but fails when `CI` is set.
+
+- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `tests/model.rs`) in `libs/engine_handle`, watch it fail, then fix the code. Do not commit crash files or the corpus.
+- **Bumping the nightly.** Change `FUZZ_NIGHTLY` in `xtask/src/fuzz.rs` (the only place the date is written; CI and the devcontainer read it through `cargo xtask fuzz-toolchain`), run `cargo xtask fuzz-build`, and mention the bump in the pull request.
+- **Why `fuzz/` is outside `cargo xtask deny`.** It is a developer tool that is never built into or shipped with an engine artifact, and `libfuzzer-sys` is licensed `NCSA` (in addition to MIT or Apache-2.0), which is outside the allow list of [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md). Dependabot watches `fuzz/Cargo.lock` instead, so advisories on its dependencies still surface.
 
 ## Commits and pull requests
 
