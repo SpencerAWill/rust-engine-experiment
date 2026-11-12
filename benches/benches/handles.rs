@@ -574,6 +574,54 @@ fn bench_allocate<A: Alloc>(c: &mut Criterion) {
     }
 }
 
+/// Spawning `n` handles at once: a loop of `allocate` against `try_allocate_many`, on a fresh
+/// allocator (all new slots) and on one whose free list holds `n` slots (all recycled).
+fn bench_batch_allocate(c: &mut Criterion) {
+    for n in SIZES {
+        for recycled in [false, true] {
+            let name = if recycled {
+                "allocator/batch_recycled"
+            } else {
+                "allocator/batch_fresh"
+            };
+            let setup = move || {
+                let mut a = HandleAllocator::<()>::new();
+                if recycled {
+                    let hs: Vec<_> = (0..n).map(|_| a.allocate()).collect();
+                    for h in hs {
+                        a.free(h);
+                    }
+                }
+                (a, Vec::<Handle<()>>::with_capacity(n))
+            };
+            let mut g = group(c, name, n);
+            g.bench_function(BenchmarkId::new("loop", n), |b| {
+                b.iter_batched(
+                    setup,
+                    |(mut a, mut out)| {
+                        for _ in 0..n {
+                            out.push(a.allocate());
+                        }
+                        (a, out)
+                    },
+                    BatchSize::LargeInput,
+                );
+            });
+            g.bench_function(BenchmarkId::new("batch", n), |b| {
+                b.iter_batched(
+                    setup,
+                    |(mut a, mut out)| {
+                        let _ = a.try_allocate_many(n, &mut out);
+                        (a, out)
+                    },
+                    BatchSize::LargeInput,
+                );
+            });
+            g.finish();
+        }
+    }
+}
+
 fn bench_free_realloc_churn<A: Alloc>(c: &mut Criterion) {
     for n in SIZES {
         group(c, "allocator/free_realloc_churn", n).bench_function(
@@ -669,6 +717,7 @@ fn allocator_benches(c: &mut Criterion) {
     bench_is_alive::<EngineAlloc>(c);
     bench_is_alive::<LeanAlloc>(c);
     bench_is_alive::<SlotAlloc>(c);
+    bench_batch_allocate(c);
 }
 
 criterion_group!(benches, pool_benches, allocator_benches, scenario_benches);
