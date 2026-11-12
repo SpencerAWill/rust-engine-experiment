@@ -34,6 +34,8 @@ Project trajectory: learning/experimentation first → foundation for the author
 | World scale | **Large worlds are possible** (planet/space/large open-world sims). World placement uses f64 translation (`WorldTransform`); local/relative data uses f32 (`Transform`); conversion is explicit, relative to an origin (§5.4, ADR 0006) |
 | Coordinate convention | **One internal convention: right-handed, +Y up, +X right, −Z forward (camera/look direction)**, matching glTF. SI units (meters, seconds, radians, kilograms). Other conventions are converted explicitly at import/export edges (§5.4, ADR 0005) |
 | Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library crates (§4.9) |
+| Dimensionality | **2D, 3D, and 2.5D games are all first-class targets.** 2D world space is the XY plane of the 3D convention (+X right, +Y up, Z = depth/layer, meters). Screen/UI space (+Y down, pixels) is a separate space, reached only through explicit conversion. M1 provides both 2D and 3D math vocabularies with bridges (§5.4). M2 decides storage |
+| Loop ownership | **The host owns the loop (library-first).** The engine never takes over a thread it wasn't given. Hosts (Rust games, C# apps, editors, servers, tests, browsers) call into the engine, e.g. `step(...)`. A convenience "app runner" may be layered on top later, but nothing may require it (ADR 0007) |
 | Snapshot-able state | All simulation state is plain data and fully capturable/restorable (Clone at minimum; raw-state accessors for value-like state). This is what enables replays, save/load, rollback, and "record a bug, replay it" |
 
 ### Deliberately deferred (decided in M2 with evidence)
@@ -194,6 +196,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - `0004-crate-splitting-rule.md`
   - `0005-coordinate-system-and-units.md`
   - `0006-large-world-precision.md`
+  - `0007-host-owns-the-loop.md`
 
   ADR 0003 also covers the determinism guardrails (§4.9) and the snapshot-able state principle.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `ci:`, `chore:`).
@@ -491,8 +494,8 @@ impl ManualClock {
 **Purpose:** a single blessed math vocabulary for the engine.
 
 - Re-exports from `glam` (version pinned in `[workspace.dependencies]`, default features plus no fast-math):
-  - f32: `Vec2`, `Vec3`, `Vec3A`, `Vec4`, `Quat`, `Mat3`, `Mat3A`, `Mat4`, `Affine3A`;
-  - f64: `DVec2`, `DVec3`, `DVec4`, `DQuat`, `DMat3`, `DMat4`, `DAffine3`;
+  - f32: `Vec2`, `Vec3`, `Vec3A`, `Vec4`, `Quat`, `Mat2`, `Mat3`, `Mat3A`, `Mat4`, `Affine2`, `Affine3A`;
+  - f64: `DVec2`, `DVec3`, `DVec4`, `DQuat`, `DMat2`, `DMat3`, `DMat4`, `DAffine2`, `DAffine3`;
   - the `IVec*`/`UVec*` families.
 
   `glam` is re-exported as `engine_math::glam` for escape-hatch access.
@@ -563,6 +566,64 @@ impl Transform {
 - **Precision guarantee (tested):** for any absolute position with magnitude up to 1e9 m (beyond the Earth–Moon distance), and a local offset within 10 km of the chosen origin, `relative_to` followed by `to_world` round-trips with error ≤ 1 mm.
 - Which of these the ECS stores per entity is decided in M2. M1 provides the vocabulary.
 
+#### 2D and 2.5D
+
+2D types mirror the 3D ones. The 2D world is the XY plane of the 3D convention, and rotation is an angle about +Z.
+
+```rust
+/// 2D transform in the XY plane. `rotation` is radians, counter-clockwise (about +Z).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Transform2d { pub translation: Vec2, pub rotation: f32, pub scale: Vec2 }
+
+impl Transform2d {
+    pub const IDENTITY: Transform2d;
+    pub const fn from_translation(t: Vec2) -> Self;
+    pub const fn from_rotation(radians: f32) -> Self;
+    pub const fn from_scale(s: Vec2) -> Self;
+    pub fn with_translation(self, t: Vec2) -> Self;  // + with_rotation, with_scale
+    /// `self * child`. Same exactness caveat as 3D (exact for uniform scale).
+    /// The resulting rotation is wrapped into (-π, π].
+    pub fn mul_transform(self, child: Transform2d) -> Transform2d;
+    pub fn inverse(self) -> Transform2d;
+    pub fn to_affine(self) -> Affine2;
+    pub fn to_mat3(self) -> Mat3;                  // homogeneous 2D matrix
+    pub fn transform_point(self, p: Vec2) -> Vec2;
+    pub fn transform_vector(self, v: Vec2) -> Vec2;
+    /// Exact lift into 3D at depth `z` (rotation about +Z; scale.z = 1).
+    pub fn to_3d(self, z: f32) -> Transform;
+    pub fn to_world(self, origin: DVec2) -> WorldTransform2d;
+}
+impl Default for Transform2d { /* IDENTITY */ }
+impl core::ops::Mul for Transform2d { /* mul_transform */ }
+
+/// Large-world 2D placement (f64 translation), mirroring `WorldTransform`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldTransform2d { pub translation: DVec2, pub rotation: f32, pub scale: Vec2 }
+
+impl WorldTransform2d {
+    pub const IDENTITY: WorldTransform2d;
+    pub const fn from_translation(t: DVec2) -> Self;
+    pub fn relative_to(self, origin: DVec2) -> Transform2d;
+    pub fn mul_transform(self, child: Transform2d) -> WorldTransform2d;
+    pub fn transform_point(self, p: Vec2) -> DVec2;
+    pub fn to_daffine(self) -> DAffine2;
+    pub fn to_3d(self, z: f64) -> WorldTransform;
+}
+
+impl Transform {
+    /// Projection onto the XY plane: keeps translation.xy, the twist about +Z (swing–twist
+    /// decomposition), and scale.xy. Lossy: drops z, tilt, and scale.z. Documented as such.
+    pub fn to_2d(self) -> Transform2d;
+}
+impl WorldTransform {
+    pub fn to_2d(self) -> WorldTransform2d;  // same projection rules
+}
+```
+
+- **2.5D** is supported by construction. A 2D object is a 3D object on the XY plane, and Z gives depth or layer. `to_3d` is exact; `to_2d` is a documented projection.
+- **Screen/UI space** (+Y down, pixel units, origin top-left) is defined by convention in ADR 0005. Conversion functions between world and screen need camera/viewport data, so they ship with the camera in the rendering milestone, not in M1.
+- **2D axis constants:** `axis::RIGHT_2D = Vec2::X`, `axis::UP_2D = Vec2::Y`.
+
 #### Coordinate system and units (ADR 0005)
 
 - **Internal convention (fixed, not configurable):** right-handed; +X right, +Y up, −Z forward (the camera/look direction); glTF asset fronts face +Z. Units are meters, seconds, radians, kilograms. Matrices follow glam: column-major storage, column vectors, `M * v`.
@@ -610,7 +671,7 @@ pub mod convert {
 ### 5.5 `engine` facade
 
 - Re-exports each crate as a module: `engine::handle`, `engine::random`, `engine::time`, `engine::math`.
-- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when available), `Transform`, `WorldTransform`, `Vec2`, `Vec3`, `Vec4`, `DVec3`, `Quat`, `Mat4`, and the `axis` module.
+- `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when available), `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `Vec2`, `Vec3`, `Vec4`, `DVec2`, `DVec3`, `Quat`, `Mat4`, and the `axis` module.
 - Features: `std` (default), forwarded to leaf crates.
 - The crate root docs are the engine's "start here" page: crate map, guarantees, and a short example.
 
@@ -665,6 +726,7 @@ All layers run in CI unless noted.
 | Allocation discipline | `dhat` (testing mode) | §5.6 item 7: zero steady-state allocations per tick |
 | Large-world precision | property tests | `relative_to`/`to_world` round-trip ≤ 1 mm for magnitudes up to 1e9 m and offsets ≤ 10 km. `WorldTransform::transform_point` agrees with `to_daffine` |
 | Coordinate conversion | unit + property | Every preset: `*_from_engine(*_to_engine(x)) == x`. Converted quaternions stay unit-length and proper (det = +1). Handedness is detected correctly. `new` rejects non-perpendicular axes. Each preset's mapping of right/up/forward is checked against `axis::*` |
+| 2D / 2.5D | unit + property | `Transform2d` compose/inverse round-trips (uniform scale). `transform_point` agrees with `to_affine`/`to_mat3`. Rotation wrapping into (-π, π]. `t.to_3d(z).to_2d() == t` within eps. `to_2d` of a pure-Z rotation is exact and drops tilt as documented. `WorldTransform2d` precision guarantee identical to 3D |
 | 32-bit / WASM | CI `wasm` job | Leaf-crate tests on `wasm32-wasip1`; `engine` builds for `wasm32-unknown-unknown` |
 | Undefined behavior | Miri | `engine_handle` (and all future allowlisted crates) |
 | Fuzzing | `cargo-fuzz` (nightly workflow) | `handle_pool_ops` (arbitrary op sequences checked against the model), `handle_from_bits` |
@@ -710,7 +772,7 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 6. ADRs 0001–0004 are written. README, dual license files, `deny.toml`, `unsafe-allowlist.toml` (empty), and dependabot config are in place.
 7. `examples/fixed_step_sim` runs, and its determinism test passes.
 8. A `cargo-mutants` run has been triaged.
-9. ADRs 0005 (coordinates/units) and 0006 (large-world precision) are written. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
+9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), and 0007 (host owns the loop) are written. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
 10. The `wasm` CI job is green. The snapshot, allocation, large-world precision, and coordinate-conversion tests pass.
 
 ---
@@ -733,10 +795,10 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
-| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
-| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention | Threading model (thread pool vs fibers vs work stealing) |
+| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
+| M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread | Threading model (thread pool vs fibers vs work stealing) |
 | M4: C ABI + C# | `engine_ffi` crate (allowlisted `unsafe`), handle-based C API, generated header, C# binding (generator choice evaluated: Interoptopus vs cbindgen + hand-written P/Invoke vs csbindgen), C# sample. **Also:** evaluate the WebAssembly component model (WIT + `wit-bindgen`) for sandboxed, multi-language mods alongside the C ABI for embedding. Define the FFI panic policy: a panic unwinding out of `extern "C"` aborts the host, so the FFI layer validates inputs before calling APIs with documented panics | Binding generator; ownership/lifetime rules across the boundary; native vs WASM for mods |
-| Later | Windowing/input (`winit`) → rendering (`wgpu`) → assets → audio → physics → modding/plugin loading | — |
+| Later | Windowing/input (`winit`) → rendering (`wgpu`; 2D sprite/batching path, pixel-perfect cameras, world↔screen conversion, 3D path, 2.5D via orthographic/perspective cameras over the same world) → assets → audio → physics (2D and 3D are separate solvers in practice) → modding/plugin loading → optional convenience app runner | — |
 
 ---
 
@@ -792,9 +854,9 @@ Test-only dependencies (`proptest`, and `arbitrary`/`libfuzzer-sys` in `fuzz/`) 
 
 The implementation plan splits M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR:
 
-1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004, `xtask`, CI workflows, dependabot.
+1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007, `xtask`, CI workflows, dependabot.
 2. **`engine_handle`:** handles, pool, allocator; unit/property/Miri tests; fuzz targets; benchmarks.
 3. **`engine_random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
 4. **`engine_time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
-5. **`engine_math`:** re-exports, `Transform`, `WorldTransform`, `axis`, `convert`; ADRs 0005–0006; precision and conversion tests.
+5. **`engine_math`:** re-exports, `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `axis`, `convert`; ADRs 0005–0006; precision and conversion tests.
 6. **Facade, sample, docs:** `engine` prelude, `fixed_step_sim` with determinism/snapshot/allocation tests, the comparison benchmark run, `docs/benchmarks.md`, mutation-testing triage.
