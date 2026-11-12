@@ -1,6 +1,6 @@
 # M2.1: Fuzzing
 
-- **Status:** Accepted (2026-11-12)
+- **Status:** Implemented (PR #14, 2026-11-12)
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.0 · **Decides:** no ADR
 - **Estimated size:** about 800 changed lines, excluding tests, lockfiles and generated files (`fuzz/` targets about 540, `xtask` about 160, workflows, devcontainer and dependabot about 80, docs about 30)
 
@@ -233,12 +233,12 @@ fuzz:
 
 ## 9. Done when
 
-- [ ] All requirements in §5 are verified as in §8, with the evidence (command output, run links) in the pull request description.
-- [ ] `cargo xtask ci` passes locally on macOS and in CI on all legs.
-- [ ] One `workflow_dispatch` run of the nightly `fuzz` job is green, and a second run shows the corpus restored.
-- [ ] The mutation checks in §8 (R2 to R5, R19, R20) each found their planted bug, and the plants are reverted.
-- [ ] CONTRIBUTING.md, the roadmap row (to `Done`), CHANGELOG and this spec's status (`Implemented (PR #n, date)`) are updated.
-- [ ] The pull request title is `feat(fuzz): fuzz the handle crate against a model (M2.1)` and says an assistant was used.
+- [x] All requirements in §5 are verified as in §8, with the evidence (command output, run links) in the pull request description. R18's check (a Dependabot run listing `/fuzz`) can only happen after merge and is still pending; R9's Windows branch is covered by a unit test only.
+- [x] `cargo xtask ci` passes locally on macOS and in CI on all legs.
+- [x] One `workflow_dispatch` run of the nightly `fuzz` job is green, and a second run shows the corpus restored.
+- [x] The mutation checks in §8 (R2 to R5, R19, R20) each found their planted bug, and the plants are reverted.
+- [x] CONTRIBUTING.md, the roadmap row (to `Done`), CHANGELOG and this spec's status (`Implemented (PR #n, date)`) are updated.
+- [x] The pull request title is `feat(fuzz): fuzz the handle crate against a model (M2.1)` and says an assistant was used.
 
 ## 10. Open questions
 

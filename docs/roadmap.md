@@ -25,7 +25,7 @@ Row statuses: `Planned`, `Drafting`, `Accepted`, `In progress`, `Done (PR #n)`, 
 | Chunk | Title | Depends on | Status | Spec and plan |
 |---|---|---|---|---|
 | M2.0 | Roadmap and process | none | Done (PR #12) | [spec](design/m2-infrastructure/m2.0-roadmap-and-process/spec.md), [plan](design/m2-infrastructure/m2.0-roadmap-and-process/plan.md) |
-| M2.1 | Fuzzing: pinned nightly, `fuzz/` targets for `HandlePool`, the allocators (operation sequences against a model, plus `check_invariants`) and `Handle::from_bits`; `cargo xtask fuzz`; nightly CI job | M2.0 | In progress | [spec](design/m2-infrastructure/m2.1-fuzzing/spec.md), [plan](design/m2-infrastructure/m2.1-fuzzing/plan.md) |
+| M2.1 | Fuzzing: pinned nightly, `fuzz/` targets for `HandlePool`, the allocators (operation sequences against a model, plus `check_invariants`) and `Handle::from_bits`; `cargo xtask fuzz`; nightly CI job | M2.0 | Done (PR #14) | [spec](design/m2-infrastructure/m2.1-fuzzing/spec.md), [plan](design/m2-infrastructure/m2.1-fuzzing/plan.md) |
 | M2.2 | Coverage: `cargo-llvm-cov` through xtask; report uploaded in CI; no threshold gate | M2.0 | Planned | |
 | M2.3 | Mutation testing: `cargo xtask mutants`, scheduled report-only workflow, first triage of `engine_handle` and `engine_random` | M2.2 | Planned | |
 | M2.4 | Gungraun gate: Valgrind and gungraun-runner in the devcontainer and CI; benchmarks for handle and PRNG hot paths; merge-base against head comparison; fails above 5%; `perf-regression-accepted` label declared in Pulumi | M2.0 | Planned | |

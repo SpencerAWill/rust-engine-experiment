@@ -1,6 +1,6 @@
 # M2.1 plan: Fuzzing
 
-- **Status:** Accepted (2026-11-12)
+- **Status:** Historical: executed in PR #14 (2026-11-12); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
