@@ -242,8 +242,7 @@ fn bench(
         let power = std::process::Command::new("pmset")
             .args(["-g", "batt"])
             .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-            .unwrap_or_default();
+            .map_or_default(|o| String::from_utf8_lossy(&o.stdout).into_owned());
         battery_guard(&power, allow_battery)?;
         let wrapped = caffeinate_args(&args);
         let wrapped: Vec<&str> = wrapped.iter().map(String::as_str).collect();
