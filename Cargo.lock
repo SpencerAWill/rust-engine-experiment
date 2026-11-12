@@ -263,6 +263,7 @@ dependencies = [
 name = "engine_handle"
 version = "0.1.0"
 dependencies = [
+ "dhat",
  "engine_handle",
  "proptest",
 ]
