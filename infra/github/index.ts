@@ -63,7 +63,7 @@ new github.RepositoryVulnerabilityAlerts("vulnerability-alerts", {
 // Ruleset on the default branch
 // ---------------------------------------------------------------------------------------------
 
-// Job names in .github/workflows/ci.yml. Keep in sync when jobs are added, renamed or removed:
+// Job names in .github/workflows/ci.yml (and bench-regress.yml, see the last entry). Keep in sync when jobs are added, renamed or removed:
 // a required check that never reports blocks every pull request.
 const requiredChecks = [
     "fmt",
@@ -81,6 +81,8 @@ const requiredChecks = [
     "bench-build",
     "os-matrix (macos-latest)",
     "os-matrix (windows-latest)",
+    // The one job of .github/workflows/bench-regress.yml, not ci.yml.
+    "bench-regress",
 ];
 
 // GitHub Actions' app id: only results posted by Actions satisfy the checks.
@@ -140,6 +142,12 @@ const labels: { name: string; color: string; description: string }[] = [
         name: "devcontainers_package_manager",
         color: "2753E3",
         description: "Pull requests that update devcontainers_package_manager code",
+    },
+    // Read by .github/workflows/bench-regress.yml: with it, a regression no longer fails the check.
+    {
+        name: "perf-regression-accepted",
+        color: "fbca04",
+        description: "An instruction-count regression in bench-regress is intended; justified in the PR description",
     },
 ];
 

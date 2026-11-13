@@ -165,6 +165,11 @@ jobs:
           persist-credentials: false
       - run: rustup show
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # Gungraun's test mode (bench-smoke) starts gungraun-runner but not Valgrind, so install only
+      # the runner, at the version Cargo.lock pins.
+      - uses: gungraun/setup-gungraun@62591572561bb2f4ed2ae300b8a8bea99ea8ddaf # v1.1.3
+        with:
+          valgrind-strategy: none
       - run: cargo xtask bench-build
       - run: cargo xtask bench-smoke
 
