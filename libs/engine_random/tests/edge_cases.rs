@@ -100,3 +100,24 @@ fn shuffle_is_a_permutation() {
         "100 elements are overwhelmingly unlikely to stay sorted"
     );
 }
+
+#[test]
+fn from_state_rejects_only_the_all_zero_state() {
+    assert!(Prng::from_state([0; 4]).is_none());
+    // Every other pattern is a valid state, including words that would cancel under XOR.
+    for mask in 1_u8..16 {
+        let state = [0, 1, 2, 3].map(|bit| u64::from(mask >> bit & 1));
+        assert!(Prng::from_state(state).is_some(), "{state:?}");
+    }
+}
+
+#[test]
+fn chance_is_true_only_strictly_below_p() {
+    let mut rng = Prng::from_seed(10);
+    // The draw the next call will see: a probability equal to it is not enough.
+    let draw = rng.clone().next_f64();
+    assert!(draw > 0.0, "seed 10 must not draw exactly 0.0");
+    assert!(!rng.chance(draw));
+    let mut rng = Prng::from_seed(10);
+    assert!(rng.chance(f64::from_bits(draw.to_bits() + 1)));
+}
