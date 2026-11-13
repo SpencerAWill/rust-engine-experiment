@@ -28,6 +28,10 @@ use core::num::NonZeroU32;
 
 use engine::prelude::*;
 
+pub mod render;
+
+pub use render::{Frame, View, render};
+
 /// World width in meters (+X is right, the origin is the bottom-left corner).
 pub const WORLD_WIDTH: f32 = 320.0;
 /// World height in meters (+Y is up).
