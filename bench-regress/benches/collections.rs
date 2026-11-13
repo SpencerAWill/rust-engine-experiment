@@ -102,8 +102,17 @@ fn map_get_miss_1k(input: (Map, Vec<u64>)) -> usize {
     black_box(map_get_miss_1k_work(black_box(input)))
 }
 
+/// 10,240 entries: iterating 1,024 is under the 10,000-instruction minimum (M2.4 spec §4.2).
+fn filled_map_10k() -> Map {
+    let mut map = IndexMap::with_capacity(10 * N);
+    for k in shuffled((0..10 * N as u64).collect()) {
+        map.insert(k, k);
+    }
+    map
+}
+
 #[inline(never)]
-fn map_iter_1k_work(map: &Map) -> u64 {
+fn map_iter_10k_work(map: &Map) -> u64 {
     let mut sum = 0_u64;
     for (_, v) in map {
         sum = sum.wrapping_add(*v);
@@ -112,9 +121,9 @@ fn map_iter_1k_work(map: &Map) -> u64 {
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_map)]
-fn map_iter_1k(input: (Map, Vec<u64>)) -> u64 {
-    black_box(map_iter_1k_work(black_box(&input.0)))
+#[bench::fixed(setup = filled_map_10k)]
+fn map_iter_10k(map: Map) -> u64 {
+    black_box(map_iter_10k_work(black_box(&map)))
 }
 
 /// A distinct, zero-sized marker type per `N`, so each has its own `TypeId`.
@@ -142,18 +151,21 @@ fn typeid_map() -> (IndexMap<TypeId, u64>, Vec<TypeId>) {
 }
 
 #[inline(never)]
-fn map_get_typeid_64_work((map, ids): (IndexMap<TypeId, u64>, Vec<TypeId>)) -> u64 {
+fn map_get_typeid_64_x8_work((map, ids): (IndexMap<TypeId, u64>, Vec<TypeId>)) -> u64 {
     let mut sum = 0_u64;
-    for id in &ids {
-        sum = sum.wrapping_add(*map.get(id).unwrap());
+    // Eight rounds: one pass over 64 lookups is under the 10,000-instruction minimum.
+    for _ in 0..8 {
+        for id in &ids {
+            sum = sum.wrapping_add(*map.get(id).unwrap());
+        }
     }
     sum
 }
 
 #[library_benchmark]
 #[bench::fixed(setup = typeid_map)]
-fn map_get_typeid_64(input: (IndexMap<TypeId, u64>, Vec<TypeId>)) -> u64 {
-    black_box(map_get_typeid_64_work(black_box(input)))
+fn map_get_typeid_64_x8(input: (IndexMap<TypeId, u64>, Vec<TypeId>)) -> u64 {
+    black_box(map_get_typeid_64_x8_work(black_box(input)))
 }
 
 library_benchmark_group!(
@@ -162,8 +174,8 @@ library_benchmark_group!(
         map_insert_1k,
         map_get_hit_1k,
         map_get_miss_1k,
-        map_iter_1k,
-        map_get_typeid_64
+        map_iter_10k,
+        map_get_typeid_64_x8
 );
 
 main!(library_benchmark_groups = map);
