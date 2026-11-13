@@ -196,6 +196,8 @@ fn no_std() -> Result<(), String> {
         &[
             "build",
             "-p",
+            "engine_collections",
+            "-p",
             "engine_handle",
             "-p",
             "engine_random",
@@ -232,6 +234,8 @@ fn wasm() -> Result<(), String> {
             "wasm32-wasip1",
             "--lib",
             "--tests",
+            "-p",
+            "engine_collections",
             "-p",
             "engine_handle",
             "-p",

@@ -12,7 +12,22 @@
 //! | [`handle`] | `engine_handle` | Typed generational [`Handle`](handle::Handle)s, a dense [`HandlePool`](handle::HandlePool), and two allocators: the lean [`HandleAllocator`](handle::HandleAllocator) and the iterable [`DenseHandleAllocator`](handle::DenseHandleAllocator) |
 //! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
+//! | [`collections`] | `engine_collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
 //! | [`math`] | `engine_math` | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
+//!
+//! # Collections
+//!
+//! Hashed lookups in engine code use [`collections::IndexMap`], which iterates in insertion order.
+//! It is not in the prelude, so it cannot clash with the `indexmap` crate's name.
+//!
+//! ```
+//! use engine::collections::IndexMap;
+//!
+//! let mut speeds = IndexMap::new();
+//! speeds.insert("walk", 1.4);
+//! speeds.insert("run", 4.0);
+//! assert_eq!(speeds.keys().copied().collect::<Vec<_>>(), ["walk", "run"]);
+//! ```
 //!
 //! # Guarantees
 //!
@@ -45,6 +60,7 @@
 //! assert!(pool.contains(h) && prng.range(0..10) < 10);
 //! ```
 
+pub use engine_collections as collections;
 pub use engine_handle as handle;
 pub use engine_math as math;
 pub use engine_random as random;

@@ -587,6 +587,7 @@ dependencies = [
 name = "engine"
 version = "0.1.0"
 dependencies = [
+ "engine_collections",
  "engine_handle",
  "engine_math",
  "engine_random",
@@ -620,6 +621,7 @@ dependencies = [
 name = "engine_collections"
 version = "0.1.0"
 dependencies = [
+ "dhat",
  "foldhash",
  "indexmap",
  "proptest",

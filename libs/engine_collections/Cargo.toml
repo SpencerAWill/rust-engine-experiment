@@ -16,6 +16,7 @@ foldhash = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+dhat = "0.3"
 foldhash = { workspace = true }  # a seeded hasher for the Hash law tests
 
 [lints]
