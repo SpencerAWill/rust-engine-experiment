@@ -177,4 +177,27 @@ All runs in the container unless marked; paste each command and its relevant out
 
 ## 4. Deviations
 
-None yet. The probe's findings (§1) are recorded here.
+The probe (§1, Step 1) ran on 2026-11-13 in the trixie container (aarch64, Valgrind 3.24.0, `gungraun-runner 0.20.0`) and on the macOS host.
+
+### 4.1 Probe findings
+
+1. **`cargo xtask deny`** passes with `gungraun` added (R21).
+2. **Windows.** `cargo clippy -p engine_bench_regress --benches --target x86_64-pc-windows-msvc` passes on the host, so the `cfg(unix)` fallback of spec §4.2 is not needed.
+3. **Test mode.** `cargo bench -p engine_bench_regress -- --test` runs on macOS without Valgrind and exits 0, but it needs `gungraun-runner` on the `PATH` (without it: "Failed to run benchmarks: No such file or directory"), and it prints nothing on success, not each benchmark. It does run each benchmark function: a `panic!` in one fails the command. See §4.2 below for what follows.
+4. **Flags.** `--save-baseline=base`, `--baseline=base`, `--callgrind-limits=ir=5%`, `--save-summary=json` and `--callgrind-args=--cache-sim=yes` are accepted with these spellings, after `--bench`.
+5. **Direct execution.** The executable from `cargo bench --no-run --message-format=json` (the `compiler-artifact` message whose `target.kind` is `["bench"]`; `target.name` and `executable`), started from `bench-regress/` with `--bench <args>`, runs the same benchmarks as `cargo bench`. It needs no environment beyond `PATH`, `HOME` and `GUNGRAUN_HOME`: it also ran with `env -i PATH=$PATH HOME=$HOME GUNGRAUN_HOME=...` alone, without `CARGO_MANIFEST_DIR`, `CARGO_PKG_NAME`, `CARGO_PKG_VERSION` or `CARGO`. Step 5 therefore inherits the environment and adds only `GUNGRAUN_HOME`.
+6. **Baseline across a worktree.** A baseline saved by a run from a `git worktree` (own `CARGO_TARGET_DIR`, shared `GUNGRAUN_HOME`) is found by a run from the repository: the output shows the base count (`Baselines: |base`, `120010|120010 (No change)`), not `N/A`.
+7. **Exit codes.** A deliberate +10% slowdown makes the executable exit 3 (`Regressed. ... 1 regressed`). A benchmark that panics makes it exit 1 (`Error running 'callgrind': Exit code was: '101'`). Neither is 0 or 3 for the panic, as spec §4.5 assumes.
+8. **`summary.json`.** It lands at `<GUNGRAUN_HOME>/<bench file>/<group>/<function>.<id>/summary.json` (for example `prng/prng/next_u64_10k.fixed/`). The fields used: `module_path` (`prng::prng::next_u64_10k`: file, group, function), `function_name`, `id`, `package_dir`; `profiles[0].data.total.metrics.Ir.values.new` and `.old` (`old` is absent for a benchmark with no baseline); `profiles[0].data.total.regressions`, a non-empty array exactly when the limit was exceeded. Fixtures: `xtask/src/bench_regress/fixtures/{regressed,unchanged,new}.json` (Step 4).
+9. **Versions.** `gungraun-runner --version` prints `gungraun-runner 0.20.0`; `valgrind --version` prints `valgrind-3.24.0`.
+10. **Setup is not counted.** `pool_iter_10k` builds a 10,000-element pool in `setup` (about 150,000 instructions) and reports about 11,000.
+
+### 4.2 Rulings and deviations
+
+- **Node feature (Step 1).** On trixie the `claude-code` devcontainer feature fails: Debian's `nodejs` package has no `npm`. Step 1 also adds `ghcr.io/devcontainers/features/node:1` to `devcontainer.json` and its entry to `devcontainer-lock.json`. The container is built with the devcontainer CLI (`npx @devcontainers/cli@0.89.0 up --workspace-folder . --remove-existing-container`); plain `docker compose up` does not apply features, so it has no Rust.
+- **Test mode needs the runner (Step 3, Step 6).** Because of probe item 3, `bench-smoke` (in `ci` and in the `bench-build` job) needs `gungraun-runner`. Step 3 makes `bench-smoke` fail early with the install line when the runner is missing; Step 6 installs the runner in the `bench-build` job of `ci.yml`. Spec §4.3 stays true (no Valgrind), but "prints each benchmark" does not: Step 2's check that all 16 benchmarks work is the container run below, plus the panic check of item 3.
+- **Where the work runs (Step 2).** Callgrind counts a benchmark between the entry and the return of Gungraun's wrapper, and the default toggle `*::__gungraun_wrapper_mod::*` matches every symbol with that path in it. Two effects, both measured: a loop the optimizer inlines into the wrapper was counted as 14 instructions (1,000 allocations); a generic helper taking a closure, whose symbol carries the wrapper's path, turned collection off (1 instruction). The benchmark functions therefore call a plain `#[inline(never)]` `<name>_work` function. `bench-regress/benches/handle.rs` documents it.
+- **`pool_iter_1k` is now `pool_iter_10k`.** Summing 1,000 values is vectorized and counted 1,964 instructions, below the 10,000 floor (spec §4.2), so the pool holds 10,000 values.
+- **IDs.** Gungraun prints each benchmark as `<file>::<group>::<function> fixed:(<setup>)`; every benchmark has the single case `fixed`.
+- **Instruction counts of the first run** (x86_64 counts will differ; aarch64 container): `pool_insert_1k` 55,040; `pool_get_seq_1k` 15,937; `pool_get_random_1k` 15,937; `pool_remove_1k` 64,220; `pool_iter_10k` 10,966; `pool_churn_1k` 62,764; `allocator_allocate_1k` 21,044; `allocator_free_realloc_1k` 26,267; `allocator_is_alive_1k` 13,991; `dense_allocate_1k` 34,046; `dense_free_1k` 45,232; `next_u64_10k` 120,020; `range_u32_10k` 170,023; `range_f64_10k` 170,021; `shuffle_1k` 24,012; `from_seed_1k` 19,289.
+- **Tools missing in the container.** `cargo-hack` and `typos-cli` are not installed by `install-tools.sh` (before this change too), so `cargo xtask ci` stops there in a fresh container. They were installed by hand for the runs below; adding them to `install-tools.sh` is outside M2.4.
