@@ -9,6 +9,9 @@
     reason = "used by the command, which the next step of M2.4 adds"
 )]
 
+mod cargo_json;
+mod report;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
