@@ -170,17 +170,17 @@ importers:
     dependencies:
       '@pulumi/github':
         specifier: 6.15.1
-        version: 6.15.1(typescript@5.9.3)
+        version: 6.15.1(typescript@6.0.3)
       '@pulumi/pulumi':
         specifier: 3.276.0
-        version: 3.276.0(typescript@5.9.3)
+        version: 3.276.0(typescript@6.0.3)
     devDependencies:
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
       typescript:
-        specifier: 5.9.3
-        version: 5.9.3
+        specifier: ^6.0.3
+        version: 6.0.3
 
 packages:
 
@@ -587,8 +587,8 @@ packages:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -799,15 +799,15 @@ snapshots:
 
   '@protobufjs/utf8@1.1.2': {}
 
-  '@pulumi/github@6.15.1(typescript@5.9.3)':
+  '@pulumi/github@6.15.1(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(typescript@5.9.3)
+      '@pulumi/pulumi': 3.274.1(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
       - typescript
 
-  '@pulumi/pulumi@3.274.1(typescript@5.9.3)':
+  '@pulumi/pulumi@3.274.1(typescript@6.0.3)':
     dependencies:
       '@grpc/grpc-js': 1.14.7
       '@logdna/tail-file': 2.2.0
@@ -834,11 +834,11 @@ snapshots:
       source-map-support: 0.5.21
       upath: 1.2.0
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@pulumi/pulumi@3.276.0(typescript@5.9.3)':
+  '@pulumi/pulumi@3.276.0(typescript@6.0.3)':
     dependencies:
       '@grpc/grpc-js': 1.14.7
       '@logdna/tail-file': 2.2.0
@@ -865,7 +865,7 @@ snapshots:
       source-map-support: 0.5.21
       upath: 1.2.0
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -1063,7 +1063,7 @@ snapshots:
 
   strip-final-newline@2.0.0: {}
 
-  typescript@5.9.3: {}
+  typescript@6.0.3: {}
 
   undici-types@6.21.0: {}
 
