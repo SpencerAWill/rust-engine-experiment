@@ -190,7 +190,7 @@ Leaf crates do not depend on each other unless a real need appears.
 
 ### 4.1 Toolchain and MSRV
 
-- `rust-toolchain.toml` pins the exact stable version (currently `1.99.1`) with components `rustfmt`, `clippy`, and the `thumbv7em-none-eabihf` target for `no_std` checks. Bumps are deliberate PRs.
+- `rust-toolchain.toml` pins the exact stable version (currently `1.100.0`) with components `rustfmt`, `clippy`, and the `thumbv7em-none-eabihf` target for `no_std` checks. Bumps are deliberate PRs.
 - `[workspace.package] rust-version` equals the pinned version. While at 0.x the MSRV moves freely. At publishing time, revisit (e.g. "latest stable − 2").
 - Miri and cargo-fuzz (from M2, §4.12) use a separately pinned nightly, recorded in `xtask` and CI (not in `rust-toolchain.toml`).
 - `Cargo.lock` is committed.

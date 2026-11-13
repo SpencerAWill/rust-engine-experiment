@@ -50,7 +50,7 @@ glam's `fast-math` and `scalar-math` features are unsupported. Any crate in your
 
 - **Versioning.** Every crate is `0.x` and `publish = false` for now. Any release may contain breaking changes; they are listed in [CHANGELOG.md](CHANGELOG.md) and marked **breaking**. Once published, the crates will follow semver as `0.x` does: a minor bump may break, a patch bump will not.
 - **Frozen for all of `0.x`:** the `Prng` output streams and `Handle::to_bits` (`(index << 32) | generation`). They are covered by golden tests, and changing one needs an ADR.
-- **Minimum Rust version.** `rust-version` is `1.99`, which is also the pinned toolchain (`rust-toolchain.toml`), so the MSRV is whatever CI builds with. It may be raised freely during `0.x` and the change is noted in the changelog.
+- **Minimum Rust version.** `rust-version` is `1.100`, which is also the pinned toolchain (`rust-toolchain.toml`), so the MSRV is whatever CI builds with. It may be raised freely during `0.x` and the change is noted in the changelog.
 - **Determinism** means the same build gives the same results on the same platform; it is not bit-exactness across platforms (see [ADR 0003](docs/adr/0003-same-build-determinism.md)).
 
 ## Platform support
