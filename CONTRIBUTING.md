@@ -28,7 +28,7 @@ cargo xtask ci              # every check CI gates on, in order (the coverage jo
 cargo xtask ci --quick      # fmt check, clippy, and tests only
 ```
 
-`cargo xtask` prints an install hint when a tool is missing. The extra tools are `cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`, and, for fuzzing, `cargo-fuzz` plus a pinned nightly toolchain, and, for coverage, `cargo-llvm-cov` plus the `llvm-tools-preview` component, and, for mutation testing, `cargo-mutants` (`cargo install --locked cargo-mutants --version 27.1.0`); `.devcontainer/install-tools.sh` installs them.
+`cargo xtask` prints an install hint when a tool is missing. The extra tools are `cargo-nextest`, `cargo-deny`, `critcmp`, `wasmtime`, and, for fuzzing, `cargo-fuzz` plus a pinned nightly toolchain, and, for coverage, `cargo-llvm-cov` plus the `llvm-tools-preview` component, and, for mutation testing, `cargo-mutants` (`cargo install --locked cargo-mutants --version 27.1.0`), and, for the instruction-count gate, `valgrind` and `gungraun-runner` (`cargo install --locked gungraun-runner --version "$(cargo xtask gungraun-version)"`; the runner must have the same version as the `gungraun` crate in `Cargo.lock`, and `cargo xtask bench-smoke` needs it too); `.devcontainer/install-tools.sh` installs them.
 
 ## What CI enforces
 
@@ -55,6 +55,24 @@ Performance claims need measurements. Wall-clock numbers from a laptop or shared
 - Compare against a saved baseline: `cargo xtask bench --save NAME`, then `cargo xtask bench-report --baseline NEW --against OLD`. The report only calls a change real if it exceeds 5% and the confidence intervals do not overlap.
 - Say what you measured and what you did not.
 
+## Instruction-count gate
+
+Wall-clock benchmarks are too noisy to gate a pull request, so the `bench-regress` check counts CPU instructions instead, under Valgrind through [Gungraun](https://docs.rs/crate/gungraun/). It builds and runs the benchmarks of `bench-regress/` (package `engine_bench_regress`) at the base commit and at the head, in the same job, and fails when any benchmark's instruction count rose by more than 5%. Nothing is stored between runs.
+
+```sh
+cargo xtask bench-regress                 # compare HEAD (and your working tree) with the merge base with origin/main
+cargo xtask bench-regress --base HEAD~3   # compare with another commit
+cargo xtask bench-regress --report-only   # report a regression without failing
+```
+
+- **Linux only.** Valgrind does not run on macOS, so on a Mac use the devcontainer. The command stops before building when the platform, Valgrind (3.20 or later) or the `gungraun-runner` version is wrong, and says what to install.
+- **When it runs.** It skips itself, and passes, when no file that can change a count differs from the base (`libs/`, `bench-regress/`, the manifests, the toolchain, `.cargo/`, and the gate's own code and workflow). It compares a pull request with its parent only, so several small regressions across pull requests can add up; the milestone check in `docs/maintainers.md` is the backstop.
+- **The label.** An intended regression needs the `perf-regression-accepted` label and a justification in the pull request description. With the label the check reports the regression and passes; a build failure or a Valgrind error still fails it. The label is not tied to a commit and covers later pushes too, so the description must name the benchmarks it covers, and the review compares that list with the "Accepted by label" list of the final run (see "Reviews before a pull request"). A toolchain bump often needs the label, because the compiler changed the code it generated.
+- **A `gungraun` bump is not compared.** The runner installed for the head cannot run a benchmark binary built against another `gungraun` version, so a pull request that changes it (normally a Dependabot bump) passes without a comparison.
+- **Architectures.** Counts from the aarch64 devcontainer are only comparable with other aarch64 runs; CI runs on x86_64. Never compare across the two.
+- **Adding a benchmark.** Add a function to `bench-regress/benches/handle.rs` or `prng.rs`, or a new `[[bench]]` file with `harness = false`. Build the input in a `setup` function (it is not counted) from a fixed seed, and put the operation in a separate `#[inline(never)]` function that the benchmark calls (see the comment at the top of `handle.rs` for why). A benchmark must measure at least 10,000 instructions: with fewer, a harmless change in code generation exceeds 5%. `cargo xtask bench-smoke` runs each benchmark function once without Valgrind, so a broken benchmark fails ordinary CI.
+- **Renaming.** When you change what an existing benchmark measures, rename it. The base runs the base's copy of the benchmark, so an edited benchmark with the same name compares two different things.
+
 ## Fuzzing
 
 Coverage-guided fuzz targets for `engine_handle` live in `fuzz/` (outside the workspace). Three drive `HandlePool`, `HandleAllocator` and `DenseHandleAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `Handle::from_bits` and `to_bits`.
@@ -79,7 +97,7 @@ cargo xtask coverage          # measure, print the per-crate table, write the re
 cargo xtask coverage --open   # the same, then open the HTML report
 ```
 
-You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the command prints the line for whichever is missing. It runs the workspace tests under instrumentation (the same tests and features as `cargo xtask test --include-ignored`, minus doctests, `xtask` and `engine_benches`) in a separate build under `target/llvm-cov-target/`, so the first run is as slow as a clean build. It writes `target/llvm-cov/html/index.html` (annotated source, for triage), `target/llvm-cov/lcov.info` (for editor gutters) and `target/llvm-cov/summary.md` (the table).
+You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the command prints the line for whichever is missing. It runs the workspace tests under instrumentation (the same tests and features as `cargo xtask test --include-ignored`, minus doctests, `xtask`, `engine_benches` and `engine_bench_regress`) in a separate build under `target/llvm-cov-target/`, so the first run is as slow as a clean build. It writes `target/llvm-cov/html/index.html` (annotated source, for triage), `target/llvm-cov/lcov.info` (for editor gutters) and `target/llvm-cov/summary.md` (the table).
 
 - **What the table counts.** Lines and functions in `libs/*/src/` and `examples/*/src/`. It leaves out doctests (not measured: `cargo-llvm-cov` supports them only on nightly, so code that only a doctest runs shows as uncovered), `tests/`, `benches/` and `xtask/`, and every item marked `#[test]` or `#[cfg(test)]` (including `cfg(all(test, ...))`); the heading says how many instrumented lines that removed. Code under `#[cfg(any(test, feature = "test-invariants"))]` is counted. The HTML and lcov reports are unfiltered apart from the directories, so their percentages are higher.
 - **No threshold.** CI's `coverage` job writes the same table to the job summary and uploads the reports for 30 days. It fails only when a test fails, and it is not a required check. Use the report to find behaviour no test exercises, not to raise the number.
@@ -128,7 +146,7 @@ Before opening a pull request, review the change from each perspective below, wh
 | --- | --- | --- |
 | **Public API** | a public item is added, changed or removed | Is the change deliberate and recorded? Does each panic have `#[track_caller]`, a `# Panics` section, an actionable message and a `try_` twin? Is the type future-proof (`#[non_exhaustive]`, sealed traits)? |
 | **Determinism** | library code changes, especially iteration, floats, hashing or anything `usize`-dependent | The lints catch banned names, not unordered iteration, platform-width differences, float reduction order or ambient state. Does it give identical results on aarch64, x86_64, wasm and 32-bit? |
-| **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor (see "Benchmarks")? |
+| **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor (see "Benchmarks")? When `perf-regression-accepted` is used: does the description name the benchmarks it covers, and do they match the final run's "Accepted by label" list (see "Instruction-count gate")? |
 | **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere the facade promises? |
 
 Triage every finding: fix it, or write in the pull request why you did not. The pull request description has a Reviews section that lists all eight reviews with a one-line result each, or `n/a: <reason>` for a triggered review that does not apply.

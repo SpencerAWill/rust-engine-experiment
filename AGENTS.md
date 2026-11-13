@@ -7,6 +7,8 @@ This file is a short entry point. The rules are in [CONTRIBUTING.md](CONTRIBUTIN
 ```sh
 cargo xtask ci          # every check CI gates on; run it before saying work is done
                         # the coverage job, the nightly fuzz run and the weekly mutants run are report-only and run outside it
+                        # so does the `bench-regress` instruction-count gate (a required check that needs Valgrind: run
+                        # `cargo xtask bench-regress` in the devcontainer when you change `libs/` or a benchmark)
 cargo xtask ci --quick  # fmt check, clippy, and tests only
 cargo xtask test        # nextest plus doctests
                         # the other commands are listed in the README

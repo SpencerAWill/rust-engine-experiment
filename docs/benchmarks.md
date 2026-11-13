@@ -231,6 +231,14 @@ in steady state.
   re-run (see Run conditions). Individual benchmarks in the volatile families can still differ a lot
   between runs even on clean power.
 
+## Instruction counts
+
+The `bench-regress` gate (see CONTRIBUTING.md, "Instruction-count gate") counts CPU instructions under Valgrind, which does not depend on the machine's load, but only on the code that ran. Those counts decide whether one commit changed the cost of an operation relative to another. They are never compared with the Criterion figures in this document, which are wall-clock times on one machine, and counts from different architectures (the aarch64 devcontainer, the x86_64 CI runner) are never compared with each other.
+
+### Instruction counts across milestones
+
+Filled in by the milestone check in `docs/maintainers.md` (`cargo xtask bench-regress --report-only --base m<N-1>`): for each run, the machine's architecture, both tags, and every benchmark whose count changed by more than 5%. None recorded yet.
+
 ## Results
 
 All times are Criterion medians per iteration. Columns are the number of entries where applicable;
