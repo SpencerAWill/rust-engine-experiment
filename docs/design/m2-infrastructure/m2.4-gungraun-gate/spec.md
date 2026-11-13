@@ -312,7 +312,7 @@ The workflow MUST pass `cargo xtask check-workflows`.
 - [ ] The eight reviews of CONTRIBUTING.md are listed in the pull request.
 - [ ] The documentation of §4.10 is updated, the roadmap row is `In progress` on the branch, and this spec's status is `Implemented (PR #n, date)`.
 - [ ] The pull request title is `feat(xtask): instruction-count regression gate through Gungraun (M2.4)` and says an assistant was used.
-- [ ] After merge and with the maintainer's go-ahead: `pulumi up` applied, a throwaway draft pull request with the `Prng::next_u64` slowdown is blocked by the required check and passes once labelled, then is closed unmerged; the roadmap row moves to `Done (PR #n)` and M2 to `Done`.
+- [x] After merge and with the maintainer's go-ahead: `pulumi up` applied, a throwaway draft pull request with the `Prng::next_u64` slowdown is blocked by the required check and passes once labelled, then is closed unmerged; the roadmap row moves to `Done (PR #n)` and M2 to `Done`.
 
 ## 10. Open questions
 
