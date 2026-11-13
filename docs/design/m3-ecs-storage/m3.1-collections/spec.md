@@ -68,16 +68,16 @@ Two collections are equal only if they hold the same entries **in the same order
 ```rust
 use engine_collections::IndexSet;
 
-let ab: IndexSet<u32> = [1, 2].into();
-let ba: IndexSet<u32> = [2, 1].into();
-assert_ne!(ab, ba);
+let forward: IndexSet<u32> = [1, 2].into();
+let backward: IndexSet<u32> = [2, 1].into();
+assert_ne!(forward, backward);
 
 // To use a set as an order-independent key (for example, a set of component ids
 // naming an archetype), sort it first.
-let (mut ab, mut ba) = (ab, ba);
-ab.sort();
-ba.sort();
-assert_eq!(ab, ba);
+let (mut forward, mut backward) = (forward, backward);
+forward.sort();
+backward.sort();
+assert_eq!(forward, backward);
 ```
 
 The order is deterministic only if the sequence of operations is. Inserting from several threads in completion order gives a different order from run to run, and no hasher can fix that; merge such work in a fixed order first (M0+M1 spec §4.2).

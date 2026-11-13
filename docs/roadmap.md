@@ -25,7 +25,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | Chunk | Title | Depends on | Status | Spec and plan |
 |---|---|---|---|---|
 | M3.0 | Windowed baseline sample: `examples/agents_2d` (`winit` and `softbuffer`, example-only), the agent workload and its order-independent checksum | none | In progress | [spec](design/m3-ecs-storage/m3.0-windowed-baseline/spec.md), [plan](design/m3-ecs-storage/m3.0-windowed-baseline/plan.md) |
-| M3.1 | `engine_collections`: deterministic map and set | none | Accepted | [spec](design/m3-ecs-storage/m3.1-collections/spec.md), [plan](design/m3-ecs-storage/m3.1-collections/plan.md) |
+| M3.1 | `engine_collections`: deterministic map and set | none | In progress | [spec](design/m3-ecs-storage/m3.1-collections/spec.md), [plan](design/m3-ecs-storage/m3.1-collections/plan.md) |
 | M3.2 | Spike harness under `spikes/`: one minimal storage interface, the workloads (simple and fragmented iteration, add/remove, heavy compute, entity churn, 100k 2D sprites, and the M3.0 agent workload), a struct-of-arrays variant of the agent workload, and bevy_ecs, hecs and plain-`Vec` baselines | M3.0, M3.1 | Planned | |
 | M3.3 | Sparse-set prototype (safe) | M3.2 | Planned | |
 | M3.4 | Archetype prototype (safe) | M3.2 | Planned | |
@@ -55,7 +55,7 @@ Rough lists, refined when each becomes current.
 | Milestone | Rough chunks | Open question |
 |---|---|---|
 | M4 | `engine_ecs`: World, Entity (on `engine_handle`), typed and runtime component registration, spawn/despawn, insert/remove; queries with with/without filters; invariant checks and readable `Debug`; debugger visualizers; Gungraun benchmarks for storage hot paths; the dogfooding sample (M3.0's `agents_2d` ported to the ECS; the windowing crate stays example-only) | Whether resources (singleton data) belong in M4 or M7. Entity relationships stay out |
-| M5 | Reflection core traits at the bottom of the crate graph; field read and write by path; self-describing serialization; stable content hasher (a frozen format, so an ADR); persistent IDs with remapping on load | The serialization format: our own or an existing self-describing one |
+| M5 | Reflection core traits at the bottom of the crate graph; field read and write by path; self-describing serialization; stable content hasher (a frozen format, so an ADR); persistent IDs with remapping on load; maps and sets are saved in iteration order and loaded by inserting in that order (order is state) | The serialization format: our own or an existing self-describing one |
 | M6 | Change detection (added or changed since a tick); invertible edit commands (the basis for undo/redo); world diffing | Its first spec decides whether change detection is tick-based or relative to each system's last run; the latter moves M7 before M6 |
 | M7 | Systems with access sets; explicit ordering and ambiguity detection; single-threaded mode; parallel execution on host-provided threads; loom, ThreadSanitizer, stress tests and the concurrency allowlist | The threading model (thread pool, fibers, work stealing). How systems send events to each other: typed per-tick queues or short-lived entities |
 | M8 | `engine_ffi` (the first allowlisted `unsafe` crate outside `spikes/`; Miri arrives in M3.7); generated header; C# binding and sample; FFI panic policy; evaluation of WASM component-model mods | Binding generator; ownership across the boundary; native or WASM mods |

@@ -99,10 +99,10 @@ proptest! {
 
 #[test]
 fn guide_level_example_order_matters_until_sorted() {
-    let mut ab: IndexSet<u32> = [1, 2].into();
-    let mut ba: IndexSet<u32> = [2, 1].into();
-    assert_ne!(ab, ba);
-    ab.sort();
-    ba.sort();
-    assert_eq!(ab, ba);
+    let mut forward: IndexSet<u32> = [1, 2].into();
+    let mut backward: IndexSet<u32> = [2, 1].into();
+    assert_ne!(forward, backward);
+    forward.sort();
+    backward.sort();
+    assert_eq!(forward, backward);
 }

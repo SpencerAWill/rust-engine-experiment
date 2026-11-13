@@ -353,6 +353,7 @@ disallowed-macros = [
 - **Crate-level opt-outs** for non-simulation crates (`xtask`, `engine_benches`) use `#![allow(...)]` with a comment, not `#![expect(...)]`. A crate-level `expect` that never fires produces an `unfulfilled_lint_expectations` warning, which fails CI under `-D warnings`.
 - **Tests** may use `unwrap`/`expect` via the `allow-*-in-tests` settings above (see §4.2).
 - **Deterministic hash collections:** M1 needs none. The `std` path bans also cover `std::collections::HashMap<K, V, S>` with a custom hasher, which is intended. Deterministic maps will be `engine_collections`' own types (expected in M2), built on a fixed-seed hasher. Whenever a hashing crate is added (e.g. hashbrown, foldhash), its randomly-seeded default types are added to this ban list in the same PR.
+  - **Note (M3.1):** the fixed-seed design above was replaced by insertion-ordered maps and sets, whose iteration order does not depend on the hasher; see the [M3.1 spec](../m3-ecs-storage/m3.1-collections/spec.md). The text above is kept as a record.
 - **Float notes for same-build determinism:**
   - Rust does not contract `a * b + c` into fused multiply-add (FMA) implicitly, and we never enable fast-math.
   - Basic IEEE operations (`+ − × ÷ sqrt`) are bit-reproducible.

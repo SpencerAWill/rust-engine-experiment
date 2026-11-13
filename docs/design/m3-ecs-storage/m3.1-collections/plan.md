@@ -159,3 +159,11 @@ Choices the spec leaves to implementation:
 ## 4. Deviations
 
 - **Model test location (planned).** Spec §8 names `tests/model.rs` for R3. The model tests are unit tests in `src/tests/map_model.rs` and `src/tests/set_model.rs`, because R4's constant hasher is only reachable from inside the crate (§1); the same tests cover R3 and R4.
+- **No `extern crate alloc` (implementation).** Spec §4.1 lists `extern crate alloc`. The crate never names an `alloc` item (the backend owns every allocation), so the declaration would be an unused crate under `rust_2018_idioms`; it is left out. The crate is still `#![no_std]` and builds for `thumbv7em-none-eabihf`.
+- **Single allocation test (Step 5).** The three planned tests are one `#[test]` with three scenarios, because `dhat` allows one profiler per process (the pattern of `engine_handle`'s `fixed_capacity.rs`).
+- **Backend alias (Step 1).** The backend is named through `type Inner<K, V> = indexmap::IndexMap<K, V, Hasher>` with the `#[expect]` on the alias, not `use indexmap::IndexMap as Inner`: with an import, every `Inner::...` call site fires the ban.
+- **Items pulled forward (Steps 2 and 3).** `Debug` and `IntoIterator for &IndexMap` are in Step 2, because clippy's `iter_without_into_iter` and the empty-map `Debug` check need them.
+- **`foldhash::HashMap` and `HashSet` bans (Step 1).** Both fire in a scratch crate with foldhash's default features, but in the workspace (default features off) clippy warns that the two paths "do not refer to a reachable type", because the aliases need foldhash's `std` feature. The warning does not fail CI. The entries stay as a guard in case a crate enables that feature; the maintainer may prefer to drop them.
+- **Tests added by triage (Step 7).** `tests/contracts.rs` (8 tests) closes all 36 mutants missed in the first run.
+- **Typos (Step 8).** `ab`/`ba` in the guide-level example were flagged by `typos`; they are `forward`/`backward` in the spec's example and the crate's doctests and tests.
+- **Not run in this session (Step 6).** `cargo xtask bench-regress` (needs Valgrind; not available on macOS) and the wall-clock comparison with its baseline and noise floor (needs the benchmark protocol on the maintainer's machine). Both are required before the pull request is ready.

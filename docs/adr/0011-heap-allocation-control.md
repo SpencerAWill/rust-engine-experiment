@@ -35,4 +35,4 @@ question was whether callers should be able to supply their own allocator.
 - Retrofitting `A = Global` later is mostly source-compatible, so deferring costs little.
 - Revisit when a concrete need appears (a per-world arena, for example) or when `allocator_api`
   stabilises.
-- Other crates do not allocate, so they need none of this.
+- `engine_collections` also allocates and follows the same capacity controls (`with_capacity`, `reserve`, `try_reserve`: reserved room is used without further allocation), without a fixed-capacity mode. Other crates do not allocate, so they need none of this.

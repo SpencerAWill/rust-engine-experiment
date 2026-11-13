@@ -11,6 +11,7 @@ Experimental. All crates are `0.x`, `publish = false`, and their APIs are explic
 | Crate | Purpose | Why it is a separate crate |
 |---|---|---|
 | `engine_handle` | Generational handles, `HandlePool<T>`, `HandleAllocator<T>` (lean), `DenseHandleAllocator<T>` (iterable) | Platform (`no_std` + `alloc`), dependency-free; FFI exposure; layering |
+| `engine_collections` | Deterministic insertion-ordered `IndexMap<K, V>` and `IndexSet<T>` | Dependencies (`indexmap`, `foldhash`); platform (`no_std` + `alloc`); layering |
 | `engine_random` | Deterministic PRNG with frozen output streams | Stability; platform (`no_std`, no `alloc`); independent reuse |
 | `engine_time` | `Tick`, `FixedTimestep`, `TimeSource`, clocks | Platform (`no_std` core, `std` feature); independent reuse; layering |
 | `engine_math` | glam re-exports, `Transform` (local, large-world, 2D), coordinate conversion | Dependencies (`glam`); platform (`std`) |
@@ -56,8 +57,8 @@ glam's `fast-math` and `scalar-math` features are unsupported. Any crate in your
 ## Platform support
 
 - Native: macOS, Linux, and Windows.
-- `engine_handle`, `engine_random`, and `engine_time` build for `no_std` targets (checked on `thumbv7em-none-eabihf`).
-- `engine` builds for `wasm32-unknown-unknown`, and the leaf crates' and `engine_math`'s tests run on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered.
+- `engine_collections`, `engine_handle`, `engine_random`, and `engine_time` build for `no_std` targets (checked on `thumbv7em-none-eabihf`).
+- `engine` builds for `wasm32-unknown-unknown`, and the leaf crates' (including `engine_collections`) and `engine_math`'s tests run on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered.
 - WASM test notes:
   - proptest is used with `default-features = false`, because its default `fork` and `timeout` features do not compile for WASI.
   - libtest ignores `#[should_panic]` tests on wasm targets other than emscripten, and panics abort on WASI. The documented `# Panics` contracts are therefore tested on native targets only, and proptest failures on WASI abort without shrinking. Reproduce on a native target to shrink.
