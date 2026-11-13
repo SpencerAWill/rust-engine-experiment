@@ -167,7 +167,9 @@ impl<K, V> IndexMap<K, V> {
 
     /// Sorts the entries by key.
     ///
-    /// Keys are unique, so the result is fully determined. It does not allocate.
+    /// Keys are unique, so the result is fully determined, provided `Ord` agrees with `Eq`
+    /// (keys that are equal under `Ord` but distinct under `Eq` end up in an unspecified
+    /// order). It does not allocate.
     pub fn sort_keys(&mut self)
     where
         K: Ord,

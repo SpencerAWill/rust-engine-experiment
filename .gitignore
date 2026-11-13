@@ -22,3 +22,6 @@ target
 
 # Node tooling (pnpm workspace)
 node_modules/
+
+# dhat writes its profile next to the crate when a test drops the profiler
+dhat-heap*.json

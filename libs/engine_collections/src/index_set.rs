@@ -150,7 +150,9 @@ impl<T> IndexSet<T> {
 
     /// Sorts the items.
     ///
-    /// Items are unique, so the result is fully determined. It does not allocate.
+    /// Items are unique, so the result is fully determined, provided `Ord` agrees with `Eq`
+    /// (items that are equal under `Ord` but distinct under `Eq` end up in an unspecified
+    /// order). It does not allocate.
     pub fn sort(&mut self)
     where
         T: Ord,
