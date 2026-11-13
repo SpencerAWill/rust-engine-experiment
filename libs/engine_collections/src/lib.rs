@@ -11,6 +11,7 @@
 //! change in any release.
 
 #[cfg(test)]
+#[macro_use]
 extern crate std;
 
 mod error;
@@ -19,3 +20,6 @@ pub mod index_map;
 
 pub use error::TryReserveError;
 pub use index_map::IndexMap;
+
+#[cfg(test)]
+mod tests;
