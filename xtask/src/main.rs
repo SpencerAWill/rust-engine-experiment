@@ -9,6 +9,7 @@
 //! `cargo xtask <command>`: the single entry point that CI and humans both run.
 
 mod bench_doc;
+mod bench_regress;
 mod bench_report;
 mod check_statics;
 mod check_unsafe;
@@ -48,6 +49,8 @@ enum Command {
     BenchBuild,
     BenchSmoke,
     BenchDoc(bench_doc::Options),
+    BenchRegress(bench_regress::Options),
+    GungraunVersion,
     Hack,
     Coverage(coverage::Options),
     Mutants(mutants::Options),
@@ -69,7 +72,7 @@ enum Command {
 /// Parses command-line arguments (without the program name).
 fn parse(args: &[&str]) -> Result<Command, String> {
     let (name, flags) = args.split_first().ok_or_else(|| {
-        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE], fuzz, ci)"
+        "missing command (try: fmt, clippy, test, doc, deny, bench-regress [--base REV] [--report-only], coverage [--open], mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE], fuzz, ci)"
             .to_string()
     })?;
     let has = |flag: &str| flags.contains(&flag);
@@ -99,6 +102,8 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "bench-build" => only(&[]).map(|()| Command::BenchBuild),
         "bench-smoke" => only(&[]).map(|()| Command::BenchSmoke),
         "bench-doc" => bench_doc::parse_flags(flags).map(Command::BenchDoc),
+        "bench-regress" => bench_regress::parse_flags(flags).map(Command::BenchRegress),
+        "gungraun-version" => only(&[]).map(|()| Command::GungraunVersion),
         "hack" => only(&[]).map(|()| Command::Hack),
         "coverage" => coverage::parse_flags(flags).map(Command::Coverage),
         "mutants" => mutants::parse_flags(flags).map(Command::Mutants),
@@ -427,6 +432,8 @@ fn execute(command: &Command) -> Result<(), String> {
             &[],
         ),
         Command::BenchDoc(options) => bench_doc::run(options),
+        Command::BenchRegress(options) => bench_regress::bench_regress(options),
+        Command::GungraunVersion => bench_regress::print_gungraun_version(),
         Command::Hack => {
             require_cargo_subcommand("hack", "cargo install --locked cargo-hack")?;
             run(
@@ -447,14 +454,18 @@ fn execute(command: &Command) -> Result<(), String> {
             require_tool("typos", "cargo install --locked typos-cli")?;
             run("typos", &[], &[])
         }
-        Command::BenchSmoke => run(
-            "cargo",
-            &bench_smoke_args()
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>(),
-            &[],
-        ),
+        Command::BenchSmoke => {
+            // Gungraun's test mode still starts the runner, though not Valgrind.
+            require_tool("gungraun-runner", bench_regress::RUNNER_INSTALL_HINT)?;
+            run(
+                "cargo",
+                &bench_smoke_args()
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                &[],
+            )
+        }
         Command::Bench {
             save,
             compare,
@@ -733,6 +744,28 @@ mod tests {
                 "--no-run"
             ]
         );
+    }
+
+    #[test]
+    fn bench_regress_and_gungraun_version_parse_and_stay_out_of_ci() {
+        assert_eq!(
+            parse(&["bench-regress", "--base", "HEAD^1", "--report-only"]),
+            Ok(Command::BenchRegress(bench_regress::Options {
+                base: Some("HEAD^1".to_string()),
+                report_only: true,
+            }))
+        );
+        assert_eq!(parse(&["gungraun-version"]), Ok(Command::GungraunVersion));
+        assert!(parse(&["gungraun-version", "--x"]).is_err());
+        // It needs Valgrind and a base commit, so it is its own workflow (spec §4.6, R12).
+        for quick in [false, true] {
+            let steps = ci_steps(quick);
+            assert!(
+                !steps
+                    .iter()
+                    .any(|c| matches!(c, Command::BenchRegress(_) | Command::GungraunVersion))
+            );
+        }
     }
 
     #[test]
