@@ -22,7 +22,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable && rustup override set stable
+      # The pinned toolchain's targets (rust-toolchain.toml) are not on a bare `stable`, and the
+      # `no-std` and `wasm` steps of `ci` need them.
+      - run: rustup toolchain install stable --target thumbv7em-none-eabihf --target wasm32-unknown-unknown --target wasm32-wasip1 && rustup override set stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
