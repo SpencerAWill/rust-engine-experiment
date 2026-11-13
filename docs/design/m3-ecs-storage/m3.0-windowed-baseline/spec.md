@@ -1,6 +1,6 @@
 # M3.0: Windowed baseline sample
 
-- **Status:** Accepted (2026-11-13)
+- **Status:** Implemented (PR #24, 2026-11-13).
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** none · **Decides:** no ADR
 - **Estimated size:** about 750 changed lines, excluding tests, lockfiles and generated files (`examples/agents_2d` library about 350, binary about 200, roadmap, README, CHANGELOG and this chunk's documents about 200)
 
@@ -282,12 +282,12 @@ The M2 chunk table stays as a record.
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes on macOS, and CI is green on all three platforms.
-- [ ] `cargo run -p agents_2d --release` opens a window on macOS where seekers chase the cursor, pause works and the title updates.
-- [ ] `--headless` prints the golden checksum.
-- [ ] The roadmap shows M3 `Current` with its chunk table, and M7's new open question.
-- [ ] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
+- [x] `cargo xtask ci` passes on macOS, and CI is green on all three platforms.
+- [x] `cargo run -p agents_2d --release` opens a window on macOS where seekers chase the cursor, pause works and the title updates.
+- [x] `--headless` prints the golden checksum.
+- [x] The roadmap shows M3 `Current` with its chunk table, and M7's new open question.
+- [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
+- [x] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
 
 ## 10. Open questions
 
