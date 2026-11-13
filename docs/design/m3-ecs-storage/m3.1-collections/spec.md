@@ -293,7 +293,7 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 
 - [x] `cargo xtask ci` passes locally and CI is green on all three platforms.
 - [x] The model tests pass with the real hasher and with the constant hasher.
-- [ ] `cargo xtask bench-regress` passes (it does, in CI; the devcontainer run was not made), and the wall-clock comparison is in the pull request with its baseline and noise floor.
+- [x] `cargo xtask bench-regress` passes (in CI; no devcontainer run was made), and the wall-clock comparison is in the pull request with its baseline and noise floor.
 - [x] Every new clippy ban is shown to fire.
 - [x] The mutation triage is recorded.
 - [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
