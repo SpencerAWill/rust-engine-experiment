@@ -69,7 +69,7 @@ enum Command {
 /// Parses command-line arguments (without the program name).
 fn parse(args: &[&str]) -> Result<Command, String> {
     let (name, flags) = args.split_first().ok_or_else(|| {
-        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], mutants [-p PACKAGE]... [-j N] [--list], fuzz, ci)"
+        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE], fuzz, ci)"
             .to_string()
     })?;
     let has = |flag: &str| flags.contains(&flag);

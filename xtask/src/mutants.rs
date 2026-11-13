@@ -28,7 +28,7 @@ const OUT_DIR: &str = "target/mutants";
 /// The configuration file, relative to the workspace root.
 const CONFIG: &str = ".cargo/mutants.toml";
 
-/// Options of `mutants [-p PACKAGE]... [-j N] [--list]`.
+/// Options of `mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE]`.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Options {
     /// Packages to test; empty means the triaged set.
@@ -37,6 +37,8 @@ pub(crate) struct Options {
     jobs: Option<NonZeroU32>,
     /// Check the exclusions and list the mutants instead of running them.
     list: bool,
+    /// Test only the mutants in code that a unified diff file changes (`cargo mutants --in-diff`).
+    in_diff: Option<String>,
 }
 
 /// Parses the arguments that follow `mutants`.
@@ -45,6 +47,7 @@ pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String> {
         packages: Vec::new(),
         jobs: None,
         list: false,
+        in_diff: None,
     };
     let mut it = flags.iter();
     while let Some(flag) = it.next() {
@@ -64,6 +67,13 @@ pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String> {
                     })?);
             }
             "--list" => options.list = true,
+            "--in-diff" => {
+                let file = it.next().ok_or("`--in-diff` needs a diff file")?;
+                if options.in_diff.is_some() {
+                    return Err("`--in-diff` given more than once".to_string());
+                }
+                options.in_diff = Some((*file).to_string());
+            }
             other => return Err(format!("unknown flag `{other}` for `mutants`")),
         }
     }
@@ -83,13 +93,16 @@ fn package_args(packages: &[String]) -> impl Iterator<Item = String> + '_ {
     packages.iter().flat_map(|p| ["-p".to_string(), p.clone()])
 }
 
-/// The `cargo mutants` command line of a run. It passes no filter (`-F`, `-E`, `-f`), so the
-/// exclusions in the configuration apply unchanged.
+/// The `cargo mutants` command line of a run. It passes no name filter (`-F`, `-E`, `-f`), so the
+/// exclusions in the configuration apply unchanged; `--in-diff` only narrows the run to changed code.
 fn run_args(options: &Options) -> Vec<String> {
     let mut args: Vec<String> = ["mutants", "--output", OUT_DIR].map(String::from).into();
     args.extend(package_args(&packages(options)));
     if let Some(jobs) = options.jobs {
         args.extend(["--jobs".to_string(), jobs.to_string()]);
+    }
+    if let Some(file) = &options.in_diff {
+        args.extend(["--in-diff".to_string(), file.clone()]);
     }
     args
 }
@@ -129,7 +142,7 @@ fn interpret(code: Option<i32>) -> Result<(), String> {
         Some(0 | 2 | 3) => return Ok(()),
         Some(1) => "usage error".to_string(),
         Some(4) => "the unmutated tests fail or hang (baseline failure)".to_string(),
-        Some(5 | 6) => "a problem with `--in-diff`, which this command never passes".to_string(),
+        Some(5 | 6) => "a problem with the `--in-diff` file".to_string(),
         Some(70) => "internal error in cargo-mutants".to_string(),
         Some(_) => "unexpected exit code".to_string(),
         None => return Err("cargo mutants was stopped by a signal".to_string()),
@@ -248,6 +261,28 @@ pub(crate) fn mutants(options: &Options) -> Result<(), String> {
         .map_err(|e| format!("failed to start `cargo {}`: {e}", args.join(" ")))?;
     interpret(status.code())?;
 
+    let header = summary::Header {
+        version: version.trim(),
+        packages: &selected,
+        excluded_mutants: excluded,
+        exclude_entries: entries.len(),
+    };
+    let out_dir = root.join(OUT_DIR);
+    // A diff with no mutants in it leaves `cargo-mutants` nothing to run, and it writes no output.
+    let table = if options.in_diff.is_some() && !out_dir.join("mutants.out").exists() {
+        summary::render_no_mutants(&header)
+    } else {
+        render_outcomes(root, &header)?
+    };
+    let path = out_dir.join("summary.md");
+    std::fs::create_dir_all(&out_dir).map_err(|e| format!("{}: {e}", out_dir.display()))?;
+    std::fs::write(&path, &table).map_err(|e| format!("{}: {e}", path.display()))?;
+    println!("\n{table}");
+    Ok(())
+}
+
+/// Reads the four outcome files of the last run and renders them.
+fn render_outcomes(root: &Path, header: &summary::Header<'_>) -> Result<String, String> {
     let (caught, missed) = (
         read_outcome(root, "caught.txt")?,
         read_outcome(root, "missed.txt")?,
@@ -256,24 +291,15 @@ pub(crate) fn mutants(options: &Options) -> Result<(), String> {
         read_outcome(root, "timeout.txt")?,
         read_outcome(root, "unviable.txt")?,
     );
-    let table = summary::render(
-        &summary::Header {
-            version: version.trim(),
-            packages: &selected,
-            excluded_mutants: excluded,
-            exclude_entries: entries.len(),
-        },
+    summary::render(
+        header,
         &summary::Outcomes {
             caught: &caught,
             missed: &missed,
             timeout: &timeout,
             unviable: &unviable,
         },
-    )?;
-    let path = root.join(OUT_DIR).join("summary.md");
-    std::fs::write(&path, &table).map_err(|e| format!("{}: {e}", path.display()))?;
-    println!("\n{table}");
-    Ok(())
+    )
 }
 
 #[cfg(test)]
@@ -286,7 +312,22 @@ mod tests {
             packages: packages.iter().map(|p| (*p).to_string()).collect(),
             jobs: jobs.and_then(NonZeroU32::new),
             list,
+            in_diff: None,
         }
+    }
+
+    #[test]
+    fn in_diff_is_passed_through_once() {
+        let parsed = parse_flags(&["--in-diff", "target/pr.diff", "-j", "2"]).unwrap();
+        assert_eq!(parsed.in_diff.as_deref(), Some("target/pr.diff"));
+        assert!(parse_flags(&["--in-diff"]).is_err());
+        assert!(parse_flags(&["--in-diff", "a", "--in-diff", "b"]).is_err());
+        let args = run_args(&parsed);
+        assert_eq!(
+            &args[args.len() - 4..],
+            ["--jobs", "2", "--in-diff", "target/pr.diff"]
+        );
+        assert!(!run_args(&opts(&[], None, false)).contains(&"--in-diff".to_string()));
     }
 
     #[test]

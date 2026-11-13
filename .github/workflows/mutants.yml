@@ -1,9 +1,13 @@
 name: Mutants
 
 # Report-only mutation testing of the triaged crates (docs/mutation-triage.md). It fails only
-# when the setup is broken, never because a mutant was missed. The pull_request trigger is limited
-# to the mutants tooling so that a change to it runs the job before merge; a workflow can only be
-# dispatched by hand once it exists on the default branch.
+# when the setup is broken, never because a mutant was missed.
+#
+# Weekly and on dispatch it runs every mutant (about 20 minutes). On a pull request it runs only
+# the mutants in the code the pull request changes, so a change to the triaged crates or to the
+# mutants tooling gets a result in a few minutes. The pull_request trigger also lets a change to
+# this workflow run before merge: a workflow can only be dispatched by hand once it exists on the
+# default branch.
 on:
   schedule:
     - cron: "0 8 * * 0" # Sundays 08:00 UTC, after the nightly run
@@ -15,6 +19,8 @@ on:
       - .github/workflows/mutants.yml
       - xtask/src/mutants.rs
       - xtask/src/mutants/**
+      - libs/engine_handle/src/**
+      - libs/engine_random/src/**
 
 # Least privilege: nothing here writes to the repository.
 permissions:
@@ -22,8 +28,9 @@ permissions:
 
 jobs:
   mutants:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,6 +46,34 @@ jobs:
       # Runs only on success: a failed run has no summary.
       - run: cat target/mutants/summary.md >> "$GITHUB_STEP_SUMMARY"
       # Also after a failure: the logs of a failed run explain it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutants-out
+          path: target/mutants/mutants.out
+          retention-days: 30
+
+  # Only the mutants in changed code. The pull request is checked out as a merge commit, whose
+  # first parent is the base branch, so `HEAD^1..HEAD` is exactly what the pull request changes.
+  mutants-changed:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-mutants@27.1.0,cargo-nextest
+      # Checks the exclusion list without running any mutant.
+      - run: cargo xtask mutants --list > /dev/null
+      - run: mkdir -p target && git diff HEAD^1 HEAD > target/pr.diff
+      - run: cargo xtask mutants -j 2 --in-diff target/pr.diff
+      - run: cat target/mutants/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

@@ -104,6 +104,16 @@ fn names(file: &str) -> impl Iterator<Item = &str> {
     file.lines().map(str::trim).filter(|l| !l.is_empty())
 }
 
+/// The summary of a run limited to a diff (`--in-diff`) that contains no mutants: `cargo-mutants`
+/// then writes no outcome files, so there is no table to build.
+pub(super) fn render_no_mutants(header: &Header<'_>) -> String {
+    format!(
+        "## Mutation testing\n\n{}; packages: {}; No mutant is in the code the diff changes, so nothing was run.\n",
+        header.version,
+        header.packages.join(", ")
+    )
+}
+
 /// Renders the summary: a heading line, the per-crate table, and the missed mutants.
 ///
 /// # Errors
@@ -327,5 +337,21 @@ mod tests {
             ..EMPTY
         };
         assert!(render(&header(&pkgs), &outcomes).is_ok());
+    }
+
+    #[test]
+    fn a_diff_without_mutants_says_nothing_was_run() {
+        let pkgs = packages(&["engine_handle", "engine_random"]);
+        let out = render_no_mutants(&header(&pkgs));
+        assert!(out.starts_with("## Mutation testing\n\n"), "{out}");
+        assert!(
+            out.contains("cargo-mutants 27.1.0; packages: engine_handle, engine_random;"),
+            "{out}"
+        );
+        assert!(
+            out.contains("No mutant is in the code the diff changes"),
+            "{out}"
+        );
+        assert!(!out.contains('|'), "{out}");
     }
 }
