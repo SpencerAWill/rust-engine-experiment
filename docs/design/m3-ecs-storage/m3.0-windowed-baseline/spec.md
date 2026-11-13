@@ -1,6 +1,6 @@
 # M3.0: Windowed baseline sample
 
-- **Status:** Draft (2026-11-13)
+- **Status:** Accepted (2026-11-13)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** none · **Decides:** no ADR
 - **Estimated size:** about 750 changed lines, excluding tests, lockfiles and generated files (`examples/agents_2d` library about 350, binary about 200, roadmap, README, CHANGELOG and this chunk's documents about 200)
 
