@@ -12,11 +12,16 @@
 //! # Examples
 //!
 //! ```
-//! use agents_2d::{Sim, SimConfig};
+//! use agents_2d::{Input, Sim, SimConfig};
 //!
-//! let sim = Sim::new(&SimConfig { agents: 1_000, ..SimConfig::default() });
-//! assert_eq!(sim.summary().agents, 1_000);
-//! assert_eq!(sim.tick(), 0);
+//! let mut sim = Sim::new(&SimConfig { agents: 1_000, ..SimConfig::default() });
+//! for _ in 0..120 {
+//!     let input = Input::scripted(sim.tick());
+//!     sim.step(&input);
+//! }
+//! let summary = sim.summary();
+//! assert_eq!(summary.agents, 1_000);
+//! assert_eq!(summary.tick, 120);
 //! ```
 
 use core::num::NonZeroU32;
@@ -230,6 +235,147 @@ pub fn agent_hash(agent: &Agent) -> u64 {
     }
 }
 
+/// What the host tells the simulation each step.
+///
+/// # Examples
+///
+/// ```
+/// use agents_2d::Input;
+/// use engine::prelude::*;
+///
+/// let input = Input { cursor: Some(Vec2::new(10.0, 20.0)) };
+/// assert!(input.cursor.is_some());
+/// assert_eq!(Input::default().cursor, None);
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Input {
+    /// The cursor in world space, or `None` when it is not inside the world.
+    pub cursor: Option<Vec2>,
+}
+
+impl Input {
+    /// The scripted cursor used by headless runs, tests and benchmarks.
+    ///
+    /// One period in three (`(tick / 600) % 3 == 2`) has no cursor. Otherwise the cursor moves
+    /// along the world's diagonal and back every 600 ticks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use agents_2d::Input;
+    /// use engine::prelude::*;
+    ///
+    /// assert_eq!(Input::scripted(150).cursor, Some(Vec2::new(160.0, 90.0)));
+    /// assert_eq!(Input::scripted(1200).cursor, None);
+    /// ```
+    #[must_use]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "phase is below 600, which f32 represents exactly"
+    )]
+    pub fn scripted(tick: u64) -> Self {
+        if (tick / 600) % 3 == 2 {
+            return Self { cursor: None };
+        }
+        let phase = tick % 600;
+        let f = if phase < 300 {
+            phase as f32 / 300.0
+        } else {
+            (600 - phase) as f32 / 300.0
+        };
+        Self {
+            cursor: Some(Vec2::new(WORLD_WIDTH * f, WORLD_HEIGHT * f)),
+        }
+    }
+}
+
+/// Applies rules 1 to 4 of the spec (§4.3) to one agent, written component by component in the
+/// spec's operation order so any storage can reproduce the result bit for bit.
+fn update(agent: &mut Agent, cursor: Option<Vec2>, dt: f32) {
+    let mut p = agent.transform.translation;
+    let mut v = agent.velocity;
+
+    // 1. Steer or catch.
+    if let (Some(seeker), Some(c)) = (agent.seeker, cursor) {
+        let dx = c.x - p.x;
+        let dy = c.y - p.y;
+        let len2 = dx * dx + dy * dy;
+        if len2 <= CATCH_RADIUS * CATCH_RADIUS {
+            agent.seeker = None;
+        } else {
+            let len = len2.sqrt();
+            let k = seeker.acceleration * dt;
+            v.x += (dx / len) * k;
+            v.y += (dy / len) * k;
+            let s2 = v.x * v.x + v.y * v.y;
+            if s2 > MAX_SPEED * MAX_SPEED {
+                let f = MAX_SPEED / s2.sqrt();
+                v.x *= f;
+                v.y *= f;
+            }
+        }
+    }
+
+    // 2. Move.
+    p.x += v.x * dt;
+    p.y += v.y * dt;
+
+    // 3. Bounce. The comparisons are strict: an agent exactly on an edge does not bounce.
+    let mut bounced = false;
+    if p.x < 0.0 {
+        p.x = 0.0;
+        v.x = v.x.abs();
+        bounced = true;
+    } else if p.x > WORLD_WIDTH {
+        p.x = WORLD_WIDTH;
+        v.x = -v.x.abs();
+        bounced = true;
+    }
+    if p.y < 0.0 {
+        p.y = 0.0;
+        v.y = v.y.abs();
+        bounced = true;
+    } else if p.y > WORLD_HEIGHT {
+        p.y = WORLD_HEIGHT;
+        v.y = -v.y.abs();
+        bounced = true;
+    }
+    if bounced && agent.seeker.is_none() {
+        agent.seeker = Some(Seeker {
+            acceleration: GAINED_ACCELERATION,
+        });
+    }
+
+    // 4. Age.
+    agent.ttl = agent.ttl.saturating_sub(1);
+
+    agent.transform.translation = p;
+    agent.velocity = v;
+}
+
+/// Creates a [`Sim`] from `config`, steps it `ticks` times with [`Input::scripted`], and returns
+/// its summary.
+///
+/// # Examples
+///
+/// ```
+/// use agents_2d::{SimConfig, run};
+///
+/// let config = SimConfig { agents: 100, ..SimConfig::default() };
+/// let summary = run(&config, 60);
+/// assert_eq!(summary.tick, 60);
+/// assert_eq!(summary, run(&config, 60));
+/// ```
+#[must_use]
+pub fn run(config: &SimConfig, ticks: u64) -> SimSummary {
+    let mut sim = Sim::new(config);
+    for _ in 0..ticks {
+        let input = Input::scripted(sim.tick());
+        sim.step(&input);
+    }
+    sim.summary()
+}
+
 /// The complete simulation state: plain data, so cloning it snapshots the simulation.
 ///
 /// # Examples
@@ -242,7 +388,6 @@ pub fn agent_hash(agent: &Agent) -> u64 {
 /// assert_eq!(sim.checksum(), snapshot.checksum());
 /// ```
 #[derive(Clone, Debug)]
-#[expect(dead_code, reason = "read by `step`, added in the next commit")]
 pub struct Sim {
     agents: Vec<Agent>,
     prng: Prng,
@@ -295,6 +440,25 @@ impl Sim {
     #[must_use]
     pub fn agents(&self) -> &[Agent] {
         &self.agents
+    }
+
+    /// Advances the simulation by one fixed step.
+    ///
+    /// Every agent is updated by the rules of spec §4.3 (steer or catch, move, bounce, age); then
+    /// agents whose time to live ran out are removed, new agents are spawned until the
+    /// population is back at its target, and the tick counter increases. Agents spawned during a
+    /// step are not updated in that step, and the storage order afterwards is unspecified.
+    pub fn step(&mut self, input: &Input) {
+        let dt = self.dt;
+        for agent in &mut self.agents {
+            update(agent, input.cursor, dt);
+        }
+        self.agents.retain(|a| a.ttl > 0);
+        while self.agents.len() < self.target {
+            self.agents.push(spawn_agent(&self.prng, self.next_id));
+            self.next_id += 1;
+        }
+        self.tick += 1;
     }
 
     /// The wrapping sum of [`agent_hash`] over every agent.
@@ -426,5 +590,206 @@ mod tests {
         });
         assert_eq!(sim.checksum(), 0);
         assert_eq!(sim.summary().agents, 0);
+    }
+
+    fn dt() -> f32 {
+        Sim::new(&SimConfig {
+            agents: 0,
+            ..SimConfig::default()
+        })
+        .dt()
+    }
+
+    fn agent(x: f32, y: f32, vx: f32, vy: f32, seeker: Option<f32>) -> Agent {
+        Agent {
+            id: 0,
+            transform: Transform2d::IDENTITY.with_translation(Vec2::new(x, y)),
+            velocity: Vec2::new(vx, vy),
+            ttl: 100,
+            seeker: seeker.map(|acceleration| Seeker { acceleration }),
+        }
+    }
+
+    #[test]
+    fn seeker_steers_toward_the_cursor() {
+        let dt = dt();
+        let mut a = agent(100.0, 90.0, 0.0, 0.0, Some(60.0));
+        update(&mut a, Some(Vec2::new(200.0, 90.0)), dt);
+        assert!(a.velocity.x > 0.0);
+        assert_eq!(a.velocity.y, 0.0);
+        assert_eq!(a.velocity.x, 60.0 * dt);
+    }
+
+    #[test]
+    fn steering_clamps_speed() {
+        let mut a = agent(100.0, 90.0, 30.0, 0.0, Some(60.0));
+        update(&mut a, Some(Vec2::new(200.0, 90.0)), dt());
+        let (vx, vy) = (a.velocity.x, a.velocity.y);
+        assert!(vx * vx + vy * vy <= MAX_SPEED * MAX_SPEED * (1.0 + 1e-6));
+        assert!(vx > 29.0, "still moving toward the cursor");
+    }
+
+    #[test]
+    fn exactly_at_the_catch_radius_catches() {
+        let mut a = agent(100.0, 90.0, 1.0, 2.0, Some(60.0));
+        update(&mut a, Some(Vec2::new(100.0 + CATCH_RADIUS, 90.0)), dt());
+        assert_eq!(a.seeker, None);
+        assert_eq!(a.velocity, Vec2::new(1.0, 2.0));
+    }
+
+    #[test]
+    fn cursor_on_the_agent_catches_without_nan() {
+        let mut a = agent(100.0, 90.0, 1.0, 2.0, Some(60.0));
+        update(&mut a, Some(Vec2::new(100.0, 90.0)), dt());
+        assert_eq!(a.seeker, None);
+        assert_eq!(a.velocity, Vec2::new(1.0, 2.0));
+        assert!(a.transform.translation.is_finite());
+    }
+
+    #[test]
+    fn wanderer_ignores_the_cursor() {
+        let mut a = agent(100.0, 90.0, 1.0, 2.0, None);
+        update(&mut a, Some(Vec2::new(200.0, 90.0)), dt());
+        assert_eq!(a.velocity, Vec2::new(1.0, 2.0));
+        assert_eq!(a.seeker, None);
+    }
+
+    #[test]
+    fn each_edge_clamps_and_reflects() {
+        // (x, y, vx, vy) moving out of the world, and the expected (x, y, vx, vy) after one tick.
+        let cases = [
+            ((0.5, 90.0, -60.0, 7.0), (0.0, 90.0 + 7.0 * dt(), 60.0, 7.0)),
+            (
+                (319.5, 90.0, 60.0, 7.0),
+                (320.0, 90.0 + 7.0 * dt(), -60.0, 7.0),
+            ),
+            (
+                (100.0, 0.5, 7.0, -60.0),
+                (100.0 + 7.0 * dt(), 0.0, 7.0, 60.0),
+            ),
+            (
+                (100.0, 179.5, 7.0, 60.0),
+                (100.0 + 7.0 * dt(), 180.0, 7.0, -60.0),
+            ),
+        ];
+        for ((x, y, vx, vy), (ex, ey, evx, evy)) in cases {
+            let mut w = agent(x, y, vx, vy, None);
+            update(&mut w, None, dt());
+            assert_eq!(
+                w.transform.translation,
+                Vec2::new(ex, ey),
+                "wanderer {x},{y}"
+            );
+            assert_eq!(w.velocity, Vec2::new(evx, evy), "wanderer {x},{y}");
+            assert_eq!(
+                w.seeker,
+                Some(Seeker {
+                    acceleration: GAINED_ACCELERATION
+                })
+            );
+
+            let mut s = agent(x, y, vx, vy, Some(50.0));
+            update(&mut s, None, dt());
+            assert_eq!(
+                s.seeker,
+                Some(Seeker { acceleration: 50.0 }),
+                "seeker {x},{y}"
+            );
+        }
+    }
+
+    #[test]
+    fn exactly_on_the_edge_does_not_bounce() {
+        for (x, y) in [(0.0, 90.0), (320.0, 90.0), (100.0, 0.0), (100.0, 180.0)] {
+            let mut a = agent(x, y, 0.0, 0.0, None);
+            update(&mut a, None, dt());
+            assert_eq!(a.transform.translation, Vec2::new(x, y));
+            assert_eq!(a.seeker, None, "bounced at {x},{y}");
+        }
+    }
+
+    #[test]
+    fn caught_then_bounced_is_a_seeker_again() {
+        let mut a = agent(0.5, 90.0, -60.0, 0.0, Some(50.0));
+        update(&mut a, Some(Vec2::new(2.0, 90.0)), dt());
+        assert_eq!(
+            a.seeker,
+            Some(Seeker {
+                acceleration: GAINED_ACCELERATION
+            })
+        );
+        assert_eq!(a.transform.translation.x, 0.0);
+    }
+
+    #[test]
+    fn update_ages_the_agent() {
+        let mut a = agent(100.0, 90.0, 0.0, 0.0, None);
+        update(&mut a, None, dt());
+        assert_eq!(a.ttl, 99);
+    }
+
+    #[test]
+    fn expired_agents_are_replaced_with_new_ids() {
+        let mut sim = Sim::new(&SimConfig {
+            agents: 10,
+            ..SimConfig::default()
+        });
+        for a in &mut sim.agents {
+            a.ttl = 1;
+        }
+        sim.step(&Input::default());
+        assert_eq!(sim.agents().len(), 10);
+        let mut ids: Vec<u64> = sim.agents().iter().map(|a| a.id).collect();
+        ids.sort_unstable();
+        assert_eq!(ids, (10..20).collect::<Vec<u64>>());
+        assert_eq!(sim.tick(), 1);
+    }
+
+    #[test]
+    fn step_ignores_storage_order() {
+        let mut a = Sim::new(&SimConfig {
+            agents: 1_000,
+            ..SimConfig::default()
+        });
+        for _ in 0..50 {
+            a.step(&Input::scripted(a.tick()));
+        }
+        let mut b = a.clone();
+        b.agents.reverse();
+        assert_eq!(a.checksum(), b.checksum());
+        while a.tick() < 300 {
+            let input = Input::scripted(a.tick());
+            a.step(&input);
+            b.step(&input);
+            assert_eq!(a.checksum(), b.checksum(), "tick {}", a.tick());
+        }
+    }
+
+    #[test]
+    fn transforms_keep_identity_rotation_and_scale() {
+        let mut sim = Sim::new(&SimConfig {
+            agents: 500,
+            ..SimConfig::default()
+        });
+        for _ in 0..600 {
+            sim.step(&Input::scripted(sim.tick()));
+        }
+        for a in sim.agents() {
+            assert_eq!(a.transform.rotation, 0.0);
+            assert_eq!(a.transform.scale, Vec2::ONE);
+        }
+    }
+
+    #[test]
+    fn scripted_input_follows_the_spec() {
+        let at = |t| Input::scripted(t).cursor;
+        assert_eq!(at(0), Some(Vec2::new(0.0, 0.0)));
+        assert_eq!(at(150), Some(Vec2::new(160.0, 90.0)));
+        assert_eq!(at(300), Some(Vec2::new(320.0, 180.0)));
+        assert_eq!(at(450), Some(Vec2::new(160.0, 90.0)));
+        let f = 1.0_f32 / 300.0;
+        assert_eq!(at(599), Some(Vec2::new(WORLD_WIDTH * f, WORLD_HEIGHT * f)));
+        assert_eq!(at(1200), None);
+        assert_eq!(at(1799), None);
     }
 }
