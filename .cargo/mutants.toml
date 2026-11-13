@@ -1,7 +1,22 @@
-# Shared cargo-mutants settings; see CONTRIBUTING.md "Mutation testing".
+# Shared cargo-mutants settings, used by `cargo xtask mutants` and by a plain `cargo mutants`.
+# See CONTRIBUTING.md "Mutation testing" and docs/mutation-triage.md for how exclusions are made.
 test_tool = "nextest"
 all_features = true
 additional_cargo_test_args = ["--run-ignored", "all"]
 cap_lints = true
 gitignore = true
-exclude_re = []
+
+exclude_re = [
+    # Equivalent: the index occupies bits 32..64 and the generation bits 0..32, so the two never
+    # share a set bit and `|` and `^` agree.
+    '^libs/engine_handle/src/handle\.rs:.*replace \| with \^ in Handle<T>::to_bits',
+    # Equivalent: `VACANT_BIT | next` with `next < MAX_SLOTS` (checked by the line above), so
+    # `next` never has the top bit and `|` and `^` agree.
+    '^libs/engine_handle/src/slots\.rs:.*replace \| with \^ in Slot::set_state',
+    # Equivalent: an occupied slot's link is below the dense length, and every vacant or retired
+    # link is at least `VACANT_BIT`, far above any length, so `<` and `<=` agree.
+    '^libs/engine_handle/src/pool\.rs:.*replace < with <= in HandlePool<T>::resolve',
+    # Equivalent: `type_name` never contains a lone `:`, so the guard is true whenever the byte
+    # is `:`, which is the only time the arm is reached.
+    '^libs/engine_handle/src/handle\.rs:.*replace match guard bytes\.get\(i \+ 1\) == Some\(&b.:.\) with true in write_short_type_name',
+]
