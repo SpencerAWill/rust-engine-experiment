@@ -2,11 +2,20 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 
 disallowed-types = [
-  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use BTreeMap (or engine_collections' deterministic map once it exists)" },
-  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use BTreeSet (or engine_collections' deterministic set once it exists)" },
+  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use engine_collections::IndexMap" },
+  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use engine_collections::IndexSet" },
   { path = "std::hash::RandomState",    reason = "OS-seeded; breaks same-build determinism" },
+  { path = "indexmap::IndexMap", reason = "with indexmap's `std` feature (enabled in the workspace by other dependencies) its default hasher is std's RandomState, which the RandomState ban does not catch through a defaulted type parameter; use engine_collections" },
+  { path = "indexmap::IndexSet", reason = "with indexmap's `std` feature (enabled in the workspace by other dependencies) its default hasher is std's RandomState, which the RandomState ban does not catch through a defaulted type parameter; use engine_collections" },
+  { path = "foldhash::fast::RandomState", reason = "randomly seeded; breaks same-build determinism" },
+  { path = "foldhash::quality::RandomState", reason = "randomly seeded; breaks same-build determinism" },
+  { path = "foldhash::HashMap", reason = "randomly seeded; use engine_collections::IndexMap" },
+  { path = "foldhash::HashSet", reason = "randomly seeded; use engine_collections::IndexSet" },
 ]
 disallowed-methods = [
+  { path = "foldhash::fast::SeedableRandomState::random", reason = "randomly seeded; breaks same-build determinism" },
+  { path = "foldhash::quality::SeedableRandomState::random", reason = "randomly seeded; breaks same-build determinism" },
+  { path = "foldhash::SharedSeed::global_random", reason = "randomly seeded; breaks same-build determinism" },
   { path = "std::time::Instant::now",    reason = "ambient time; take a TimeSource parameter" },
   { path = "std::time::SystemTime::now", reason = "ambient time; take a TimeSource parameter" },
   { path = "f32::sin", reason = "transcendental: use engine_math::scalar::sin (spec §4.9)" },

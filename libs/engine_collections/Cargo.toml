@@ -1,0 +1,21 @@
+[package]
+name = "engine_collections"
+description = "Deterministic insertion-ordered hash map and set"
+keywords = ["collections", "deterministic", "gamedev", "no-std"]
+categories = ["data-structures", "no-std"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+indexmap = { workspace = true }
+foldhash = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
