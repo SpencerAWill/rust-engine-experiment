@@ -139,40 +139,47 @@ The command MUST run these steps in order:
    - the base has no `bench-regress/Cargo.toml` (`git cat-file -e <base>:bench-regress/Cargo.toml`): "every benchmark is new";
    - the `gungraun` version in the base's `Cargo.lock` (`git show <base>:Cargo.lock`) differs from the head's: "not compared: gungraun changed from X to Y". The runner installed for the head cannot run a bench binary built against another library version, and baselines from different Gungraun versions are not assumed comparable. Such a pull request (normally a Dependabot bump) passes the gate without a comparison.
 
-   Otherwise, create a detached worktree of the base in `<target>/bench-regress/base-worktree/` (`git worktree add --detach`), run `rustup toolchain install` in it (installs the toolchain named by the base's `rust-toolchain.toml`, which differs from the head's on a toolchain bump, and does nothing when it is already installed), and then run, in the worktree:
+   Otherwise, create a detached worktree of the base in `<target>/bench-regress/base-worktree/` (`git worktree add --detach`), run `rustup toolchain install` in it (installs the toolchain named by the base's `rust-toolchain.toml`, which differs from the head's on a toolchain bump, and does nothing when it is already installed), and run the bench targets in the worktree as described below, with `CARGO_TARGET_DIR=<target>/bench-regress/base-target` (so the base build does not evict the head build) and the Gungraun arguments
 
    ```text
-   cargo bench -p engine_bench_regress --no-fail-fast -- --save-baseline=base --callgrind-args=--cache-sim=yes
+   --save-baseline=base --callgrind-args=--cache-sim=yes
    ```
 
-   with `CARGO_TARGET_DIR=<target>/bench-regress/base-target` (so the base build does not evict the head build) and `GUNGRAUN_HOME=<target>/bench-regress/home`. A non-zero exit fails the command (§4.5). The worktree MUST be removed (`git worktree remove --force`) whether the run passed, failed or was interrupted by an error in `xtask`.
-5. **Head run.** In the repository:
+   Any failure fails the command (§4.5). The worktree MUST be removed (`git worktree remove --force`) whether the run passed, failed or was interrupted by an error in `xtask`.
+5. **Head run.** Delete every `summary.json` under `GUNGRAUN_HOME`, then run the bench targets in the repository, with the default target directory and the Gungraun arguments
 
    ```text
-   cargo bench -p engine_bench_regress --no-fail-fast -- --baseline=base --callgrind-limits=ir=5% --callgrind-args=--cache-sim=yes
+   --baseline=base --callgrind-limits=ir=5% --save-summary=json --callgrind-args=--cache-sim=yes
    ```
 
-   with the same `GUNGRAUN_HOME` and the default target directory. `--no-fail-fast` (Cargo's) makes every bench target run even when an earlier one regressed; `--regression-fail-fast` (Gungraun's) MUST NOT be passed, so every regressed benchmark within a target is reported. A benchmark with no baseline (new, or the base was skipped) reports no change and does not fail.
+   `--regression-fail-fast` MUST NOT be passed, so every regressed benchmark within a target is reported. A benchmark with no baseline (new, or the base was skipped) reports no change and does not fail.
 6. **Verdict** (§4.5) and **summary** (§4.6).
 
-The exact flag spellings (`--callgrind-args`, `--callgrind-limits`, `--save-baseline`, `--baseline`) and the result line of §4.5 are those of gungraun 0.20.0's documentation; the plan's first task confirms them, and confirms that a baseline saved from the worktree is found by the head run from the repository (benchmarks are keyed by package, file, group, function and ID, not by path). If that does not hold, the plan stops and this spec is amended before anything else is built.
+**Running the bench targets.** The command does not run `cargo bench` for the measurement, because Cargo replaces a bench binary's exit code with 101, the same code as a build failure, and would hide Gungraun's regression code (3). Instead, for both runs:
+
+- **Build:** `cargo bench -p engine_bench_regress --no-run --message-format=json`. The command reads Cargo's JSON messages (with `serde_json`, already a dependency of `xtask` through `bench-report`) and takes, from each `compiler-artifact` message whose target kind is `bench`, the target name and the `executable` path. A build failure, or no bench executable, is a failure.
+- **Run:** each executable, in target-name order, with `--bench` followed by the Gungraun arguments, from the package directory (`bench-regress/` in the worktree or the repository), with `GUNGRAUN_HOME=<target>/bench-regress/home` and the environment Cargo gives a bench binary that Gungraun needs (at least `CARGO_MANIFEST_DIR` and `CARGO_PKG_NAME`; the plan's probe records the exact set). Every target runs, even after an earlier one failed or regressed. Each target's exit code is kept for §4.5.
+
+The exact flag spellings (`--callgrind-args`, `--callgrind-limits`, `--save-baseline`, `--baseline`, `--save-summary`) and the `summary.json` schema are those of gungraun 0.20.0's documentation; the plan's first task confirms them, confirms that a bench executable started directly behaves as it does under `cargo bench` (same benchmark IDs, exit code 3 on a regression), and confirms that a baseline saved from the worktree is found by the head run from the repository (benchmarks are keyed by package, file, group, function and ID, not by path). If any of these does not hold, the plan stops and this spec is amended before anything else is built.
 
 ### 4.5 Exit codes
 
-Gungraun exits with code 3 when a limit is exceeded, but `cargo bench` does not pass a bench binary's exit code on: any failing bench target makes it exit with 101, the same code as a build failure. The command therefore classifies the head run from its output. Each bench target that runs to completion prints Gungraun's result line (in 0.20.0's documentation: `Gungraun result: ... N without regressions; M regressed; ...`). The head run is a **regression** when, and only when, it exited non-zero, a result line was printed for every bench target in `bench-regress/Cargo.toml`, and at least one of them reports `M` greater than 0. Every other non-zero exit is a **failure**.
+The head run is classified from the exit codes of its bench targets (§4.4), which are Gungraun's own: 0 success, 3 "one or more regressions", anything else (including death by a signal) an error. The head run is a **regression** when, and only when, every target exited 0 or 3 and at least one exited 3. It is a **failure** when any target exited with another code, even if another target regressed, or when the build failed.
 
 | Outcome | Without `--report-only` | With `--report-only` |
 |---|---|---|
 | Skipped (step 2) | 0 | 0 |
-| Head run exits 0 | 0 | 0 |
+| Every head target exits 0 | 0 | 0 |
 | Regression (as defined above) | 1, with the message of §3 naming each regressed benchmark | 0, printing `REGRESSION ACCEPTED BY LABEL` and each regressed benchmark |
-| Any failure: preflight, worktree, base run, a head run that is not a regression, a signal | 1 | 1 |
+| Any failure: preflight, worktree, base run, build, a head target with any code other than 0 or 3 | 1 | 1 |
 
-`--report-only` MUST NOT turn a failure into success. A missing result line (a target that did not build, crashed, or printed something the command cannot read) is a failure, never a regression, so an unreadable run can never be accepted by the label. The regressed benchmarks are named from Gungraun's per-benchmark output; if the command cannot name them all, it still reports the counts from the result lines and says to read the full output above.
+`--report-only` MUST NOT turn a failure into success, so a target that crashed or did not build can never be accepted by the label.
+
+**Naming the regressed benchmarks.** After the head run, the command reads every `summary.json` under `GUNGRAUN_HOME` (with `serde_json`) and takes, for each benchmark, its ID, the base and head instruction counts and whether it regressed. The fields used are those of gungraun 0.20.0's summary schema, recorded by the plan's probe; the text output is shown but never parsed. The exit code, not the summaries, decides the verdict: if a target exited 3 but the summaries cannot be read or name no regressed benchmark, the verdict is still a regression, and the message says the names are unavailable and to read the output above.
 
 ### 4.6 Output and relationship to `cargo xtask ci`
 
-Gungraun's output from both runs goes to the terminal unchanged. When `GITHUB_STEP_SUMMARY` is set, the command MUST append to it: a heading, the base and head commit hashes, the verdict line (passed, skipped, not compared, regressed, or regression accepted), the list of regressed benchmarks when there are any (under "Accepted by label" with `--report-only`), and the head run's output in a fenced code block.
+Gungraun's output from both runs goes to the terminal unchanged. After the head run, the command prints a table built from the summaries: one row per benchmark, ordered by target and ID, with the base and head instruction counts, the change in percent (`new` when there is no base count), and a marker on each regressed row. When `GITHUB_STEP_SUMMARY` is set, the command MUST append to it: a heading, the base and head commit hashes, the verdict line (passed, skipped, not compared, regressed, or regression accepted), the list of regressed benchmarks when there are any (under "Accepted by label" with `--report-only`), and the table.
 
 **The label is not scoped to a commit.** `perf-regression-accepted` stays on the pull request across later pushes, so a later commit that regresses a different benchmark is accepted too. The guard is review, not mechanism (decided 2026-11-13, §7): the pull request's Reviews section names the benchmarks the label covers, and the code review compares that list with the "Accepted by label" list of the final run.
 
@@ -225,16 +232,16 @@ The workflow MUST pass `cargo xtask check-workflows`.
 - **M2.4-R5** The preflight MUST fail before building, with an actionable message, on a non-Linux host, a missing or older-than-3.20 Valgrind, a missing `gungraun-runner` or one whose version differs from `Cargo.lock`'s `gungraun`, and an unresolvable base.
 - **M2.4-R6** When no file changed between the base and `HEAD` matches the patterns of §4.4 step 2, the command MUST print the skip message and exit 0 without building.
 - **M2.4-R7** The base run MUST use a detached worktree, its own target directory and the shared `GUNGRAUN_HOME`, all under `<target>/bench-regress/`, and MUST install the base's toolchain first, as §4.4 step 4 describes; MUST be skipped with the stated reason when the base has no `bench-regress/Cargo.toml` or a different `gungraun` version in `Cargo.lock`; and the worktree MUST be removed on every path out of the command. `GUNGRAUN_HOME` MUST be emptied before the base run.
-- **M2.4-R8** The head run MUST compare against the base run's baseline with an instruction-count limit of 5%, MUST NOT pass `--regression-fail-fast`, both runs MUST pass Cargo's `--no-fail-fast`, and both runs MUST enable Callgrind's cache simulation.
-- **M2.4-R9** The command MUST classify the head run as a regression or a failure as §4.5 defines, and its exit code MUST follow the table of §4.5; `--report-only` MUST change only the outcome of a regression.
-- **M2.4-R10** On a regression, the command MUST name each regressed benchmark and, without `--report-only`, print the label instruction of §3.
-- **M2.4-R11** When `GITHUB_STEP_SUMMARY` is set, the command MUST append the summary of §4.6, including the list of regressed or accepted benchmarks.
+- **M2.4-R8** Both runs MUST build the bench targets with `cargo bench --no-run --message-format=json` and run each bench executable directly, every target even after an earlier one failed, as §4.4 describes. The head run MUST compare against the base run's baseline with an instruction-count limit of 5% and write JSON summaries, MUST NOT pass `--regression-fail-fast`, and both runs MUST enable Callgrind's cache simulation.
+- **M2.4-R9** The command MUST classify the head run from its targets' exit codes as §4.5 defines, and its exit code MUST follow the table of §4.5; `--report-only` MUST change only the outcome of a regression.
+- **M2.4-R10** On a regression, the command MUST name each regressed benchmark from the JSON summaries (or say the names are unavailable, §4.5) and, without `--report-only`, print the label instruction of §3. The text output MUST NOT be parsed.
+- **M2.4-R11** The command MUST print the per-benchmark table of §4.6 and, when `GITHUB_STEP_SUMMARY` is set, append the summary of §4.6, including the list of regressed or accepted benchmarks.
 - **M2.4-R12** `bench-regress` MUST NOT be a step of `cargo xtask ci` or `cargo xtask ci --quick`.
 - **M2.4-R13** `.github/workflows/bench-regress.yml` MUST meet §4.7: the triggers and event types listed, no `paths` filter, no job-level or step-level `if:` that can skip the `bench-regress` job, `fetch-depth: 2`, `setup-gungraun` pinned to a commit hash, `--base HEAD^1`, and the label read only through `contains(...)` into an environment variable.
 - **M2.4-R14** `cargo xtask check-workflows` MUST pass.
 - **M2.4-R15** `infra/github/index.ts` MUST declare the `perf-regression-accepted` label and list `bench-regress` in `requiredChecks`. `pulumi up` MUST NOT be run before merge, nor without the maintainer's go-ahead.
 - **M2.4-R16** The devcontainer MUST use the `base:trixie` image and install Valgrind and the matching `gungraun-runner` as §4.8 describes; `cargo xtask gungraun-version` MUST print `Cargo.lock`'s `gungraun` version.
-- **M2.4-R17** The `xtask` change MUST include unit tests for flag parsing, the default and explicit base, the effective target directory (with and without `CARGO_TARGET_DIR`), the two base-skip conditions (no crate; different `gungraun` versions read from two `Cargo.lock` texts), the relevance matcher (relevant and irrelevant paths of every pattern), the Valgrind and runner version parsing and comparison, reading the version from `Cargo.lock`, the base and head argument lists and environment, the classification of §4.5 (a clean run, one and two regressed targets, a regressed target alongside a target with no result line, a build failure, an unreadable result line) and the exit-code mapping over every row of its table, extracting regressed benchmark names from Gungraun's output, the summary renderer, and the package exclusions of R3.
+- **M2.4-R17** The `xtask` change MUST include unit tests for flag parsing, the default and explicit base, the effective target directory (with and without `CARGO_TARGET_DIR`), the two base-skip conditions (no crate; different `gungraun` versions read from two `Cargo.lock` texts), the relevance matcher (relevant and irrelevant paths of every pattern), the Valgrind and runner version parsing and comparison, reading the version from `Cargo.lock`, the base and head argument lists and environment, reading bench executables from Cargo's JSON messages (bench artifacts among library and build-script artifacts; none at all), the classification of §4.5 (all targets 0; one and two targets 3; a 3 alongside a 101 or a signal; a build failure) and the exit-code mapping over every row of its table, reading `summary.json` files (a captured fixture from the probe: a regressed, an unchanged and a new benchmark; a malformed file), the table and job-summary renderers, and the package exclusions of R3.
 - **M2.4-R18** The pull request MUST record, with output: the cross-directory baseline check (§4.4); `bench-regress --base HEAD` reporting no instruction-count change in any benchmark, both in the devcontainer and in CI (through a temporary commit that makes the workflow pass `--base HEAD`, reverted before review); each benchmark's instruction count; a local run against a throwaway commit that adds work to `Prng::next_u64` exiting 1 and naming the benchmark, the same run with `--report-only` exiting 0, and a deliberately broken head build exiting 1 with `--report-only`; and the CI run's duration.
 - **M2.4-R21** `cargo xtask deny` MUST pass with `gungraun` and its dependency tree, with no new entry in `deny.toml`'s exceptions or ignores unless the pull request justifies it under ADR 0002.
 - **M2.4-R19** The documentation changes of §4.10 MUST be made.
@@ -256,7 +263,8 @@ The workflow MUST pass `cargo xtask check-workflows`.
 
 ## 7. Alternatives considered
 
-- **`xtask` parses Gungraun's JSON summaries and does the comparison itself.** It would give a more readable base, head and change table and full control over new and removed benchmarks. Rejected (2026-11-13): it needs a JSON parser in `xtask`, against M0+M1 spec §4.8's dependency rule, and reimplements the limit logic Gungraun already has.
+- **`xtask` computes the changes and applies the 5% rule itself** from both runs' JSON summaries. Rejected (2026-11-13): it reimplements the limit logic Gungraun already has. *Corrected 2026-11-13, before the plan: the first draft also cited a new JSON dependency, but `xtask` already depends on `serde_json` (`bench-report`). The design now uses it to read the summaries for naming and reporting only (§4.5, §4.6); Gungraun still decides what is a regression.*
+- **Parsing Gungraun's text output** (its `Gungraun result: ... M regressed` line) to tell a regression from a failure under `cargo bench`, which reports both as 101. Rejected (2026-11-13) in the same correction: the human-readable format of a 0.x tool may change on any bump, whereas running the bench executables directly gives Gungraun's exit code itself.
 - **Benchmarks in `libs/<crate>/benches/`** (M0+M1 spec §8). Rejected (2026-11-13): `gungraun` would become a dev-dependency of two library crates, and the Criterion commands would have to filter bench targets by a naming convention instead of excluding one package.
 - **Benchmarks inside `engine_benches`.** Rejected: that crate compares the engine with other libraries; mixing in the regression gate and its dependency would blur both purposes.
 - **Separate base and head jobs with a baseline artifact, or a baseline saved on pushes to `main`.** Rejected in M0+M1 spec §8: different runners, artifacts that expire, and baselines that go stale.
@@ -282,10 +290,10 @@ The workflow MUST pass `cargo xtask check-workflows`.
 | R5 | Unit tests on version parsing and comparison; on macOS, `cargo xtask bench-regress` prints the devcontainer message; in the devcontainer, with `gungraun-runner` hidden from `PATH`, it prints the install line. |
 | R6 | Unit tests on the relevance matcher; a local run with `--base` set to a commit that differs only in docs prints the skip message without building. |
 | R7 | Unit tests on the base argument list and environment, the target directory and both skip conditions; a local run leaves no worktree (`git worktree list`), also after a deliberately failing base build; a run with a base that predates the crate reports every benchmark as new; a local run against a throwaway commit that changes the `gungraun` version in `Cargo.lock` prints "not compared". |
-| R8 | Unit test on the head argument list; the run's output shows cache estimates. |
-| R9 | Unit tests on the classification and the exit-code mapping over every row of §4.5, using captured Gungraun output; the local runs of R18. |
-| R10 | Unit test on extracting benchmark names from captured Gungraun output; the throwaway-commit run of R18. |
-| R11 | Unit test on the renderer; the job summary of the pull request's `bench-regress` run. |
+| R8 | Unit tests on the build and run argument lists and on reading executables from Cargo's JSON; the run's output shows cache estimates; a local run with a deliberately panicking benchmark in the first target still runs the second. |
+| R9 | Unit tests on the classification and the exit-code mapping over every row of §4.5; the local runs of R18. |
+| R10 | Unit test on reading the probe's captured `summary.json` fixtures; the throwaway-commit run of R18; `grep` finds no parsing of Gungraun's text output in `xtask`. |
+| R11 | Unit tests on the table and job-summary renderers; the job summary of the pull request's `bench-regress` run. |
 | R12 | Unit tests on `ci_steps(false)` and `ci_steps(true)`. |
 | R13 | Read the workflow; the pull request's `bench-regress` run is green and reports every benchmark as new. |
 | R14 | `cargo xtask check-workflows`. |
@@ -308,7 +316,7 @@ The workflow MUST pass `cargo xtask check-workflows`.
 
 ## 10. Open questions
 
-None. The facts this design depends on and has not yet observed (`gungraun`'s dependency tree passes `cargo deny`; a baseline saved from a worktree is found by a run from the repository; the flag spellings and result line of gungraun 0.20.0; `gungraun` compiles on Windows) are the plan's first tasks, each with a stated consequence (R21, §4.4, §4.5, §4.2).
+None. The facts this design depends on and has not yet observed (`gungraun`'s dependency tree passes `cargo deny`; a bench executable started directly behaves as under `cargo bench`; a baseline saved from a worktree is found by a run from the repository; the flag spellings and `summary.json` schema of gungraun 0.20.0; `gungraun` compiles on Windows) are the plan's first tasks, each with a stated consequence (R21, §4.4, §4.5, §4.2).
 
 ## 11. Prior art and sources
 
