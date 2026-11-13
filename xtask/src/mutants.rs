@@ -29,7 +29,7 @@ const OUT_DIR: &str = "target/mutants";
 const CONFIG: &str = ".cargo/mutants.toml";
 
 /// Options of `mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE]`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Options {
     /// Packages to test; empty means the triaged set.
     packages: Vec<String>,
@@ -77,7 +77,29 @@ pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String> {
             other => return Err(format!("unknown flag `{other}` for `mutants`")),
         }
     }
+    if options.list && options.in_diff.is_some() {
+        return Err(
+            "`--list` cannot be combined with `--in-diff`: the list is not filtered".to_string(),
+        );
+    }
     Ok(options)
+}
+
+/// `path` as an absolute path: a relative one is taken from `cwd`, the caller's directory. The
+/// command runs `cargo mutants` from the workspace root, so a relative path would otherwise be
+/// read from there.
+fn absolute(path: &str, cwd: &Path) -> String {
+    cwd.join(path).to_string_lossy().into_owned()
+}
+
+/// Removes the output of an earlier run. `cargo-mutants` writes no output at all when a diff
+/// selects no mutant, and the summary must not then read an old run's files as this run's.
+fn clear_previous_output(root: &Path) -> Result<(), String> {
+    let dir = root.join(OUT_DIR).join("mutants.out");
+    match std::fs::remove_dir_all(&dir) {
+        Err(e) if e.kind() != ErrorKind::NotFound => Err(format!("{}: {e}", dir.display())),
+        _ => Ok(()),
+    }
 }
 
 /// The packages to test: those named, or else the triaged set.
@@ -252,7 +274,14 @@ pub(crate) fn mutants(options: &Options) -> Result<(), String> {
         return Ok(());
     }
 
-    let args = run_args(options);
+    let mut options = options.clone();
+    if let Some(file) = &options.in_diff {
+        let cwd = std::env::current_dir()
+            .map_err(|e| format!("cannot read the current directory: {e}"))?;
+        options.in_diff = Some(absolute(file, &cwd));
+    }
+    clear_previous_output(root)?;
+    let args = run_args(&options);
     println!("$ cargo {}", args.join(" "));
     let status = Command::new("cargo")
         .args(&args)
@@ -490,5 +519,40 @@ mod tests {
             script.contains(&install),
             "install-tools.sh lacks `{install}`"
         );
+    }
+
+    #[test]
+    fn in_diff_cannot_be_combined_with_list() {
+        let err = parse_flags(&["--list", "--in-diff", "a.diff"]).unwrap_err();
+        assert!(err.contains("--list"), "{err}");
+        assert!(parse_flags(&["--in-diff", "a.diff", "--list"]).is_err());
+    }
+
+    #[test]
+    fn a_relative_diff_path_is_made_absolute_against_the_callers_directory() {
+        let cwd = Path::new("/work/libs/a");
+        assert_eq!(absolute("pr.diff", cwd), "/work/libs/a/pr.diff");
+        assert_eq!(absolute("/tmp/pr.diff", cwd), "/tmp/pr.diff");
+    }
+
+    #[test]
+    fn previous_output_is_removed_before_a_run() {
+        let root = std::env::temp_dir().join(format!("xtask-mutants-test-{}", std::process::id()));
+        let out = root.join(OUT_DIR).join("mutants.out");
+        std::fs::create_dir_all(&out).unwrap();
+        std::fs::write(out.join("caught.txt"), "stale\n").unwrap();
+        clear_previous_output(&root).unwrap();
+        assert!(!out.exists());
+        // Nothing to remove is fine too.
+        clear_previous_output(&root).unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn mutants_version_is_in_the_contributing_install_line() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let text = std::fs::read_to_string(root.join("CONTRIBUTING.md")).unwrap();
+        let install = format!("cargo-mutants --version {MUTANTS_VERSION}");
+        assert!(text.contains(&install), "CONTRIBUTING.md lacks `{install}`");
     }
 }

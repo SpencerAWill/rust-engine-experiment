@@ -79,4 +79,6 @@ jobs:
         with:
           name: mutants-out
           path: target/mutants/mutants.out
+          # A diff with no mutant leaves cargo-mutants nothing to write.
+          if-no-files-found: ignore
           retention-days: 30
