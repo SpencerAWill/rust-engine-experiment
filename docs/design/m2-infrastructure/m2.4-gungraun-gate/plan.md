@@ -1,6 +1,6 @@
 # M2.4 plan: Gungraun gate
 
-- **Status:** Accepted (2026-11-13).
+- **Status:** Historical: executed in PR #18 (2026-11-13); the spec and the code are authoritative.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
@@ -200,4 +200,8 @@ The probe (§1, Step 1) ran on 2026-11-13 in the trixie container (aarch64, Valg
 - **`pool_iter_1k` is now `pool_iter_10k`.** Summing 1,000 values is vectorized and counted 1,964 instructions, below the 10,000 floor (spec §4.2), so the pool holds 10,000 values.
 - **IDs.** Gungraun prints each benchmark as `<file>::<group>::<function> fixed:(<setup>)`; every benchmark has the single case `fixed`.
 - **Instruction counts of the first run** (x86_64 counts will differ; aarch64 container): `pool_insert_1k` 55,040; `pool_get_seq_1k` 15,937; `pool_get_random_1k` 15,937; `pool_remove_1k` 64,220; `pool_iter_10k` 10,966; `pool_churn_1k` 62,764; `allocator_allocate_1k` 21,044; `allocator_free_realloc_1k` 26,267; `allocator_is_alive_1k` 13,991; `dense_allocate_1k` 34,046; `dense_free_1k` 45,232; `next_u64_10k` 120,020; `range_u32_10k` 170,023; `range_f64_10k` 170,021; `shuffle_1k` 24,012; `from_seed_1k` 19,289.
+- **CI noise floor (Step 8.8).** Changing `--base HEAD^1` to `--base HEAD` would skip the run (the merge checkout equals `HEAD`, so nothing relevant differs). A temporary commit instead used `--base HEAD^2^1` with `fetch-depth: 3` after a comment-only edit in `bench-regress/src/lib.rs`; the x86_64 run reported `+0.0%` for all 16 benchmarks, and the job took 3m16s (the first run, whose base has no crate, 2m48s). The commit was reverted. `timeout-minutes: 30` stays.
+- **Local noise floor (Step 8.1)** used `--base 8425fad`, for the same reason: with a clean tree `--base HEAD` skips.
+- **`RUSTUP_TOOLCHAIN` (found in review).** `cargo xtask` runs under rustup's proxy, which exports `RUSTUP_TOOLCHAIN`; it outranked the base worktree's `rust-toolchain.toml`. The base's `rustup` and `cargo` commands now remove it (`base_command`).
+- **Container git.** In a CLI-built container git needs `safe.directory /workspace`; without it every git call failed with "dubious ownership" (the command now shows that message instead of misreading it).
 - **Tools missing in the container.** `cargo-hack` and `typos-cli` are not installed by `install-tools.sh` (before this change too), so `cargo xtask ci` stops there in a fresh container. They were installed by hand for the runs below; adding them to `install-tools.sh` is outside M2.4.

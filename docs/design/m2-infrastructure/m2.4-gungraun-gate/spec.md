@@ -1,6 +1,6 @@
 # M2.4: Gungraun gate
 
-- **Status:** Accepted (2026-11-13).
+- **Status:** Implemented (PR #18, 2026-11-13).
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.0 · **Decides:** no ADR
 - **Estimated size:** about 800 changed lines, excluding tests, lockfiles and generated files (`xtask` about 350, the benchmark crate about 250, workflow, devcontainer and Pulumi about 70, docs about 130)
 
