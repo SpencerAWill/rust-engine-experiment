@@ -64,7 +64,7 @@ bench-regress/                       new workspace member, package engine_bench_
   src/lib.rs                         #![forbid(unsafe_code)] and crate docs; no code
   benches/handle.rs                  [[bench]] harness = false
   benches/prng.rs                    [[bench]] harness = false
-xtask/src/bench_regress.rs           the command
+xtask/src/bench_regress.rs           the command (submodules in xtask/src/bench_regress/)
 .github/workflows/bench-regress.yml  the workflow
 ```
 
@@ -132,7 +132,7 @@ The command MUST run these steps in order:
 
    ```text
    libs/**   bench-regress/**   Cargo.toml   Cargo.lock   rust-toolchain.toml   .cargo/**
-   xtask/src/bench_regress.rs   .github/workflows/bench-regress.yml
+   xtask/src/bench_regress.rs   xtask/src/bench_regress/**   .github/workflows/bench-regress.yml
    ```
 3. **Clean.** Delete `<target>/bench-regress/home/` so a baseline left by an earlier run can never be compared against.
 4. **Base run.** The base run is skipped, with a printed reason, in two cases, and the head run (step 5) then reports every benchmark with no comparison:
