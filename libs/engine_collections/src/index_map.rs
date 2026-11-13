@@ -3,6 +3,8 @@
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::Hash;
+use core::iter::FromIterator;
+use core::ops::{Index, IndexMut};
 
 use crate::TryReserveError;
 use crate::hasher::{Hasher, default_hasher};
@@ -18,7 +20,7 @@ mod entry;
 mod iter;
 
 pub use entry::Entry;
-pub use iter::{Iter, Keys};
+pub use iter::{IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
 
 /// A hash map that iterates in insertion order.
 ///
@@ -180,6 +182,41 @@ impl<K, V> IndexMap<K, V> {
         }
     }
 
+    /// A mutable iterator over the entries, in order. Keys are not mutable.
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+        IterMut {
+            inner: self.inner.iter_mut(),
+        }
+    }
+
+    /// An iterator over the values, in order.
+    pub fn values(&self) -> Values<'_, K, V> {
+        Values {
+            inner: self.inner.values(),
+        }
+    }
+
+    /// A mutable iterator over the values, in order.
+    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
+        ValuesMut {
+            inner: self.inner.values_mut(),
+        }
+    }
+
+    /// An owning iterator over the keys, in order.
+    pub fn into_keys(self) -> IntoKeys<K, V> {
+        IntoKeys {
+            inner: self.inner.into_keys(),
+        }
+    }
+
+    /// An owning iterator over the values, in order.
+    pub fn into_values(self) -> IntoValues<K, V> {
+        IntoValues {
+            inner: self.inner.into_values(),
+        }
+    }
+
     /// An iterator over the keys, in order.
     pub fn keys(&self) -> Keys<'_, K, V> {
         Keys {
@@ -279,6 +316,115 @@ impl<'a, K, V> IntoIterator for &'a IndexMap<K, V> {
     }
 }
 
+impl<'a, K, V> IntoIterator for &'a mut IndexMap<K, V> {
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> IterMut<'a, K, V> {
+        self.iter_mut()
+    }
+}
+
+impl<K, V> IntoIterator for IndexMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
+
+    fn into_iter(self) -> IntoIter<K, V> {
+        IntoIter {
+            inner: self.inner.into_iter(),
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> Clone for IndexMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+/// Equal only if the entries are equal **in the same order**.
+impl<K: PartialEq, V: PartialEq> PartialEq for IndexMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+
+impl<K: Eq, V: Eq> Eq for IndexMap<K, V> {}
+
+impl<K: Hash, V: Hash> Hash for IndexMap<K, V> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        state.write_usize(self.len());
+        for (key, value) in self {
+            key.hash(state);
+            value.hash(state);
+        }
+    }
+}
+
+impl<K: Hash + Eq, V> FromIterator<(K, V)> for IndexMap<K, V> {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
+        let mut map = Self::new();
+        map.extend(iter);
+        map
+    }
+}
+
+impl<K: Hash + Eq, V> Extend<(K, V)> for IndexMap<K, V> {
+    fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
+        self.inner.extend(iter);
+    }
+}
+
+impl<K: Hash + Eq, V, const N: usize> From<[(K, V); N]> for IndexMap<K, V> {
+    fn from(entries: [(K, V); N]) -> Self {
+        Self::from_iter(entries)
+    }
+}
+
+#[cold]
+#[track_caller]
+fn missing_key() -> ! {
+    panic!("IndexMap: no entry for this key; use get (or get_mut) to handle a missing key")
+}
+
+/// # Panics
+///
+/// Panics if the key is not in the map. Use [`get`](IndexMap::get) to handle that.
+impl<K, V, Q> Index<&Q> for IndexMap<K, V>
+where
+    K: Hash + Eq + Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    type Output = V;
+
+    #[track_caller]
+    fn index(&self, key: &Q) -> &V {
+        match self.get(key) {
+            Some(value) => value,
+            None => missing_key(),
+        }
+    }
+}
+
+/// # Panics
+///
+/// Panics if the key is not in the map. Use [`get_mut`](IndexMap::get_mut) to handle that.
+impl<K, V, Q> IndexMut<&Q> for IndexMap<K, V>
+where
+    K: Hash + Eq + Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    #[track_caller]
+    fn index_mut(&mut self, key: &Q) -> &mut V {
+        match self.get_mut(key) {
+            Some(value) => value,
+            None => missing_key(),
+        }
+    }
+}
+
 impl<K, V> Default for IndexMap<K, V> {
     fn default() -> Self {
         Self::new()
@@ -287,6 +433,9 @@ impl<K, V> Default for IndexMap<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use std::string::String;
+    use std::vec::Vec;
+
     use crate::IndexMap;
 
     #[test]
@@ -357,6 +506,84 @@ mod tests {
             ['a', 'b', 'c']
         );
         assert_eq!(map.get(&'b'), Some(&9));
+    }
+
+    #[test]
+    fn from_iter_keeps_first_position_last_value() {
+        let want = [(1, 'c'), (2, 'b')];
+        let items = [(1, 'a'), (2, 'b'), (1, 'c')];
+        let collected: IndexMap<i32, char> = items.into_iter().collect();
+        assert_eq!(
+            collected.iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
+            want
+        );
+        let mut extended = IndexMap::new();
+        extended.extend(items);
+        assert_eq!(
+            extended.iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
+            want
+        );
+        let from = IndexMap::from(items);
+        assert_eq!(from.iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(), want);
+    }
+
+    #[test]
+    fn debug_format() {
+        let map = IndexMap::from([(1, 'a'), (2, 'b')]);
+        assert_eq!(format!("{map:?}"), "{1: 'a', 2: 'b'}");
+        assert_eq!(format!("{:?}", IndexMap::<u8, u8>::new()), "{}");
+    }
+
+    #[test]
+    fn iterators_are_double_ended_and_exact() {
+        let mut map = IndexMap::from([(1, 10), (2, 20), (3, 30)]);
+        assert_eq!(map.iter().len(), 3);
+        assert_eq!(
+            map.iter().rev().map(|(k, _)| *k).collect::<Vec<_>>(),
+            [3, 2, 1]
+        );
+        assert_eq!(map.keys().rev().copied().collect::<Vec<_>>(), [3, 2, 1]);
+        assert_eq!(map.values().len(), 3);
+        assert_eq!(
+            map.values().rev().copied().collect::<Vec<_>>(),
+            [30, 20, 10]
+        );
+        assert_eq!(map.iter_mut().len(), 3);
+        assert_eq!(
+            map.iter_mut().rev().map(|(k, _)| *k).collect::<Vec<_>>(),
+            [3, 2, 1]
+        );
+        assert_eq!(map.values_mut().len(), 3);
+        for v in map.values_mut().rev() {
+            *v += 1;
+        }
+        assert_eq!(map.values().copied().collect::<Vec<_>>(), [11, 21, 31]);
+        assert_eq!(map.clone().into_keys().rev().collect::<Vec<_>>(), [3, 2, 1]);
+        assert_eq!(map.clone().into_keys().len(), 3);
+        assert_eq!(
+            map.clone().into_values().rev().collect::<Vec<_>>(),
+            [31, 21, 11]
+        );
+        assert_eq!(map.clone().into_values().len(), 3);
+        let owned = map.clone().into_iter();
+        assert_eq!(owned.len(), 3);
+        assert_eq!(owned.rev().map(|(k, _)| k).collect::<Vec<_>>(), [3, 2, 1]);
+        let mut seen = 0;
+        for (_, v) in &mut map {
+            *v = 0;
+            seen += 1;
+        }
+        assert_eq!(seen, 3);
+        assert_eq!((&map).into_iter().count(), 3);
+    }
+
+    #[test]
+    fn index_by_str() {
+        let mut map = IndexMap::new();
+        map.insert(String::from("walk"), 1.0_f32);
+        assert!((map["walk"] - 1.0).abs() < f32::EPSILON);
+        map["walk"] += 1.0;
+        assert!((map["walk"] - 2.0).abs() < f32::EPSILON);
     }
 
     #[test]
