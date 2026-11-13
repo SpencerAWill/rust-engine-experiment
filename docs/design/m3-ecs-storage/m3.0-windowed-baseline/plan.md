@@ -1,6 +1,6 @@
 # M3.0 plan: Windowed baseline sample
 
-- **Status:** Accepted (2026-11-13)
+- **Status:** Historical: executed in PR #24 (2026-11-13); the spec and the code are authoritative.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
@@ -151,3 +151,4 @@ Choices the spec leaves to implementation:
 - **`winit` feature set (Step 4).** The probe with `winit = "0.30"` failed `cargo xtask deny`, but on an advisory, not a licence: `ttf-parser` is unmaintained (RUSTSEC-2026-0192), reached through `wayland-csd-adwaita` -> `sctk-adwaita` -> `ab_glyph`. Licences passed. The plan's second step applied: `winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }` (`rwh_06` kept because it is one of winit's default features and `softbuffer` needs it). `cargo xtask deny` then passed with `deny.toml` unchanged. Cost: Wayland compositors that do not draw server-side window decorations show an undecorated window.
 - **Golden values.** `GOLDEN` in `tests/determinism.rs` is `0xa352_0200_2876_ad91` (10,000 agents, 3,984 seekers after 600 ticks); the pixel hash in `render::tests::golden_pixels` is `0x57e2_497e_8128_338b`. Both were captured on macOS (aarch64); R7 awaits CI on Ubuntu and Windows.
 - **Manual check.** The maintainer ran `cargo run -p agents_2d --release` on macOS and confirmed the behaviour listed under Step 4 (seekers chase, colours change, pause, resize, title statistics). No screenshot has been taken yet. `cargo build -p agents_2d` succeeded in the devcontainer image (aarch64 Linux) without new system packages. Not run by hand on Linux with a display or on Windows.
+- **CI result (2026-11-13).** The pull request's CI was green on every job, including `os-matrix` on macOS and Windows and the Ubuntu `test` job, so the golden checksum (R7) matched on aarch64 and x86_64 and no system packages or workflow changes were needed (R15).
