@@ -1,6 +1,6 @@
 services:
   dev:
-    image: mcr.microsoft.com/devcontainers/base:bookworm
+    image: mcr.microsoft.com/devcontainers/base:trixie
     init: true
     environment:
       DEVCONTAINER: "true"
