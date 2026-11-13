@@ -1,6 +1,6 @@
 # M3.1 plan: `engine_collections`: deterministic map and set
 
-- **Status:** Draft (2026-11-13)
+- **Status:** Accepted (2026-11-13)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
