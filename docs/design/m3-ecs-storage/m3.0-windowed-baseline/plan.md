@@ -148,4 +148,6 @@ Choices the spec leaves to implementation:
 
 ## 4. Deviations
 
-To be filled in during implementation.
+- **`winit` feature set (Step 4).** The probe with `winit = "0.30"` failed `cargo xtask deny`, but on an advisory, not a licence: `ttf-parser` is unmaintained (RUSTSEC-2026-0192), reached through `wayland-csd-adwaita` -> `sctk-adwaita` -> `ab_glyph`. Licences passed. The plan's second step applied: `winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }` (`rwh_06` kept because it is one of winit's default features and `softbuffer` needs it). `cargo xtask deny` then passed with `deny.toml` unchanged. Cost: Wayland compositors that do not draw server-side window decorations show an undecorated window.
+- **Golden values.** `GOLDEN` in `tests/determinism.rs` is `0xa352_0200_2876_ad91` (10,000 agents, 3,984 seekers after 600 ticks); the pixel hash in `render::tests::golden_pixels` is `0x57e2_497e_8128_338b`. Both were captured on macOS (aarch64); R7 awaits CI on Ubuntu and Windows.
+- **Not yet done.** The window was started on macOS and ran for 8 seconds without an error, but the behaviour listed under Step 4's manual check (seekers chase, colours change, Space, resize, Escape) was not observed by the assistant and needs the maintainer's eyes; no screenshot has been taken. `cargo build -p agents_2d` succeeded in the devcontainer image (aarch64 Linux) without new system packages.
