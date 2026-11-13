@@ -1,6 +1,6 @@
 # M2.3: Mutation testing
 
-- **Status:** Accepted (2026-11-12)
+- **Status:** Implemented (PR #17, 2026-11-13). Changed during implementation: the pull request job (§4.6) and the `--in-diff` flag (§4.2); marked in the text.
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.2 · **Decides:** no ADR
 - **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (`xtask` about 330, `.cargo/mutants.toml` about 40, workflow and devcontainer about 50, docs about 100, the triage record about 130), plus at most about 400 lines of new tests in `engine_handle` and `engine_random` (§4.8)
 

@@ -1,6 +1,6 @@
 # M2.3 plan: Mutation testing
 
-- **Status:** Accepted (2026-11-12)
+- **Status:** Historical: executed in PR #17 (2026-11-13); the spec and the code are authoritative. Deviations are in §4.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
@@ -239,4 +239,14 @@ One commit per crate: `engine_random` first (the smaller one), then `engine_hand
 
 ## 4. Deviations
 
-None yet. Filled in during implementation.
+Everything the implementation did differently from this plan or from the spec as accepted on 2026-11-12:
+
+1. **The match check uses `-E`, not `-F`** (Step 3, spec §4.4). `cargo-mutants` 27.1 never applies a name filter (`-F`, `-E` or `exclude_re`) to its "delete field ... from struct Self expression" mutants (3 in `engine_handle`, 11 in the workspace), so `-F` listed them whatever the regex and a count could never be zero. The check counts the mutants that `-E <entry>` removes from `--list --no-config --workspace`. Such mutants can never be excluded; the one missed in `engine_handle` was closed with a test.
+2. **Two equivalent mutants are not excluded** (Step 8, R18). `sample.rs:182` (`<` to `<=`) and `handle.rs:208:33` (`+` to `*`) have the same description as caught mutants in the same function, and an entry without a line or column cannot tell them apart. They stay in the missed list and are recorded in `docs/mutation-triage.md` as equivalent, not excluded; no issue was opened. Four entries exclude four mutants, not the six the first classification proposed.
+3. **A test-only helper in `src`** (Step 7). `#[cfg(test)] impl HandlePool<()> { corrupt_dense_length }` in `pool.rs`, so a test can break an invariant of `DenseHandleAllocator`, whose pool fields are private to another module. It is a `#[cfg(test)]` item, so R15 holds.
+4. **`DenseHandleAllocator::with_capacity`** has no observable capacity (its pool stores `()`), so its gap is closed by a no-allocation test in `fixed_capacity.rs` (dhat), not by a capacity assertion. That test measures up to three runs on fresh containers, because dhat counts every thread and the harness's main thread made the `cargo-mutants` baseline fail once on a loaded CI runner (13 blocks against 9).
+5. **The pull request job** (Step 4, spec §2, §4.2, §4.6, §7, R4, R12), changed at the maintainer's request after the CI run measured 20 minutes: pull requests that change the triaged crates' sources or the mutants tooling run the exclusion check and `cargo xtask mutants --in-diff` on the pull request's own diff (a separate `mutants-changed` job); the full run stays weekly and on dispatch. `xtask` gained `--in-diff FILE` (rejected with `--list`, resolved against the caller's directory), a summary for a diff that contains no mutant, and removal of the previous run's output before a run. `timeout-minutes` is 40 for the full job and 30 for the pull request job.
+6. **Step 1 and 2 details.** `parse_name` returns a small struct, not a 4-tuple (clippy `type_complexity`); a temporary `#![allow(dead_code)]` in `mutants.rs` covered the commits before the command used the parsers, and was removed in Step 3.
+7. **The probe (Step 0) was cut short.** I stopped the probe run by mistake before it finished; its items were confirmed by later runs instead: all four outcome files are written, each name has the `--list` form, a mutant's log shows `cargo nextest run --all-features --run-ignored all`, `cargo mutants --version` prints `cargo-mutants 27.1.0`, and a baseline failure exits 4.
+8. **Also in this pull request, outside the plan:** the nightly `stable-toolchain` job failed with E0463 because a bare `stable` lacks the targets in `rust-toolchain.toml`; `nightly.yml` now installs them (the maintainer asked for the fix here).
+9. **Review fixes** from `/code-review`: stale output, relative diff path, `--list` with `--in-diff`, the CHANGELOG usage line, the pin test also covering `CONTRIBUTING.md`, and `if-no-files-found: ignore` on the pull request job's upload. Two findings were declined: `-p` values are not checked against the workspace layout before a run (the spec says `cargo-mutants` rejects an unknown package itself), and the exclusion check spawns one list command per entry (the spec rejected a regex dependency).
