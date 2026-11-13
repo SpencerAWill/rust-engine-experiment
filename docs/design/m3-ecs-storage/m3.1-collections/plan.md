@@ -1,6 +1,6 @@
 # M3.1 plan: `engine_collections`: deterministic map and set
 
-- **Status:** Accepted (2026-11-13)
+- **Status:** Historical: executed in PR #26 (2026-11-13); the spec and the code are authoritative. Deviations are in §4.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

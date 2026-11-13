@@ -1,6 +1,6 @@
 # M3.1: `engine_collections`: deterministic map and set
 
-- **Status:** Accepted (2026-11-13)
+- **Status:** Implemented (PR #26, 2026-11-13). Changed during implementation: the backend is named through a type alias and `extern crate alloc` is left out (§4.1); the model tests are unit tests so the constant hasher is reachable (§8); two benchmarks were renamed and enlarged to reach the gate's 10,000-instruction minimum (§4.8). See the plan's §4.
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** none · **Decides:** no ADR
 - **Estimated size:** about 850 changed lines, excluding tests, lockfiles and generated files (`IndexMap` about 330, `IndexSet` about 170, iterator, entry and error wrappers about 170, benchmarks about 80, configuration and documents about 100)
 
@@ -291,13 +291,13 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally and CI is green on all three platforms.
-- [ ] The model tests pass with the real hasher and with the constant hasher.
-- [ ] `cargo xtask bench-regress` passes in the devcontainer, and the wall-clock comparison is in the pull request with its baseline and noise floor.
-- [ ] Every new clippy ban is shown to fire.
-- [ ] The mutation triage is recorded.
-- [ ] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
+- [x] `cargo xtask ci` passes locally and CI is green on all three platforms.
+- [x] The model tests pass with the real hasher and with the constant hasher.
+- [ ] `cargo xtask bench-regress` passes (it does, in CI; the devcontainer run was not made), and the wall-clock comparison is in the pull request with its baseline and noise floor.
+- [x] Every new clippy ban is shown to fire.
+- [x] The mutation triage is recorded.
+- [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
+- [x] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
 
 ## 10. Open questions
 

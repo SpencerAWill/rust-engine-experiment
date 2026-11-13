@@ -25,7 +25,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | Chunk | Title | Depends on | Status | Spec and plan |
 |---|---|---|---|---|
 | M3.0 | Windowed baseline sample: `examples/agents_2d` (`winit` and `softbuffer`, example-only), the agent workload and its order-independent checksum | none | In progress | [spec](design/m3-ecs-storage/m3.0-windowed-baseline/spec.md), [plan](design/m3-ecs-storage/m3.0-windowed-baseline/plan.md) |
-| M3.1 | `engine_collections`: deterministic map and set | none | In progress | [spec](design/m3-ecs-storage/m3.1-collections/spec.md), [plan](design/m3-ecs-storage/m3.1-collections/plan.md) |
+| M3.1 | `engine_collections`: deterministic map and set | none | Done | [spec](design/m3-ecs-storage/m3.1-collections/spec.md), [plan](design/m3-ecs-storage/m3.1-collections/plan.md) |
 | M3.2 | Spike harness under `spikes/`: one minimal storage interface, the workloads (simple and fragmented iteration, add/remove, heavy compute, entity churn, 100k 2D sprites, and the M3.0 agent workload), a struct-of-arrays variant of the agent workload, and bevy_ecs, hecs and plain-`Vec` baselines | M3.0, M3.1 | Planned | |
 | M3.3 | Sparse-set prototype (safe) | M3.2 | Planned | |
 | M3.4 | Archetype prototype (safe) | M3.2 | Planned | |
