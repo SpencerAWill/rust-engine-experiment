@@ -530,9 +530,15 @@ mod tests {
 
     #[test]
     fn a_relative_diff_path_is_made_absolute_against_the_callers_directory() {
-        let cwd = Path::new("/work/libs/a");
-        assert_eq!(absolute("pr.diff", cwd), "/work/libs/a/pr.diff");
-        assert_eq!(absolute("/tmp/pr.diff", cwd), "/tmp/pr.diff");
+        let cwd = std::env::temp_dir().join("caller");
+        assert_eq!(
+            absolute("pr.diff", &cwd),
+            cwd.join("pr.diff").to_string_lossy()
+        );
+        // An absolute path stays as it is, whatever the directory.
+        let elsewhere = std::env::temp_dir().join("elsewhere").join("pr.diff");
+        let elsewhere = elsewhere.to_string_lossy().into_owned();
+        assert_eq!(absolute(&elsewhere, &cwd), elsewhere);
     }
 
     #[test]
