@@ -1,6 +1,6 @@
 # M2.4 plan: Gungraun gate
 
-- **Status:** Draft (2026-11-13).
+- **Status:** Accepted (2026-11-13).
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
