@@ -14,4 +14,4 @@
 //! Do not run them with `cargo bench`: use `cargo xtask bench-regress`, which compares the
 //! counts of two commits and decides whether the change regressed. Valgrind only works on
 //! Linux, so on other systems run it in the devcontainer. `cargo xtask bench-smoke` runs every
-//! benchmark function once, without Valgrind, to check that they still work. (Temporary comment.)
+//! benchmark function once, without Valgrind, to check that they still work.
