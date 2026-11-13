@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # A branch gets its checks through its pull request. Running on every push as well made each
+  # job run twice on a branch with an open pull request.
   push:
+    branches: [main]
   pull_request:
     branches: [main]
 

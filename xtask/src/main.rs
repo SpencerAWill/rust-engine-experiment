@@ -16,6 +16,7 @@ mod check_workflows;
 mod cmd;
 mod coverage;
 mod fuzz;
+mod mutants;
 mod prng_stats;
 
 use std::process::ExitCode;
@@ -49,6 +50,7 @@ enum Command {
     BenchDoc(bench_doc::Options),
     Hack,
     Coverage(coverage::Options),
+    Mutants(mutants::Options),
     Fuzz(fuzz::Options),
     FuzzBuild,
     FuzzToolchain,
@@ -67,7 +69,7 @@ enum Command {
 /// Parses command-line arguments (without the program name).
 fn parse(args: &[&str]) -> Result<Command, String> {
     let (name, flags) = args.split_first().ok_or_else(|| {
-        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], fuzz, ci)"
+        "missing command (try: fmt, clippy, test, doc, deny, coverage [--open], mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE], fuzz, ci)"
             .to_string()
     })?;
     let has = |flag: &str| flags.contains(&flag);
@@ -99,6 +101,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "bench-doc" => bench_doc::parse_flags(flags).map(Command::BenchDoc),
         "hack" => only(&[]).map(|()| Command::Hack),
         "coverage" => coverage::parse_flags(flags).map(Command::Coverage),
+        "mutants" => mutants::parse_flags(flags).map(Command::Mutants),
         "fuzz" => fuzz::parse_flags(flags).map(Command::Fuzz),
         "fuzz-build" => only(&[]).map(|()| Command::FuzzBuild),
         "fuzz-toolchain" => only(&[]).map(|()| Command::FuzzToolchain),
@@ -399,6 +402,7 @@ fn execute(command: &Command) -> Result<(), String> {
             )
         }
         Command::Coverage(options) => coverage::coverage(options),
+        Command::Mutants(options) => mutants::mutants(options),
         Command::Fuzz(options) => fuzz::fuzz(options),
         Command::FuzzBuild => fuzz::fuzz_build(true),
         Command::FuzzToolchain => {
@@ -617,6 +621,23 @@ mod tests {
                 !ci_steps(quick)
                     .iter()
                     .any(|c| matches!(c, Command::Coverage(_)))
+            );
+        }
+    }
+
+    #[test]
+    fn mutants_parses_and_is_not_a_ci_step() {
+        assert!(matches!(parse(&["mutants"]), Ok(Command::Mutants(_))));
+        assert!(matches!(
+            parse(&["mutants", "-p", "engine_random", "-j", "2", "--list"]),
+            Ok(Command::Mutants(_))
+        ));
+        assert!(parse(&["mutants", "--x"]).is_err());
+        for quick in [false, true] {
+            assert!(
+                !ci_steps(quick)
+                    .iter()
+                    .any(|c| matches!(c, Command::Mutants(_)))
             );
         }
     }

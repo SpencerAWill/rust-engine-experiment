@@ -445,4 +445,9 @@ mod tests {
         links.dedup();
         assert_eq!(links.len(), states.len());
     }
+
+    #[test]
+    fn with_capacity_reserves_slots_up_front() {
+        assert!(SlotTable::with_capacity(8).capacity() >= 8);
+    }
 }
