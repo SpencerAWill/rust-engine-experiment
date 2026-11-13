@@ -1,6 +1,6 @@
 # M3.1: `engine_collections`: deterministic map and set
 
-- **Status:** Draft (2026-11-13)
+- **Status:** Accepted (2026-11-13)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** none · **Decides:** no ADR
 - **Estimated size:** about 850 changed lines, excluding tests, lockfiles and generated files (`IndexMap` about 330, `IndexSet` about 170, iterator, entry and error wrappers about 170, benchmarks about 80, configuration and documents about 100)
 
