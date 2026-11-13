@@ -32,6 +32,11 @@ updates:
    directory: "/"
    schedule:
      interval: weekly
+   ignore:
+     # Pulumi's peer range is typescript < 7, and its bundled ts-node needs the JavaScript API
+     # that TypeScript 7 (the native compiler) does not have.
+     - dependency-name: "typescript"
+       versions: [">=7.0.0"]
    groups:
      all:
        patterns: ["*"]
