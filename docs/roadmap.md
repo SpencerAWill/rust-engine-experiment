@@ -9,7 +9,7 @@ Work is organized as **milestones** (a goal with exit criteria) broken into **ch
 | Milestone | Goal | Exit criteria | Status |
 |---|---|---|---|
 | M0+M1 | Engineering foundations and core primitives | Done (PR #3); see [its spec](design/m0-m1-foundations/spec.md) | Done |
-| M2 | Process and verification infrastructure | Roadmap and templates in place; nightly fuzzing green; coverage report in CI; first mutation triage recorded; Gungraun gate active on pull requests | Current |
+| M2 | Process and verification infrastructure | Roadmap and templates in place; nightly fuzzing green; coverage report in CI; first mutation triage recorded; Gungraun gate active on pull requests | Done |
 | M3 | ECS storage decision | ADRs accepted for the storage model, component identity, storage of foreign and mod-defined components, and the transform component layout, backed by results recorded in `benchmarks.md` | Next |
 | M4 | ECS core | World, entities, components and queries on the chosen storage; registry core; the dogfooding sample runs and its determinism test passes; core operations within noise of the winning M3 prototype | Later |
 | M5 | Reflection and persistence | The sample world saves, loads and reproduces its checksum; a separate tool prints a saved world without being compiled against its types | Later |
@@ -28,7 +28,7 @@ Row statuses: `Planned`, `Drafting`, `Accepted`, `In progress`, `Done (PR #n)`, 
 | M2.1 | Fuzzing: pinned nightly, `fuzz/` targets for `HandlePool`, the allocators (operation sequences against a model, plus `check_invariants`) and `Handle::from_bits`; `cargo xtask fuzz`; nightly CI job | M2.0 | Done (PR #14) | [spec](design/m2-infrastructure/m2.1-fuzzing/spec.md), [plan](design/m2-infrastructure/m2.1-fuzzing/plan.md) |
 | M2.2 | Coverage: `cargo-llvm-cov` through xtask; report uploaded in CI; no threshold gate | M2.0 | Done (PR #16) | [spec](design/m2-infrastructure/m2.2-coverage/spec.md), [plan](design/m2-infrastructure/m2.2-coverage/plan.md) |
 | M2.3 | Mutation testing: `cargo xtask mutants`, scheduled report-only workflow, first triage of `engine_handle` and `engine_random` | M2.2 | Done (PR #17) | [spec](design/m2-infrastructure/m2.3-mutation-testing/spec.md), [plan](design/m2-infrastructure/m2.3-mutation-testing/plan.md) |
-| M2.4 | Gungraun gate: Valgrind and gungraun-runner in the devcontainer and CI; benchmarks for handle and PRNG hot paths; merge-base against head comparison; fails above 5%; `perf-regression-accepted` label declared in Pulumi | M2.0 | In progress | [spec](design/m2-infrastructure/m2.4-gungraun-gate/spec.md), [plan](design/m2-infrastructure/m2.4-gungraun-gate/plan.md) |
+| M2.4 | Gungraun gate: Valgrind and gungraun-runner in the devcontainer and CI; benchmarks for handle and PRNG hot paths; merge-base against head comparison; fails above 5%; `perf-regression-accepted` label declared in Pulumi | M2.0 | Done (PR #18) | [spec](design/m2-infrastructure/m2.4-gungraun-gate/spec.md), [plan](design/m2-infrastructure/m2.4-gungraun-gate/plan.md) |
 
 **Miri is deferred out of M2.** [M0+M1 spec](design/m0-m1-foundations/spec.md) §4.12 placed it at the start of M2, but its trigger is the first allowlisted `unsafe` crate, and none exists. It arrives with the first chunk that proposes `unsafe` (M3 if the spike argues for type-erased columns, M8 at the latest).
 
