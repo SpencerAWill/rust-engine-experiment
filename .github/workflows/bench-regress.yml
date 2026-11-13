@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 3
       - run: rustup show
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
@@ -42,9 +42,9 @@ jobs:
       # interpolated into the script.
       - run: |
           if [ "$ACCEPTED" = "true" ]; then
-            cargo xtask bench-regress --base HEAD^1 --report-only
+            cargo xtask bench-regress --base HEAD^2^1 --report-only
           else
-            cargo xtask bench-regress --base HEAD^1
+            cargo xtask bench-regress --base HEAD^2^1
           fi
         env:
           ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-accepted') }}
