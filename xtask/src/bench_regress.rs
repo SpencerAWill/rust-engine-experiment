@@ -2,13 +2,6 @@
 //! the working tree, and `cargo xtask gungraun-version`, which prints the version CI and the
 //! devcontainer install the runner at (spec M2.4 §4.4, §4.8).
 
-// The command itself arrives in a later step of M2.4; until then most helpers below are only
-// exercised by the tests. Remove this attribute when `bench_regress` uses them.
-#![expect(
-    dead_code,
-    reason = "used by the command, which the next step of M2.4 adds"
-)]
-
 mod cargo_json;
 mod report;
 
@@ -337,16 +330,33 @@ fn remove_worktree(repo: &Path, path: &Path) {
         .status();
 }
 
+/// A command for the base run, started in `dir` (the base's worktree).
+///
+/// `cargo xtask` runs under rustup's proxy, which exports `RUSTUP_TOOLCHAIN` to its children. That
+/// variable outranks the worktree's `rust-toolchain.toml`, so without removing it the base would
+/// be built with the head's compiler and a toolchain bump could never show.
+fn base_command(program: &str, dir: &Path) -> Command {
+    let mut command = Command::new(program);
+    command
+        .current_dir(dir)
+        .env_remove("RUSTUP_TOOLCHAIN")
+        .env_remove("RUSTUP_TOOLCHAIN_SOURCE");
+    command
+}
+
 /// Builds the bench targets in `dir` and returns their executables. `target_dir` overrides
 /// `CARGO_TARGET_DIR` when given.
-fn build(dir: &Path, target_dir: Option<&Path>) -> Result<Vec<BenchExe>, String> {
+fn build(dir: &Path, target_dir: Option<&Path>, is_base: bool) -> Result<Vec<BenchExe>, String> {
     let args = build_args();
     println!("$ (in {}) cargo {}", dir.display(), args.join(" "));
-    let mut command = Command::new("cargo");
-    command
-        .args(&args)
-        .current_dir(dir)
-        .stderr(Stdio::inherit());
+    let mut command = if is_base {
+        base_command("cargo", dir)
+    } else {
+        let mut command = Command::new("cargo");
+        command.current_dir(dir);
+        command
+    };
+    command.args(&args).stderr(Stdio::inherit());
     if let Some(target_dir) = target_dir {
         command.env("CARGO_TARGET_DIR", target_dir);
     }
@@ -560,7 +570,7 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
     for stale in summary_files(&home) {
         let _ = fs::remove_file(stale);
     }
-    let exes = build(&repo, None)?;
+    let exes = build(&repo, None, false)?;
     let exits = run_targets(&repo.join("bench-regress"), &exes, &head_args(), &env);
     let verdict = report::classify(&exits);
 
@@ -586,13 +596,22 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
 fn run_base(repo: &Path, work: &Path, base: &str, env: &[(&str, String)]) -> Result<(), String> {
     let worktree = Worktree::add(repo, &work.join("base-worktree"), base)?;
     // The base's rust-toolchain.toml may name another toolchain than the head's.
-    crate::cmd::run_in(
-        &worktree.path.to_string_lossy(),
-        "rustup",
-        &["toolchain", "install"],
-        &[],
-    )?;
-    let exes = build(&worktree.path, Some(&work.join("base-target")))?;
+    let install = ["toolchain", "install"];
+    println!(
+        "$ (in {}) rustup {}",
+        worktree.path.display(),
+        install.join(" ")
+    );
+    let status = base_command("rustup", &worktree.path)
+        .args(install)
+        .status()
+        .map_err(|e| format!("failed to start rustup: {e}"))?;
+    if !status.success() {
+        return Err(format!(
+            "`rustup toolchain install` failed for the base ({status})"
+        ));
+    }
+    let exes = build(&worktree.path, Some(&work.join("base-target")), true)?;
     let exits = run_targets(
         &worktree.path.join("bench-regress"),
         &exes,
@@ -810,5 +829,26 @@ mod tests {
         assert!(
             line.contains("not compared") && line.contains("0.20.0") && line.contains("0.21.0")
         );
+    }
+
+    #[test]
+    fn base_commands_do_not_inherit_the_head_toolchain() {
+        // `cargo xtask` runs under rustup's proxy, which exports RUSTUP_TOOLCHAIN; left in place it
+        // would outrank the base's rust-toolchain.toml and build the base with the head's compiler.
+        let command = base_command("cargo", Path::new("/w"));
+        let removed: Vec<_> = command
+            .get_envs()
+            .filter(|(_, value)| value.is_none())
+            .map(|(key, _)| key.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            removed.contains(&"RUSTUP_TOOLCHAIN".to_string()),
+            "{removed:?}"
+        );
+        assert!(
+            removed.contains(&"RUSTUP_TOOLCHAIN_SOURCE".to_string()),
+            "{removed:?}"
+        );
+        assert_eq!(command.get_current_dir(), Some(Path::new("/w")));
     }
 }
