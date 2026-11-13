@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["libs/*", "examples/*", "benches", "xtask"]
+members = ["libs/*", "examples/*", "benches", "bench-regress", "xtask"]
 exclude = ["fuzz"]
 
 [workspace.package]
@@ -20,6 +20,7 @@ engine_math = { path = "libs/engine_math", version = "0.1.0" }
 engine = { path = "libs/engine", version = "0.1.0" }
 glam = { version = "0.34", default-features = false, features = ["f64", "i32", "u32"] }  # glam 0.33+ makes non-f32 types opt-in: keep the DVec*/IVec*/UVec* types we re-export
 proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)
+gungraun = { version = "=0.20.0", default-features = true }  # exact pin: gungraun-runner must match the library version (M2.4 spec §4.1)
 
 [workspace.lints.rust]
 unsafe_code = "deny"

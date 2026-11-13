@@ -266,19 +266,46 @@ fn bench(
     run("cargo", &args, &[])
 }
 
+/// The package of the Gungraun instruction-count benchmarks. It runs under Valgrind through
+/// `bench-regress` (spec M2.4 §4.3), so the Criterion commands exclude it, and `bench-smoke`
+/// includes it.
+pub(crate) const REGRESS_PACKAGE: &str = "engine_bench_regress";
+
 /// The `cargo bench` command line for `bench [--save <name>]`.
 ///
 /// `--bench '*'` restricts it to the `[[bench]]` targets. Without it, flags after `--` (such as
 /// `--save-baseline`) are also passed to the unit-test harness of every library crate, which does
-/// not understand them and fails.
+/// not understand them and fails. The Gungraun package is excluded: its benchmarks need Valgrind.
 fn bench_args(save: Option<&str>) -> Vec<String> {
-    let mut args: Vec<String> = ["bench", "--workspace", "--bench", "*"]
-        .map(String::from)
-        .into();
+    let mut args: Vec<String> = [
+        "bench",
+        "--workspace",
+        "--exclude",
+        REGRESS_PACKAGE,
+        "--bench",
+        "*",
+    ]
+    .map(String::from)
+    .into();
     if let Some(name) = save {
         args.extend(["--", "--save-baseline", name].map(String::from));
     }
     args
+}
+
+/// The `cargo bench` command line for `bench-build`: compile the Criterion benchmarks without
+/// running them. The Gungraun package is excluded, so the command keeps meaning "the Criterion
+/// benchmarks compile"; `bench-smoke` builds and runs that package.
+fn bench_build_args() -> Vec<String> {
+    [
+        "bench",
+        "--workspace",
+        "--exclude",
+        REGRESS_PACKAGE,
+        "--no-run",
+    ]
+    .map(String::from)
+    .into()
 }
 
 /// The `cargo hack` command line: check every package with each of its features alone, and with
@@ -391,7 +418,14 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::NoStd => no_std(),
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
-        Command::BenchBuild => run("cargo", &["bench", "--workspace", "--no-run"], &[]),
+        Command::BenchBuild => run(
+            "cargo",
+            &bench_build_args()
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            &[],
+        ),
         Command::BenchDoc(options) => bench_doc::run(options),
         Command::Hack => {
             require_cargo_subcommand("hack", "cargo install --locked cargo-hack")?;
@@ -656,8 +690,55 @@ mod tests {
         // harness of every library crate, which rejects them.
         let args = bench_args(Some("m1"));
         let separator = args.iter().position(|a| a == "--").unwrap();
-        assert_eq!(&args[..separator], ["bench", "--workspace", "--bench", "*"]);
+        assert_eq!(
+            &args[..separator],
+            [
+                "bench",
+                "--workspace",
+                "--exclude",
+                "engine_bench_regress",
+                "--bench",
+                "*"
+            ]
+        );
         assert_eq!(&args[separator..], ["--", "--save-baseline", "m1"]);
-        assert_eq!(bench_args(None), ["bench", "--workspace", "--bench", "*"]);
+        assert_eq!(
+            bench_args(None),
+            [
+                "bench",
+                "--workspace",
+                "--exclude",
+                "engine_bench_regress",
+                "--bench",
+                "*"
+            ]
+        );
+    }
+
+    #[test]
+    fn criterion_commands_leave_the_regress_benchmarks_alone() {
+        // `engine_bench_regress` runs under Valgrind through `bench-regress` only (spec §4.3).
+        let exclusion = ["--exclude", REGRESS_PACKAGE].map(String::from);
+        let excludes = |args: &[String]| args.windows(2).any(|w| w == exclusion);
+        assert!(excludes(&bench_args(None)));
+        assert!(excludes(&bench_args(Some("x"))));
+        assert!(excludes(&bench_build_args()));
+        assert_eq!(
+            bench_build_args(),
+            [
+                "bench",
+                "--workspace",
+                "--exclude",
+                "engine_bench_regress",
+                "--no-run"
+            ]
+        );
+    }
+
+    #[test]
+    fn bench_smoke_includes_the_regress_benchmarks() {
+        // Test mode runs each Gungraun benchmark once without Valgrind, so a broken one fails CI.
+        assert!(!bench_smoke_args().iter().any(|a| a == "--exclude"));
+        assert!(!bench_smoke_args().iter().any(|a| a == REGRESS_PACKAGE));
     }
 }

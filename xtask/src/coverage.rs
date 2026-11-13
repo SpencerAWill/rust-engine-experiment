@@ -42,7 +42,7 @@ fn clean_args() -> Vec<String> {
 }
 
 /// The tests of `cargo xtask test --include-ignored`, minus doctests (nightly only in
-/// `cargo-llvm-cov`) and minus the two packages that are tooling, not engine code.
+/// `cargo-llvm-cov`) and minus the packages that are tooling, not engine code.
 fn test_args() -> Vec<String> {
     strings(&[
         "llvm-cov",
@@ -53,6 +53,8 @@ fn test_args() -> Vec<String> {
         "xtask",
         "--exclude",
         "engine_benches",
+        "--exclude",
+        crate::REGRESS_PACKAGE,
         "--run-ignored",
         "all",
         "--no-report",
@@ -187,6 +189,8 @@ mod tests {
                 "xtask",
                 "--exclude",
                 "engine_benches",
+                "--exclude",
+                "engine_bench_regress",
                 "--run-ignored",
                 "all",
                 "--no-report"
