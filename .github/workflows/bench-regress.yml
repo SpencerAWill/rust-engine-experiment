@@ -1,0 +1,50 @@
+name: bench-regress
+
+# The instruction-count gate (spec M2.4). It is a workflow of its own, not a job of ci.yml, because
+# it reacts to labels and ci.yml must not rerun on every label change.
+on:
+  # No `paths` filter and no condition on the job: a required check that never reports blocks the pull
+  # request, and a skipped job counts as passing. Whether anything relevant changed is decided
+  # inside the job (`cargo xtask bench-regress`, step 2 of spec §4.4).
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: bench-regress-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The job name is the required check (infra/github/index.ts, `requiredChecks`).
+  bench-regress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # On a pull request the checkout is the merge of the branch into the tip of main, so
+      # `HEAD^1` is that tip: two commits are enough to compare it with the merge.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: bench-regress
+      # Valgrind, the gungraun-runner that matches Cargo.lock, and libc debug symbols.
+      - uses: gungraun/setup-gungraun@62591572561bb2f4ed2ae300b8a8bea99ea8ddaf # v1.1.3
+      # The label is read into an environment variable and compared as text: no label text is
+      # interpolated into the script.
+      - run: |
+          if [ "$ACCEPTED" = "true" ]; then
+            cargo xtask bench-regress --base HEAD^1 --report-only
+          else
+            cargo xtask bench-regress --base HEAD^1
+          fi
+        env:
+          ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-accepted') }}

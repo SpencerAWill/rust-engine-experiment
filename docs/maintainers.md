@@ -20,13 +20,17 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the roadmap row is `Done (PR #n)`.
 - [ ] `CHANGELOG.md` is updated.
 - [ ] Merge only on the maintainer's explicit go-ahead.
+- [ ] After merging a chunk that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check or label does not exist in the repository's settings.
 
 ## When a milestone completes
 
+- [ ] Instruction-count check (from M3 on): in the devcontainer or CI, run `cargo xtask bench-regress --report-only --base m<N-1>` (the previous milestone's tag) and record the result in `docs/benchmarks.md` ("Instruction counts across milestones"). The first run is at the end of M3, against `m2`; at the end of M2 no earlier tag contains the benchmarks.
 - [ ] Tag the commit that completed it: `git tag -a m<N> -m "M<N>: <goal>"`, then `git push origin m<N>`.
 - [ ] In the roadmap, mark the milestone `Done` and the next one `Current`, and break the next one into chunks.
 - [ ] Decide whether this is the boundary at which to run "Before the repository goes public".
 
 ## Benchmarking
 
-Wall-clock numbers from a shared CI runner are noise, so CI only compiles and smoke-runs the benchmarks (`cargo xtask bench-smoke`). Record real numbers on AC power with other apps closed. On macOS `cargo xtask bench` refuses to start on battery power (override with `--allow-battery`) and runs under `caffeinate -i` so the machine cannot idle-sleep, but it cannot stop someone unplugging mid-run, so check the power log afterwards (`pmset -g log`) for any power-source change or sleep during the run. Compare runs with `cargo xtask bench-report --baseline NEW --against OLD`, and treat differences under about 5% as noise. Instruction-count regression gating (Gungraun) is planned for M2 (chunk M2.4); a hosted benchmark service is not scheduled.
+Wall-clock numbers from a shared CI runner are noise, so CI only compiles and smoke-runs the benchmarks (`cargo xtask bench-smoke`). Record real numbers on AC power with other apps closed. On macOS `cargo xtask bench` refuses to start on battery power (override with `--allow-battery`) and runs under `caffeinate -i` so the machine cannot idle-sleep, but it cannot stop someone unplugging mid-run, so check the power log afterwards (`pmset -g log`) for any power-source change or sleep during the run. Compare runs with `cargo xtask bench-report --baseline NEW --against OLD`, and treat differences under about 5% as noise. A hosted benchmark service is not scheduled.
+
+**Instruction-count gate (M2.4).** The `bench-regress` workflow, a required check, counts instructions under Valgrind through Gungraun for the benchmarks in `bench-regress/`, at the pull request's parent (`HEAD^1` of the merge checkout) and at the merge, and fails above +5% in any benchmark. The `perf-regression-accepted` label makes a regression report-only; it is not scoped to a commit, so on review check the benchmarks named in the description against the final run's "Accepted by label" list. Time per pull request: about 3 minutes on `ubuntu-latest` (2m48s when the base has no crate and is skipped, 3m16s with both builds; measured in PR #18). New benchmarks add to that budget. Locally, `cargo xtask bench-regress` runs it in the devcontainer. The label and the required check are declared in `infra/github/index.ts`; after a chunk that changes it merges, run `pulumi preview`, then `pulumi up`, there.

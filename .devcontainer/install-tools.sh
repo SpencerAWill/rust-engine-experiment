@@ -16,3 +16,10 @@ cargo install --locked cargo-nextest cargo-deny critcmp wasmtime-cli
 # (a unit test checks they agree). Optional, like the tools above.
 cargo install --locked cargo-mutants --version 27.1.0 ||
   echo "warning: cargo-mutants was not installed; run the command above by hand" >&2
+# Instruction-count gate (`cargo xtask bench-regress`): Valgrind (3.24+ comes with Debian trixie) and the
+# gungraun-runner at the version Cargo.lock pins for `gungraun`. Optional, like the tools above.
+{
+  sudo apt-get update &&
+    sudo apt-get install -y valgrind &&
+    cargo install --locked gungraun-runner --version "$(cargo xtask gungraun-version)"
+} || echo "warning: the instruction-count gate tools were not installed; run the commands above by hand" >&2

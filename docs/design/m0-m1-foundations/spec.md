@@ -1094,7 +1094,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 **Layout:**
 
-- Micro-benchmarks for each crate live in `libs/<crate>/benches/` (Criterion; from M2 also Gungraun targets for regression-critical paths).
+- Micro-benchmarks for each crate live in `libs/<crate>/benches/` (Criterion; from M2 also Gungraun targets for regression-critical paths). *Amended 2026-11-13 (M2.4): the Gungraun benchmarks live in their own package, `bench-regress/` (`engine_bench_regress`), not in `libs/<crate>/benches/`; see the [M2.4 spec](../m2-infrastructure/m2.4-gungraun-gate/spec.md) §4.1.*
 - Comparisons against other libraries live in `benches/` (`engine_benches`). Competitor crates are dev-dependencies of that crate only.
 
 **M1 benchmark matrix:**
