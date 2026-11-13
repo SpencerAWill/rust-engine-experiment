@@ -17,9 +17,11 @@ extern crate std;
 mod error;
 mod hasher;
 pub mod index_map;
+pub mod index_set;
 
 pub use error::TryReserveError;
 pub use index_map::IndexMap;
+pub use index_set::IndexSet;
 
 #[cfg(test)]
 mod tests;

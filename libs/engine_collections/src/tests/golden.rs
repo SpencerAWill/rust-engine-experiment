@@ -2,7 +2,7 @@
 
 use std::vec::Vec;
 
-use crate::IndexMap;
+use crate::{IndexMap, IndexSet};
 
 #[test]
 fn map_golden_order() {
@@ -29,4 +29,21 @@ fn map_golden_order() {
 
     let got: Vec<(char, u32)> = m.iter().map(|(k, v)| (*k, *v)).collect();
     assert_eq!(got, [('a', 1), ('b', 2), ('c', 3), ('f', 6), ('z', 26)]);
+}
+
+#[test]
+fn set_golden_order() {
+    let mut s = IndexSet::new();
+    for k in [5, 3, 8, 1] {
+        s.insert(k);
+    }
+    s.swap_remove(&5);
+    assert!(!s.insert(3));
+    s.insert(9);
+    s.shift_remove(&8);
+    assert_eq!(s.iter().copied().collect::<Vec<_>>(), [1, 3, 9]);
+    s.sort();
+    assert_eq!(s.iter().copied().collect::<Vec<_>>(), [1, 3, 9]);
+    s.insert(0);
+    assert_eq!(s.iter().copied().collect::<Vec<_>>(), [1, 3, 9, 0]);
 }
