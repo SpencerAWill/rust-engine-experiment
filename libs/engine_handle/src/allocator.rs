@@ -669,4 +669,27 @@ mod tests {
     fn slot_is_eight_bytes_per_slot_ever_used() {
         assert_eq!(size_of::<crate::slots::Slot>(), 8);
     }
+
+    #[test]
+    fn with_capacity_reserves_slots_up_front() {
+        let a = HandleAllocator::<u8>::with_capacity(16);
+        assert!(a.slots.capacity() >= 16);
+        assert!(a.is_empty());
+    }
+
+    #[test]
+    fn clear_retires_slots_whose_generation_is_exhausted() {
+        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        let h = a.allocate();
+        let other = a.allocate();
+        a.slots
+            .set_generation(h.index(), core::num::NonZeroU32::MAX);
+        a.clear();
+        // One slot is retired for good, so only the other can be handed out again, and the
+        // retired count the invariants check agrees with the slots.
+        a.check_invariants().expect("invariants hold");
+        let again = a.allocate();
+        assert_eq!(again.index(), other.index());
+        assert!(a.try_allocate().is_none());
+    }
 }

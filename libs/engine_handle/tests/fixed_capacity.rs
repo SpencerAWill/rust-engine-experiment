@@ -60,4 +60,16 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
     // `HeapStats::get` inside it nests the suspension and dhat panics.
     let after = dhat::HeapStats::get().total_blocks;
     dhat::assert_eq!(after, before);
+
+    // `with_capacity` promises the same up to its capacity: no allocation while filling it.
+    let mut lean = HandleAllocator::<u8>::with_capacity(N);
+    let mut dense = DenseHandleAllocator::<u8>::with_capacity(N);
+    let mut handles = Vec::with_capacity(2 * N);
+    let before = dhat::HeapStats::get().total_blocks;
+    for _ in 0..N {
+        handles.push(lean.allocate());
+        handles.push(dense.allocate());
+    }
+    let after = dhat::HeapStats::get().total_blocks;
+    dhat::assert_eq!(after, before);
 }

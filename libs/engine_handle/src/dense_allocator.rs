@@ -540,4 +540,23 @@ mod tests {
             "DenseHandleAllocator<u8> [Handle<u8>(0v1), Handle<u8>(1v1)]"
         );
     }
+
+    #[test]
+    fn check_invariants_reports_a_violation_instead_of_panicking() {
+        let mut a = DenseHandleAllocator::<u8>::new();
+        let _ = a.allocate();
+        assert!(a.check_invariants().is_ok());
+        a.pool.corrupt_dense_length();
+        let message = alloc::format!("{}", a.check_invariants().unwrap_err());
+        assert!(message.contains("dense arrays"), "message was {message}");
+    }
+
+    #[test]
+    #[should_panic(expected = "(3 slots in use or retired)")]
+    fn allocate_panics_naming_the_slot_limit() {
+        let mut a = DenseHandleAllocator::<u8>::with_slot_limit(3);
+        for _ in 0..4 {
+            let _ = a.allocate();
+        }
+    }
 }

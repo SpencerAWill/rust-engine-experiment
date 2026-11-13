@@ -753,6 +753,14 @@ impl<T> HandlePool<T> {
     }
 }
 
+/// Test support: breaks an invariant on purpose, to check that `check_invariants` reports it.
+#[cfg(test)]
+impl HandlePool<()> {
+    pub(crate) fn corrupt_dense_length(&mut self) {
+        self.values.push(());
+    }
+}
+
 impl<T> Default for HandlePool<T> {
     fn default() -> Self {
         Self::new()
