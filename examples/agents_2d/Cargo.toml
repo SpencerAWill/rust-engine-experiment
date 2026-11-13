@@ -1,0 +1,21 @@
+[package]
+name = "agents_2d"
+description = "2D agents in a window: the M3 storage baseline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }
+softbuffer = "0.4"
+
+[dev-dependencies]
+proptest = { workspace = true }
+dhat = "0.3"
+
+[lints]
+workspace = true

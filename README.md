@@ -17,7 +17,7 @@ Experimental. All crates are `0.x`, `publish = false`, and their APIs are explic
 | `engine` | Facade and `engine::prelude` | The single dependency for users |
 
 Also in the workspace: `examples/fixed_step_sim` (a deterministic headless simulation that uses all
-of the above), `benches/` (`engine_benches`: comparisons against `slotmap`, `thunderdome`, `rand`,
+of the above), `examples/agents_2d` (thousands of 2D agents in a `winit` window, and the plain-`Vec` baseline for the M3 storage decision; `cargo run -p agents_2d --release`), `benches/` (`engine_benches`: comparisons against `slotmap`, `thunderdome`, `rand`,
 `rand_xoshiro`, and `fastrand`), `bench-regress/` (`engine_bench_regress`: instruction-count benchmarks for the regression gate), and `xtask` (the task runner). Rationale for the splitting rule is
 in [ADR 0004](docs/adr/0004-crate-splitting-rule.md).
 
