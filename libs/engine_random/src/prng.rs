@@ -86,6 +86,10 @@ impl Prng {
     #[inline]
     pub fn next_u64(&mut self) -> u64 {
         let [s0, s1, s2, s3] = &mut self.state;
+        // THROWAWAY: redundant work to prove the bench-regress gate blocks a slowdown.
+        for i in 0..8_u32 {
+            core::hint::black_box(s0.rotate_left(i));
+        }
         let result = s0.wrapping_add(*s3).rotate_left(23).wrapping_add(*s0);
         let t = *s1 << 17;
         *s2 ^= *s0;
