@@ -187,4 +187,12 @@ Choices the spec leaves to implementation:
 
 ## 4. Deviations
 
-None yet.
+- **Eleven commits, not ten.** Step 8's benchmark sizes were first written as `iter = Spec::SIZES` (§1). Run under Valgrind, Gungraun named each benchmark after the setup expression's text (`sizes_0:(prepared :: < VecSimpleIter >(100_000))` with the type, never the size, truncated at its own length), so the sizes are now literal `args` in each `cache_bench!` line, the fallback §1 allows. `prepared` asserts (not `debug_assert!`, which is off in the bench profile) that the size is in `Spec::SIZES`. This shipped as a follow-up commit, `fix(spikes): write the cache bench sizes out so benchmark names show them`.
+- **`agents_2d` is a dev-dependency of the harness in steps 1 to 4**, and a normal dependency from step 5 (where `sprites` uses `WORLD_WIDTH` and `WORLD_HEIGHT`). An unused normal dependency fails `clippy -D warnings`. `spike_ecs_vec` takes it as a normal dependency in step 6.
+- **The two bench crates also depend on `spike_ecs_harness` and `spike_ecs_vec`** (dev-dependencies), which §1's package list omits.
+- **Two existing xtask tests changed** (`bench_args_select_only_bench_targets_before_passing_flags_through` and `criterion_commands_leave_the_regress_benchmarks_alone`): they pin the exact argument lists that R12 changes.
+- **`cargo xtask check-unsafe` prints only `ok`**, so step 1's "lists `spike_ecs_harness`" could not be observed; the command passes with the spike crates in the workspace.
+- **Step 9's `cargo xtask coverage` check was not run**: the machine lacks `llvm-tools-preview` and the toolchain was not changed. The exclusion list and the regex are covered by the extended unit tests.
+- **Step 8's Valgrind run** used a throwaway `rust:1-bookworm` container (aarch64) with Valgrind from apt, not the repository's devcontainer, and needed `--security-opt seccomp=unconfined` (Docker's default profile blocks `setarch`). The caveat is in `spikes/ecs_storage/README.md`.
+- **`CONTRIBUTING.md`'s "Spike crates" section** also exempts spike crates from the inline-test-module rule of coverage (the vec crate keeps its tests in `src/tests.rs`, as step 2 says).
+- **Extra public items** the plan did not list: `Letter::from_index` in `frag_iter`, and `pub(crate) draw_vectors` in `simple_iter` (the shared first nine draws of `simple_iter` and `heavy_compute`).
