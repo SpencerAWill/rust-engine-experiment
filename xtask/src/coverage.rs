@@ -99,9 +99,9 @@ fn lcov_args(regex: &str) -> Vec<String> {
 }
 
 /// The POSIX-extended regex (LLVM has no lookahead) for the files the reports leave out: tooling
-/// (`xtask/`, `bench/`), the spikes (`spikes/`), every `tests/` and `benches/` directory of a library or example, and
-/// the sources of dependencies and the standard library, which stop being filtered once the
-/// default is off. Anchored at `root`, so a checkout under a directory named `tests` is safe.
+/// (`xtask/`, `bench/`), the spikes (`spikes/`), every `tests/` and `benches/` directory of a
+/// library or example, and the sources of dependencies and the standard library, which stop being
+/// filtered once the default is off. Anchored at `root`, so a checkout under a directory named `tests` is safe.
 fn ignore_regex(root: &Path) -> String {
     let mut escaped = String::new();
     for c in root.to_string_lossy().chars() {

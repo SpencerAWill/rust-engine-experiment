@@ -209,6 +209,18 @@ mod frag_iter {
     }
 
     #[test]
+    #[should_panic(expected = "count must be at least 1")]
+    fn frag_iter_spawn_rejects_a_zero_count() {
+        let _ = rules::spawn(&Prng::from_seed(42), 0, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "is not below 26 * count")]
+    fn frag_iter_spawn_rejects_an_index_past_the_last_letter() {
+        let _ = rules::spawn(&Prng::from_seed(42), 520, 20);
+    }
+
+    #[test]
     fn frag_iter_has_count_entities_per_letter() {
         let w = VecFragIter::setup(FRAG);
         let mut per_letter = [0_usize; LETTERS as usize];

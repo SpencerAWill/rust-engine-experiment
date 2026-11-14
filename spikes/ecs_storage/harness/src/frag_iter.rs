@@ -102,10 +102,17 @@ pub struct Data(pub f32);
 ///
 /// # Panics
 ///
-/// If `count` is 0 or `i` is not below `26 * count`.
+/// If `count` is 0 or `i` is not below `26 * count`, with a message that says which.
 #[must_use]
 pub fn spawn(prng: &Prng, i: u64, count: usize) -> (Letter, Data) {
-    let index = u8::try_from(i / count as u64).expect("entity index is below 26 * count");
+    assert!(count >= 1, "frag_iter: count must be at least 1");
+    let index = i / count as u64;
+    assert!(
+        index < u64::from(LETTERS),
+        "frag_iter: entity index {i} is not below 26 * count ({})",
+        u64::from(LETTERS) * count as u64
+    );
+    let index = u8::try_from(index).expect("index is below 26, checked above");
     let mut r = prng.stream(i);
     let value = r.range(0.0_f32..1.0);
     let data = r.range(0.0_f32..1.0);
