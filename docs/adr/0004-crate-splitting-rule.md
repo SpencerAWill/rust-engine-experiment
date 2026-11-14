@@ -34,6 +34,7 @@ Topic alone is not a reason to split. No empty crates are created up front.
 | Crate | Justification |
 |---|---|
 | `engine_handle` | Platform (`no_std` + `alloc`), dependency-free; FFI exposure (handles cross the C ABI in M4); layering (foundation for the ECS, assets, FFI) |
+| `engine_collections` | Dependencies (`indexmap`, `foldhash`), which other crates should not carry; platform (`no_std` + `alloc`); layering (foundation for the ECS, registry and persistence) |
 | `engine_random` | Stability (output streams frozen for all of 0.x); platform (`no_std`, no `alloc`); independent reuse |
 | `engine_time` | Platform (`no_std` core with a `std` feature for `SystemClock`); independent reuse; layering (no dependency on math or handles) |
 | `engine_math` | Dependencies (`glam`); platform (`std`) |

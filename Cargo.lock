@@ -587,6 +587,7 @@ dependencies = [
 name = "engine"
 version = "0.1.0"
 dependencies = [
+ "engine_collections",
  "engine_handle",
  "engine_math",
  "engine_random",
@@ -597,6 +598,7 @@ dependencies = [
 name = "engine_bench_regress"
 version = "0.1.0"
 dependencies = [
+ "engine_collections",
  "engine_handle",
  "engine_random",
  "gungraun",
@@ -607,13 +609,26 @@ name = "engine_benches"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "engine_collections",
  "engine_handle",
  "engine_random",
  "fastrand",
+ "foldhash",
+ "indexmap",
  "rand",
  "rand_xoshiro",
  "slotmap",
  "thunderdome",
+]
+
+[[package]]
+name = "engine_collections"
+version = "0.1.0"
+dependencies = [
+ "dhat",
+ "foldhash",
+ "indexmap",
+ "proptest",
 ]
 
 [[package]]
@@ -685,6 +700,12 @@ dependencies = [
  "dhat",
  "engine",
 ]
+
+[[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "foreign-types"

@@ -1,6 +1,6 @@
 [package]
 name = "engine"
-description = "Facade for the engine: one dependency that re-exports the handle, random, time, and math crates"
+description = "Facade for the engine: one dependency that re-exports the collections, handle, random, time, and math crates"
 keywords = ["gamedev", "simulation", "determinism"]
 categories = ["game-engines"]
 version.workspace = true
@@ -16,6 +16,7 @@ default = ["std"]
 std = ["engine_time/std"]
 
 [dependencies]
+engine_collections = { workspace = true }
 engine_handle = { workspace = true }
 engine_random = { workspace = true }
 engine_time = { workspace = true }

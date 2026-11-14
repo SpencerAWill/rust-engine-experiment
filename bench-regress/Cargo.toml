@@ -9,6 +9,10 @@ repository.workspace = true
 publish.workspace = true
 
 [[bench]]
+name = "collections"
+harness = false
+
+[[bench]]
 name = "handle"
 harness = false
 
@@ -20,6 +24,7 @@ harness = false
 workspace = true
 
 [dev-dependencies]
+engine_collections.workspace = true
 engine_handle.workspace = true
 engine_random.workspace = true
 gungraun.workspace = true

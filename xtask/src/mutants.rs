@@ -20,7 +20,7 @@ pub(crate) const MUTANTS_VERSION: &str = "27.1.0";
 
 /// The crates whose mutants have been triaged (see `docs/mutation-triage.md`). A later chunk that
 /// triages another crate adds it here.
-const TRIAGED: &[&str] = &["engine_handle", "engine_random"];
+const TRIAGED: &[&str] = &["engine_collections", "engine_handle", "engine_random"];
 
 /// Where `cargo-mutants` writes its output, and the summary beside it.
 const OUT_DIR: &str = "target/mutants";
@@ -385,7 +385,7 @@ mod tests {
     fn packages_default_to_the_triaged_set() {
         assert_eq!(
             packages(&opts(&[], None, false)),
-            ["engine_handle", "engine_random"]
+            ["engine_collections", "engine_handle", "engine_random"]
         );
         assert_eq!(
             packages(&opts(&["engine_time"], None, false)),
@@ -401,6 +401,8 @@ mod tests {
                 "mutants",
                 "--output",
                 "target/mutants",
+                "-p",
+                "engine_collections",
                 "-p",
                 "engine_handle",
                 "-p",

@@ -9,6 +9,10 @@ repository.workspace = true
 publish.workspace = true
 
 [[bench]]
+name = "collections"
+harness = false
+
+[[bench]]
 name = "handles"
 harness = false
 
@@ -21,9 +25,12 @@ workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+engine_collections.workspace = true
 engine_handle.workspace = true
 engine_random.workspace = true
 fastrand = "2.5.0"
+foldhash = "0.2"
+indexmap = "2.14"
 rand = "0.10.3"
 rand_xoshiro = "0.8.1"
 slotmap = "1.1.1"

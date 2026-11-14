@@ -19,6 +19,7 @@ on:
       - .github/workflows/mutants.yml
       - xtask/src/mutants.rs
       - xtask/src/mutants/**
+      - libs/engine_collections/src/**
       - libs/engine_handle/src/**
       - libs/engine_random/src/**
 

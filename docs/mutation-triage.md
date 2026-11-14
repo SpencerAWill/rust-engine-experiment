@@ -1,6 +1,6 @@
 # Mutation testing triage
 
-- **Status:** Living record. Last triage: 2026-11-12 (M2.3).
+- **Status:** Living record. Last triage: 2026-11-13 (M3.1, `engine_collections`).
 - **Spec:** [M2.3](design/m2-infrastructure/m2.3-mutation-testing/spec.md)
 
 This is the hand-written record of what `cargo xtask mutants` found in each triaged crate and what was done about every missed mutant and timeout. The classes are defined in [CONTRIBUTING.md](../CONTRIBUTING.md#mutation-testing): *test gap, fixed*, *test gap, deferred*, *bug*, *equivalent* and *not worth a test* (the last two are excluded in `.cargo/mutants.toml`, with the reason there), plus *detected (hang)* for a timeout. Names carry the line and column at the commit of the triage run, so they drift as the files change; the exclusion entries do not use positions. To triage another crate, add it to `TRIAGED` in `xtask/src/mutants.rs`, run the command, and add a section here with a row for each missed mutant and timeout, in file and line order.
@@ -106,3 +106,56 @@ Confirming-run note on timeouts: `prng.rs:130:26` and `prng.rs:130:40` were caug
 | `libs/engine_random/src/sample.rs:274:25: replace < with <= in Prng::chance` | test gap, fixed | `chance_is_true_only_strictly_below_p` (edge_cases.rs) |
 | `libs/engine_random/src/splitmix.rs:9:5: replace mix64 -> u64 with 0` | detected (hang) | none |
 | `libs/engine_random/src/splitmix.rs:27:9: replace SplitMix64::next_u64 -> u64 with 0` | detected (hang) | none |
+
+## engine_collections
+
+Triaged in M3.1. Every missed mutant of the first run was a test gap in behaviour the model and law tests do not observe (capacity, mutable access by position, iterator sizes, `Debug` output, the set's `Hash`); all were closed with tests in `tests/contracts.rs`. No mutant timed out and none needed an exclusion. The names carry the line and column at the first run.
+
+| | Triage run | Confirming run (after the new tests) |
+|---|---|---|
+| Mutants tested | 178 | 178 |
+| Caught | 81 | 117 |
+| Missed | 36 | 0 |
+| Timeout | 0 | 0 |
+| Unviable | 61 | 61 |
+
+Both runs: `cargo-mutants` 27.1.0, `cargo xtask mutants -p engine_collections -j 2`, macOS.
+
+| Mutant | Class | Action |
+|---|---|---|
+| `libs/engine_collections/src/index_map.rs:98:9: replace IndexMap<K, V>::shrink_to_fit with ()` | test gap, fixed | `shrink_to_fit_releases_unused_capacity` (contracts.rs) |
+| `libs/engine_collections/src/index_map.rs:122:9: replace IndexMap<K, V>::get_index_mut -> Option<(&K, &mut V)> with None` | test gap, fixed | `positional_mutable_access_changes_the_stored_value` (contracts.rs) |
+| `libs/engine_collections/src/index_map.rs:132:9: replace IndexMap<K, V>::first_mut -> Option<(&K, &mut V)> with None` | test gap, fixed | `positional_mutable_access_changes_the_stored_value` (contracts.rs) |
+| `libs/engine_collections/src/index_map.rs:142:9: replace IndexMap<K, V>::last_mut -> Option<(&K, &mut V)> with None` | test gap, fixed | `positional_mutable_access_changes_the_stored_value` (contracts.rs) |
+| `libs/engine_collections/src/index_map/entry.rs:65:9: replace <impl fmt::Debug for Entry<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:67:9: replace <impl fmt::Debug for Iter<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `iterator_debug_output_shows_the_remaining_items` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:101:9: replace <impl fmt::Debug for Keys<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `iterator_debug_output_shows_the_remaining_items` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:129:9: replace <impl fmt::Debug for IterMut<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:162:9: replace <impl fmt::Debug for Values<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `iterator_debug_output_shows_the_remaining_items` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:190:9: replace <impl fmt::Debug for ValuesMut<'_, K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:215:9: replace <impl fmt::Debug for IntoIter<K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:240:9: replace <impl fmt::Debug for IntoKeys<K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_map/iter.rs:265:9: replace <impl fmt::Debug for IntoValues<K, V>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:73:9: replace IndexSet<T>::capacity -> usize with 0` | test gap, fixed | `set_capacity_follows_reservations` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:73:9: replace IndexSet<T>::capacity -> usize with 1` | test gap, fixed | `set_capacity_follows_reservations` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:84:9: replace IndexSet<T>::reserve with ()` | test gap, fixed | `set_capacity_follows_reservations` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:98:9: replace IndexSet<T>::try_reserve -> Result<(), TryReserveError> with Ok(())` | test gap, fixed | `set_try_reserve_overflow_is_an_error_and_leaves_the_set_usable` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:105:9: replace IndexSet<T>::shrink_to_fit with ()` | test gap, fixed | `shrink_to_fit_releases_unused_capacity` (contracts.rs) |
+| `libs/engine_collections/src/index_set.rs:267:9: replace <impl Hash for IndexSet<T>>::hash with ()` | test gap, fixed | `set_hash_depends_on_length_and_contents` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (0, None)` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (0, Some(0))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (0, Some(1))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (1, None)` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (1, Some(0))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:32:9: replace <impl Iterator for Iter<'a, T>>::size_hint -> (usize, Option<usize>) with (1, Some(1))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:60:9: replace <impl fmt::Debug for Iter<'_, T>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `iterator_debug_output_shows_the_remaining_items` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:85:9: replace <impl Iterator for IntoIter<T>>::next -> Option<T> with None` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (0, None)` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (0, Some(0))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (0, Some(1))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (1, None)` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (1, Some(0))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:89:9: replace <impl Iterator for IntoIter<T>>::size_hint -> (usize, Option<usize>) with (1, Some(1))` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:101:9: replace <impl ExactSizeIterator for IntoIter<T>>::len -> usize with 0` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:101:9: replace <impl ExactSizeIterator for IntoIter<T>>::len -> usize with 1` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
+| `libs/engine_collections/src/index_set/iter.rs:109:9: replace <impl fmt::Debug for IntoIter<T>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
