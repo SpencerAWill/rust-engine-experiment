@@ -4,6 +4,8 @@
 use engine::prelude::*;
 use spike_ecs_harness::{Params, Workload, check_conformance};
 
+use crate::frag_iter::VecFragIter;
+use crate::heavy_compute::VecHeavyCompute;
 use crate::simple_iter::VecSimpleIter;
 
 /// Storage that can be reversed in place, to test that a checksum ignores storage order.
@@ -171,5 +173,168 @@ mod simple_iter {
     fn stepping_twice_is_detected() {
         let d = check_conformance::<VecSimpleIter, StepTwice<VecSimpleIter>>(P, TICKS).unwrap_err();
         assert_eq!(d.tick, 1);
+    }
+}
+
+mod frag_iter {
+    use super::*;
+    use spike_ecs_harness::frag_iter::{self as rules, Data, LETTERS, Letter};
+
+    impl Reversible for VecFragIter {
+        fn reverse(&mut self) {
+            self.entities.reverse();
+        }
+    }
+
+    const FRAG: Params = Params {
+        count: 20,
+        seed: 42,
+    };
+
+    #[test]
+    fn frag_iter_spawn_follows_the_draw_order() {
+        let prng = Prng::from_seed(42);
+        let mut r = prng.stream(45);
+        let value = r.range(0.0_f32..1.0);
+        let data = r.range(0.0_f32..1.0);
+        let (letter, d) = rules::spawn(&prng, 45, 20);
+        // 45 / 20 = 2, which is the letter C.
+        assert!(matches!(letter, Letter::C(_)));
+        assert_eq!(letter.index(), 2);
+        assert_eq!((letter.value(), d), (value, Data(data)));
+    }
+
+    #[test]
+    fn frag_iter_has_count_entities_per_letter() {
+        let w = VecFragIter::setup(FRAG);
+        let mut per_letter = [0_usize; LETTERS as usize];
+        for (letter, _) in &w.entities {
+            per_letter[usize::from(letter.index())] += 1;
+        }
+        assert_eq!(per_letter, [20; LETTERS as usize]);
+        assert_eq!(w.entities.len(), 26 * 20);
+    }
+
+    #[test]
+    fn frag_iter_data_follows_the_map() {
+        let mut w = VecFragIter::setup(FRAG);
+        let before: Vec<f32> = w.entities.iter().map(|(_, d)| d.0).collect();
+        w.step();
+        for (old, (_, new)) in before.iter().zip(&w.entities) {
+            assert_eq!(new.0, old * 0.5 + 1.0);
+        }
+    }
+
+    #[test]
+    fn frag_iter_is_order_independent() {
+        assert_order_independent::<VecFragIter>(FRAG);
+    }
+
+    #[test]
+    fn frag_iter_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecFragIter>();
+    }
+
+    #[test]
+    fn frag_iter_long_run_stays_finite() {
+        let mut w = VecFragIter::setup(Params {
+            count: 10,
+            seed: 42,
+        });
+        for _ in 0..10_000 {
+            w.step();
+        }
+        for (letter, data) in &w.entities {
+            assert!(letter.value().is_finite() && data.0.is_finite());
+        }
+    }
+}
+
+mod heavy_compute {
+    use super::*;
+    use spike_ecs_harness::heavy_compute::{self as rules, INVERSIONS};
+
+    impl Reversible for VecHeavyCompute {
+        fn reverse(&mut self) {
+            self.entities.reverse();
+        }
+    }
+
+    const HEAVY: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+
+    #[test]
+    fn heavy_compute_spawn_follows_the_draw_order() {
+        let prng = Prng::from_seed(42);
+        let mut r = prng.stream(3);
+        let mut vec3 =
+            |lo: f32, hi: f32| Vec3::new(r.range(lo..hi), r.range(lo..hi), r.range(lo..hi));
+        let position = vec3(-100.0, 100.0);
+        let rotation = vec3(-1.0, 1.0);
+        let velocity = vec3(-1.0, 1.0);
+        let mut cols = [Vec4::ZERO; 4];
+        for (c, col) in cols.iter_mut().take(3).enumerate() {
+            for row in 0..3 {
+                col[row] = if row == c {
+                    r.range(2.0_f32..4.0)
+                } else {
+                    r.range(-0.5_f32..0.5)
+                };
+            }
+        }
+        for row in 0..3 {
+            cols[3][row] = r.range(-10.0_f32..10.0);
+        }
+        cols[3][3] = 1.0;
+        let (m, p, ro, v) = rules::spawn(&prng, 3);
+        assert_eq!(m.0, Mat4::from_cols(cols[0], cols[1], cols[2], cols[3]));
+        assert_eq!(m.0.row(3), Vec4::new(0.0, 0.0, 0.0, 1.0));
+        assert_eq!((p.0, ro.0, v.0), (position, rotation, velocity));
+    }
+
+    #[test]
+    fn heavy_compute_matrices_are_invertible() {
+        let w = VecHeavyCompute::setup(HEAVY);
+        assert_eq!(w.entities.len(), 1_000);
+        for e in &w.entities {
+            assert_ne!(e.matrix.0.determinant(), 0.0);
+        }
+    }
+
+    #[test]
+    fn heavy_compute_position_is_the_transformed_rotation() {
+        let mut w = VecHeavyCompute::setup(HEAVY);
+        w.step();
+        assert_eq!(INVERSIONS, 100);
+        for e in &w.entities {
+            assert_eq!(e.position.0, e.matrix.0.transform_point3(e.rotation.0));
+        }
+    }
+
+    #[test]
+    fn heavy_compute_is_order_independent() {
+        assert_order_independent::<VecHeavyCompute>(HEAVY);
+    }
+
+    #[test]
+    fn heavy_compute_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecHeavyCompute>();
+    }
+
+    #[test]
+    fn heavy_compute_long_run_stays_finite() {
+        let mut w = VecHeavyCompute::setup(Params {
+            count: 10,
+            seed: 42,
+        });
+        for _ in 0..10_000 {
+            w.step();
+        }
+        for e in &w.entities {
+            assert!(e.matrix.0.is_finite() && e.position.0.is_finite());
+            assert_ne!(e.matrix.0.determinant(), 0.0);
+        }
     }
 }

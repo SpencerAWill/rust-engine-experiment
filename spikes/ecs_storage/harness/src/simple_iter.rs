@@ -30,11 +30,9 @@ pub struct Rotation(pub Vec3);
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Velocity(pub Vec3);
 
-/// Entity `i`'s components: position (3 draws in `-100..100`), rotation and velocity (3 draws
-/// each in `-1..1`), and an identity matrix.
-#[must_use]
-pub fn spawn(prng: &Prng, i: u64) -> (Matrix, Position, Rotation, Velocity) {
-    let mut r = prng.stream(i);
+/// Draws a position (3 values in `-100..100`), a rotation and a velocity (3 values each in
+/// `-1..1`) from `r`, in that order. `heavy_compute` continues drawing from the same stream.
+pub(crate) fn draw_vectors(r: &mut Prng) -> (Position, Rotation, Velocity) {
     let position = Vec3::new(
         r.range(-100.0_f32..100.0),
         r.range(-100.0_f32..100.0),
@@ -50,12 +48,15 @@ pub fn spawn(prng: &Prng, i: u64) -> (Matrix, Position, Rotation, Velocity) {
         r.range(-1.0_f32..1.0),
         r.range(-1.0_f32..1.0),
     );
-    (
-        Matrix(Mat4::IDENTITY),
-        Position(position),
-        Rotation(rotation),
-        Velocity(velocity),
-    )
+    (Position(position), Rotation(rotation), Velocity(velocity))
+}
+
+/// Entity `i`'s components: position (3 draws in `-100..100`), rotation and velocity (3 draws
+/// each in `-1..1`), and an identity matrix.
+#[must_use]
+pub fn spawn(prng: &Prng, i: u64) -> (Matrix, Position, Rotation, Velocity) {
+    let (position, rotation, velocity) = draw_vectors(&mut prng.stream(i));
+    (Matrix(Mat4::IDENTITY), position, rotation, velocity)
 }
 
 /// The rule for one entity: `position = position + velocity`.
