@@ -1,6 +1,6 @@
 # M3.11: `engine_genid`: one lean allocator, `GenId<T>`, and an untyped core
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Accepted (2026-11-14)
 - **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
 - **Issues:** #34 (remove `DenseHandleAllocator`) and #39 (rename `Handle` to `GenId`, with an `UntypedGenId` core). #40 (crate granularity) is related but out of scope.
 - **Estimated size:** about 480 changed lines of new or rewritten code, excluding tests, lockfiles and generated files: the untyped core and the typed wrapper about 250, the fuzz and bench changes about 80, configuration and documents about 120, the glossary about 30. On top of that come about 1,100 deleted lines (`dense_allocator.rs`, its fuzz target, its tests and benches) and a mechanical rename that touches about 1,500 lines. The rename is kept in its own commits so it can be reviewed as a rename (§4.8).
@@ -94,7 +94,7 @@ assert_eq!(again.to_bits(), erased.to_bits()); // one frozen layout
 ### 4.1 Removal of `DenseHandleAllocator`
 
 - `DenseHandleAllocator<T>` and `DenseAllocIter<'a, T>` MUST be deleted, together with `libs/engine_handle/src/dense_allocator.rs`, their re-exports in the crate root and in `engine` (module and prelude), the `dense_allocator_ops` fuzz target (its file, its `fuzz/Cargo.toml` entry, and every list in `xtask` and the workflows that names it), their cases in the integration tests and `libs/engine/tests/auto_traits.rs`, and their benchmarks in `bench/regress` and `bench/compare`.
-- Tests that use the dense allocator only to cover shared code (the slot table, the slot limit) MUST be moved onto `GenIdMap<()>` or `GenIdAllocator`, so the shared code keeps the same coverage. The mutation-triage row that a dense-allocator test fixed (`HandlePool<T>::slot_limit`, `docs/mutation-triage.md`) MUST still be caught by a test after the move.
+- Tests that use the dense allocator only to cover shared code (the slot table, the slot limit) MUST be moved onto `GenIdMap<()>` or `GenIdAllocator`, so the shared code keeps the same coverage. Crate-private items whose only caller is the dense allocator (`HandlePool::slot_limit`) MUST be deleted with it. The mutation-triage row whose mutant was in `slot_limit` then refers to deleted code, which the note in §4.7 says.
 - The model test requiring the allocator and `GenIdMap` to issue identical IDs for the same operations MUST be kept.
 - Iterating live IDs without values is `GenIdMap<()>`: `iter`, `retain`, `len`, `drain`. The crate documentation MUST say so in its "Choosing a container" table.
 
@@ -200,7 +200,7 @@ Compile-time assertions (`const _: () = assert!(...)`) in the crate MUST check:
 - `bench/regress` in this chunk: the `dense` group is removed. The rest keep their target, group and function names (§4.2). `cargo xtask bench-regress` MUST be run in the devcontainer before the pull request is ready. Every remaining benchmark MUST be within the gate's 5%, and the pull request MUST quote the table with base and head commits. Its relevance rule MUST cover `libs/engine_genid/`.
 - `bench/compare`: the dense subjects are removed, and the remaining ones are renamed per §4.2. `bench-doc` finds our subjects by the `engine` prefix, which still matches. Its hard-coded tally subject (`"engine_handle"` in `xtask/src/bench_doc.rs`) and its test fixtures MUST be updated to `"engine_genid"`.
 - `docs/benchmarks.md` is a record of measurements. Its tables and analysis MUST NOT be rewritten to the new names without a new run. A dated note at the top of the handle section MUST say that the results were measured before ADR 0012, map the old subject names to the new ones, and say that the `engine_handle_dense` rows describe a removed type. The next `bench-doc` run regenerates the tables under the new names.
-- `docs/mutation-triage.md` is also a record. Its existing rows MUST NOT be edited. A dated note MUST say that `engine_handle` is now `engine_genid`, that the `dense_allocator.rs` rows refer to a deleted file, and where the `slot_limit` row's test now lives.
+- `docs/mutation-triage.md` is also a record. Its existing rows MUST NOT be edited. A dated note MUST say that `engine_handle` is now `engine_genid`, that the `dense_allocator.rs` rows refer to a deleted file, and that the `slot_limit` row refers to a deleted function.
 
 ### 4.8 Change order
 
@@ -230,22 +230,23 @@ The "Known limitation" section (an ID used on a map or allocator other than the 
 
 This chunk adds `docs/glossary.md`, a new document with a status line, listed in the table in `docs/README.md`. It explains the repository's own terms in plain words, with a link to where each one is defined. It is a reference, not a source of truth: where it differs from an ADR, a spec or the rustdoc, those win.
 
-- Entries MUST be in alphabetical order, one table row each: the term (with its type name where there is one), what it means in a sentence or two, and a link to the authoritative definition.
+- Entries MUST be in alphabetical order, one table row each: the term, what it means in a sentence or two, and a link to the authoritative definition (the rustdoc item or ADR 0012).
+- Every term MUST be specific to what it names: a type name, or a common word qualified by its subsystem ("GenId generation", not "Generation"). A bare common word ("map", "slot", "handle") would become wrong as soon as another part of the engine uses it.
 - It MUST contain at least these entries, worded for readers who have not seen the code:
 
   | Term | Meaning |
   |---|---|
-  | Allocator, `GenIdAllocator<T>` | Hands out and frees generational IDs without storing any values; the data lives elsewhere, for example in a side table indexed by the ID's index |
-  | Generation | A counter kept per slot and bumped each time the slot is freed. An ID resolves only while its generation equals the slot's |
-  | Generational ID, `GenId<T>` | **"GenId" is short for generational ID.** A slot index plus the slot's generation when the ID was issued, typed by what it names (`T`) and checked whenever it is used. It identifies a value but does not point to it or own it. Called `Handle<T>` before ADR 0012 |
-  | Handle, handle pool | The former names of `GenId<T>` and `GenIdMap<T>` (before ADR 0012), still used in older documents. "Handle" is kept free for a possible future owning, reference-counted asset handle |
-  | Map, `GenIdMap<T>` | Stores values and hands out a generational ID for each, then maps that ID back to its value until the value is removed. The values are kept contiguous, so iterating is a walk over one array. `GenIdMap<()>` stores no values and is the way to iterate live IDs. Called `HandlePool<T>` before ADR 0012 |
-  | Retired slot | A slot whose generation reached its maximum. It is never reused, so a stale ID can never resolve to a new value |
-  | Slot, slot index | A position in a map's or allocator's slot array. An index is reused after its slot is freed, with a higher generation, so an index alone is not unique over time |
-  | Stale ID | An ID whose slot has been freed (and perhaps reused) since the ID was issued. Lookups with it return `None` |
-  | Untyped ID, `UntypedGenId` | A generational ID without its type, for code that does not know `T` at compile time (registries, serialisation, the C ABI). It carries the frozen bit encoding |
+  | `GenId<T>` | **"GenId" is short for generational ID.** A GenId slot index plus that slot's GenId generation when the ID was issued, typed by what it names (`T`) and checked whenever it is used. It identifies a value but does not point to it or own it |
+  | GenId generation | The counter each GenId slot keeps, bumped every time the slot is freed. A `GenId` resolves only while its generation equals its slot's |
+  | GenId slot, GenId slot index | A position in the slot array of a `GenIdMap` or `GenIdAllocator`. The index is reused after the slot is freed, with a higher GenId generation, so an index alone is not unique over time |
+  | `GenIdAllocator<T>` | Hands out and frees `GenId`s without storing values; the data lives elsewhere, for example in a side table indexed by the GenId slot index |
+  | `GenIdMap<T>` | Stores values, hands out a `GenId` for each, and maps that ID back to its value until the value is removed. Values are kept contiguous, so iterating is a walk over one array. `GenIdMap<()>` stores no values and is the way to iterate live IDs |
+  | `Handle<T>`, `HandlePool<T>`, `HandleAllocator<T>` | The names of `GenId<T>`, `GenIdMap<T>` and `GenIdAllocator<T>` before ADR 0012, still used in older documents |
+  | Retired GenId slot | A GenId slot whose generation reached its maximum. It is never reused, so a stale `GenId` can never resolve to a new value |
+  | Stale `GenId` | A `GenId` whose slot has been freed (and perhaps reused) since the ID was issued. Lookups with it return `None` |
+  | `UntypedGenId` | A `GenId` without its type, for code that does not know `T` at compile time (registries, serialisation, the C ABI). It carries the frozen bit encoding |
 
-- `docs/README.md` MUST gain a convention: a chunk that introduces a term a newcomer would not know, or renames one, adds or updates its glossary entry.
+- `docs/README.md` MUST gain a convention: a chunk that introduces a term a newcomer would not know, or renames one, adds or updates its glossary entry, named specifically as above.
 - The rustdoc cannot link to `docs/`, so it MUST expand the abbreviation itself. The first sentence of the `engine_genid` crate docs and of `GenId<T>`'s docs MUST say "generational ID", and the `engine` crate map row for `genid` MUST too.
 
 ## 5. Requirements
