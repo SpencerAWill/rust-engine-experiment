@@ -259,10 +259,18 @@ These patterns recur across many entries. They are not tracked items; each entry
 #### Packed entity ID
 
 - **Uses:** IDs that cross FFI, the network or save files.
-- **Notes:** packs an index, a generation and sometimes a kind or flag bits into one integer.
-- **Variants:** 32-bit or 64-bit IDs; a split between local and network IDs.
-- **Repo fit:** `in repo` (`Handle::to_bits`, frozen format).
-- **Determinism:** the bit layout is a frozen format: changing it needs an ADR.
+- **Notes:** packs an index, a generation and sometimes other fields into one integer. This repo's `Handle<T>` is a `u32` index plus a `NonZeroU32` generation, encoded as `(index << 32) | generation`. That uses all 64 bits, with a zero generation as the niche that keeps `Option<Handle<T>>` at 8 bytes. Every extra field takes bits from the index (fewer live objects) or the generation (it wraps sooner, so a stale handle can match a reused slot).
+- **Variants:** fields other engines pack in:
+  - **Kind or type tag:** what the ID names (entity, component, texture, mesh). `Handle<T>` covers this at compile time; a runtime tag matters once handles lose their type, across the C ABI (M8) or in a type-erased registry.
+  - **World or pool ID:** which world or allocator issued the ID, so a handle used against the wrong or a recreated world is caught.
+  - **Shard or thread ID:** which per-thread allocator created it, so threads can create IDs in parallel without locks. Some engines also split the index into page and slot for paged storage.
+  - **Relationship and role flags (Flecs):** the high bits mark roles. A pair flag means the ID is a (relationship, target) pair with both entities' indices packed in, so one integer type names an entity, a component or a pair.
+  - **Networking:** a local-or-replicated bit for entities the client predicts; an owner or peer ID, so peers create IDs without colliding.
+  - **Persistence:** a persistent-or-transient bit (saved or runtime-only), or instead a separate stable ID remapped on load (M5).
+  - **Reserved values:** a null sentinel; a range of placeholder IDs for spawns deferred in command buffers; generations retired when they would wrap.
+  - **Common layouts (not checked against current source):** EnTT defaults to 32 bits, about 20 of index and 12 of version, configurable; Bevy's `Entity` is a 32-bit index and a 32-bit non-zero generation; Flecs uses 64 bits, 32 for the index, the generation above it and the top bits for role flags.
+- **Repo fit:** `in repo` (`Handle::to_bits`, frozen format). Likely reasons to add a field: untyped handles over FFI (M8), entity relationships (pair encoding), networking (owner or local bit).
+- **Determinism:** the bit layout is a frozen format, so changing it needs an ADR and new golden tests.
 - **Builds on:** [Slot map](#slot-map).
 - **Sources:** [slotmap crate](https://docs.rs/slotmap/1.0.3).
 
