@@ -38,6 +38,8 @@ const WORKFLOW_DIR: &str = ".github/workflows";
 const WRITE_ALLOWLIST: &[(&str, &str, &str)] = &[
     // Uploads the CodeQL results to code scanning.
     ("codeql.yml", "analyze", "security-events"),
+    // Uploads the Scorecard results to code scanning.
+    ("scorecard.yml", "analysis", "security-events"),
 ];
 
 /// The part of `line` before a YAML comment (a `#` at the start or after whitespace).
