@@ -228,9 +228,9 @@ The "Known limitation" section (an ID used on a map or allocator other than the 
 
 ### 4.10 Glossary
 
-This chunk adds `docs/glossary.md`, a new document with a status line, listed in the table in `docs/README.md`. It explains the repository's own terms in plain words, with a link to where each one is defined. It is a reference, not a source of truth: where it differs from an ADR, a spec or the rustdoc, those win.
+The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Glossary` section, after "Choosing a container". It explains the crate's terms in plain words, next to the API they describe, so it renders with `cargo doc`. It is scoped to this crate: it is not a repository-wide glossary, and there is no `docs/glossary.md`.
 
-- Entries MUST be in alphabetical order, one table row each: the term, what it means in a sentence or two, and a link to the authoritative definition (the rustdoc item or ADR 0012).
+- Entries MUST be in alphabetical order, one table row each: the term and what it means in a sentence or two. Every type a row names MUST be an intra-doc link (for example ``[`GenIdMap`]``), so `broken_intra_doc_links = "deny"` fails the build if a name goes stale.
 - Every term MUST be specific to what it names: a type name, or a common word qualified by its subsystem ("GenId generation", not "Generation"). A bare common word ("map", "slot", "handle") would become wrong as soon as another part of the engine uses it.
 - It MUST contain at least these entries, worded for readers who have not seen the code:
 
@@ -246,8 +246,7 @@ This chunk adds `docs/glossary.md`, a new document with a status line, listed in
   | Stale `GenId` | A `GenId` whose slot has been freed (and perhaps reused) since the ID was issued. Lookups with it return `None` |
   | `UntypedGenId` | A `GenId` without its type, for code that does not know `T` at compile time (registries, serialisation, the C ABI). It carries the frozen bit encoding |
 
-- `docs/README.md` MUST gain a convention: a chunk that introduces a term a newcomer would not know, or renames one, adds or updates its glossary entry, named specifically as above.
-- The rustdoc cannot link to `docs/`, so it MUST expand the abbreviation itself. The first sentence of the `engine_genid` crate docs and of `GenId<T>`'s docs MUST say "generational ID", and the `engine` crate map row for `genid` MUST too.
+- The first sentence of the `engine_genid` crate docs and of `GenId<T>`'s docs MUST also say "generational ID", and so MUST the `engine` crate map row for `genid`, so a reader who never scrolls to the glossary still sees the expansion.
 
 ## 5. Requirements
 
@@ -269,7 +268,7 @@ This chunk adds `docs/glossary.md`, a new document with a status line, listed in
 - **M3.11-R16** ADR 0012 MUST be accepted and ADR 0010's status MUST read `Superseded by ADR 0012 (date)`.
 - **M3.11-R17** The CHANGELOG MUST have an entry under "Changed" marked **breaking** that lists the renames, the removal and the new type.
 - **M3.11-R18** The crate MUST stay `no_std` with `alloc`, dependency-free and `#![forbid(unsafe_code)]`, and `cargo xtask no-std` and `cargo xtask wasm` MUST pass.
-- **M3.11-R19** `docs/glossary.md` MUST exist with the entries in §4.10, be listed in `docs/README.md` together with the new convention, and the crate docs, `GenId<T>`'s docs and the `engine` crate map MUST spell out "generational ID" in their first sentence.
+- **M3.11-R19** The `engine_genid` crate docs MUST have the `# Glossary` section of §4.10, with intra-doc links for every type named, and the crate docs, `GenId<T>`'s docs and the `engine` crate map MUST spell out "generational ID" in their first sentence.
 
 ## 6. Cross-cutting concerns
 
@@ -282,7 +281,7 @@ This chunk adds `docs/glossary.md`, a new document with a status line, listed in
 - **Public API changes:** breaking. One crate, one module, four types and three fuzz targets are renamed, two types are removed and one is added. There are no consumers outside the repository, and the crates are `0.x` with `publish = false`.
 - **FFI exposure:** `UntypedGenId` is the type that M8's FFI layer is expected to convert to and from. It crosses the boundary as a `to_bits` value, so this chunk fixes no C layout.
 - **Performance:** expected to be zero, because the wrapper is `#[repr(transparent)]` and the methods are the same `const fn`s. This is measured with `cargo xtask bench-regress` (instruction counts, base against head, R14). The Criterion comparison is not re-run (§4.7).
-- **Documentation:** new: ADR 0012, `docs/glossary.md` (§4.10), and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0008 (whose "context handle" is a different thing), 0010 (apart from its status line) and 0011; the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents. The research catalog (`docs/research/data-structures.md`) is dated research, but its "Repo fit" and "Notes" lines that describe this repository's types are updated (and its `DenseHandleAllocator` reference dropped). The industry term "handle", in entry names and sources, stays.
+- **Documentation:** new: ADR 0012, a glossary section in the `engine_genid` crate docs (§4.10), and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0008 (whose "context handle" is a different thing), 0010 (apart from its status line) and 0011; the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents. The research catalog (`docs/research/data-structures.md`) is dated research, but its "Repo fit" and "Notes" lines that describe this repository's types are updated (and its `DenseHandleAllocator` reference dropped). The industry term "handle", in entry names and sources, stays.
 - **Policy changes:** none. The frozen-format rule in AGENTS.md and CONTRIBUTING.md names the new method but is the same rule.
 
 ## 7. Alternatives considered
@@ -330,7 +329,7 @@ This chunk adds `docs/glossary.md`, a new document with a status line, listed in
 | R15 | `git grep` for the old names, reviewed against the list in §6 (Documentation); the documentation review |
 | R16, R17 | Review |
 | R18 | `cargo xtask ci` (includes `no-std`, `wasm` and `check-unsafe`) |
-| R19 | The documentation review, against the entry list in §4.10; `cargo xtask doc` for the rustdoc wording |
+| R19 | `cargo xtask doc` (fails on a broken intra-doc link); the documentation review, against the entry list in §4.10 |
 
 ## 9. Done when
 
@@ -342,7 +341,7 @@ This chunk adds `docs/glossary.md`, a new document with a status line, listed in
 - [ ] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request.
 - [ ] Each fuzz target ran locally for 60 seconds without a finding.
 - [ ] `cargo xtask mutants` on `engine_genid` shows the exclusions still applying.
-- [ ] `docs/glossary.md` exists with the §4.10 entries and is listed in `docs/README.md`, and the rustdoc spells out "generational ID".
+- [ ] The `engine_genid` crate docs have the §4.10 glossary, and the rustdoc spells out "generational ID".
 - [ ] ADR 0012 is accepted and ADR 0010 is marked superseded. ADR 0004's table, the live documents and the notes in `benchmarks.md` and `mutation-triage.md` are updated, and the CHANGELOG has the breaking entry.
 - [ ] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`.
 - [ ] The pull request closes #34 and #39 and lists the eight reviews.

@@ -118,16 +118,15 @@ Still under the old names.
 ### Step B6: documents, glossary and ADRs (R15 to R17, R19, spec §4.5, §4.9, §4.10)
 
 - **Files:**
-  - `libs/engine_genid/src/lib.rs` crate docs: the first sentence says "generational IDs", followed by the ADR 0004 justification, the four-row "Choosing a container" table and the "Known limitation" wording.
+  - `libs/engine_genid/src/lib.rs` crate docs: the first sentence says "generational IDs", followed by the ADR 0004 justification, the four-row "Choosing a container" table, the `# Glossary` section of spec §4.10 (alphabetical, GenId-specific terms only, every named type an intra-doc link), and the "Known limitation" wording.
   - The first doc sentence of `GenId<T>`; `libs/engine/src/lib.rs` crate map row ("Generational IDs: `GenId`, `UntypedGenId`, the `GenIdMap` container and the `GenIdAllocator`"); `libs/engine_time/src/lib.rs` ("neither math nor IDs").
-  - `docs/glossary.md` (new: status `Accepted (date)`, the GenId-specific entries of spec §4.10, each linking to its rustdoc item or ADR 0012; no bare common words); `docs/README.md` (table row, convention line).
   - `docs/adr/0012-generational-ids.md` (status `Accepted (date)`); `0010` (status `Superseded by ADR 0012 (date)`); `0004` (crate table row).
   - `README.md` (crate table row, frozen line); `CONTRIBUTING.md` (frozen formats; the fuzzing section's targets and commands; the mutation section's crate names; the PR-title example becomes `feat(genid): add UntypedGenId (M3.11)`); `AGENTS.md`; `SECURITY.md`; `.github/ISSUE_TEMPLATE/bug_report.md`, `feature_request.md`, `determinism_bug.yml`; `.github/PULL_REQUEST_TEMPLATE.md`.
   - `CHANGELOG.md`: the preamble names `UntypedGenId::to_bits`, plus a **breaking** "Changed" entry listing the renames, the removal and `UntypedGenId`.
   - `docs/benchmarks.md` and `docs/mutation-triage.md`: the dated notes of spec §4.7.
   - `docs/research/data-structures.md`: the five repository-reference lines (98, 204, 214, 262, 264 as of `main` at 38b952e).
 - **Test first:** before editing, `git grep -nE 'Handle::to_bits|engine_handle|HandlePool|HandleAllocator|DenseHandleAllocator'` over the files listed lists every line to change. After editing it lists none (the `benchmarks.md` and `mutation-triage.md` tables keep theirs below the notes).
-- **Verify:** `cargo xtask typos`, `cargo xtask doc`, `cargo xtask ci --quick`. `git grep -niw handle` across the repository, reviewed line by line: what remains is the historical records, ADRs 0005 and 0008, the verb, `ApplicationHandler`, ADR 0012, the glossary's former-names entry, this spec and plan, and the new CHANGELOG entry.
+- **Verify:** `cargo xtask typos`, `cargo xtask doc`, `cargo xtask ci --quick`. `git grep -niw handle` across the repository, reviewed line by line: what remains is the historical records, ADRs 0005 and 0008, the verb, `ApplicationHandler`, ADR 0012, the crate glossary's former-names entry, this spec and plan, and the new CHANGELOG entry.
 - **Commit:** `docs(genid): ADR 0012, glossary and the renamed documents (M3.11)`
 
 ## 3. Final verification
