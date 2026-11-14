@@ -32,4 +32,4 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 
 ### Fixed
 
-- **`check-unsafe`** checks every workspace member, read from `cargo metadata`, instead of a hard-coded list that left out `bench-regress` (`engine_bench_regress`). That crate already forbade `unsafe`, so nothing else changed.
+- **`check-unsafe`** checks every workspace member, read from `cargo metadata`, instead of a hard-coded list that left out `bench-regress` (`engine_bench_regress`), and it now works when started from a subdirectory (it used to find no crates there and pass). That crate already forbade `unsafe`, so nothing else changed.
