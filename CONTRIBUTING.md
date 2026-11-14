@@ -7,7 +7,23 @@ Thanks for your interest. This is an experimental engine: APIs change, and some 
 - Work is planned in [docs/roadmap.md](docs/roadmap.md): milestones, broken into **chunks** of exactly one pull request each.
 - Each chunk has a `spec.md` and a `plan.md`, copied from [docs/design/_template/](docs/design/_template/). The maintainer reviews them before implementation starts.
 - Pull request titles end with the chunk ID, for example `feat(fuzz): fuzz HandlePool against a model (M2.1)`.
-- Ideas, bugs and questions that are not scheduled go into issues. When one is scheduled, a chunk spec links it.
+- Ideas and bugs that are not scheduled go into issues; questions go to [Discussions](https://github.com/SpencerAWill/rust-engine-experiment/discussions). When an issue is scheduled, a chunk spec links it.
+
+## Issues
+
+Blank issues are off. Pick the template that fits:
+
+| You want to | Template | Label |
+| --- | --- | --- |
+| Report behaviour that differs from the documentation | Bug report | `bug` |
+| Report that the same build on the same platform gave different results for the same inputs ([ADR 0003](docs/adr/0003-same-build-determinism.md)) | Determinism bug | `bug`, `determinism` |
+| Report a measured slowdown, speedup or memory change | Performance report (needs a saved baseline and the noise floor, see "Benchmarks") | `performance` |
+| Propose an engine feature, or a change to an API or a design decision | Feature request | `enhancement` |
+| Propose work on CI, tooling, the repository layout or settings, or this process | Infrastructure or chore | `infrastructure` |
+| Ask a question | none: use Discussions | |
+| Report a vulnerability | none: report it privately ([SECURITY.md](SECURITY.md)) | |
+
+The templates are in `.github/ISSUE_TEMPLATE/`; the labels they assign are declared in `infra/github/index.ts`, so a new label goes there too.
 
 ## Licence and originality
 

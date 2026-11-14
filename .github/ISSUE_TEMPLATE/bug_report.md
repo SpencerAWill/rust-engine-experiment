@@ -20,6 +20,6 @@ labels: bug
 - OS and target (for example `aarch64-apple-darwin`, `wasm32-wasip1`):
 - Commit or version:
 
-**Does this touch a frozen format or determinism?** (PRNG streams, `Handle::to_bits`, golden values, same inputs giving different results.) If yes, say how.
+**Does this touch a frozen format?** (PRNG output streams, `Handle::to_bits`, golden values.) If yes, say how.
 
-For a security problem, do **not** open an issue; see SECURITY.md.
+If the same build gave different results for the same inputs, use the **Determinism bug** template instead. For a security problem, do **not** open an issue; see SECURITY.md.

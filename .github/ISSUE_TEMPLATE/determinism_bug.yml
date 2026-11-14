@@ -1,0 +1,95 @@
+name: Determinism bug
+description: The same build on the same platform gave different results for the same inputs
+labels: ["bug", "determinism"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The engine promises **same-build determinism** ([ADR 0003](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/docs/adr/0003-same-build-determinism.md)): the same binary on the same platform with the same inputs produces identical results. A difference between platforms (for example x86_64 and aarch64) or between two builds is not covered by that promise; if you think it should be, open a feature request instead.
+
+        Simulation code receives time, randomness and input only as explicit parameters, so a reproduction needs all three.
+
+  - type: checkboxes
+    id: same-build
+    attributes:
+      label: Same build, same platform
+      options:
+        - label: Both runs used the same binary (same commit, toolchain, profile and features) on the same platform (target triple and OS).
+          required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      placeholder: f0f5640
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: The output of `rustc --version`, the profile, and any non-default features.
+      placeholder: rustc 1.100.0 (...), --release, default features
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: The target triple, the OS and version, and the CPU.
+      placeholder: aarch64-apple-darwin, macOS 26.1, Apple M2 Pro
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Inputs
+      description: Everything the simulation received. Leave nothing to its defaults unstated.
+      placeholder: |
+        - PRNG seed(s):
+        - Number of ticks and the time step:
+        - Input data (attach it if it is large):
+        - Thread count, if anything runs in parallel:
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: A short program, a failing test, or the exact commands. A test that runs the same inputs twice and compares is ideal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outputs
+    attributes:
+      label: The diverging outputs
+      description: The result of each run (a checksum, a golden value, or a state dump), and the first tick or step where they differ, if you know it.
+      placeholder: |
+        Run A: checksum 0x...
+        Run B: checksum 0x...
+        First difference: tick ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often do the runs diverge?
+      description: An intermittent divergence points at ambient state (iteration order, thread timing, uninitialised data); one that happens every time points at the inputs or the build.
+      options:
+        - Every time
+        - Sometimes (give the count, for example 3 of 20, in the notes)
+        - Once, and I could not repeat it
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything else, such as a suspected cause or what you have ruled out.
