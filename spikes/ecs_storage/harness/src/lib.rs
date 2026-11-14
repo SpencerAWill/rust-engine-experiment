@@ -8,6 +8,7 @@
 
 mod conformance;
 mod fnv;
+pub mod simple_iter;
 
 use core::num::NonZeroU32;
 

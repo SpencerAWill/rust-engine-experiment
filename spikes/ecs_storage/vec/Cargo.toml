@@ -1,0 +1,16 @@
+[package]
+name = "spike_ecs_vec"
+description = "ECS storage spike: the plain-Vec reference backends (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+spike_ecs_harness = { path = "../harness" }
+
+[lints]
+workspace = true
