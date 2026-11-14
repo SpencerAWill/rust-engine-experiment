@@ -468,8 +468,12 @@ impl<T> GenIdMap<T> {
         self.values.is_empty()
     }
 
-    /// Number of values the map can hold without reallocating its dense value
-    /// storage (`Vec::capacity` semantics).
+    /// Number of values the map can hold without reallocating its dense storage
+    /// (`Vec::capacity` semantics).
+    ///
+    /// The map keeps one ID per value next to the values, so this is the smaller of the two
+    /// arrays' capacities. For a zero-sized `T` such as `()` the values never allocate, and
+    /// the ID array alone decides.
     ///
     /// # Examples
     ///
@@ -478,7 +482,8 @@ impl<T> GenIdMap<T> {
     /// assert!(GenIdMap::<u8>::with_capacity(8).capacity() >= 8);
     /// ```
     pub const fn capacity(&self) -> usize {
-        self.values.capacity()
+        let (ids, values) = (self.ids.capacity(), self.values.capacity());
+        if ids < values { ids } else { values }
     }
 
     /// Shrinks the dense value and ID storage to fit [`len`](Self::len).

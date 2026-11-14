@@ -121,3 +121,25 @@ fn foreign_untyped_id_is_rejected_not_a_panic() {
     assert!(!allocator.is_alive(foreign));
     assert!(!allocator.free(foreign));
 }
+
+/// A zero-sized `T` stores no values, but the map still stores one ID per value, so `capacity`
+/// must report the ID storage, not `usize::MAX`.
+#[test]
+fn capacity_of_a_unit_map_counts_its_id_storage() {
+    let mut map = GenIdMap::<()>::with_capacity(16);
+    assert!(
+        (16..1024).contains(&map.capacity()),
+        "capacity was {}",
+        map.capacity()
+    );
+
+    for _ in 0..4 {
+        let _ = map.insert(());
+    }
+    map.shrink_to_fit();
+    assert!(
+        (4..1024).contains(&map.capacity()),
+        "capacity after shrink_to_fit was {}",
+        map.capacity()
+    );
+}
