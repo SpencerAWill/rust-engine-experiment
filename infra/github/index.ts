@@ -152,9 +152,17 @@ const labels: { name: string; color: string; description: string }[] = [
     },
     // Assigned by the issue templates in .github/ISSUE_TEMPLATE/: keep their `labels:` in step
     // with this list.
-    { name: "infrastructure", color: "bfd4f2", description: "CI, tooling, repository layout or settings, contributor process" },
+    {
+        name: "infrastructure",
+        color: "bfd4f2",
+        description: "CI, tooling, repository layout or settings, contributor process",
+    },
     { name: "performance", color: "f9d0c4", description: "A measured slowdown, speedup or memory change" },
-    { name: "determinism", color: "b60205", description: "Same build, same platform, same inputs, different results (ADR 0003)" },
+    {
+        name: "determinism",
+        color: "b60205",
+        description: "Same build, same platform, same inputs, different results (ADR 0003)",
+    },
 ];
 
 new github.IssueLabels("labels", { repository: repo.name, labels });

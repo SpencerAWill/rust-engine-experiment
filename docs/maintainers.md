@@ -21,7 +21,7 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the roadmap row is `Done (PR #n)`.
 - [ ] `CHANGELOG.md` is updated.
 - [ ] Merge only on the maintainer's explicit go-ahead.
-- [ ] After merging a chunk that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check or label does not exist in the repository's settings.
+- [ ] After merging any pull request (chunk or not) that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check, label or setting (such as Discussions) does not exist in the repository.
 
 ## When a milestone completes
 

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The engine promises **same-build determinism** ([ADR 0003](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/docs/adr/0003-same-build-determinism.md)): the same binary on the same platform with the same inputs produces identical results. A difference between platforms (for example x86_64 and aarch64) or between two builds is not covered by that promise; if you think it should be, open a feature request instead.
+        The engine promises **same-build determinism** ([ADR 0003](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/docs/adr/0003-same-build-determinism.md)): the same binary on the same platform with the same inputs produces identical results. A difference between platforms (for example x86_64 and aarch64) or between two builds is not covered by that promise, with one exception: the frozen formats (the PRNG output streams and `Handle::to_bits`) must be identical on every platform and in every build, so a difference there is a bug; use the **Bug report** template for it. For any other difference between platforms or builds, open a feature request if you think it should be covered.
 
         Simulation code receives time, randomness and input only as explicit parameters, so a reproduction needs all three.
 

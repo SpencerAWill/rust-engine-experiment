@@ -18,7 +18,7 @@ Blank issues are off. Pick the template that fits:
 | Report behaviour that differs from the documentation | Bug report | `bug` |
 | Report that the same build on the same platform gave different results for the same inputs ([ADR 0003](docs/adr/0003-same-build-determinism.md)) | Determinism bug | `bug`, `determinism` |
 | Report a measured slowdown, speedup or memory change | Performance report (needs a saved baseline and the noise floor, see "Benchmarks") | `performance` |
-| Propose an engine feature, or a change to an API or a design decision | Feature request | `enhancement` |
+| Propose an engine feature, a performance idea you have not measured, or a change to an API or a design decision | Feature request | `enhancement` |
 | Propose work on CI, tooling, the repository layout or settings, or this process | Infrastructure or chore | `infrastructure` |
 | Ask a question | none: use Discussions | |
 | Report a vulnerability | none: report it privately ([SECURITY.md](SECURITY.md)) | |

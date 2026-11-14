@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose an engine feature, or a change to an API or a design decision
+about: Propose an engine feature, an unmeasured performance idea, or a change to an API or a design decision
 labels: enhancement
 ---
 

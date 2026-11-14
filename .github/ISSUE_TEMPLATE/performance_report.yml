@@ -7,13 +7,15 @@ body:
       value: |
         Performance claims need measurements ([CONTRIBUTING, Benchmarks](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/CONTRIBUTING.md#benchmarks)). Wall-clock numbers drift by about 5% between runs on a quiet machine, so a report compares two saved baselines and states the noise floor. To compare: `cargo xtask bench --save OLD` at one commit, `cargo xtask bench --save NEW` at the other, then `cargo xtask bench-report --baseline NEW --against OLD`.
 
+        An idea for a speedup that you have not measured yet goes in a **Feature request**.
+
   - type: dropdown
     id: kind
     attributes:
       label: What are you reporting?
       options:
         - A regression (slower, or more memory)
-        - An improvement or an opportunity for one
+        - An improvement (faster, or less memory)
         - Something else (explain in the summary)
     validations:
       required: true
@@ -101,5 +103,5 @@ body:
     id: conditions
     attributes:
       label: Conditions
-      description: For wall-clock runs, how you kept the machine quiet, and whether `pmset -g log` (macOS) showed a power change or sleep during the run. Say what you did not measure.
+      description: Required for wall-clock runs (CONTRIBUTING asks you to record them); optional for instruction counts. How you kept the machine quiet (AC power, other apps closed), and whether `pmset -g log` (macOS) showed a power change or sleep during the run. Say what you did not measure.
       placeholder: AC power, other apps closed, no power events in pmset -g log.
