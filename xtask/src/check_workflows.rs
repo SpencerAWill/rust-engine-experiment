@@ -35,7 +35,10 @@ const WORKFLOW_DIR: &str = ".github/workflows";
 ///
 /// Each entry is a job-level grant that needs a reason, written in a comment above it. A
 /// top-level grant and `write-all` are never allowed, so they have no entry here.
-const WRITE_ALLOWLIST: &[(&str, &str, &str)] = &[];
+const WRITE_ALLOWLIST: &[(&str, &str, &str)] = &[
+    // Uploads the CodeQL results to code scanning.
+    ("codeql.yml", "analyze", "security-events"),
+];
 
 /// The part of `line` before a YAML comment (a `#` at the start or after whitespace).
 fn strip_comment(line: &str) -> &str {
