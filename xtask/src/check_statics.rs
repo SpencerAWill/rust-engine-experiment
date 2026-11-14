@@ -1,4 +1,4 @@
-//! `check-statics`: scan library sources for global mutable state (ADR 0008).
+//! `check-statics`: scan library and spike sources for global mutable state (ADR 0008).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -132,13 +132,36 @@ fn rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Scans `libs/*/src/**/*.rs`; fails on findings without an allow comment.
+/// The subdirectories of `dir`, in name order. Plain files, such as a README, are skipped.
+fn subdirs(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    dirs.sort();
+    dirs
+}
+
+/// The `src` directories to scan under `root`: every library's (`libs/*/src`) and every spike
+/// crate's (`spikes/*/*/src`, one level of topic directories, then the packages).
+fn scanned_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut packages = subdirs(&root.join("libs"));
+    for topic in subdirs(&root.join("spikes")) {
+        packages.extend(subdirs(&topic));
+    }
+    packages.into_iter().map(|p| p.join("src")).collect()
+}
+
+/// Scans `libs/*/src/**/*.rs` and `spikes/*/*/src/**/*.rs`; fails on findings without an allow
+/// comment.
 pub(crate) fn run() -> Result<(), String> {
     let mut files = Vec::new();
-    if let Ok(entries) = fs::read_dir("libs") {
-        for e in entries.filter_map(Result::ok) {
-            rs_files(&e.path().join("src"), &mut files);
-        }
+    for dir in scanned_dirs(Path::new("")) {
+        rs_files(&dir, &mut files);
     }
     files.sort();
     let mut failures = Vec::new();
@@ -196,5 +219,35 @@ mod tests {
     fn honors_allow_comment() {
         let src = "// engine:allow-global-state: diagnostics facade\nstatic A: OnceLock<u8> = OnceLock::new();\n";
         assert!(scan_statics(Path::new("x.rs"), src)[0].allowed_by_comment);
+    }
+
+    #[test]
+    fn spike_sources_are_scanned() {
+        let root = std::env::temp_dir().join(format!("xtask-statics-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for dir in [
+            "libs/engine_random/src",
+            "spikes/ecs_storage/harness/src",
+            "spikes/ecs_storage/vec/src",
+        ] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        // A file next to the topic directories, as `spikes/README.md` is, is not a package.
+        fs::write(root.join("spikes/README.md"), "x").unwrap();
+        let dirs = scanned_dirs(&root);
+        fs::remove_dir_all(&root).unwrap();
+        let relative: Vec<_> = dirs
+            .iter()
+            .map(|d| d.strip_prefix(&root).unwrap().to_path_buf())
+            .collect();
+        assert_eq!(
+            relative,
+            [
+                "libs/engine_random/src",
+                "spikes/ecs_storage/harness/src",
+                "spikes/ecs_storage/vec/src"
+            ]
+            .map(PathBuf::from)
+        );
     }
 }

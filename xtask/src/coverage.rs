@@ -41,10 +41,19 @@ fn clean_args() -> Vec<String> {
     strings(&["llvm-cov", "clean", "--workspace"])
 }
 
+/// The packages of the spikes (`spikes/`): prototypes and their harness, not engine code. Their
+/// tests are conformance checks, which CI runs without instrumentation.
+const SPIKE_PACKAGES: &[&str] = &[
+    "spike_ecs_harness",
+    "spike_ecs_vec",
+    "spike_ecs_bench_compare",
+    "spike_ecs_bench_cache",
+];
+
 /// The tests of `cargo xtask test --include-ignored`, minus doctests (nightly only in
-/// `cargo-llvm-cov`) and minus the packages that are tooling, not engine code.
+/// `cargo-llvm-cov`) and minus the packages that are tooling or spikes, not engine code.
 fn test_args() -> Vec<String> {
-    strings(&[
+    let mut args = strings(&[
         "llvm-cov",
         "nextest",
         "--workspace",
@@ -55,10 +64,12 @@ fn test_args() -> Vec<String> {
         "engine_benches",
         "--exclude",
         crate::REGRESS_PACKAGE,
-        "--run-ignored",
-        "all",
-        "--no-report",
-    ])
+    ]);
+    for package in SPIKE_PACKAGES {
+        args.extend(["--exclude", package].map(String::from));
+    }
+    args.extend(["--run-ignored", "all", "--no-report"].map(String::from));
+    args
 }
 
 /// Flags shared by both reports. `cargo-llvm-cov` ignores every `examples/` directory by default,
@@ -88,7 +99,7 @@ fn lcov_args(regex: &str) -> Vec<String> {
 }
 
 /// The POSIX-extended regex (LLVM has no lookahead) for the files the reports leave out: tooling
-/// (`xtask/`, `bench/`), every `tests/` and `benches/` directory of a library or example, and
+/// (`xtask/`, `bench/`), the spikes (`spikes/`), every `tests/` and `benches/` directory of a library or example, and
 /// the sources of dependencies and the standard library, which stop being filtered once the
 /// default is off. Anchored at `root`, so a checkout under a directory named `tests` is safe.
 fn ignore_regex(root: &Path) -> String {
@@ -100,7 +111,7 @@ fn ignore_regex(root: &Path) -> String {
         escaped.push(c);
     }
     format!(
-        "^{escaped}/(xtask|bench|(libs|examples)/[^/]+/(tests|benches))/\
+        "^{escaped}/(xtask|bench|spikes|(libs|examples)/[^/]+/(tests|benches))/\
          |/(registry/src|git/checkouts)/|^/rustc/"
     )
 }
@@ -191,6 +202,14 @@ mod tests {
                 "engine_benches",
                 "--exclude",
                 "engine_bench_regress",
+                "--exclude",
+                "spike_ecs_harness",
+                "--exclude",
+                "spike_ecs_vec",
+                "--exclude",
+                "spike_ecs_bench_compare",
+                "--exclude",
+                "spike_ecs_bench_cache",
                 "--run-ignored",
                 "all",
                 "--no-report"
@@ -235,7 +254,7 @@ mod tests {
     fn ignore_regex_lists_the_excluded_dirs() {
         assert_eq!(
             ignore_regex(Path::new("/w")),
-            "^/w/(xtask|bench|(libs|examples)/[^/]+/(tests|benches))/\
+            "^/w/(xtask|bench|spikes|(libs|examples)/[^/]+/(tests|benches))/\
              |/(registry/src|git/checkouts)/|^/rustc/"
         );
     }
