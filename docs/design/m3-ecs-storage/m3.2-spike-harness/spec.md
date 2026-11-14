@@ -1,6 +1,6 @@
 # M3.2: Spike harness
 
-- **Status:** Accepted (2026-11-14). Amended before implementation (2026-11-14): one directory per spike topic (§4.1, §4.7, §4.8), and R8 narrowed because `add_remove`'s step is idempotent.
+- **Status:** Implemented (PR #36, 2026-11-14). Accepted (2026-11-14); amended before implementation (2026-11-14): one directory per spike topic (§4.1, §4.7, §4.8), and R8 narrowed because `add_remove`'s step is idempotent.
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.0, M3.1 · **Decides:** no ADR
 - **Estimated size:** about 1,500 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_harness` about 450, `spike_ecs_vec` about 550, the two bench crates about 270, xtask about 60, documents about 170)
 
@@ -369,12 +369,12 @@ The two backends differ only in layout, so their ratio is the measured cost of a
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally, and CI is green on all three platforms.
-- [ ] Every `vec_aos` workload passes its rule, order-independence and broken-candidate tests, and `vec_soa` agents passes conformance against `vec_aos`.
-- [ ] `cargo xtask spike-bench ecs` runs on macOS, and `cargo bench -p spike_ecs_bench_cache` runs in the devcontainer. Both outputs are in the pull request, labelled as informal.
-- [ ] The roadmap shows the narrowed M3.2, the new M3.10 and M3.8's new dependency. CONTRIBUTING.md, README.md, CHANGELOG.md, `spikes/README.md` and `spikes/ecs_storage/README.md` are updated.
-- [ ] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
+- [x] `cargo xtask ci` passes locally, and CI is green on all three platforms (PR #36: every check passes, including the macOS and Windows `os-matrix` jobs).
+- [x] Every `vec_aos` workload passes its rule, order-independence and broken-candidate tests, and `vec_soa` agents passes conformance against `vec_aos` (`spike_ecs_vec`: 47 tests, including `vec_soa_agents_matches_vec_aos`).
+- [x] `cargo xtask spike-bench ecs` runs on macOS, and `cargo bench -p spike_ecs_bench_cache` runs under Valgrind on Linux. Both outputs are in the pull request, labelled as informal. (The cache bench ran in a throwaway `rust:1-bookworm` container, not the devcontainer: see the plan's Deviations.)
+- [x] The roadmap shows the narrowed M3.2, the new M3.10 and M3.8's new dependency. CONTRIBUTING.md, README.md, CHANGELOG.md, `spikes/README.md` and `spikes/ecs_storage/README.md` are updated.
+- [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
+- [x] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
 
 ## 10. Open questions
 

@@ -1,6 +1,6 @@
 # M3.2 plan: Spike harness
 
-- **Status:** Draft (2026-11-14).
+- **Status:** Historical: executed in PR #36 (2026-11-14); the spec and the code are authoritative.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
