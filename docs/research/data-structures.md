@@ -2,7 +2,7 @@
 
 Status: Draft (2026-11-14). External research, not a decision. Nothing here is scheduled, and listing an entry does not mean the engine will have it.
 
-This catalog collects the data structures that game engines use, their common variants, and recent research that could be useful, so that the work can be tracked. A tracking issue has one checkbox per entry. Implementation work starts as a sub-issue of it and, once scheduled, becomes a roadmap chunk with its own spec ([roadmap](../roadmap.md), [CONTRIBUTING.md](../../CONTRIBUTING.md)).
+This catalog collects the data structures that game engines use, their common variants, and recent research that could be useful, so that the work can be tracked. The tracking issue, [#38](https://github.com/SpencerAWill/rust-engine-experiment/issues/38), has one checkbox per entry. Implementation work starts as a sub-issue of it and, once scheduled, becomes a roadmap chunk with its own spec ([roadmap](../roadmap.md), [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
 Read an entry's sources before a spec relies on it. Most sources are papers, engine documentation and practitioner posts. Performance numbers are the authors' own, and nothing here was measured in this repository. Following [ADR 0002](../adr/0002-originality-and-dependency-licensing.md), sources are for learning designs; no code is copied from them.
 
