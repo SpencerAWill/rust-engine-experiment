@@ -12,6 +12,8 @@
 import * as github from "@pulumi/github";
 import * as pulumi from "@pulumi/pulumi";
 
+import { PrivateVulnerabilityReporting } from "./privateVulnerabilityReporting";
+
 const config = new pulumi.Config();
 const repoName = "rust-engine-experiment";
 
@@ -71,6 +73,13 @@ new github.RepositoryDependabotSecurityUpdates(
     { repository: repo.name, enabled: true },
     { dependsOn: [vulnerabilityAlerts] },
 );
+
+// Not in the provider (6.15.1), so a dynamic resource calls the REST API; see its file.
+new PrivateVulnerabilityReporting("private-vulnerability-reporting", {
+    owner: new pulumi.Config("github").require("owner"),
+    repository: repo.name,
+    enabled: true,
+});
 
 // ---------------------------------------------------------------------------------------------
 // Ruleset on the default branch
