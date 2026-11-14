@@ -27,21 +27,26 @@ const repo = new github.Repository(
         visibility: "public",
 
         hasIssues: true,
-        hasProjects: true,
-        hasWiki: true,
+        // Unused: the backlog is issues, the design record is docs/.
+        hasProjects: false,
+        hasWiki: false,
         // Questions go here, not to issues (the issue chooser links to it: .github/ISSUE_TEMPLATE/config.yml).
         hasDiscussions: true,
 
-        allowMergeCommit: true,
+        // Squash only: one commit per pull request on main, titled by the pull request (the main
+        // ruleset below enforces the same). The merge-commit settings are gone with that method.
+        allowMergeCommit: false,
         allowSquashMerge: true,
-        allowRebaseMerge: true,
+        allowRebaseMerge: false,
         allowAutoMerge: false,
         allowUpdateBranch: false,
         deleteBranchOnMerge: true,
-        squashMergeCommitTitle: "COMMIT_OR_PR_TITLE",
+        // PR_TITLE, not COMMIT_OR_PR_TITLE: a one-commit pull request would otherwise take that
+        // commit's subject, which may lack the chunk ID the title carries.
+        squashMergeCommitTitle: "PR_TITLE",
         squashMergeCommitMessage: "COMMIT_MESSAGES",
-        mergeCommitTitle: "MERGE_MESSAGE",
-        mergeCommitMessage: "PR_TITLE",
+
+        topics: ["rust", "game-engine", "gamedev", "simulation", "ecs", "deterministic"],
 
         // Free on public repositories: catch committed credentials and block pushes containing them.
         securityAndAnalysis: {
@@ -55,10 +60,17 @@ const repo = new github.Repository(
     { protect: true },
 );
 
-new github.RepositoryVulnerabilityAlerts("vulnerability-alerts", {
+const vulnerabilityAlerts = new github.RepositoryVulnerabilityAlerts("vulnerability-alerts", {
     repository: repo.name,
     enabled: true,
 });
+
+// Dependabot opens a pull request when an advisory affects a dependency. It needs alerts on.
+new github.RepositoryDependabotSecurityUpdates(
+    "dependabot-security-updates",
+    { repository: repo.name, enabled: true },
+    { dependsOn: [vulnerabilityAlerts] },
+);
 
 // ---------------------------------------------------------------------------------------------
 // Ruleset on the default branch
@@ -110,7 +122,9 @@ new github.RepositoryRuleset("main-ruleset", {
             requireCodeOwnerReview: false,
             requireLastPushApproval: false,
             requiredReviewThreadResolution: false,
+            allowedMergeMethods: ["squash"],
         },
+        requiredLinearHistory: true,
         requiredStatusChecks: {
             strictRequiredStatusChecksPolicy: false,
             requiredChecks: requiredChecks.map((context) => ({
