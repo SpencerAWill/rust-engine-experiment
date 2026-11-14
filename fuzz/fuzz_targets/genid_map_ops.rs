@@ -151,10 +151,7 @@ impl Harness {
             }
             Op::GetMut(i, value) => {
                 if let Some(id) = self.pick(i) {
-                    match (
-                        self.map.get_mut(id),
-                        self.model.get_mut(&id.to_bits()),
-                    ) {
+                    match (self.map.get_mut(id), self.model.get_mut(&id.to_bits())) {
                         (Some(tracked), Some(modelled)) => {
                             assert_eq!(tracked.value, *modelled);
                             tracked.value = value;

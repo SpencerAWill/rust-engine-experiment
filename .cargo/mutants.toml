@@ -9,7 +9,7 @@ gitignore = true
 exclude_re = [
     # Equivalent: the index occupies bits 32..64 and the generation bits 0..32, so the two never
     # share a set bit and `|` and `^` agree.
-    '^libs/engine_genid/src/id\.rs:.*replace \| with \^ in GenId<T>::to_bits',
+    '^libs/engine_genid/src/id\.rs:.*replace \| with \^ in UntypedGenId::to_bits',
     # Equivalent: `VACANT_BIT | next` with `next < MAX_SLOTS` (checked by the line above), so
     # `next` never has the top bit and `|` and `^` agree.
     '^libs/engine_genid/src/slots\.rs:.*replace \| with \^ in Slot::set_state',

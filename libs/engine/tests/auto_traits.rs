@@ -7,7 +7,7 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use engine::genid::{CapacityError, GenId, GenIdAllocator, GenIdMap};
+use engine::genid::{CapacityError, GenId, GenIdAllocator, GenIdMap, UntypedGenId};
 use engine::math::convert::CoordinateSystem;
 use engine::math::{Transform, Transform2d, WorldTransform, WorldTransform2d};
 use engine::random::Prng;
@@ -20,6 +20,7 @@ fn assert_traits<T: Send + Sync + Debug>() {}
 #[test]
 fn id_types_are_send_sync_debug() {
     assert_traits::<GenId<Rc<u8>>>();
+    assert_traits::<UntypedGenId>();
     assert_traits::<GenIdMap<u8>>();
     assert_traits::<GenIdAllocator<Rc<u8>>>();
     assert_traits::<CapacityError<u8>>();

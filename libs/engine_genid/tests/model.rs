@@ -1,9 +1,11 @@
 //! Model-based property tests: `GenIdMap` against a `BTreeMap` reference.
 #![forbid(unsafe_code)]
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::{Hash, Hasher};
 
-use engine_genid::{GenId, GenIdAllocator, GenIdMap};
+use engine_genid::{GenId, GenIdAllocator, GenIdMap, UntypedGenId};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -292,5 +294,42 @@ proptest! {
         } else {
             prop_assert_eq!(bits & 0xFFFF_FFFF, 0);
         }
+    }
+}
+
+proptest! {
+    #![proptest_config(config())]
+
+    /// The typed and untyped constructors accept the same bit patterns and keep them.
+    #[test]
+    fn typed_and_untyped_agree(bits in any::<u64>()) {
+        prop_assert_eq!(
+            GenId::<u8>::from_bits(bits).map(GenId::untyped),
+            UntypedGenId::from_bits(bits)
+        );
+        if let Some(untyped) = UntypedGenId::from_bits(bits) {
+            let typed = GenId::<u8>::from_untyped(untyped);
+            prop_assert_eq!(typed.untyped(), untyped);
+            prop_assert_eq!(typed.to_bits(), untyped.to_bits());
+            prop_assert_eq!(untyped.to_bits(), bits);
+        }
+    }
+
+    /// Comparing, equality and hashing give the same answers typed and untyped.
+    #[test]
+    fn typed_and_untyped_compare_and_hash_alike(a in any::<u64>(), b in any::<u64>()) {
+        let (a, b) = (a | 1, b | 1);
+        let (ta, tb) = (GenId::<u8>::from_bits(a).unwrap(), GenId::<u8>::from_bits(b).unwrap());
+        let (ua, ub) = (ta.untyped(), tb.untyped());
+        prop_assert_eq!(ta.cmp(&tb), ua.cmp(&ub));
+        prop_assert_eq!(ta.cmp(&tb), a.cmp(&b));
+        prop_assert_eq!(ta == tb, ua == ub);
+        let hash = |value: &dyn Fn(&mut DefaultHasher)| {
+            let mut hasher = DefaultHasher::new();
+            value(&mut hasher);
+            hasher.finish()
+        };
+        prop_assert_eq!(hash(&|h| ta.hash(h)), hash(&|h| ua.hash(h)));
+        prop_assert_eq!(hash(&|h| tb.hash(h)), hash(&|h| ub.hash(h)));
     }
 }

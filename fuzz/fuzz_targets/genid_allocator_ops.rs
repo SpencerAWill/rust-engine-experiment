@@ -188,10 +188,7 @@ impl Harness {
             return;
         }
         assert!(!self.allocator.is_alive(id), "{id:?} is not live");
-        assert!(
-            !self.allocator.free(id),
-            "freed {id:?}, which is not live"
-        );
+        assert!(!self.allocator.free(id), "freed {id:?}, which is not live");
     }
 
     /// Everything that must hold after every operation.

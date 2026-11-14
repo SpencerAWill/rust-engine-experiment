@@ -55,5 +55,5 @@ pub use allocator::GenIdAllocator;
 #[cfg(any(test, feature = "test-invariants"))]
 pub use error::InvariantViolation;
 pub use error::{CapacityError, InvalidGenIdBits};
-pub use id::GenId;
+pub use id::{GenId, UntypedGenId};
 pub use map::{Drain, GenIdMap, IntoIter, Iter, IterMut};

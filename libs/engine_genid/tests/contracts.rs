@@ -5,7 +5,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use engine_genid::{GenId, GenIdAllocator, GenIdMap};
+use engine_genid::{GenId, GenIdAllocator, GenIdMap, UntypedGenId};
 
 fn hash_of(id: GenId<u8>) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -104,4 +104,20 @@ fn iterator_debug_output_shows_the_remaining_count() {
     let mut into = map.into_iter();
     let _ = into.next();
     assert_eq!(format!("{into:?}"), "IntoIter { remaining: 2, .. }");
+}
+
+/// An ID that came from somewhere else (a save file, another world) must be rejected by every
+/// container, never cause a panic.
+#[test]
+fn foreign_untyped_id_is_rejected_not_a_panic() {
+    let foreign = GenId::<u8>::from_untyped(UntypedGenId::from_bits(u64::MAX).unwrap());
+
+    let mut map = GenIdMap::<u8>::new();
+    assert_eq!(map.get(foreign), None);
+    assert!(!map.contains(foreign));
+    assert_eq!(map.remove(foreign), None);
+
+    let mut allocator = GenIdAllocator::<u8>::new();
+    assert!(!allocator.is_alive(foreign));
+    assert!(!allocator.free(foreign));
 }
