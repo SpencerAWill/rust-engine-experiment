@@ -1,6 +1,6 @@
 # M3.11 plan: `engine_genid`: one lean allocator, `GenId<T>`, and an untyped core
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Accepted (2026-11-14)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
