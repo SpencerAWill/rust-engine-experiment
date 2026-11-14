@@ -56,7 +56,7 @@ These are policy, not preferences. A pull request that breaks one will not be me
 - **Frozen formats.** The PRNG output streams and `Handle::to_bits` are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
 - **Documentation.** Every public item is documented and every public type has a runnable doctest.
 - **Panics.** A documented panic needs `#[track_caller]`, a `# Panics` section, an actionable message, and a fallible `try_` twin.
-- **Workflows** (`check-workflows`): actions pinned to commit hashes, a read-only token, no persisted checkout credentials, no `pull_request_target`.
+- **Workflows** (`check-workflows`): actions pinned to commit hashes, a read-only token (a job-level `write` scope only if it is in `WRITE_ALLOWLIST`, with a reason), no persisted checkout credentials, no `pull_request_target`.
 - Formatting (`cargo fmt`), clippy with warnings denied, docs without warnings, and `no_std` and WebAssembly builds.
 
 ## Tests
@@ -145,6 +145,7 @@ You need `cargo-mutants` at the pinned version; the command prints the install l
 - Use conventional commit messages (`feat:`, `fix:`, `perf:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), and split work into small logical commits that each pass `cargo xtask ci`.
 - Explain why, not just what. Mention any change to a public API, a frozen format, or a policy explicitly.
 - Add or update an ADR in `docs/adr/` for a decision that is hard to reverse.
+- Pull requests are squash-merged, the only merge method `main` allows. The pull request title becomes the commit subject on `main`, so it MUST be a conventional commit message (for a chunk, ending with the chunk ID), and the branch's commit messages become its body. Small logical commits are still wanted on the branch, because reviewers read them.
 
 ## Reviews before a pull request
 
@@ -153,7 +154,7 @@ Before opening a pull request, review the change from each perspective below, wh
 **Always**
 
 - **Code review** (`/code-review`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
-- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps).
+- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps; a new `write` token scope needs an entry with a reason in `WRITE_ALLOWLIST` in `xtask/src/check_workflows.rs`).
 - **Documentation review**, by hand: every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` and the roadmap row are current; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
 - **Spec conformance review**, by hand: for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
 

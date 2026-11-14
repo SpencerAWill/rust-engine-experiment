@@ -5,11 +5,11 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 ## Before the repository goes public
 
 - [ ] **Decide the commit email.** Existing commits carry a personal address as author, and it becomes public with the repository. Use GitHub's noreply address for future commits (`git config user.email`). Rewriting history is not planned.
-- [ ] **Enable private vulnerability reporting** (Settings, Code security). `SECURITY.md` and the issue chooser point at it.
+- [x] **Private vulnerability reporting** is enabled, declared in [`infra/github`](../infra/github/README.md) as a dynamic resource. `SECURITY.md` and the issue chooser point at it.
 - [ ] **Add `CODE_OF_CONDUCT.md`** once there is a contact method for conduct reports (the Contributor Covenant needs one).
 - [x] **Branch protection on `main`:** a repository ruleset declared in [`infra/github`](../infra/github/README.md) (Pulumi). It requires a pull request and every job in `ci.yml` as a status check (`os-matrix` once per OS), and blocks force pushes and deletion; the repository admin can bypass it. Change it there, not in the GitHub UI, and keep its `requiredChecks` in step with the job names in `ci.yml`.
 - [x] **Run the macOS and Windows jobs on every push:** remove the `if: github.event_name == 'pull_request'` condition (and its comment) from `os-matrix` in `ci.yml`. It is only there to save private-repo minutes.
-- [ ] Enable Dependabot security updates; set the repository description and topics.
+- [x] Dependabot security updates, the repository description and the topics are declared in [`infra/github`](../infra/github/README.md).
 - [x] **Discussions** are enabled for questions (declared in `infra/github`), and the issue chooser links to them.
 - [ ] **Never use a self-hosted runner for pull requests from forks.** A runner executes the pull request's code. If one is ever added, restrict it to scheduled jobs on `main`.
 - [ ] Re-read `docs/` and the history once more for anything private (the last scan found no secrets, private paths, or large binaries).

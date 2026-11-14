@@ -1,8 +1,4 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for more information:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-# https://containers.dev/guide/dependabot
+# Dependabot version updates for every ecosystem in this repository, with a 7-day cooldown.
 
 version: 2
 updates:
@@ -10,10 +6,14 @@ updates:
    directory: "/"
    schedule:
      interval: weekly
+   cooldown:
+     default-days: 7
  - package-ecosystem: "cargo"
    directory: "/"
    schedule:
      interval: weekly
+   cooldown:
+     default-days: 7
    groups:
      all:
        patterns: ["*"]
@@ -21,6 +21,8 @@ updates:
    directory: "/fuzz"
    schedule:
      interval: weekly
+   cooldown:
+     default-days: 7
    groups:
      all:
        patterns: ["*"]
@@ -28,10 +30,14 @@ updates:
    directory: "/"
    schedule:
      interval: weekly
+   cooldown:
+     default-days: 7
  - package-ecosystem: "npm"
    directory: "/"
    schedule:
      interval: weekly
+   cooldown:
+     default-days: 7
    ignore:
      # Pulumi's peer range is typescript < 7, and its bundled ts-node needs the JavaScript API
      # that TypeScript 7 (the native compiler) does not have.
