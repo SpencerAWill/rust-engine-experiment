@@ -259,7 +259,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 #### Packed entity ID
 
 - **Uses:** IDs that cross FFI, the network or save files.
-- **Notes:** packs an index, a generation and sometimes other fields into one integer. This repo's `GenId<T>` is a `u32` index plus a `NonZeroU32` generation, encoded as `(index << 32) | generation`. That uses all 64 bits, with a zero generation as the niche that keeps `Option<Handle<T>>` at 8 bytes. Every extra field takes bits from the index (fewer live objects) or the generation (it wraps sooner, so a stale handle can match a reused slot).
+- **Notes:** packs an index, a generation and sometimes other fields into one integer. This repo's `GenId<T>` is a `u32` index plus a `NonZeroU32` generation, encoded as `(index << 32) | generation`. That uses all 64 bits, with a zero generation as the niche that keeps `Option<GenId<T>>` at 8 bytes. Every extra field takes bits from the index (fewer live objects) or the generation (it wraps sooner, so a stale handle can match a reused slot).
 - **Variants:** fields other engines pack in:
   - **Kind or type tag:** what the ID names (entity, component, texture, mesh). `GenId<T>` covers this at compile time; a runtime tag matters once IDs lose their type (`UntypedGenId`), across the C ABI (M8) or in a type-erased registry.
   - **World or pool ID:** which world or allocator issued the ID, so a handle used against the wrong or a recreated world is caught.
