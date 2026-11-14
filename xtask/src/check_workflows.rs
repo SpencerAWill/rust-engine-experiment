@@ -10,6 +10,9 @@
 //! 3. Every `actions/checkout` sets `persist-credentials: false`.
 //! 4. No workflow uses the `pull_request_target` trigger, which runs with secrets on code from
 //!    forks.
+//! 5. A top-level `permissions:` block grants no `write` scope, and no block is `write-all`. A
+//!    job may grant a `write` scope only if `(file name, job id, scope)` is in
+//!    [`WRITE_ALLOWLIST`], with a reason.
 //!
 //! The check reads the text line by line (there is no YAML parser in `xtask`), which is enough
 //! for the plain block-style workflows this repository uses.
@@ -27,6 +30,12 @@ pub(crate) struct Finding {
 
 /// Where workflows live.
 const WORKFLOW_DIR: &str = ".github/workflows";
+
+/// The `(workflow file name, job id, scope)` triples that may hold a `write` token scope.
+///
+/// Each entry is a job-level grant that needs a reason, written in a comment above it. A
+/// top-level grant and `write-all` are never allowed, so they have no entry here.
+const WRITE_ALLOWLIST: &[(&str, &str, &str)] = &[];
 
 /// The part of `line` before a YAML comment (a `#` at the start or after whitespace).
 fn strip_comment(line: &str) -> &str {
@@ -113,9 +122,34 @@ fn disables_persisted_credentials(lines: &[&str], uses_index: usize) -> bool {
     })
 }
 
-/// Checks the text of one workflow file. `file` is only used to label findings.
-pub(crate) fn scan_workflow(file: &str, text: &str) -> Vec<Finding> {
+/// The `scope: value` pairs of an inline `permissions:` value (`{ a: read, b: write }`).
+fn inline_pairs(value: &str) -> Vec<(&str, &str)> {
+    value
+        .trim()
+        .trim_start_matches('{')
+        .trim_end_matches('}')
+        .split(',')
+        .filter_map(|pair| pair.split_once(':'))
+        .map(|(scope, access)| (scope.trim(), access.trim()))
+        .collect()
+}
+
+/// Where a `permissions:` block sits.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Level {
+    Top,
+    Job,
+}
+
+/// Checks the text of one workflow file. `file` labels findings and is matched, by its final path
+/// component, against `allowlist` (see [`WRITE_ALLOWLIST`]).
+pub(crate) fn scan_workflow(
+    file: &str,
+    text: &str,
+    allowlist: &[(&str, &str, &str)],
+) -> Vec<Finding> {
     let lines: Vec<&str> = text.lines().collect();
+    let file_name = file.rsplit(['/', '\\']).next().unwrap_or(file);
     let mut findings = Vec::new();
     let mut add = |line: usize, message: String| {
         findings.push(Finding {
@@ -125,6 +159,10 @@ pub(crate) fn scan_workflow(file: &str, text: &str) -> Vec<Finding> {
         });
     };
     let mut has_top_level_permissions = false;
+    let mut in_jobs = false;
+    let mut job = String::new();
+    // The `permissions:` block being read: its level and the indent of its key.
+    let mut block: Option<(Level, usize)> = None;
     for (index, raw) in lines.iter().enumerate() {
         let code = strip_comment(raw);
         let trimmed = code.trim();
@@ -132,8 +170,51 @@ pub(crate) fn scan_workflow(file: &str, text: &str) -> Vec<Finding> {
             continue;
         }
         let line = index + 1;
-        if indent(code) == 0 && trimmed.starts_with("permissions:") {
-            has_top_level_permissions = true;
+        let depth = indent(code);
+        if block.is_some_and(|(_, key_indent)| depth <= key_indent) {
+            block = None;
+        }
+        if depth == 0 {
+            in_jobs = trimmed == "jobs:";
+            job.clear();
+        } else if in_jobs && depth == 2 {
+            job = trimmed.split(':').next().unwrap_or("").to_string();
+        }
+        let level = match depth {
+            0 => Some(Level::Top),
+            4 if in_jobs && !job.is_empty() => Some(Level::Job),
+            _ => None,
+        };
+        if let (Some(level), Some(value)) = (level, trimmed.strip_prefix("permissions:")) {
+            if level == Level::Top {
+                has_top_level_permissions = true;
+            }
+            let value = value.trim();
+            if value.is_empty() {
+                block = Some((level, depth));
+            } else if value == "write-all" {
+                add(line, write_all_message(level, &job));
+            } else if value.starts_with('{') {
+                for (scope, access) in inline_pairs(value) {
+                    if let Some(message) =
+                        write_problem(level, &job, file_name, scope, access, allowlist)
+                    {
+                        add(line, message);
+                    }
+                }
+            }
+        } else if let Some((level, _)) = block
+            && let Some((scope, access)) = trimmed.split_once(':')
+            && let Some(message) = write_problem(
+                level,
+                &job,
+                file_name,
+                scope.trim(),
+                access.trim(),
+                allowlist,
+            )
+        {
+            add(line, message);
         }
         if trimmed.contains("pull_request_target") {
             add(
@@ -165,6 +246,36 @@ pub(crate) fn scan_workflow(file: &str, text: &str) -> Vec<Finding> {
     findings
 }
 
+fn write_all_message(level: Level, job: &str) -> String {
+    match level {
+        Level::Top => "top-level `permissions: write-all` gives every job a write token; grant read scopes only".to_string(),
+        Level::Job => format!("job `{job}` sets `permissions: write-all`, which is never allowed; list the scopes it needs"),
+    }
+}
+
+/// Why granting `scope` the `access` level is not allowed here, or `None` if it is.
+fn write_problem(
+    level: Level,
+    job: &str,
+    file_name: &str,
+    scope: &str,
+    access: &str,
+    allowlist: &[(&str, &str, &str)],
+) -> Option<String> {
+    if access != "write" {
+        return None;
+    }
+    match level {
+        Level::Top => Some(format!(
+            "top-level `permissions:` grants `{scope}: write` to every job; move it to the one job that needs it"
+        )),
+        Level::Job if allowlist.contains(&(file_name, job, scope)) => None,
+        Level::Job => Some(format!(
+            "job `{job}` grants `{scope}: write`; if that is intended, add (\"{file_name}\", \"{job}\", \"{scope}\") to `WRITE_ALLOWLIST` in xtask/src/check_workflows.rs with a reason"
+        )),
+    }
+}
+
 /// Checks every workflow in `.github/workflows` and prints the findings.
 pub(crate) fn run() -> Result<(), String> {
     let entries = fs::read_dir(WORKFLOW_DIR).map_err(|e| format!("{WORKFLOW_DIR}: {e}"))?;
@@ -177,7 +288,7 @@ pub(crate) fn run() -> Result<(), String> {
     let mut failures = Vec::new();
     for path in &files {
         let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        for f in scan_workflow(&path.display().to_string(), &text) {
+        for f in scan_workflow(&path.display().to_string(), &text, WRITE_ALLOWLIST) {
             failures.push(format!("{}:{}: {}", f.file, f.line, f.message));
         }
     }
@@ -203,7 +314,7 @@ mod tests {
     }
 
     fn messages(text: &str) -> Vec<(usize, String)> {
-        scan_workflow("w.yml", text)
+        scan_workflow("w.yml", text, &[])
             .into_iter()
             .map(|f| (f.line, f.message))
             .collect()
@@ -211,7 +322,7 @@ mod tests {
 
     #[test]
     fn a_compliant_workflow_has_no_findings() {
-        assert_eq!(scan_workflow("w.yml", &good()), Vec::new());
+        assert_eq!(scan_workflow("w.yml", &good(), &[]), Vec::new());
     }
 
     #[test]
@@ -254,14 +365,14 @@ mod tests {
     #[test]
     fn local_actions_are_exempt_and_docker_images_need_a_digest() {
         let local = good().replace("- run: cargo build", "- uses: ./.github/actions/setup");
-        assert_eq!(scan_workflow("w.yml", &local), Vec::new());
+        assert_eq!(scan_workflow("w.yml", &local, &[]), Vec::new());
         let docker_tag = good().replace("- run: cargo build", "- uses: docker://alpine:3.20");
         assert_eq!(messages(&docker_tag).len(), 1);
         let docker_digest = good().replace(
             "- run: cargo build",
             &format!("- uses: docker://alpine@sha256:{}", "a".repeat(64)),
         );
-        assert_eq!(scan_workflow("w.yml", &docker_digest), Vec::new());
+        assert_eq!(scan_workflow("w.yml", &docker_digest, &[]), Vec::new());
     }
 
     #[test]
@@ -270,7 +381,7 @@ mod tests {
             "{}# - uses: actions/checkout@v4\n# pull_request_target:\n",
             good()
         );
-        assert_eq!(scan_workflow("w.yml", &text), Vec::new());
+        assert_eq!(scan_workflow("w.yml", &text, &[]), Vec::new());
     }
 
     #[test]
@@ -320,9 +431,137 @@ mod tests {
         assert!(found[0].1.contains("pull_request_target"));
     }
 
+    const ALLOW: &[(&str, &str, &str)] = &[("w.yml", "build", "security-events")];
+
+    fn write_findings(file: &str, text: &str) -> Vec<(usize, String)> {
+        scan_workflow(file, text, ALLOW)
+            .into_iter()
+            .map(|f| (f.line, f.message))
+            .collect()
+    }
+
+    /// `good()` with `block` inserted as the job `build`'s first key.
+    fn with_job_permissions(block: &str) -> String {
+        good().replace(
+            "    runs-on: ubuntu-latest\n",
+            &format!("    runs-on: ubuntu-latest\n{block}"),
+        )
+    }
+
+    #[test]
+    fn top_level_write_scope_is_flagged() {
+        let text = good().replace("contents: read", "contents: write");
+        let found = write_findings("w.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, 5);
+        assert!(found[0].1.contains("contents"), "{}", found[0].1);
+        assert!(found[0].1.contains("top-level"), "{}", found[0].1);
+    }
+
+    #[test]
+    fn top_level_write_all_is_flagged() {
+        let text = good().replace("permissions:\n  contents: read", "permissions: write-all");
+        let found = write_findings("w.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].1.contains("write-all"), "{}", found[0].1);
+    }
+
+    #[test]
+    fn job_write_scope_outside_allowlist_is_flagged() {
+        let text = with_job_permissions("    permissions:\n      pull-requests: write\n");
+        let found = write_findings("w.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, 10);
+        assert!(found[0].1.contains("`build`"), "{}", found[0].1);
+        assert!(found[0].1.contains("pull-requests"), "{}", found[0].1);
+        assert!(found[0].1.contains("WRITE_ALLOWLIST"), "{}", found[0].1);
+    }
+
+    #[test]
+    fn allowlisted_job_write_scope_passes() {
+        let text = with_job_permissions("    permissions:\n      security-events: write\n");
+        assert_eq!(write_findings("w.yml", &text), Vec::new());
+    }
+
+    #[test]
+    fn allowlist_is_per_file() {
+        let text = with_job_permissions("    permissions:\n      security-events: write\n");
+        let found = write_findings("other.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].1.contains("security-events"), "{}", found[0].1);
+        let in_dir = write_findings(".github/workflows/w.yml", &text);
+        assert_eq!(in_dir, Vec::new(), "a path is matched by its file name");
+    }
+
+    #[test]
+    fn allowlist_is_per_job_and_per_scope() {
+        let other_job = good().replace("  build:", "  other:").replace(
+            "    runs-on: ubuntu-latest\n",
+            "    runs-on: ubuntu-latest\n    permissions:\n      security-events: write\n",
+        );
+        assert_eq!(write_findings("w.yml", &other_job).len(), 1);
+        let other_scope = with_job_permissions("    permissions:\n      contents: write\n");
+        assert_eq!(write_findings("w.yml", &other_scope).len(), 1);
+    }
+
+    #[test]
+    fn job_write_all_is_flagged_even_when_allowlisted() {
+        let text = with_job_permissions("    permissions: write-all\n");
+        let found = write_findings("w.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].1.contains("write-all"), "{}", found[0].1);
+    }
+
+    #[test]
+    fn inline_permissions_mapping_with_write_is_flagged() {
+        let text = with_job_permissions("    permissions: { contents: read, issues: write }\n");
+        let found = write_findings("w.yml", &text);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].1.contains("issues"), "{}", found[0].1);
+        let top = good().replace(
+            "permissions:\n  contents: read",
+            "permissions: {contents: write}",
+        );
+        assert_eq!(write_findings("w.yml", &top).len(), 1);
+    }
+
+    #[test]
+    fn permissions_text_inside_a_run_block_is_not_a_key() {
+        let text = good().replace(
+            "      - run: cargo build\n",
+            "      - run: |\n          echo hi\n          permissions: write-all\n          contents: write\n",
+        );
+        assert_eq!(write_findings("w.yml", &text), Vec::new());
+    }
+
+    #[test]
+    fn a_job_block_does_not_leak_into_the_next_job() {
+        let text = format!(
+            "{}  second:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n    env:\n      contents: write\n",
+            with_job_permissions("    permissions:\n      contents: read\n")
+        );
+        assert_eq!(write_findings("w.yml", &text), Vec::new());
+    }
+
+    #[test]
+    fn read_scopes_pass() {
+        let text = with_job_permissions(
+            "    permissions:\n      contents: read\n      security-events: none\n",
+        );
+        assert_eq!(write_findings("w.yml", &text), Vec::new());
+        let inline = with_job_permissions("    permissions: { contents: read }\n");
+        assert_eq!(write_findings("w.yml", &inline), Vec::new());
+        let read_all = with_job_permissions("    permissions: read-all\n");
+        assert_eq!(write_findings("w.yml", &read_all), Vec::new());
+    }
+
     #[test]
     fn every_finding_names_its_file() {
-        let found = scan_workflow("ci.yml", &good().replace("rust-cache@", "rust-cache@x"));
+        let found = scan_workflow(
+            "ci.yml",
+            &good().replace("rust-cache@", "rust-cache@x"),
+            &[],
+        );
         assert_eq!(found[0].file, "ci.yml");
     }
 }
