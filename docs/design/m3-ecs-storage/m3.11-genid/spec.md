@@ -1,7 +1,7 @@
 # M3.11: `engine_genid`: one lean allocator, `GenId<T>`, and an untyped core
 
 - **Status:** Draft (2026-11-14)
-- **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** none · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
+- **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
 - **Issues:** #34 (remove `DenseHandleAllocator`) and #39 (rename `Handle` to `GenId`, with an `UntypedGenId` core). #40 (crate granularity) is related but out of scope.
 - **Estimated size:** about 450 changed lines of new or rewritten code, excluding tests, lockfiles and generated files: the untyped core and the typed wrapper about 250, the fuzz and bench changes about 80, configuration and documents about 120. On top of that come about 1,100 deleted lines (`dense_allocator.rs`, its fuzz target, its tests and benches) and a mechanical rename that touches about 1,500 lines. The rename is kept in its own commits so it can be reviewed as a rename (§4.8).
 
@@ -112,14 +112,17 @@ assert_eq!(again.to_bits(), erased.to_bits()); // one frozen layout
 | `CapacityError<T>`, `InvariantViolation` | unchanged |
 | `Iter`, `IterMut`, `Drain`, `IntoIter` (pool iterators) | unchanged, under `engine_genid` |
 | fuzz targets `handle_from_bits`, `handle_pool_ops`, `handle_allocator_ops` | `genid_from_bits`, `genid_pool_ops`, `genid_allocator_ops` |
-| regress bench target `bench/regress/benches/handle.rs` (`[[bench]] name = "handle"`) | unchanged in this chunk (§4.7) |
+| regress bench target `bench/regress/benches/handle.rs` (`[[bench]] name = "handle"`) | `genid.rs` (`name = "genid"`), renamed by the preceding chore pull request (§4.7) |
 | Criterion subjects `engine_handle`, `engine_handle_lean` (`bench/compare`) | `engine_genid` |
 
 - Method names MUST NOT change. None of them contains "handle".
 - Parameters, locals, private fields (the pool's `handles` array becomes `ids`), messages and prose in code and docs MUST say "ID" or "id" for the identifier, not "handle". Panic and `Display` messages MUST name the new types, for example `GenIdPool is full: ...`.
-- The Gungraun bench target name (`handle`), its group names (`pool`, `allocator`) and its function names (`pool_insert_1k`, `allocator_allocate_1k`, ...) MUST NOT change. Gungraun keys results by target, group and function, so any rename would make the instruction-count gate treat the benchmark as new and compare nothing (§4.7). The code inside the target uses the new names.
+- In this chunk, the Gungraun bench target name (`genid`, after the preceding chore pull request), its group names (`pool`, `allocator`) and its function names (`pool_insert_1k`, `allocator_allocate_1k`, ...) MUST NOT change. Gungraun keys results by `<target>::<group>::<function>`, so any rename would make the instruction-count gate treat the benchmark as new and compare nothing (§4.7).
 - The old names MUST NOT remain as aliases or deprecated items (§7).
 - Workspace configuration that names the crate or its paths MUST be updated: `[workspace.dependencies]`, the self dev-dependency that enables `test-invariants`, `fuzz/Cargo.toml`, the `no-std`, `wasm` and `mutants` crate lists in `xtask`, the `mutants.yml` path filter, the comments in `ci.yml` and `nightly.yml`, and the `.cargo/mutants.toml` exclusion patterns. Those patterns match file paths and function names. A pattern that matches nothing after the rename does not fail; it silently stops excluding the mutant. So every pattern MUST be rewritten to the new path and name, and checked to still match (§8).
+- `xtask` code and test fixtures that name the crate, its paths, its types or the fuzz targets MUST be renamed too: the target list and tests in `fuzz.rs`, `check_unsafe.rs`, `mutants.rs` and `mutants/summary.rs`, the tally subject and fixtures in `bench_doc.rs` and `bench_report/`, and the relevance test in `bench_regress.rs`. Fixtures that only need some realistic-looking name change with the rest, so `git grep` stays clean.
+- The renamed fuzz targets start with an empty corpus. The nightly job keeps its corpus in the Actions cache with one folder per target (`fuzz/corpus/<target>/`), and carrying the old folders over would need a temporary workflow step that names the old targets. The corpus is a cache, and the nightly runs rebuild it, so it is not migrated. The pull request MUST say so.
+- The verb "handle" ("use `try_new` to handle this"), winit's `ApplicationHandler`, and ADR 0008's C API "context handle" (an opaque FFI context, not this type) are not this identifier and MUST NOT be renamed.
 
 ### 4.3 `UntypedGenId`
 
@@ -192,7 +195,8 @@ Compile-time assertions (`const _: () = assert!(...)`) in the crate MUST check:
 
 ### 4.7 Benchmarks and measurement records
 
-- `bench/regress`: the `dense` group is removed. The rest keep their target, group and function names (§4.2), and a comment in the target says why it is still called `handle`. `cargo xtask bench-regress` MUST be run in the devcontainer before the pull request is ready. Every remaining benchmark MUST be within the gate's 5%, and the pull request MUST quote the table with base and head commits. Its relevance rule MUST cover `libs/engine_genid/`.
+- **Before this chunk**, a chore pull request MUST rename the regress bench target from `handle` to `genid`: the file, its `[[bench]]` entry, the comments that point at `handle.rs` (in `prng.rs`, `collections.rs` and `spikes/ecs_storage/bench_cache/benches/cache.rs`), the CONTRIBUTING sentence on adding a benchmark, and the `xtask` fixtures that use `handle` as a target name (`bench_regress/report.rs`, `bench_regress/cargo_json.rs`). It changes nothing under `libs/`, so its own gate run, which sees every benchmark as new, loses no comparison. Done in this chunk instead, the rename would leave this chunk's gate run comparing nothing.
+- `bench/regress` in this chunk: the `dense` group is removed. The rest keep their target, group and function names (§4.2). `cargo xtask bench-regress` MUST be run in the devcontainer before the pull request is ready. Every remaining benchmark MUST be within the gate's 5%, and the pull request MUST quote the table with base and head commits. Its relevance rule MUST cover `libs/engine_genid/`.
 - `bench/compare`: the dense subjects are removed, and the remaining ones are renamed per §4.2. `bench-doc` finds our subjects by the `engine` prefix, which still matches. Its hard-coded tally subject (`"engine_handle"` in `xtask/src/bench_doc.rs`) and its test fixtures MUST be updated to `"engine_genid"`.
 - `docs/benchmarks.md` is a record of measurements. Its tables and analysis MUST NOT be rewritten to the new names without a new run. A dated note at the top of the handle section MUST say that the results were measured before ADR 0012, map the old subject names to the new ones, and say that the `engine_handle_dense` rows describe a removed type. The next `bench-doc` run regenerates the tables under the new names.
 - `docs/mutation-triage.md` is also a record. Its existing rows MUST NOT be edited. A dated note MUST say that `engine_handle` is now `engine_genid`, that the `dense_allocator.rs` rows refer to a deleted file, and where the `slot_limit` row's test now lives.
@@ -237,7 +241,7 @@ The "Known limitation" section (an ID used on a pool other than the one that iss
 - **M3.11-R12** The fuzz targets MUST be renamed as in §4.2, and `genid_from_bits` MUST also check `UntypedGenId::from_bits` and the typed round trip. `cargo xtask fuzz-build` MUST pass, and the nightly job MUST list exactly the three targets.
 - **M3.11-R13** Every `.cargo/mutants.toml` exclusion MUST name the new paths and functions and still match its mutant.
 - **M3.11-R14** `cargo xtask bench-regress` MUST report no benchmark above the 5% gate, with the result quoted in the pull request.
-- **M3.11-R15** Live documents (README, CONTRIBUTING, AGENTS, SECURITY, the issue and PR templates, the CHANGELOG preamble, the roadmap, ADR 0004's crate table, the crate docs and the `engine` crate map) MUST use the new names. `benchmarks.md` and `mutation-triage.md` MUST get the notes in §4.7. The historical records (§6) MUST NOT be edited, apart from ADR 0010's status line and those notes.
+- **M3.11-R15** Live documents (README, CONTRIBUTING, AGENTS, SECURITY, the issue and PR templates, the CHANGELOG preamble, the roadmap, ADR 0004's crate table, the crate docs, the `engine` crate map, the `engine_time` crate docs, the research catalog's lines about this repository, and the doc comments and fixtures in §4.2) MUST use the new names. `benchmarks.md` and `mutation-triage.md` MUST get the notes in §4.7. The historical records (§6) MUST NOT be edited, apart from ADR 0010's status line and those notes.
 - **M3.11-R16** ADR 0012 MUST be accepted and ADR 0010's status MUST read `Superseded by ADR 0012 (date)`.
 - **M3.11-R17** The CHANGELOG MUST have an entry under "Changed" marked **breaking** that lists the renames, the removal and the new type.
 - **M3.11-R18** The crate MUST stay `no_std` with `alloc`, dependency-free and `#![forbid(unsafe_code)]`, and `cargo xtask no-std` and `cargo xtask wasm` MUST pass.
@@ -253,7 +257,7 @@ The "Known limitation" section (an ID used on a pool other than the one that iss
 - **Public API changes:** breaking. One crate, one module, four types and three fuzz targets are renamed, two types are removed and one is added. There are no consumers outside the repository, and the crates are `0.x` with `publish = false`.
 - **FFI exposure:** `UntypedGenId` is the type that M8's FFI layer is expected to convert to and from. It crosses the boundary as a `to_bits` value, so this chunk fixes no C layout.
 - **Performance:** expected to be zero, because the wrapper is `#[repr(transparent)]` and the methods are the same `const fn`s. This is measured with `cargo xtask bench-regress` (instruction counts, base against head, R14). The Criterion comparison is not re-run (§4.7).
-- **Documentation:** new: ADR 0012 and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0010 (apart from its status line) and 0011; the research catalog (`docs/research/data-structures.md`); the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents.
+- **Documentation:** new: ADR 0012 and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0008 (whose "context handle" is a different thing), 0010 (apart from its status line) and 0011; the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents. The research catalog (`docs/research/data-structures.md`) is dated research, but its "Repo fit" and "Notes" lines that describe this repository's types are updated (and its `DenseHandleAllocator` reference dropped). The industry term "handle", in entry names and sources, stays.
 - **Policy changes:** none. The frozen-format rule in AGENTS.md and CONTRIBUTING.md names the new method but is the same rule.
 
 ## 7. Alternatives considered
@@ -271,7 +275,9 @@ The "Known limitation" section (an ID used on a pool other than the one that iss
 - **`From<GenId<T>> for UntypedGenId`.** Not added. Typed-to-untyped is lossless, but #39 asks for explicit names at both ends, and `untyped()` keeps every erasure searchable. It can be added later without breaking anything.
 - **Crate name `engine_id`.** Rejected: broader than the contents. A future persistent or asset ID gets its own home when it exists.
 - **Put the type into the `engine` facade.** Rejected. The facade sits at the top of the dependency graph, so everything built on IDs would have to move into it too. Crate granularity is #40.
-- **Rename the Gungraun bench target (`handle`) or its functions in this chunk.** Rejected. The gate would treat every benchmark as new and compare nothing, which is the measurement that shows the rename costs nothing at runtime. The function names already avoid "handle". The target is renamed later (§10).
+- **Rename the Gungraun bench target in this chunk**, with a manual `cargo xtask bench-regress --base <first commit>` run as the evidence. Rejected. It keeps one pull request, but the required gate would compare nothing in the chunk that changes `libs/`. The preceding chore pull request keeps the required check meaningful (§4.7).
+- **Keep the bench target named `handle`.** Rejected: the goal is that no live file uses the old name.
+- **Migrate the fuzz corpus.** Rejected: it needs a temporary workflow step naming the old targets, for a cache that rebuilds itself (§4.2).
 - **Rewrite the historical documents to the new names.** Rejected. They record what was decided when they were written. ADR 0012's name table maps them.
 
 ## 8. Verification
@@ -279,7 +285,7 @@ The "Known limitation" section (an ID used on a pool other than the one that iss
 | Requirement | Verified by |
 |---|---|
 | R1 | `git grep -n DenseHandleAllocator` and `git grep -n DenseAllocIter` return only the files R1 allows |
-| R2 | `cargo xtask ci`; the `engine` doctests and `libs/engine/tests/auto_traits.rs` use `engine::genid` and the prelude; `git grep -nw engine_handle` returns only the historical records, the notes in §4.7, ADR 0012, this spec and plan, the CHANGELOG entry, and the comment in the `handle` bench target |
+| R2 | `cargo xtask ci`; the `engine` doctests and `libs/engine/tests/auto_traits.rs` use `engine::genid` and the prelude; `git grep -nw engine_handle` returns only the historical records, the notes in §4.7, ADR 0012, this spec and plan, and the CHANGELOG entry |
 | R3 | Review of the §4.2 table against the crate root's `pub use` list; `git grep -nwE 'Handle\|HandlePool\|HandleAllocator\|InvalidHandleBits'` outside the historical records, ADR 0012, this spec and plan, and the CHANGELOG entry |
 | R4, R5 | Unit tests and doctests in `src/id.rs` (the renamed `handle.rs`, holding both types); `untyped`/`from_untyped` round trip as a proptest over all `u64` with a non-zero low half |
 | R6 | `compile_fail` doctests: mixing `GenId<A>` and `GenId<B>`, calling `cast`, and passing an `UntypedGenId` where a `GenId<T>` is expected |
@@ -297,8 +303,9 @@ The "Known limitation" section (an ID used on a pool other than the one that iss
 
 ## 9. Done when
 
+- [ ] The chore pull request renaming the regress bench target to `genid` is merged.
 - [ ] `DenseHandleAllocator` and its fuzz target, tests and benchmarks are gone, and the shared code's tests run on `GenIdPool<()>` or `GenIdAllocator`.
-- [ ] The crate, module, types, fuzz targets and Criterion subjects carry the new names. Nothing outside the historical records (§6) uses the old ones, apart from the `handle` bench target (§4.7).
+- [ ] The crate, module, types, fuzz targets and Criterion subjects carry the new names. Nothing outside the historical records (§6) uses the old ones for this identifier (`git grep -i handle` reviewed).
 - [ ] `UntypedGenId` and `GenId<T>` match §4.3 and §4.4, with size assertions, golden tests, proptests and `compile_fail` doctests.
 - [ ] `cargo xtask ci` passes.
 - [ ] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request.
@@ -316,7 +323,6 @@ None. Deferred, with owners:
 - **Crate granularity**, including whether `engine_genid` later merges into a core crate: #40, decided before M4.
 - **32-bit and configurable layouts:** #39's "Future" section, when M8, GPU-driven rendering or networking needs one.
 - **Whether `GenIdAllocator` stays:** after M3, with M4's world design.
-- **Renaming the `handle` bench target to `genid`:** in a later pull request that changes nothing under `libs/`, so the gate has nothing to lose by treating the benchmarks as new. It can go with any small chore pull request.
 
 ## 11. Prior art and sources
 
