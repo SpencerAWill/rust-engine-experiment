@@ -39,53 +39,52 @@ fn package_name(crate_dir: &Path) -> Option<String> {
     None
 }
 
-/// Directories of every workspace member, as `root` joined with the member's path, from
-/// `cargo metadata` run in `root` (the current directory when `root` is empty). The `members` list
-/// of the root `Cargo.toml` is the only list, so a crate that is added or moved cannot silently
-/// drop out of the check.
-pub(crate) fn workspace_crates(root: &Path) -> Result<Vec<PathBuf>, String> {
+/// The workspace as `cargo metadata` reports it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Workspace {
+    /// The workspace root, as an absolute path.
+    pub(crate) root: PathBuf,
+    /// The directory of every member, relative to `root`, sorted.
+    pub(crate) members: Vec<PathBuf>,
+}
+
+/// The workspace that contains `dir`, from `cargo metadata` run there, so the check does not
+/// depend on the directory it is started from. The `members` list of the root `Cargo.toml` is the
+/// only list, so a crate that is added or moved cannot silently drop out of the check.
+pub(crate) fn workspace(dir: &Path) -> Result<Workspace, String> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let mut command = Command::new(cargo);
-    command
+    let output = Command::new(cargo)
         .args(["metadata", "--no-deps", "--format-version", "1"])
-        .stderr(Stdio::inherit());
-    if !root.as_os_str().is_empty() {
-        command.current_dir(root);
-    }
-    let output = command
+        .current_dir(dir)
+        .stderr(Stdio::inherit())
         .output()
         .map_err(|e| format!("failed to start `cargo metadata`: {e}"))?;
     if !output.status.success() {
         return Err(format!("`cargo metadata` failed ({})", output.status));
     }
-    let members = member_dirs(&String::from_utf8_lossy(&output.stdout))?;
-    Ok(members.iter().map(|dir| root.join(dir)).collect())
+    parse_workspace(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// The directories of the workspace members in `cargo metadata --no-deps` output, relative to the
-/// workspace root and sorted.
-fn member_dirs(metadata: &str) -> Result<Vec<PathBuf>, String> {
+/// The workspace in `cargo metadata --no-deps` output.
+fn parse_workspace(metadata: &str) -> Result<Workspace, String> {
     let json: serde_json::Value =
         serde_json::from_str(metadata).map_err(|e| format!("cargo metadata: {e}"))?;
     let missing = |field: &str| format!("cargo metadata: no `{field}`");
     let root = json["workspace_root"]
         .as_str()
         .ok_or_else(|| missing("workspace_root"))?;
-    let members: Vec<&str> = json["workspace_members"]
+    let ids: Vec<&str> = json["workspace_members"]
         .as_array()
         .ok_or_else(|| missing("workspace_members"))?
         .iter()
         .filter_map(serde_json::Value::as_str)
         .collect();
-    let mut dirs = Vec::new();
+    let mut members = Vec::new();
     for package in json["packages"]
         .as_array()
         .ok_or_else(|| missing("packages"))?
     {
-        if !package["id"]
-            .as_str()
-            .is_some_and(|id| members.contains(&id))
-        {
+        if !package["id"].as_str().is_some_and(|id| ids.contains(&id)) {
             continue;
         }
         let manifest = package["manifest_path"]
@@ -95,10 +94,13 @@ fn member_dirs(metadata: &str) -> Result<Vec<PathBuf>, String> {
             .parent()
             .and_then(|dir| dir.strip_prefix(root).ok())
             .ok_or_else(|| format!("cargo metadata: {manifest} is not below {root}"))?;
-        dirs.push(dir.to_path_buf());
+        members.push(dir.to_path_buf());
     }
-    dirs.sort();
-    Ok(dirs)
+    members.sort();
+    Ok(Workspace {
+        root: PathBuf::from(root),
+        members,
+    })
 }
 
 /// Every crate-root source file of the crate in `dir`: the library and binary roots, `build.rs`,
@@ -127,9 +129,12 @@ pub(crate) fn crate_roots(dir: &Path) -> Vec<PathBuf> {
 
 /// Runs the check over the whole workspace.
 pub(crate) fn run() -> Result<(), String> {
-    let allow = parse_allowlist(&fs::read_to_string("unsafe-allowlist.toml").unwrap_or_default());
+    let workspace = workspace(Path::new("."))?;
+    let allowlist = workspace.root.join("unsafe-allowlist.toml");
+    let allow = parse_allowlist(&fs::read_to_string(allowlist).unwrap_or_default());
     let mut failures = Vec::new();
-    for dir in workspace_crates(Path::new(""))? {
+    for member in &workspace.members {
+        let dir = workspace.root.join(member);
         if package_name(&dir).is_some_and(|n| allow.contains(&n)) {
             continue;
         }
@@ -137,9 +142,10 @@ pub(crate) fn run() -> Result<(), String> {
             if let Ok(src) = fs::read_to_string(&path)
                 && !crate_root_forbids_unsafe(&src)
             {
+                let shown = path.strip_prefix(&workspace.root).unwrap_or(&path);
                 failures.push(format!(
                         "{}: missing #![forbid(unsafe_code)] (add it, or list the crate in unsafe-allowlist.toml with an ADR)",
-                        path.display()
+                        shown.display()
                     ));
             }
         }
@@ -209,11 +215,7 @@ mod tests {
     #[test]
     fn every_workspace_member_is_checked() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let checked: Vec<PathBuf> = workspace_crates(root)
-            .unwrap()
-            .iter()
-            .map(|dir| dir.strip_prefix(root).unwrap().to_path_buf())
-            .collect();
+        let checked = workspace(root).unwrap().members;
         // One member of each kind the root `Cargo.toml` lists: a glob member and plain members.
         for member in [
             "libs/engine_handle",
@@ -230,7 +232,23 @@ mod tests {
     }
 
     #[test]
-    fn member_dirs_keeps_only_workspace_members_relative_to_the_root() {
+    fn the_workspace_is_found_from_a_subdirectory() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let from_root = workspace(root).unwrap();
+        let from_libs = workspace(&root.join("libs")).unwrap();
+        assert_eq!(from_libs, from_root);
+        for member in &from_libs.members {
+            let dir = from_libs.root.join(member);
+            assert!(
+                dir.join("Cargo.toml").is_file(),
+                "{} is not a crate",
+                dir.display()
+            );
+        }
+    }
+
+    #[test]
+    fn parse_workspace_keeps_only_members_relative_to_the_root() {
         let metadata = r#"{
             "workspace_root": "/repo",
             "workspace_members": ["path+file:///repo/libs/a#0.1.0", "path+file:///repo/xtask#0.1.0"],
@@ -241,11 +259,14 @@ mod tests {
             ]
         }"#;
         assert_eq!(
-            member_dirs(metadata).unwrap(),
-            vec![PathBuf::from("libs/a"), PathBuf::from("xtask")]
+            parse_workspace(metadata).unwrap(),
+            Workspace {
+                root: PathBuf::from("/repo"),
+                members: vec![PathBuf::from("libs/a"), PathBuf::from("xtask")],
+            }
         );
-        assert!(member_dirs("not json").is_err());
-        assert!(member_dirs(r#"{"workspace_root": "/repo"}"#).is_err());
+        assert!(parse_workspace("not json").is_err());
+        assert!(parse_workspace(r#"{"workspace_root": "/repo"}"#).is_err());
     }
 
     #[test]
