@@ -9,7 +9,7 @@
 //!
 //! | Module | Crate | What it is |
 //! |---|---|---|
-//! | [`genid`] | `engine_genid` | Typed generational [`GenId`](genid::GenId)s, a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
+//! | [`genid`] | `engine_genid` | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
 //! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
 //! | [`collections`] | `engine_collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |

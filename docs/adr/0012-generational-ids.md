@@ -1,6 +1,6 @@
 # ADR 0012: Generational IDs: one lean allocator, the name `GenId`, and an untyped core
 
-Status: Draft (2026-11-14). Supersedes [ADR 0010](0010-two-handle-allocators.md) once accepted. Specified in [M3.11](../design/m3-ecs-storage/m3.11-genid/spec.md).
+Status: Accepted (2026-11-14). Supersedes [ADR 0010](0010-two-handle-allocators.md). Specified in [M3.11](../design/m3-ecs-storage/m3.11-genid/spec.md).
 
 ## Context
 

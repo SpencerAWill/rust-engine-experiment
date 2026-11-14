@@ -169,7 +169,7 @@ impl fmt::Debug for UntypedGenId {
     }
 }
 
-/// A typed, generational identifier: 8 bytes, and `Option<GenId<T>>` is also 8 bytes.
+/// A typed generational ID: 8 bytes, and `Option<GenId<T>>` is also 8 bytes.
 ///
 /// An ID names a slot (`index`) and the slot's `generation` when the ID
 /// was issued. When the slot is freed its generation is bumped, so every

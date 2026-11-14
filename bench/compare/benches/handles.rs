@@ -510,7 +510,7 @@ struct SlotAlloc(SlotMap<DefaultKey, ()>);
 
 impl Alloc for LeanAlloc {
     type Key = GenId<()>;
-    const NAME: &'static str = "engine_genid_lean";
+    const NAME: &'static str = "engine_genid";
     fn new() -> Self {
         Self(GenIdAllocator::new())
     }

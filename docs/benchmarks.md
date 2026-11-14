@@ -5,6 +5,13 @@ below (marked) are generated from saved criterion baselines by `cargo xtask benc
 written by hand and every figure in it was checked against that data. Read the caveats before
 drawing conclusions.
 
+> **Note (2026-11-14, M3.11).** These results were measured before [ADR 0012](adr/0012-generational-ids.md)
+> and keep the names of that time. `engine_handle` is now `engine_genid`, `HandlePool` is `GenIdMap`,
+> `HandleAllocator` is `GenIdAllocator` and `Handle` is `GenId`; the subject `engine_handle` is now
+> `engine_genid` (including `engine_handle_lean`, the lean allocator subject). The `engine_handle_dense` rows
+> describe `DenseHandleAllocator`, a type that has been removed (a `GenIdMap<()>` replaces it). The next
+> `cargo xtask bench-doc` run regenerates the tables under the new names.
+
 ## Summary
 
 - **Against `slotmap::DenseSlotMap`** (the same dense design, and the fair comparison), `HandlePool`
