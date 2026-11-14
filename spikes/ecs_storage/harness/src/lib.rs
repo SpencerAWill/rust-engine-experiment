@@ -6,7 +6,9 @@
 //! The rules of every workload are in the M3.2 spec,
 //! `docs/design/m3-ecs-storage/m3.2-spike-harness/spec.md`.
 
+pub mod add_remove;
 mod conformance;
+pub mod entity_churn;
 mod fnv;
 pub mod frag_iter;
 pub mod heavy_compute;
