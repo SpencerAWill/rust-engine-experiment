@@ -12,5 +12,8 @@ publish.workspace = true
 engine = { workspace = true }
 spike_ecs_harness = { path = "../harness" }
 
+[dev-dependencies]
+agents_2d = { path = "../../../examples/agents_2d" }  # a normal dependency from the agents workload (plan step 6)
+
 [lints]
 workspace = true

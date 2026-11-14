@@ -9,6 +9,7 @@ use crate::entity_churn::VecEntityChurn;
 use crate::frag_iter::VecFragIter;
 use crate::heavy_compute::VecHeavyCompute;
 use crate::simple_iter::VecSimpleIter;
+use crate::sprites::VecSprites;
 
 /// Storage that can be reversed in place, to test that a checksum ignores storage order.
 trait Reversible {
@@ -533,5 +534,123 @@ mod entity_churn {
         let d =
             check_conformance::<VecEntityChurn, StepTwice<VecEntityChurn>>(P, TICKS).unwrap_err();
         assert_eq!(d.tick, 1);
+    }
+}
+
+mod sprites {
+    use super::*;
+    use agents_2d::{WORLD_HEIGHT, WORLD_WIDTH};
+    use spike_ecs_harness::sprites::{self as rules, DrawItem, Velocity2d};
+
+    const SPRITES: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+
+    impl Reversible for VecSprites {
+        fn reverse(&mut self) {
+            self.entities.reverse();
+            self.draw_list.reverse();
+        }
+    }
+
+    #[test]
+    fn sprites_spawn_follows_the_draw_order() {
+        let prng = Prng::from_seed(42);
+        let mut r = prng.stream(5);
+        let translation = Vec2::new(r.range(0.0_f32..320.0), r.range(0.0_f32..180.0));
+        let velocity = Vec2::new(r.range(-20.0_f32..20.0), r.range(-20.0_f32..20.0));
+        let color = r.next_u32() & 0x00FF_FFFF;
+        let half_extent = r.range(0.25_f32..2.0);
+        let hidden = r.chance(0.1);
+        let (t, v, sprite, tag) = rules::spawn(&prng, 5);
+        assert_eq!(t, Transform2d::IDENTITY.with_translation(translation));
+        assert_eq!(v, Velocity2d(velocity));
+        assert_eq!((sprite.color, sprite.half_extent), (color, half_extent));
+        assert_eq!(tag.is_some(), hidden);
+    }
+
+    #[test]
+    fn sprites_stay_inside_the_world() {
+        let mut w = VecSprites::setup(SPRITES);
+        for _ in 0..TICKS {
+            w.step();
+            for e in &w.entities {
+                let p = e.transform.translation;
+                // Closed range: a tiny negative coordinate can round onto the bound.
+                assert!((0.0..=WORLD_WIDTH).contains(&p.x), "{p}");
+                assert!((0.0..=WORLD_HEIGHT).contains(&p.y), "{p}");
+            }
+        }
+    }
+
+    #[test]
+    fn wrap_of_a_tiny_negative_lands_on_the_bound() {
+        assert_eq!(rules::wrap(-1e-6, 320.0), 320.0);
+        assert_eq!(rules::wrap(320.0, 320.0), 0.0);
+        assert_eq!(rules::wrap(-1.0, 320.0), 319.0);
+        assert_eq!(rules::wrap(5.0, 320.0), 5.0);
+    }
+
+    #[test]
+    fn sprites_draw_list_holds_exactly_the_visible() {
+        let mut w = VecSprites::setup(SPRITES);
+        assert!(w.draw_list.is_empty(), "setup leaves the draw list empty");
+        w.step();
+        let mut expected: Vec<DrawItem> = w
+            .entities
+            .iter()
+            .filter(|e| e.hidden.is_none())
+            .map(|e| rules::draw_item(&e.transform, &e.sprite))
+            .collect();
+        let hidden = w.entities.iter().filter(|e| e.hidden.is_some()).count();
+        assert!(hidden > 0, "the sample has hidden sprites");
+        assert_eq!(w.draw_list.len(), SPRITES.count - hidden);
+        let mut actual = w.draw_list.clone();
+        expected.sort_by_key(rules::hash_draw_item);
+        actual.sort_by_key(rules::hash_draw_item);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn sprites_hidden_sprites_still_move() {
+        let mut w = VecSprites::setup(SPRITES);
+        let before: Vec<Vec2> = w.entities.iter().map(|e| e.transform.translation).collect();
+        w.step();
+        let mut moved = 0;
+        for (old, e) in before.iter().zip(&w.entities) {
+            if e.hidden.is_some() {
+                assert_ne!(e.transform.translation, *old);
+                moved += 1;
+            }
+        }
+        assert!(moved > 0);
+    }
+
+    #[test]
+    fn sprites_is_order_independent() {
+        assert_order_independent::<VecSprites>(SPRITES);
+    }
+
+    #[test]
+    fn sprites_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecSprites>();
+        let mut w = VecSprites::setup(Params { count: 0, seed: 42 });
+        w.step();
+        assert_eq!(w.draw_list.len(), 0);
+    }
+
+    #[test]
+    fn sprites_long_run_stays_finite() {
+        let mut w = VecSprites::setup(Params {
+            count: 10,
+            seed: 42,
+        });
+        for _ in 0..10_000 {
+            w.step();
+        }
+        for e in &w.entities {
+            assert!(e.transform.translation.is_finite());
+        }
     }
 }

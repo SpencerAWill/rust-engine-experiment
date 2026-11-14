@@ -9,6 +9,7 @@ pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 pub mod simple_iter;
+pub mod sprites;
 
 #[cfg(test)]
 mod tests;

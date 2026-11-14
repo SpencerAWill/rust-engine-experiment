@@ -10,9 +10,7 @@ publish.workspace = true
 
 [dependencies]
 engine = { workspace = true }
-
-[dev-dependencies]
-agents_2d = { path = "../../../examples/agents_2d" }  # a normal dependency from the agents workload (plan step 6)
+agents_2d = { path = "../../../examples/agents_2d" }
 
 [lints]
 workspace = true
