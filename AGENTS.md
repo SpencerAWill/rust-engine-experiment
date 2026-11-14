@@ -18,7 +18,7 @@ cargo xtask test        # nextest plus doctests
 
 - No `unsafe` (`#![forbid(unsafe_code)]` in every crate root).
 - Determinism: no `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code. No global mutable state.
-- Frozen formats: PRNG output streams and `Handle::to_bits` do not change without an ADR and updated golden tests.
+- Frozen formats: PRNG output streams and `UntypedGenId::to_bits` (and `GenId::to_bits`, which forwards to it) do not change without an ADR and updated golden tests.
 - Every public item is documented and public types have runnable doctests. Every documented panic has `#[track_caller]`, a `# Panics` section, an actionable message, and a fallible `try_` twin.
 - No code copied from other projects (see [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md)).
 

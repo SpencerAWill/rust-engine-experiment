@@ -1,6 +1,6 @@
 # ADR 0010: Two handle allocators, lean and dense
 
-Status: Accepted (2026-11-12)
+Status: Superseded by [ADR 0012](0012-generational-ids.md) (2026-11-14)
 
 ## Context
 

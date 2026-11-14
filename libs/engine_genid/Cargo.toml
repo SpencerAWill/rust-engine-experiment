@@ -1,7 +1,7 @@
 [package]
-name = "engine_handle"
-description = "Typed generational handles, a dense handle-addressed pool, and a handle allocator"
-keywords = ["handle", "generational", "arena", "gamedev", "no-std"]
+name = "engine_genid"
+description = "Typed generational IDs, a dense ID-addressed map, and an ID allocator"
+keywords = ["id", "generational", "arena", "gamedev", "no-std"]
 categories = ["data-structures", "no-std"]
 version.workspace = true
 edition.workspace = true
@@ -19,7 +19,7 @@ proptest = { workspace = true }
 dhat = "0.3"
 # Self dev-dependency: enables `test-invariants` for integration tests even without --all-features
 # (the wasm CI step runs `cargo test` without it).
-engine_handle = { path = ".", features = ["test-invariants"] }
+engine_genid = { path = ".", features = ["test-invariants"] }
 
 [lints]
 workspace = true

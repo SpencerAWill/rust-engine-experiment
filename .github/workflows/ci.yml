@@ -173,7 +173,7 @@ jobs:
       - run: cargo xtask bench-build
       - run: cargo xtask bench-smoke
 
-  # The fuzz targets are not run here, but they must keep compiling: a change to engine_handle that
+  # The fuzz targets are not run here, but they must keep compiling: a change to engine_genid that
   # breaks `fuzz/` fails this job instead of surfacing at the nightly run.
   fuzz-build:
     runs-on: ubuntu-latest

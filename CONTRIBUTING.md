@@ -6,7 +6,7 @@ Thanks for your interest. This is an experimental engine: APIs change, and some 
 
 - Work is planned in [docs/roadmap.md](docs/roadmap.md): milestones, broken into **chunks** of exactly one pull request each.
 - Each chunk has a `spec.md` and a `plan.md`, copied from [docs/design/_template/](docs/design/_template/). The maintainer reviews them before implementation starts.
-- Pull request titles end with the chunk ID, for example `feat(fuzz): fuzz HandlePool against a model (M2.1)`.
+- Pull request titles end with the chunk ID, for example `feat(genid): add UntypedGenId (M3.11)`.
 - Ideas and bugs that are not scheduled go into issues; questions go to [Discussions](https://github.com/SpencerAWill/rust-engine-experiment/discussions). When an issue is scheduled, a chunk spec links it.
 
 ## Issues
@@ -53,7 +53,7 @@ These are policy, not preferences. A pull request that breaks one will not be me
 - **No `unsafe`.** Every crate root has `#![forbid(unsafe_code)]` (`check-unsafe`). An exception needs an ADR and an entry in `unsafe-allowlist.toml`.
 - **Determinism.** No `std` `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code (see `clippy.toml`; transcendentals go through `engine_math::scalar`). Simulation state must be snapshot-able plain data.
 - **No global mutable state** (`check-statics`, [ADR 0008](docs/adr/0008-no-global-state.md)).
-- **Frozen formats.** The PRNG output streams and `Handle::to_bits` are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
+- **Frozen formats.** The PRNG output streams and `UntypedGenId::to_bits` (and `GenId::to_bits`, which forwards to it) are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
 - **Documentation.** Every public item is documented and every public type has a runnable doctest.
 - **Panics.** A documented panic needs `#[track_caller]`, a `# Panics` section, an actionable message, and a fallible `try_` twin.
 - **Workflows** (`check-workflows`): actions pinned to commit hashes, a read-only token (a job-level `write` scope only if it is in `WRITE_ALLOWLIST`, with a reason), no persisted checkout credentials, no `pull_request_target`.
@@ -92,18 +92,18 @@ cargo xtask bench-regress --report-only   # report a regression without failing
 
 ## Fuzzing
 
-Coverage-guided fuzz targets for `engine_handle` live in `fuzz/` (outside the workspace). Three drive `HandlePool`, `HandleAllocator` and `DenseHandleAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `Handle::from_bits` and `to_bits`.
+Coverage-guided fuzz targets for `engine_genid` live in `fuzz/` (outside the workspace). Two drive `GenIdMap` and `GenIdAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `GenId::from_bits`, `UntypedGenId::from_bits` and `to_bits`.
 
 ```sh
-cargo xtask fuzz handle_pool_ops --time 60      # one target for 60 s (the default)
+cargo xtask fuzz genid_map_ops --time 60      # one target for 60 s (the default)
 cargo xtask fuzz all                            # every target, 10 min each, as the nightly job does
-cargo xtask fuzz handle_pool_ops --replay fuzz/artifacts/handle_pool_ops/crash-<hash>
+cargo xtask fuzz genid_map_ops --replay fuzz/artifacts/genid_map_ops/crash-<hash>
 cargo xtask fuzz-build                          # compile only; CI does this on every pull request
 ```
 
 You need `cargo-fuzz` and the pinned nightly; the command prints the install lines when either is missing. Fuzzing does not work on Windows (libFuzzer needs a non-MSVC toolchain): use the devcontainer or WSL. `cargo xtask ci` skips `fuzz-build` with a loud note when the tools are missing, but fails when `CI` is set.
 
-- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `tests/model.rs`) in `libs/engine_handle`, watch it fail, then fix the code. Do not commit crash files or the corpus.
+- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `tests/model.rs`) in `libs/engine_genid`, watch it fail, then fix the code. Do not commit crash files or the corpus.
 - **Bumping the nightly.** Change `FUZZ_NIGHTLY` in `xtask/src/fuzz.rs` (the only place the date is written; CI and the devcontainer read it through `cargo xtask fuzz-toolchain`), run `cargo xtask fuzz-build`, and mention the bump in the pull request.
 - **Why `fuzz/` is outside `cargo xtask deny`.** It is a developer tool that is never built into or shipped with an engine artifact, and `libfuzzer-sys` is licensed `NCSA` (in addition to MIT or Apache-2.0), which is outside the allow list of [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md). Dependabot watches `fuzz/Cargo.lock` instead, so advisories on its dependencies still surface.
 
@@ -125,7 +125,7 @@ You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the com
 
 ```sh
 cargo xtask mutants --list            # check the exclusions and list the mutants; builds nothing
-cargo xtask mutants                   # test the triaged crates (engine_handle and engine_random)
+cargo xtask mutants                   # test the triaged crates (engine_genid and engine_random)
 cargo xtask mutants -p engine_random  # one crate
 cargo xtask mutants -j 2              # two mutants at a time
 cargo xtask mutants --in-diff FILE    # only mutants in code that a unified diff changes
@@ -134,8 +134,8 @@ cargo xtask mutants --in-diff FILE    # only mutants in code that a unified diff
 You need `cargo-mutants` at the pinned version; the command prints the install line when it is missing and warns when the version differs, because results from another version are not comparable. The command checks the exclusion list, runs `cargo mutants` with the settings in `.cargo/mutants.toml` (nextest, all features, ignored tests included, `cap_lints`), writes the output to `target/mutants/mutants.out/` and the table to `target/mutants/summary.md`, and prints it. The first run builds a copy of the workspace per job, so it is as slow as a clean build.
 
 - **What the outcomes mean.** *Caught*: a test failed with the mutant in place, which is what should happen. *Missed*: every test passed with it, so a test is missing or the mutant changes nothing observable. *Timeout*: the tests did not finish in time, usually an endless loop; this detects the mutant. *Unviable*: the mutant does not compile and says nothing about the tests. Doctests do not run (as in coverage), so a mutant only a doctest catches shows as missed.
-- **Report only.** A missed mutant never fails anything and there is no target score: a score to hit invites tests written for the score. The command fails only when it could not produce a report. CI's `mutants` workflow runs every mutant on Sundays (on `main`) and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine_handle` or `engine_random`, or the mutants tooling, it runs only the mutants in the changed code (`cargo xtask mutants --in-diff FILE`) after checking the exclusion list, which takes a few minutes. Both write the table to the job summary and upload `mutants.out/` for 30 days. Neither is a required check.
-- **Ad hoc runs.** A plain `cargo mutants` uses the same settings. For one mutant: `cargo mutants -p engine_handle -F 'shrink_to_fit'`. For changed code: `git diff main > target/changes.diff`, then `cargo mutants --in-diff target/changes.diff`. Read a missed mutant's diff in `target/mutants/mutants.out/diff/`.
+- **Report only.** A missed mutant never fails anything and there is no target score: a score to hit invites tests written for the score. The command fails only when it could not produce a report. CI's `mutants` workflow runs every mutant on Sundays (on `main`) and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine_genid` or `engine_random`, or the mutants tooling, it runs only the mutants in the changed code (`cargo xtask mutants --in-diff FILE`) after checking the exclusion list, which takes a few minutes. Both write the table to the job summary and upload `mutants.out/` for 30 days. Neither is a required check.
+- **Ad hoc runs.** A plain `cargo mutants` uses the same settings. For one mutant: `cargo mutants -p engine_genid -F 'shrink_to_fit'`. For changed code: `git diff main > target/changes.diff`, then `cargo mutants --in-diff target/changes.diff`. Read a missed mutant's diff in `target/mutants/mutants.out/diff/`.
 - **Triage.** Give each missed mutant exactly one class: *test gap, fixed* (a test at the public-API level that fails with the mutant and passes without it; never one that only pins the mutant's diff), *test gap, deferred* (an issue; the mutant stays missed), *bug* (an issue, fixed in its own pull request, test first), *equivalent* (no input tells it from the original; exclude it) or *not worth a test* (real behaviour no caller depends on, such as a speed-only fast path; exclude it and say why). A readable `Debug` impl is behaviour, not a candidate for exclusion. The record is [docs/mutation-triage.md](docs/mutation-triage.md); it is written by hand.
 - **Exclusions.** Only in `exclude_re` in `.cargo/mutants.toml`, never as a `#[mutants::skip]` attribute: library code has no `mutants::` attributes and no `mutants` dependency. The list is written in a restricted form (`exclude_re = [`, one `'single-quoted'` regex per line followed by `,`, `]`), with a comment directly above each entry giving the reason. The command rejects an entry without a reason, an entry that contains a line or column number (a `:` followed by a digit; it would stop matching when the file changes), and an entry that matches no mutant. `cargo xtask mutants --list` prints how many mutants each entry removes; check that against what you meant. `cargo-mutants` never applies a name filter to its "delete field" mutants, so those cannot be excluded.
 - **The triaged set** is a constant in `xtask/src/mutants.rs` and grows by chunk: a chunk that triages another crate adds it there and to the record.

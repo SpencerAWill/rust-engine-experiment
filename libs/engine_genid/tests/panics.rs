@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine_handle::{DenseHandleAllocator, HandleAllocator, HandlePool};
+use engine_genid::{GenIdAllocator, GenIdMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -15,19 +15,23 @@ static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 static HOOK_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
-fn index_on_stale_handle_panics_at_caller() {
-    let mut pool = HandlePool::new();
-    let stale = pool.insert(1_u8);
-    pool.remove(stale);
+fn index_on_stale_id_panics_at_caller() {
+    let mut map = GenIdMap::new();
+    let stale = map.insert(1_u8);
+    map.remove(stale);
 
     let (file, message) = panic_info(|| {
-        let _ = pool[stale];
+        let _ = map[stale];
     });
     assert!(
         file.ends_with("tests/panics.rs"),
         "panic location was {file}"
     );
-    assert!(message.contains("stale handle"), "message was {message}");
+    assert!(
+        message.starts_with("GenIdMap index"),
+        "message was {message}"
+    );
+    assert!(message.contains("stale ID"), "message was {message}");
     assert!(message.contains("use get()"), "message was {message}");
 }
 
@@ -58,18 +62,14 @@ type Case = Box<dyn FnOnce()>;
 
 #[test]
 fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
-    let cases: [(&str, Case); 3] = [
+    let cases: [(&str, Case); 2] = [
         (
-            "HandlePool",
-            Box::new(|| HandlePool::<u8>::new().reserve(usize::MAX)),
+            "GenIdMap",
+            Box::new(|| GenIdMap::<u8>::new().reserve(usize::MAX)),
         ),
         (
-            "HandleAllocator",
-            Box::new(|| HandleAllocator::<u8>::new().reserve(usize::MAX)),
-        ),
-        (
-            "DenseHandleAllocator",
-            Box::new(|| DenseHandleAllocator::<u8>::new().reserve(usize::MAX)),
+            "GenIdAllocator",
+            Box::new(|| GenIdAllocator::<u8>::new().reserve(usize::MAX)),
         ),
     ];
     for (name, case) in cases {
@@ -77,6 +77,10 @@ fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
         assert!(
             file.ends_with("tests/panics.rs"),
             "{name}: panic location was {file}"
+        );
+        assert!(
+            message.starts_with(&format!("{name}::reserve")),
+            "{name}: message was {message}"
         );
         assert!(
             message.contains("try_reserve"),

@@ -180,17 +180,17 @@ mod tests {
     fn builds_a_comparison_page_from_two_saved_baselines() {
         let root = std::env::temp_dir().join(format!("xtask-report-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        let bench = r#"{"group_id":"get_random","function_id":"engine_handle","value_str":"u64/1000","throughput":{"Elements":10},"full_id":"x","directory_name":"x","title":"x"}"#;
+        let bench = r#"{"group_id":"get_random","function_id":"engine_genid","value_str":"u64/1000","throughput":{"Elements":10},"full_id":"x","directory_name":"x","title":"x"}"#;
         write_bench(
             &root,
-            "get_random/engine_handle/u64_1000",
+            "get_random/engine_genid/u64_1000",
             "old",
             bench,
             2000.0,
         );
         write_bench(
             &root,
-            "get_random/engine_handle/u64_1000",
+            "get_random/engine_genid/u64_1000",
             "new",
             bench,
             1000.0,

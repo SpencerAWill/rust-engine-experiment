@@ -13,12 +13,7 @@ pub(crate) const FUZZ_NIGHTLY: &str = "nightly-2026-11-12";
 
 /// The fuzz targets, in the order `fuzz all` runs them. A test checks this list against
 /// `fuzz/fuzz_targets/*.rs`.
-pub(crate) const TARGETS: [&str; 4] = [
-    "handle_pool_ops",
-    "handle_allocator_ops",
-    "dense_allocator_ops",
-    "handle_from_bits",
-];
+pub(crate) const TARGETS: [&str; 3] = ["genid_map_ops", "genid_allocator_ops", "genid_from_bits"];
 
 /// The directory of the `fuzz/` package, relative to the repository root.
 const FUZZ_DIR: &str = "fuzz";
@@ -304,8 +299,8 @@ mod tests {
 
     #[test]
     fn a_named_target_defaults_to_sixty_seconds() {
-        let options = parse_flags(&["handle_pool_ops"]).unwrap();
-        assert_eq!(options.selection, Selection::One("handle_pool_ops"));
+        let options = parse_flags(&["genid_map_ops"]).unwrap();
+        assert_eq!(options.selection, Selection::One("genid_map_ops"));
         assert_eq!(options.mode, Mode::Run { seconds: 60 });
     }
 
@@ -318,7 +313,7 @@ mod tests {
 
     #[test]
     fn time_overrides_the_default() {
-        let options = parse_flags(&["handle_from_bits", "--time", "5"]).unwrap();
+        let options = parse_flags(&["genid_from_bits", "--time", "5"]).unwrap();
         assert_eq!(options.mode, Mode::Run { seconds: 5 });
         let options = parse_flags(&["all", "--time", "7"]).unwrap();
         assert_eq!(options.mode, Mode::Run { seconds: 7 });
@@ -326,7 +321,7 @@ mod tests {
 
     #[test]
     fn replay_is_accepted_only_with_a_named_target() {
-        let options = parse_flags(&["handle_pool_ops", "--replay", "fuzz/artifacts/x"]).unwrap();
+        let options = parse_flags(&["genid_map_ops", "--replay", "fuzz/artifacts/x"]).unwrap();
         assert_eq!(
             options.mode,
             Mode::Replay {
@@ -340,8 +335,8 @@ mod tests {
     #[test]
     fn replay_and_time_cannot_be_combined() {
         // A replay runs one input; a time limit would be silently ignored.
-        assert!(parse_flags(&["handle_pool_ops", "--replay", "x", "--time", "5"]).is_err());
-        assert!(parse_flags(&["handle_pool_ops", "--time", "5", "--replay", "x"]).is_err());
+        assert!(parse_flags(&["genid_map_ops", "--replay", "x", "--time", "5"]).is_err());
+        assert!(parse_flags(&["genid_map_ops", "--time", "5", "--replay", "x"]).is_err());
     }
 
     #[test]
@@ -376,7 +371,7 @@ mod tests {
     #[test]
     fn run_args_pass_the_pin_the_sanitizer_and_debug_flags_then_the_time_limit() {
         assert_eq!(
-            run_args("handle_pool_ops", 60),
+            run_args("genid_map_ops", 60),
             [
                 pin().as_str(),
                 "fuzz",
@@ -384,7 +379,7 @@ mod tests {
                 "--sanitizer",
                 "none",
                 "--debug-assertions",
-                "handle_pool_ops",
+                "genid_map_ops",
                 "--",
                 "-max_total_time=60"
             ]
@@ -393,7 +388,7 @@ mod tests {
 
     #[test]
     fn replay_args_end_with_the_path_and_have_no_time_flag() {
-        let args = replay_args("handle_pool_ops", "fuzz/artifacts/handle_pool_ops/crash-1");
+        let args = replay_args("genid_map_ops", "fuzz/artifacts/genid_map_ops/crash-1");
         assert_eq!(
             args,
             strings(&[
@@ -403,8 +398,8 @@ mod tests {
                 "--sanitizer",
                 "none",
                 "--debug-assertions",
-                "handle_pool_ops",
-                "fuzz/artifacts/handle_pool_ops/crash-1",
+                "genid_map_ops",
+                "fuzz/artifacts/genid_map_ops/crash-1",
             ])
         );
         assert!(!args.iter().any(|a| a.contains("max_total_time")));

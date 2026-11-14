@@ -12,4 +12,4 @@ This is an experimental engine and some decisions are deliberately deferred (see
 
 **Alternatives you considered**
 
-**Impact:** does it change a public API, a frozen format (PRNG streams, `Handle::to_bits`), or a policy (`unsafe`, determinism, no global state)? Those need an ADR.
+**Impact:** does it change a public API, a frozen format (PRNG streams, `UntypedGenId::to_bits`), or a policy (`unsafe`, determinism, no global state)? Those need an ADR.

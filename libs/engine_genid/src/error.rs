@@ -3,13 +3,13 @@
 use core::error::Error;
 use core::fmt;
 
-/// Returned by [`HandlePool::try_insert`](crate::HandlePool::try_insert) when
-/// the pool is full. Carries the rejected value back, so nothing is lost.
+/// Returned by [`GenIdMap::try_insert`](crate::GenIdMap::try_insert) when
+/// the map is full. Carries the rejected value back, so nothing is lost.
 ///
 /// # Examples
 ///
 /// ```
-/// use engine_handle::CapacityError;
+/// use engine_genid::CapacityError;
 ///
 /// fn describe(e: CapacityError<String>) -> (String, String) {
 ///     (e.to_string(), e.into_inner())
@@ -28,14 +28,14 @@ impl<T> CapacityError<T> {
         Self { value, limit }
     }
 
-    /// The most slots the pool that rejected the value can hold.
+    /// The most slots the map that rejected the value can hold.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
-    /// if let Err(e) = pool.try_insert(1) {
+    /// # use engine_genid::GenIdMap;
+    /// let mut map = GenIdMap::new();
+    /// if let Err(e) = map.try_insert(1) {
     ///     assert!(e.limit() > 0);
     /// }
     /// ```
@@ -48,11 +48,11 @@ impl<T> CapacityError<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// // A pool only fills up after 2³¹−2 slots, so this just shows the API shape:
-    /// let mut pool = HandlePool::new();
-    /// match pool.try_insert(7) {
-    ///     Ok(handle) => assert_eq!(pool[handle], 7),
+    /// # use engine_genid::GenIdMap;
+    /// // A map only fills up after 2³¹−2 slots, so this just shows the API shape:
+    /// let mut map = GenIdMap::new();
+    /// match map.try_insert(7) {
+    ///     Ok(id) => assert_eq!(map[id], 7),
     ///     Err(e) => assert_eq!(e.into_inner(), 7),
     /// }
     /// ```
@@ -65,7 +65,7 @@ impl<T> fmt::Display for CapacityError<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "HandlePool is full: all {} slot indices are in use or retired; remove values or use another pool",
+            "GenIdMap is full: all {} slot indices are in use or retired; remove values or use another map",
             self.limit
         )
     }
@@ -73,24 +73,24 @@ impl<T> fmt::Display for CapacityError<T> {
 
 impl<T: fmt::Debug> Error for CapacityError<T> {}
 
-/// Returned by `Handle::try_from(u64)` when the generation (low) half of the bits is zero, which
-/// no handle ever has.
+/// Returned by `GenId::try_from(u64)` when the generation (low) half of the bits is zero, which
+/// no ID ever has.
 ///
 /// # Examples
 ///
 /// ```
-/// use engine_handle::Handle;
+/// use engine_genid::GenId;
 ///
-/// let err = Handle::<u8>::try_from(5_u64 << 32).unwrap_err();
+/// let err = GenId::<u8>::try_from(5_u64 << 32).unwrap_err();
 /// assert_eq!(err.bits(), 5_u64 << 32);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct InvalidHandleBits {
+pub struct InvalidGenIdBits {
     bits: u64,
 }
 
-impl InvalidHandleBits {
+impl InvalidGenIdBits {
     pub(crate) const fn new(bits: u64) -> Self {
         Self { bits }
     }
@@ -100,27 +100,27 @@ impl InvalidHandleBits {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::Handle;
-    /// assert_eq!(Handle::<u8>::try_from(0_u64).unwrap_err().bits(), 0);
+    /// # use engine_genid::GenId;
+    /// assert_eq!(GenId::<u8>::try_from(0_u64).unwrap_err().bits(), 0);
     /// ```
     pub const fn bits(&self) -> u64 {
         self.bits
     }
 }
 
-impl fmt::Display for InvalidHandleBits {
+impl fmt::Display for InvalidGenIdBits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:#018x} is not a handle: its generation (low 32 bits) is zero",
+            "{:#018x} is not a generational ID: its generation (low 32 bits) is zero",
             self.bits
         )
     }
 }
 
-impl Error for InvalidHandleBits {}
+impl Error for InvalidGenIdBits {}
 
-/// An internal invariant of a pool or allocator does not hold, which would be a bug in this
+/// An internal invariant of a map or allocator does not hold, which would be a bug in this
 /// crate. Returned by the `check_invariants` methods, which exist in tests and with the
 /// `test-invariants` feature.
 ///
@@ -129,11 +129,11 @@ impl Error for InvalidHandleBits {}
 /// ```
 /// # #[cfg(feature = "test-invariants")]
 /// # {
-/// use engine_handle::HandlePool;
+/// use engine_genid::GenIdMap;
 ///
-/// let mut pool = HandlePool::new();
-/// let _ = pool.insert(1);
-/// assert!(pool.check_invariants().is_ok());
+/// let mut map = GenIdMap::new();
+/// let _ = map.insert(1);
+/// assert!(map.check_invariants().is_ok());
 /// # }
 /// ```
 #[cfg(any(test, feature = "test-invariants"))]

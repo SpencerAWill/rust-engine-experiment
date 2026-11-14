@@ -35,7 +35,7 @@ fn jitter_split_does_not_matter() {
 }
 
 #[test]
-fn summary_reports_the_requested_ticks_and_a_full_pool() {
+fn summary_reports_the_requested_ticks_and_a_full_map() {
     let config = SimConfig::default();
     let summary = run(&config);
     assert_eq!(summary.tick, config.ticks);

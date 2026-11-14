@@ -1,4 +1,4 @@
-//! Named iterator types for [`HandlePool`](super::HandlePool).
+//! Named iterator types for [`GenIdMap`](super::GenIdMap).
 //!
 //! Every iterator walks the dense arrays in dense order and is
 //! `ExactSizeIterator + FusedIterator`: the remaining live count is known exactly.
@@ -8,7 +8,7 @@ use core::fmt;
 use core::iter::FusedIterator;
 use core::slice;
 
-use crate::handle::Handle;
+use crate::id::GenId;
 
 macro_rules! debug_remaining {
     ($name:literal, $ty:ident) => {
@@ -22,27 +22,27 @@ macro_rules! debug_remaining {
     };
 }
 
-/// Iterator over `(Handle<T>, &T)` in dense order; returned by [`HandlePool::iter`](super::HandlePool::iter).
+/// Iterator over `(GenId<T>, &T)` in dense order; returned by [`GenIdMap::iter`](super::GenIdMap::iter).
 pub struct Iter<'a, T> {
-    pub(super) handles: slice::Iter<'a, Handle<T>>,
+    pub(super) ids: slice::Iter<'a, GenId<T>>,
     pub(super) values: slice::Iter<'a, T>,
 }
 
 impl<T> Clone for Iter<'_, T> {
     fn clone(&self) -> Self {
         Self {
-            handles: self.handles.clone(),
+            ids: self.ids.clone(),
             values: self.values.clone(),
         }
     }
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = (Handle<T>, &'a T);
+    type Item = (GenId<T>, &'a T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((*self.handles.next()?, self.values.next()?))
+        Some((*self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -55,18 +55,18 @@ impl<T> ExactSizeIterator for Iter<'_, T> {}
 impl<T> FusedIterator for Iter<'_, T> {}
 debug_remaining!("Iter", Iter);
 
-/// Iterator over `(Handle<T>, &mut T)` in dense order; returned by [`HandlePool::iter_mut`](super::HandlePool::iter_mut).
+/// Iterator over `(GenId<T>, &mut T)` in dense order; returned by [`GenIdMap::iter_mut`](super::GenIdMap::iter_mut).
 pub struct IterMut<'a, T> {
-    pub(super) handles: slice::Iter<'a, Handle<T>>,
+    pub(super) ids: slice::Iter<'a, GenId<T>>,
     pub(super) values: slice::IterMut<'a, T>,
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = (Handle<T>, &'a mut T);
+    type Item = (GenId<T>, &'a mut T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((*self.handles.next()?, self.values.next()?))
+        Some((*self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -79,23 +79,23 @@ impl<T> ExactSizeIterator for IterMut<'_, T> {}
 impl<T> FusedIterator for IterMut<'_, T> {}
 debug_remaining!("IterMut", IterMut);
 
-/// Draining iterator over `(Handle<T>, T)` in dense order; returned by [`HandlePool::drain`](super::HandlePool::drain).
+/// Draining iterator over `(GenId<T>, T)` in dense order; returned by [`GenIdMap::drain`](super::GenIdMap::drain).
 ///
-/// The pool is already in the state [`clear`](super::HandlePool::clear) would
+/// The map is already in the state [`clear`](super::GenIdMap::clear) would
 /// produce when the `Drain` is created, so dropping it (consumed or not), or even
-/// leaking it, leaves the pool consistent. Values not yet yielded are dropped
+/// leaking it, leaves the map consistent. Values not yet yielded are dropped
 /// when the `Drain` is dropped.
 pub struct Drain<'a, T> {
-    pub(super) handles: vec::Drain<'a, Handle<T>>,
+    pub(super) ids: vec::Drain<'a, GenId<T>>,
     pub(super) values: vec::Drain<'a, T>,
 }
 
 impl<T> Iterator for Drain<'_, T> {
-    type Item = (Handle<T>, T);
+    type Item = (GenId<T>, T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((self.handles.next()?, self.values.next()?))
+        Some((self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -108,18 +108,18 @@ impl<T> ExactSizeIterator for Drain<'_, T> {}
 impl<T> FusedIterator for Drain<'_, T> {}
 debug_remaining!("Drain", Drain);
 
-/// Owning iterator over `(Handle<T>, T)` in dense order; returned by `HandlePool::into_iter`.
+/// Owning iterator over `(GenId<T>, T)` in dense order; returned by `GenIdMap::into_iter`.
 pub struct IntoIter<T> {
-    pub(super) handles: vec::IntoIter<Handle<T>>,
+    pub(super) ids: vec::IntoIter<GenId<T>>,
     pub(super) values: vec::IntoIter<T>,
 }
 
 impl<T> Iterator for IntoIter<T> {
-    type Item = (Handle<T>, T);
+    type Item = (GenId<T>, T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((self.handles.next()?, self.values.next()?))
+        Some((self.ids.next()?, self.values.next()?))
     }
 
     #[inline]

@@ -95,7 +95,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** many objects of the same size: particles, nodes, components.
 - **Notes:** the free list is stored inside the free slots themselves, so it costs no extra memory. Allocation and free are O(1).
 - **Variants:** a fixed-capacity pool or a pool that grows in chunks; free lists kept per thread.
-- **Repo fit:** `safe` (index pool); `in repo` in spirit: the slot arrays inside `engine_handle` work this way.
+- **Repo fit:** `safe` (index pool); `in repo` in spirit: the slot arrays inside `engine_genid` work this way.
 - **Determinism:** the order in which freed slots are reused must be defined (LIFO is the usual choice).
 - **Builds on:** [Free-list array](#free-list-array).
 - **Sources:** [Middleditch, slot map](https://seanmiddleditch.github.io/2013-01-05-data-structures-for-game-developers-the-slot-map).
@@ -201,8 +201,8 @@ These patterns recur across many entries. They are not tracked items; each entry
   - Dense slot map: iterates fastest, but random access is slower.
   - Secondary map: a `Vec` holding extra data for the keys of a primary map.
   - Retire on overflow (`slotmap-careful`): a slot whose generation would wrap is retired for good, so no handle is ever reused, at the cost of memory that grows without bound under endless churn.
-- **Repo fit:** `in repo` (`engine_handle`: `HandleAllocator`, `HandlePool`).
-- **Determinism:** handles are a pure function of the operation sequence (already guaranteed in this repo; `Handle::to_bits` is frozen).
+- **Repo fit:** `in repo` (`engine_genid`: `GenIdAllocator`, `GenIdMap`).
+- **Determinism:** handles are a pure function of the operation sequence (already guaranteed in this repo; `UntypedGenId::to_bits` is frozen).
 - **Builds on:** [Free-list array](#free-list-array).
 - **Sources:** [slotmap crate](https://docs.rs/slotmap/1.0.3), [slotmap-careful](https://docs.rs/slotmap-careful/latest/slotmap_careful/), [Middleditch](https://seanmiddleditch.github.io/2013-01-05-data-structures-for-game-developers-the-slot-map).
 
@@ -211,7 +211,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** values packed contiguously for iteration, addressed by handles that stay valid.
 - **Notes:** a dense array holds the values; a sparse array maps each handle to its slot and doubles as the free list. Removal swaps the last element into the hole, so iteration order is not stable.
 - **Variants:** a dense allocator holding IDs only.
-- **Repo fit:** `in repo` (`HandlePool`, `DenseHandleAllocator`).
+- **Repo fit:** `in repo` (`GenIdMap`, and `GenIdMap<()>` for an ID-only set).
 - **Determinism:** swap-remove order is a function of the operations.
 - **Builds on:** [Slot map](#slot-map).
 - **Sources:** [Kiah, game engine containers: handle_map](https://gamedev.net/articles/programming/general-and-gameplay-programming/game-engine-containers-handle-map-r4495).
@@ -259,9 +259,9 @@ These patterns recur across many entries. They are not tracked items; each entry
 #### Packed entity ID
 
 - **Uses:** IDs that cross FFI, the network or save files.
-- **Notes:** packs an index, a generation and sometimes other fields into one integer. This repo's `Handle<T>` is a `u32` index plus a `NonZeroU32` generation, encoded as `(index << 32) | generation`. That uses all 64 bits, with a zero generation as the niche that keeps `Option<Handle<T>>` at 8 bytes. Every extra field takes bits from the index (fewer live objects) or the generation (it wraps sooner, so a stale handle can match a reused slot).
+- **Notes:** packs an index, a generation and sometimes other fields into one integer. This repo's `GenId<T>` is a `u32` index plus a `NonZeroU32` generation, encoded as `(index << 32) | generation`. That uses all 64 bits, with a zero generation as the niche that keeps `Option<GenId<T>>` at 8 bytes. Every extra field takes bits from the index (fewer live objects) or the generation (it wraps sooner, so a stale handle can match a reused slot).
 - **Variants:** fields other engines pack in:
-  - **Kind or type tag:** what the ID names (entity, component, texture, mesh). `Handle<T>` covers this at compile time; a runtime tag matters once handles lose their type, across the C ABI (M8) or in a type-erased registry.
+  - **Kind or type tag:** what the ID names (entity, component, texture, mesh). `GenId<T>` covers this at compile time; a runtime tag matters once IDs lose their type (`UntypedGenId`), across the C ABI (M8) or in a type-erased registry.
   - **World or pool ID:** which world or allocator issued the ID, so a handle used against the wrong or a recreated world is caught.
   - **Shard or thread ID:** which per-thread allocator created it, so threads can create IDs in parallel without locks. Some engines also split the index into page and slot for paged storage.
   - **Relationship and role flags (Flecs):** the high bits mark roles. A pair flag means the ID is a (relationship, target) pair with both entities' indices packed in, so one integer type names an entity, a component or a pair.
@@ -269,7 +269,7 @@ These patterns recur across many entries. They are not tracked items; each entry
   - **Persistence:** a persistent-or-transient bit (saved or runtime-only), or instead a separate stable ID remapped on load (M5).
   - **Reserved values:** a null sentinel; a range of placeholder IDs for spawns deferred in command buffers; generations retired when they would wrap.
   - **Common layouts (not checked against current source):** EnTT defaults to 32 bits, about 20 of index and 12 of version, configurable; Bevy's `Entity` is a 32-bit index and a 32-bit non-zero generation; Flecs uses 64 bits, 32 for the index, the generation above it and the top bits for role flags.
-- **Repo fit:** `in repo` (`Handle::to_bits`, frozen format). Likely reasons to add a field: untyped handles over FFI (M8), entity relationships (pair encoding), networking (owner or local bit).
+- **Repo fit:** `in repo` (`UntypedGenId::to_bits`, frozen format). Likely reasons to add a field: untyped IDs over FFI (M8), entity relationships (pair encoding), networking (owner or local bit).
 - **Determinism:** the bit layout is a frozen format, so changing it needs an ADR and new golden tests.
 - **Builds on:** [Slot map](#slot-map).
 - **Sources:** [slotmap crate](https://docs.rs/slotmap/1.0.3).

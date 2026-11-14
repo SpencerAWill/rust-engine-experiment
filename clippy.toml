@@ -1,6 +1,9 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 
+# "GenId" is the name of a term in the engine_genid glossary (spec M3.11 section 4.10), written bare in prose.
+doc-valid-idents = ["GenId", "GenIds", ".."]
+
 disallowed-types = [
   { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use engine_collections::IndexMap" },
   { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use engine_collections::IndexSet" },

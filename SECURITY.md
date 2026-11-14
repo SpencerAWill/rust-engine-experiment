@@ -17,7 +17,7 @@ The engine is a set of libraries with no network, file-format parsing, authentic
 - **In scope:** a memory-safety or soundness bug in any crate, which would also break the `unsafe` policy (this should be impossible in safe Rust, so it would point at a compiler or dependency issue); a way to make a public API read or write outside its own data; supply-chain problems in this repository's build and CI configuration (for example an unpinned action, an over-broad workflow token, or a malicious dependency).
 - **Not vulnerabilities, by design:**
   - `Prng` (`engine_random`) is a fast, deterministic, **non-cryptographic** generator. Do not use it for keys, tokens, or anything an attacker must not predict. Its output is predictable from a small amount of state, and its streams are frozen on purpose.
-  - A `Handle` is an identifier, not a capability. Using a handle on a different pool than the one that issued it can resolve to an unrelated value. This is a documented limitation (see the `engine_handle` crate docs).
+  - A `GenId` is an identifier, not a capability. Using an ID on a different map or allocator than the one that issued it can resolve to an unrelated value. This is a documented limitation (see the `engine_genid` crate docs).
   - Determinism is a correctness and reproducibility property, not a security boundary.
   - Panics on documented misuse (each documented panic has a non-panicking `try_` twin) and resource exhaustion from huge requests are reliability issues. They are welcome as ordinary bug reports.
 

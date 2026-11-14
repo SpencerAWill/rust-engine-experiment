@@ -9,7 +9,7 @@
 //!
 //! | Module | Crate | What it is |
 //! |---|---|---|
-//! | [`handle`] | `engine_handle` | Typed generational [`Handle`](handle::Handle)s, a dense [`HandlePool`](handle::HandlePool), and two allocators: the lean [`HandleAllocator`](handle::HandleAllocator) and the iterable [`DenseHandleAllocator`](handle::DenseHandleAllocator) |
+//! | [`genid`] | `engine_genid` | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
 //! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
 //! | [`collections`] | `engine_collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
@@ -45,23 +45,23 @@
 //!
 //! # Example
 //!
-//! A pool of transforms, a seeded generator, and a fixed-step clock working together:
+//! A map of transforms, a seeded generator, and a fixed-step clock working together:
 //!
 //! ```
 //! use engine::prelude::*;
 //!
-//! let mut pool = HandlePool::new();
-//! let h = pool.insert(Transform::IDENTITY);
+//! let mut map = GenIdMap::new();
+//! let h = map.insert(Transform::IDENTITY);
 //! let mut prng = Prng::from_seed(42);
 //! let mut clock = ManualClock::new();
 //! let mut step = FixedTimestep::from_hz(core::num::NonZeroU32::new(60).unwrap());
 //! clock.advance(core::time::Duration::from_millis(20));
 //! assert_eq!(step.accumulate(core::time::Duration::from_millis(20)).len(), 1);
-//! assert!(pool.contains(h) && prng.range(0..10) < 10);
+//! assert!(map.contains(h) && prng.range(0..10) < 10);
 //! ```
 
 pub use engine_collections as collections;
-pub use engine_handle as handle;
+pub use engine_genid as genid;
 pub use engine_math as math;
 pub use engine_random as random;
 pub use engine_time as time;
@@ -70,7 +70,7 @@ pub use engine_time as time;
 ///
 /// Only this facade has a prelude: the leaf crates expose a small, flat public surface instead.
 pub mod prelude {
-    pub use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
+    pub use engine_genid::{GenId, GenIdAllocator, GenIdMap};
     pub use engine_math::{
         DVec2, DVec3, Mat4, Quat, Transform, Transform2d, Vec2, Vec3, Vec4, WorldTransform,
         WorldTransform2d, axis,

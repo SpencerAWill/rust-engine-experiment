@@ -1,8 +1,8 @@
-//! The slot table shared by [`HandlePool`](crate::HandlePool) and the allocators: generations,
+//! The slot table shared by [`GenIdMap`](crate::GenIdMap) and the allocators: generations,
 //! the LIFO free list, retirement on generation exhaustion, and the slot limit.
 //!
 //! The table knows nothing about values. An occupied slot carries one `u32` of caller data (its
-//! `link`): the pool stores the value's dense position there, the lean allocator stores `0`.
+//! `link`): the map stores the value's dense position there, the lean allocator stores `0`.
 
 use alloc::collections::TryReserveError;
 use alloc::vec::Vec;
@@ -11,7 +11,7 @@ use alloc::vec::Vec;
 use crate::error::InvariantViolation;
 use core::num::NonZeroU32;
 
-/// The most slots a pool can hold: indices `0..MAX_SLOTS`.
+/// The most slots a map can hold: indices `0..MAX_SLOTS`.
 ///
 /// A slot is 8 bytes: a generation and one `u32` that encodes its [`SlotState`].
 /// That `u32` spends its top bit on "vacant", and reserves the two largest values as
@@ -73,7 +73,7 @@ pub(crate) enum SlotState {
     Occupied { dense: u32 },
     /// Free; links to the next free slot (LIFO stack).
     Vacant { next_free: Option<u32> },
-    /// Generation exhausted: never reused, so a stale handle can never become valid again.
+    /// Generation exhausted: never reused, so a stale ID can never become valid again.
     Retired,
 }
 
@@ -237,7 +237,7 @@ impl SlotTable {
         (slot.generation == generation).then_some(slot.link)
     }
 
-    /// Re-points occupied slot `index` at a new link (the pool's swap-remove).
+    /// Re-points occupied slot `index` at a new link (the map's swap-remove).
     pub(crate) fn set_link(&mut self, index: u32, link: u32) {
         self.slots[index as usize].set_state(SlotState::Occupied { dense: link });
     }

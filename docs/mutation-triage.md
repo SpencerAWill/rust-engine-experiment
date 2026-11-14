@@ -36,6 +36,12 @@ Confirming-run note on timeouts: `prng.rs:130:26` and `prng.rs:130:40` were caug
 
 ## engine_handle
 
+> **Note (2026-11-14, M3.11).** The crate `engine_handle` is now `engine_genid` ([ADR 0012](adr/0012-generational-ids.md)),
+> with `HandlePool` renamed `GenIdMap`, `HandleAllocator` renamed `GenIdAllocator` and `Handle` renamed `GenId`;
+> `pool.rs` and `handle.rs` are now `map.rs` and `id.rs`. The rows below keep the old names. The
+> `dense_allocator.rs` rows refer to a file that has been deleted, and the `slot_limit` row refers to a
+> function that has been deleted.
+
 | Mutant | Class | Action |
 |---|---|---|
 | `libs/engine_handle/src/allocator.rs:97:9: replace HandleAllocator<T>::with_capacity -> Self with Default::default()` | test gap, fixed | `with_capacity_reserves_slots_up_front` (allocator.rs) |

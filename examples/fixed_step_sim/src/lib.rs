@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! A headless, deterministic particle simulation that exercises the M1 crates together.
 //!
-//! Particles live in a [`HandlePool`], are respawned from per-handle [`Prng`] streams, and are
+//! Particles live in a [`GenIdMap`], are respawned from per-ID [`Prng`] streams, and are
 //! stepped by a [`FixedTimestep`] driven from a [`ManualClock`] with jittery frame times. The
 //! whole simulation is plain data: it can be cloned mid-run and continued, and it produces the
 //! same [`checksum`](Sim::checksum) on every architecture, because it uses only basic IEEE `f32`
@@ -9,8 +9,8 @@
 //!
 //! # Rules (these define what the checksum means)
 //!
-//! - **Spawn:** insert a zero particle, derive a stream from the new handle's bits
-//!   (`prng.stream(handle.to_bits())`), then draw position (x, y, z in `[-100, 100)`), velocity
+//! - **Spawn:** insert a zero particle, derive a stream from the new ID's bits
+//!   (`prng.stream(id.to_bits())`), then draw position (x, y, z in `[-100, 100)`), velocity
 //!   (x, y, z in `[-5, 5)`), and `ttl` (`60..=600`), in that order.
 //! - **Step:** `velocity.y -= 9.81 * dt`, `position += velocity * dt`, `ttl -= 1`; then remove
 //!   expired particles with `retain` and respawn until the population is back to its target.
@@ -96,7 +96,7 @@ pub struct SimSummary {
 /// The complete simulation state. Plain data: cloning it snapshots the simulation.
 #[derive(Clone, Debug)]
 pub struct Sim {
-    pool: HandlePool<Particle>,
+    map: GenIdMap<Particle>,
     prng: Prng,
     jitter_prng: Prng,
     timestep: FixedTimestep,
@@ -118,7 +118,7 @@ impl Sim {
         let mut timestep = FixedTimestep::from_hz(NonZeroU32::new(60).expect("60 is non-zero"));
         let pending = timestep.accumulate(Duration::ZERO); // an empty `Steps` to start from
         let mut sim = Self {
-            pool: HandlePool::with_capacity(config.particles),
+            map: GenIdMap::with_capacity(config.particles),
             prng: Prng::from_seed(config.seed),
             jitter_prng: Prng::from_seed(config.jitter_seed),
             dt: timestep.step().as_secs_f32(),
@@ -134,10 +134,10 @@ impl Sim {
         sim
     }
 
-    /// Inserts a particle with values drawn from a stream keyed by its handle.
+    /// Inserts a particle with values drawn from a stream keyed by its ID.
     fn spawn(&mut self) {
-        let handle = self.pool.insert(Particle::ZERO);
-        let mut r = self.prng.stream(handle.to_bits());
+        let id = self.map.insert(Particle::ZERO);
+        let mut r = self.prng.stream(id.to_bits());
         let position = Vec3::new(
             r.range(-100.0_f32..100.0),
             r.range(-100.0_f32..100.0),
@@ -149,7 +149,7 @@ impl Sim {
             r.range(-5.0_f32..5.0),
         );
         let ttl = r.range(60_u32..=600);
-        self.pool[handle] = Particle {
+        self.map[id] = Particle {
             position,
             velocity,
             ttl,
@@ -159,13 +159,13 @@ impl Sim {
     /// One fixed simulation step.
     fn step(&mut self) {
         let dt = self.dt;
-        for (_, p) in &mut self.pool {
+        for (_, p) in &mut self.map {
             p.velocity.y -= 9.81 * dt;
             p.position += p.velocity * dt;
             p.ttl -= 1;
         }
-        self.pool.retain(|_, p| p.ttl > 0);
-        while self.pool.len() < self.particles {
+        self.map.retain(|_, p| p.ttl > 0);
+        while self.map.len() < self.particles {
             self.spawn();
         }
     }
@@ -194,7 +194,7 @@ impl Sim {
         }
     }
 
-    /// FNV-1a 64-bit checksum over every live particle in iteration order: the handle's bits,
+    /// FNV-1a 64-bit checksum over every live particle in iteration order: the ID's bits,
     /// then position and velocity components as little-endian `f32` bit patterns.
     #[must_use]
     pub fn checksum(&self) -> u64 {
@@ -207,8 +207,8 @@ impl Sim {
                 hash = hash.wrapping_mul(PRIME);
             }
         };
-        for (handle, p) in &self.pool {
-            feed(&handle.to_bits().to_le_bytes());
+        for (id, p) in &self.map {
+            feed(&id.to_bits().to_le_bytes());
             for value in [
                 p.position.x,
                 p.position.y,
@@ -229,8 +229,8 @@ impl Sim {
         SimSummary {
             // Steps committed by the timestep minus those still waiting to run.
             tick: self.timestep.current_tick().get() - self.pending.len() as u64,
-            live: self.pool.len(),
-            capacity: self.pool.capacity(),
+            live: self.map.len(),
+            capacity: self.map.capacity(),
             checksum: self.checksum(),
         }
     }

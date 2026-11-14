@@ -754,7 +754,7 @@ mod tests {
     #[test]
     fn relevance_table() {
         for path in [
-            "libs/engine_handle/src/pool.rs",
+            "libs/engine_genid/src/map.rs",
             "bench/regress/benches/prng.rs",
             "Cargo.toml",
             "Cargo.lock",

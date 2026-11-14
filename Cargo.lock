@@ -588,7 +588,7 @@ name = "engine"
 version = "0.1.0"
 dependencies = [
  "engine_collections",
- "engine_handle",
+ "engine_genid",
  "engine_math",
  "engine_random",
  "engine_time",
@@ -599,7 +599,7 @@ name = "engine_bench_regress"
 version = "0.1.0"
 dependencies = [
  "engine_collections",
- "engine_handle",
+ "engine_genid",
  "engine_random",
  "gungraun",
 ]
@@ -610,7 +610,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "engine_collections",
- "engine_handle",
+ "engine_genid",
  "engine_random",
  "fastrand",
  "foldhash",
@@ -632,11 +632,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "engine_handle"
+name = "engine_genid"
 version = "0.1.0"
 dependencies = [
  "dhat",
- "engine_handle",
+ "engine_genid",
  "proptest",
 ]
 

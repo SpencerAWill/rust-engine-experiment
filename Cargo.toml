@@ -13,7 +13,7 @@ publish = false
 
 [workspace.dependencies]
 # internal crates (path + version)
-engine_handle = { path = "libs/engine_handle", version = "0.1.0" }
+engine_genid = { path = "libs/engine_genid", version = "0.1.0" }
 engine_random = { path = "libs/engine_random", version = "0.1.0" }
 engine_time = { path = "libs/engine_time", version = "0.1.0", default-features = false }
 engine_math = { path = "libs/engine_math", version = "0.1.0" }
@@ -34,7 +34,7 @@ rust_2018_idioms = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"   # engine_handle::HandlePool etc. read better with the prefix
+module_name_repetitions = "allow"   # engine_genid::GenIdMap etc. read better with the prefix
 must_use_candidate = "allow"        # #[must_use] is applied deliberately (spec §4.4)
 undocumented_unsafe_blocks = "deny"
 unwrap_used = "warn"

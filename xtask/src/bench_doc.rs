@@ -278,7 +278,7 @@ fn ratios_section(points: &[Point]) -> String {
     let mut lines = vec![ratio_table(points)];
     let mut tallies = Vec::new();
     for competitor in ["slotmap", "slotmap_dense", "thunderdome"] {
-        let (slower, tied, faster) = tally(points, "engine_handle", competitor);
+        let (slower, tied, faster) = tally(points, "engine_genid", competitor);
         let total = slower + tied + faster;
         if total > 0 {
             tallies.push(format!(
@@ -288,7 +288,7 @@ fn ratios_section(points: &[Point]) -> String {
     }
     if !tallies.is_empty() {
         lines.push(format!(
-            "Across all comparable cases, `engine_handle` against {}.",
+            "Across all comparable cases, `engine_genid` against {}.",
             tallies.join("; ")
         ));
     }
@@ -421,17 +421,17 @@ mod tests {
     #[test]
     fn ratios_are_subject_over_competitor_with_a_range_across_sizes() {
         let points = [
-            point("get", "engine_handle", Some("u64"), Some(1000.0), 20.0),
+            point("get", "engine_genid", Some("u64"), Some(1000.0), 20.0),
             point("get", "slotmap", Some("u64"), Some(1000.0), 10.0),
-            point("get", "engine_handle", Some("u64"), Some(100_000.0), 15.0),
+            point("get", "engine_genid", Some("u64"), Some(100_000.0), 15.0),
             point("get", "slotmap", Some("u64"), Some(100_000.0), 10.0),
-            point("get", "engine_handle", Some("u64"), Some(1_000_000.0), 9.0),
+            point("get", "engine_genid", Some("u64"), Some(1_000_000.0), 9.0),
             point("get", "slotmap", Some("u64"), Some(1_000_000.0), 10.0),
         ];
         let table = ratio_table(&points);
         // ratios 2.00, 1.50, 0.90: median 1.50, range 0.90 to 2.00, three cases
         assert!(
-            table.contains("| `get` | `engine_handle` | `slotmap` | 1.50 (0.90\u{2013}2.00) | 3 |"),
+            table.contains("| `get` | `engine_genid` | `slotmap` | 1.50 (0.90\u{2013}2.00) | 3 |"),
             "{table}"
         );
     }
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn only_implementations_with_a_competitor_in_the_same_case_are_compared() {
         let points = [
-            point("g", "engine_handle", None, Some(1.0), 5.0),
+            point("g", "engine_genid", None, Some(1.0), 5.0),
             point("g", "slotmap", None, Some(2.0), 5.0), // different size: no pair
         ];
         assert!(!ratio_table(&points).contains("slotmap"));
@@ -457,19 +457,19 @@ mod tests {
         ];
         let mut points = Vec::new();
         for (ratio, x) in xs {
-            points.push(point("g", "engine_handle", None, Some(x), ratio * 100.0));
+            points.push(point("g", "engine_genid", None, Some(x), ratio * 100.0));
             points.push(point("g", "slotmap", None, Some(x), 100.0));
         }
-        assert_eq!(tally(&points, "engine_handle", "slotmap"), (1, 3, 1));
+        assert_eq!(tally(&points, "engine_genid", "slotmap"), (1, 3, 1));
     }
 
     #[test]
     fn results_tables_have_a_row_per_series_and_a_column_per_size() {
         let points = [
-            point("insert", "engine_handle", Some("u64"), Some(1000.0), 2500.0),
+            point("insert", "engine_genid", Some("u64"), Some(1000.0), 2500.0),
             point(
                 "insert",
-                "engine_handle",
+                "engine_genid",
                 Some("u64"),
                 Some(100_000.0),
                 3_000_000.0,
@@ -481,7 +481,7 @@ mod tests {
         assert!(t.contains("#### `insert`"), "{t}");
         assert!(t.contains("| subject | 1K | 100K |"), "{t}");
         assert!(
-            t.contains("| `engine_handle \u{b7} u64` | 2.50 \u{b5}s | 3.00 ms |"),
+            t.contains("| `engine_genid \u{b7} u64` | 2.50 \u{b5}s | 3.00 ms |"),
             "{t}"
         );
         assert!(
