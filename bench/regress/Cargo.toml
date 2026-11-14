@@ -13,7 +13,7 @@ name = "collections"
 harness = false
 
 [[bench]]
-name = "handle"
+name = "genid"
 harness = false
 
 [[bench]]

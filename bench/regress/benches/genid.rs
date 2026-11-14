@@ -99,7 +99,7 @@ fn filled_dense_shuffled() -> (Dense, Vec<Handle<u64>>) {
 }
 
 #[inline(never)]
-fn pool_insert_1k_work(mut pool: Pool) -> Pool {
+fn map_insert_1k_work(mut pool: Pool) -> Pool {
     for i in 0..N as u64 {
         black_box(pool.insert(i));
     }
@@ -108,12 +108,12 @@ fn pool_insert_1k_work(mut pool: Pool) -> Pool {
 
 #[library_benchmark]
 #[bench::fixed(setup = empty_pool)]
-fn pool_insert_1k(pool: Pool) -> Pool {
-    black_box(pool_insert_1k_work(black_box(pool)))
+fn map_insert_1k(pool: Pool) -> Pool {
+    black_box(map_insert_1k_work(black_box(pool)))
 }
 
 #[inline(never)]
-fn pool_get_seq_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
+fn map_get_seq_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
     let mut sum = 0_u64;
     for handle in &handles {
         sum = sum.wrapping_add(*pool.get(*handle).unwrap());
@@ -123,12 +123,12 @@ fn pool_get_seq_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
 
 #[library_benchmark]
 #[bench::fixed(setup = filled_pool)]
-fn pool_get_seq_1k(input: (Pool, Vec<Handle<u64>>)) -> u64 {
-    black_box(pool_get_seq_1k_work(black_box(input)))
+fn map_get_seq_1k(input: (Pool, Vec<Handle<u64>>)) -> u64 {
+    black_box(map_get_seq_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn pool_get_random_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
+fn map_get_random_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
     let mut sum = 0_u64;
     for handle in &handles {
         sum = sum.wrapping_add(*pool.get(*handle).unwrap());
@@ -138,12 +138,12 @@ fn pool_get_random_1k_work((pool, handles): (Pool, Vec<Handle<u64>>)) -> u64 {
 
 #[library_benchmark]
 #[bench::fixed(setup = filled_pool_shuffled)]
-fn pool_get_random_1k(input: (Pool, Vec<Handle<u64>>)) -> u64 {
-    black_box(pool_get_random_1k_work(black_box(input)))
+fn map_get_random_1k(input: (Pool, Vec<Handle<u64>>)) -> u64 {
+    black_box(map_get_random_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn pool_remove_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
+fn map_remove_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
     for handle in handles {
         black_box(pool.remove(handle));
     }
@@ -152,12 +152,12 @@ fn pool_remove_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
 
 #[library_benchmark]
 #[bench::fixed(setup = filled_pool_shuffled)]
-fn pool_remove_1k(input: (Pool, Vec<Handle<u64>>)) -> Pool {
-    black_box(pool_remove_1k_work(black_box(input)))
+fn map_remove_1k(input: (Pool, Vec<Handle<u64>>)) -> Pool {
+    black_box(map_remove_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn pool_iter_10k_work(pool: &Pool) -> u64 {
+fn map_iter_10k_work(pool: &Pool) -> u64 {
     let mut sum = 0_u64;
     for (_, value) in pool {
         sum = sum.wrapping_add(*value);
@@ -167,12 +167,12 @@ fn pool_iter_10k_work(pool: &Pool) -> u64 {
 
 #[library_benchmark]
 #[bench::fixed(setup = filled_pool_10k)]
-fn pool_iter_10k(pool: Pool) -> u64 {
-    black_box(pool_iter_10k_work(black_box(&pool)))
+fn map_iter_10k(pool: Pool) -> u64 {
+    black_box(map_iter_10k_work(black_box(&pool)))
 }
 
 #[inline(never)]
-fn pool_churn_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
+fn map_churn_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
     for handle in &handles[..N / 2] {
         black_box(pool.remove(*handle));
     }
@@ -184,8 +184,8 @@ fn pool_churn_1k_work((mut pool, handles): (Pool, Vec<Handle<u64>>)) -> Pool {
 
 #[library_benchmark]
 #[bench::fixed(setup = filled_pool_shuffled)]
-fn pool_churn_1k(input: (Pool, Vec<Handle<u64>>)) -> Pool {
-    black_box(pool_churn_1k_work(black_box(input)))
+fn map_churn_1k(input: (Pool, Vec<Handle<u64>>)) -> Pool {
+    black_box(map_churn_1k_work(black_box(input)))
 }
 
 #[inline(never)]
@@ -263,14 +263,14 @@ fn dense_free_1k(input: (Dense, Vec<Handle<u64>>)) -> Dense {
 }
 
 library_benchmark_group!(
-    name = pool;
+    name = map;
     benchmarks =
-        pool_insert_1k,
-        pool_get_seq_1k,
-        pool_get_random_1k,
-        pool_remove_1k,
-        pool_iter_10k,
-        pool_churn_1k
+        map_insert_1k,
+        map_get_seq_1k,
+        map_get_random_1k,
+        map_remove_1k,
+        map_iter_10k,
+        map_churn_1k
 );
 
 library_benchmark_group!(
@@ -283,4 +283,4 @@ library_benchmark_group!(
     benchmarks = dense_allocate_1k, dense_free_1k
 );
 
-main!(library_benchmark_groups = pool, allocator, dense);
+main!(library_benchmark_groups = map, allocator, dense);

@@ -11,7 +11,7 @@
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work. Each
 //! benchmark builds its input in a `setup` function, which Gungraun does not count, and runs the
-//! operation in a separate `*_work` function that is never inlined (see `handle.rs` for why).
+//! operation in a separate `*_work` function that is never inlined (see `genid.rs` for why).
 
 use core::any::TypeId;
 use core::hint::black_box;

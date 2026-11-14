@@ -14,7 +14,7 @@
 //!
 //! Each benchmark's `setup` runs the workload's `setup` and one untimed `step`, so buffers have
 //! reached their steady size. The measured function is one `step`, behind a function that is never
-//! inlined and is defined outside the benchmark function (see `bench/regress/benches/handle.rs`
+//! inlined and is defined outside the benchmark function (see `bench/regress/benches/genid.rs`
 //! for why).
 
 use core::hint::black_box;
