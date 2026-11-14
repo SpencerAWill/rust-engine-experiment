@@ -64,6 +64,11 @@ enum Command {
         compare: Option<(String, String)>,
         allow_battery: bool,
     },
+    SpikeBench {
+        topic: String,
+        save: Option<String>,
+        allow_battery: bool,
+    },
     Ci {
         quick: bool,
     },
@@ -113,6 +118,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "typos" => only(&[]).map(|()| Command::Typos),
         "bench" => parse_bench(flags),
         "bench-report" => bench_report::parse_flags(flags).map(Command::BenchReport),
+        "spike-bench" => parse_spike_bench(flags),
         "ci" => only(&["--quick"]).map(|()| Command::Ci {
             quick: has("--quick"),
         }),
@@ -168,6 +174,34 @@ fn parse_bench(flags: &[&str]) -> Result<Command, String> {
     Ok(Command::Bench {
         save,
         compare,
+        allow_battery,
+    })
+}
+
+/// Parses `spike-bench <topic> [--save <name>] [--allow-battery]`.
+fn parse_spike_bench(flags: &[&str]) -> Result<Command, String> {
+    let Some((topic, flags)) = flags.split_first() else {
+        return Err(format!(
+            "`spike-bench` needs a topic (known: {})",
+            SPIKE_TOPICS.join(", ")
+        ));
+    };
+    spike_package(topic, SPIKE_COMPARE_PACKAGES, "bench_compare")?;
+    let (mut save, mut allow_battery) = (None, false);
+    let mut it = flags.iter();
+    while let Some(flag) = it.next() {
+        match *flag {
+            "--save" => {
+                let name = it.next().ok_or("`--save` needs a baseline name")?;
+                save = Some((*name).to_string());
+            }
+            "--allow-battery" => allow_battery = true,
+            other => return Err(format!("unknown flag `{other}` for `spike-bench`")),
+        }
+    }
+    Ok(Command::SpikeBench {
+        topic: (*topic).to_string(),
+        save,
         allow_battery,
     })
 }
@@ -258,7 +292,12 @@ fn bench(
         require_tool("critcmp", "cargo install --locked critcmp")?;
         return run("critcmp", &[a, b], &[]);
     }
-    let args = bench_args(save);
+    run_bench(&bench_args(save), allow_battery)
+}
+
+/// Runs `cargo` with a benchmark command line. On macOS it refuses battery power and keeps the
+/// machine awake, as a long measurement needs.
+fn run_bench(args: &[String], allow_battery: bool) -> Result<(), String> {
     if cfg!(target_os = "macos") {
         // A run takes an hour: battery power throttles the CPU, and an idle sleep mid-run spoils
         // the results (it did once). Refuse battery, and keep the machine awake.
@@ -267,12 +306,56 @@ fn bench(
             .output()
             .map_or_default(|o| String::from_utf8_lossy(&o.stdout).into_owned());
         battery_guard(&power, allow_battery)?;
-        let wrapped = caffeinate_args(&args);
+        let wrapped = caffeinate_args(args);
         let wrapped: Vec<&str> = wrapped.iter().map(String::as_str).collect();
         return run("caffeinate", &wrapped, &[]);
     }
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     run("cargo", &args, &[])
+}
+
+/// The spike topics `spike-bench` knows: the short name in `spike_<topic>_bench_compare`. A later
+/// spike adds one entry here and one to each package list below.
+pub(crate) const SPIKE_TOPICS: &[&str] = &["ecs"];
+
+/// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves them out so the
+/// M1 suite and the baselines `bench-doc` reads do not change.
+pub(crate) const SPIKE_COMPARE_PACKAGES: &[&str] = &["spike_ecs_bench_compare"];
+
+/// The Gungraun packages of the spikes. They are run by hand under Valgrind, so `bench` and
+/// `bench-build` leave them out and `bench-smoke` runs them once without it.
+pub(crate) const SPIKE_CACHE_PACKAGES: &[&str] = &["spike_ecs_bench_cache"];
+
+/// The package of `topic` among `packages`, whose names are `spike_<topic>_<suffix>`.
+fn spike_package(topic: &str, packages: &[&str], suffix: &str) -> Result<String, String> {
+    let name = format!("spike_{topic}_{suffix}");
+    if SPIKE_TOPICS.contains(&topic) && packages.contains(&name.as_str()) {
+        Ok(name)
+    } else {
+        Err(format!(
+            "unknown spike topic `{topic}` (known: {})",
+            SPIKE_TOPICS.join(", ")
+        ))
+    }
+}
+
+/// The `cargo bench` command line for `spike-bench <topic> [--save <name>]`.
+fn spike_bench_args(topic: &str, save: Option<&str>) -> Result<Vec<String>, String> {
+    let package = spike_package(topic, SPIKE_COMPARE_PACKAGES, "bench_compare")?;
+    let mut args: Vec<String> = ["bench", "-p", &package, "--bench", "compare"]
+        .map(String::from)
+        .into();
+    if let Some(name) = save {
+        args.extend(["--", "--save-baseline", name].map(String::from));
+    }
+    Ok(args)
+}
+
+/// `--exclude <package>` for each package.
+fn excludes(packages: &[&str]) -> impl Iterator<Item = String> {
+    packages
+        .iter()
+        .flat_map(|p| ["--exclude".to_string(), (*p).to_string()])
 }
 
 /// The package of the Gungraun instruction-count benchmarks. It runs under Valgrind through
@@ -285,17 +368,14 @@ pub(crate) const REGRESS_PACKAGE: &str = "engine_bench_regress";
 /// `--bench '*'` restricts it to the `[[bench]]` targets. Without it, flags after `--` (such as
 /// `--save-baseline`) are also passed to the unit-test harness of every library crate, which does
 /// not understand them and fails. The Gungraun package is excluded: its benchmarks need Valgrind.
+/// So are the spike packages, which have their own commands.
 fn bench_args(save: Option<&str>) -> Vec<String> {
-    let mut args: Vec<String> = [
-        "bench",
-        "--workspace",
-        "--exclude",
-        REGRESS_PACKAGE,
-        "--bench",
-        "*",
-    ]
-    .map(String::from)
-    .into();
+    let mut args: Vec<String> = ["bench", "--workspace", "--exclude", REGRESS_PACKAGE]
+        .map(String::from)
+        .into();
+    args.extend(excludes(SPIKE_CACHE_PACKAGES));
+    args.extend(excludes(SPIKE_COMPARE_PACKAGES));
+    args.extend(["--bench", "*"].map(String::from));
     if let Some(name) = save {
         args.extend(["--", "--save-baseline", name].map(String::from));
     }
@@ -304,17 +384,15 @@ fn bench_args(save: Option<&str>) -> Vec<String> {
 
 /// The `cargo bench` command line for `bench-build`: compile the Criterion benchmarks without
 /// running them. The Gungraun package is excluded, so the command keeps meaning "the Criterion
-/// benchmarks compile"; `bench-smoke` builds and runs that package.
+/// benchmarks compile"; `bench-smoke` builds and runs that package. The same goes for the spikes'
+/// Gungraun packages; their Criterion packages are built.
 fn bench_build_args() -> Vec<String> {
-    [
-        "bench",
-        "--workspace",
-        "--exclude",
-        REGRESS_PACKAGE,
-        "--no-run",
-    ]
-    .map(String::from)
-    .into()
+    let mut args: Vec<String> = ["bench", "--workspace", "--exclude", REGRESS_PACKAGE]
+        .map(String::from)
+        .into();
+    args.extend(excludes(SPIKE_CACHE_PACKAGES));
+    args.push("--no-run".to_string());
+    args
 }
 
 /// The `cargo hack` command line: check every package with each of its features alone, and with
@@ -476,6 +554,11 @@ fn execute(command: &Command) -> Result<(), String> {
             allow_battery,
         } => bench(save.as_deref(), compare.as_ref(), *allow_battery),
         Command::BenchReport(options) => bench_report::run(options),
+        Command::SpikeBench {
+            topic,
+            save,
+            allow_battery,
+        } => run_bench(&spike_bench_args(topic, save.as_deref())?, *allow_battery),
         Command::Ci { quick } => ci(*quick),
     }
 }
@@ -712,6 +795,10 @@ mod tests {
                 "--workspace",
                 "--exclude",
                 "engine_bench_regress",
+                "--exclude",
+                "spike_ecs_bench_cache",
+                "--exclude",
+                "spike_ecs_bench_compare",
                 "--bench",
                 "*"
             ]
@@ -724,6 +811,10 @@ mod tests {
                 "--workspace",
                 "--exclude",
                 "engine_bench_regress",
+                "--exclude",
+                "spike_ecs_bench_cache",
+                "--exclude",
+                "spike_ecs_bench_compare",
                 "--bench",
                 "*"
             ]
@@ -745,6 +836,8 @@ mod tests {
                 "--workspace",
                 "--exclude",
                 "engine_bench_regress",
+                "--exclude",
+                "spike_ecs_bench_cache",
                 "--no-run"
             ]
         );
@@ -777,5 +870,84 @@ mod tests {
         // Test mode runs each Gungraun benchmark once without Valgrind, so a broken one fails CI.
         assert!(!bench_smoke_args().iter().any(|a| a == "--exclude"));
         assert!(!bench_smoke_args().iter().any(|a| a == REGRESS_PACKAGE));
+    }
+
+    #[test]
+    fn spike_bench_parses_its_flags() {
+        let spike = |save: Option<&str>, allow_battery| {
+            Ok(Command::SpikeBench {
+                topic: "ecs".to_string(),
+                save: save.map(str::to_string),
+                allow_battery,
+            })
+        };
+        assert_eq!(parse(&["spike-bench", "ecs"]), spike(None, false));
+        assert_eq!(
+            parse(&["spike-bench", "ecs", "--save", "m3"]),
+            spike(Some("m3"), false)
+        );
+        assert_eq!(
+            parse(&["spike-bench", "ecs", "--allow-battery"]),
+            spike(None, true)
+        );
+        assert!(parse(&["spike-bench"]).is_err());
+        assert!(parse(&["spike-bench", "ecs", "--x"]).is_err());
+        let unknown = parse(&["spike-bench", "nope"]).unwrap_err();
+        assert!(unknown.contains("ecs"), "{unknown}");
+        // A spike benchmark is a manual measurement, never part of CI.
+        for quick in [false, true] {
+            assert!(
+                !ci_steps(quick)
+                    .iter()
+                    .any(|c| matches!(c, Command::SpikeBench { .. }))
+            );
+        }
+    }
+
+    #[test]
+    fn spike_bench_args_select_the_topic_package() {
+        assert_eq!(
+            spike_bench_args("ecs", Some("m3")).unwrap(),
+            [
+                "bench",
+                "-p",
+                "spike_ecs_bench_compare",
+                "--bench",
+                "compare",
+                "--",
+                "--save-baseline",
+                "m3"
+            ]
+        );
+        assert_eq!(
+            spike_bench_args("ecs", None).unwrap(),
+            [
+                "bench",
+                "-p",
+                "spike_ecs_bench_compare",
+                "--bench",
+                "compare"
+            ]
+        );
+        assert!(spike_bench_args("nope", None).unwrap_err().contains("ecs"));
+    }
+
+    #[test]
+    fn bench_excludes_the_spike_packages() {
+        let excludes = |args: &[String], package: &str| {
+            args.windows(2)
+                .any(|w| w[0] == "--exclude" && w[1] == package)
+        };
+        for package in SPIKE_COMPARE_PACKAGES.iter().chain(SPIKE_CACHE_PACKAGES) {
+            assert!(excludes(&bench_args(None), package), "{package}");
+            assert!(excludes(&bench_args(Some("x")), package), "{package}");
+        }
+        // `bench-build` still compiles the Criterion spike bench; only the Gungraun one is out.
+        for package in SPIKE_CACHE_PACKAGES {
+            assert!(excludes(&bench_build_args(), package), "{package}");
+        }
+        for package in SPIKE_COMPARE_PACKAGES {
+            assert!(!excludes(&bench_build_args(), package), "{package}");
+        }
     }
 }

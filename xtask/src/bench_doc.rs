@@ -295,9 +295,18 @@ fn ratios_section(points: &[Point]) -> String {
     lines.join("\n\n")
 }
 
+/// Drops the spike benchmarks (groups under `spike/`): they are measurements of prototypes, and
+/// `docs/benchmarks.md` reports the library suites only.
+pub(crate) fn drop_spikes(points: Vec<Point>) -> Vec<Point> {
+    points
+        .into_iter()
+        .filter(|p| !p.group.starts_with("spike/"))
+        .collect()
+}
+
 /// Updates the marked sections of `options.doc` from the saved baseline.
 pub(crate) fn run(options: &Options) -> Result<(), String> {
-    let points = load::load(Path::new(CRITERION_DIR), &options.baseline)?;
+    let points = drop_spikes(load::load(Path::new(CRITERION_DIR), &options.baseline)?);
     let envs = options
         .env_files
         .iter()
@@ -493,5 +502,16 @@ mod tests {
         assert!(t.contains("| Machine | Apple M4 Pro |"), "{t}");
         assert!(t.contains("| Power | Now drawing from 'AC Power' |"), "{t}");
         assert!(!t.contains("secret_thing"), "{t}");
+    }
+
+    #[test]
+    fn bench_doc_drops_spike_points() {
+        let points = vec![
+            point("spike/ecs/simple_iter", "vec_aos", None, Some(1000.0), 5.0),
+            point("scenario/frame_update", "engine", None, None, 7.0),
+        ];
+        let kept = drop_spikes(points);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].group, "scenario/frame_update");
     }
 }
