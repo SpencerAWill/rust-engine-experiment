@@ -1,6 +1,6 @@
 # M3.9 plan: Repository settings hardening
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Historical: executed in PR #35 (2026-11-14); the spec and the code are authoritative. Deviations are in §4.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

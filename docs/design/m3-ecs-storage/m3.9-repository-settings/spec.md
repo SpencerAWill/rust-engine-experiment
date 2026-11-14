@@ -1,6 +1,6 @@
 # M3.9: Repository settings hardening
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Implemented (PR #35, 2026-11-14). The settings are applied with `pulumi up` before the merge; deviations are in the plan's §4.
 - **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** none · **Decides:** no ADR
 - **Estimated size:** about 350 changed lines, excluding tests, lockfiles and generated files (`infra/github` about 90, workflows about 90, `xtask` about 60, docs about 110)
 
