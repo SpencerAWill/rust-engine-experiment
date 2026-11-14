@@ -1,10 +1,10 @@
 ---
 name: Feature request
-about: Propose a change or an addition
+about: Propose an engine feature, an unmeasured performance idea, or a change to an API or a design decision
 labels: enhancement
 ---
 
-This is an experimental engine and some decisions are deliberately deferred (see `docs/design/`). Please open an issue before writing a large change.
+This is an experimental engine and some decisions are deliberately deferred (see `docs/roadmap.md`). Please open an issue before writing a large change. For CI, tooling or repository work, use the **Infrastructure or chore** template; for a question, start a discussion.
 
 **The problem** (what are you trying to do, and what gets in the way?)
 
