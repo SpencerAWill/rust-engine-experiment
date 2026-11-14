@@ -6,6 +6,7 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 
 ### Changed
 
+- **Repository layout:** the bench packages live under `bench/`: `benches/` is now `bench/compare/` and `bench-regress/` is `bench/regress/`. The package names (`engine_benches`, `engine_bench_regress`) and every command are unchanged. `cargo xtask bench-regress` still compares with a base commit from before the move, by finding the package at its earlier location.
 - **Issue templates:** new templates for a determinism bug and a performance report (issue forms whose required fields ask for what [ADR 0003](docs/adr/0003-same-build-determinism.md) and the benchmark rules need) and for infrastructure or chore work. The bug report sends determinism bugs to the new form, and the feature request is narrowed to engine features and design changes. New labels `infrastructure`, `performance` and `determinism`; Discussions are enabled for questions and linked from the issue chooser. `CONTRIBUTING.md` lists which template to use for what.
 - **Roadmap (M3.0):** M3 is current and broken into chunks M3.0 to M3.8, the storage prototypes are kept under `spikes/` after the decision, M4 is next, and M7 gains the open question of how systems send events to each other.
 - **Devcontainer:** the image is now Debian trixie (Valgrind 3.24, which the instruction-count gate needs), the Node feature was added (trixie's `nodejs` has no `npm`, which the Claude Code feature requires), and `install-tools.sh` installs Valgrind and `gungraun-runner`.
@@ -29,3 +30,7 @@ All notable changes are recorded here, in the [Keep a Changelog](https://keepach
 - **`engine_math`:** glam re-exports, a transcendental funnel (`scalar`), `Transform`, large-world `WorldTransform`, 2D variants, coordinate conversion (`ENGINE`, `GLTF`, `UNITY` presets).
 - **`engine`:** facade crate and prelude. **`examples/fixed_step_sim`:** a deterministic headless simulation with a golden checksum that is identical on aarch64 and x86_64.
 - Comparison benchmarks against `slotmap`, `thunderdome`, `rand`, `rand_xoshiro` and `fastrand`, and `cargo xtask bench-report` for HTML reports of saved results.
+
+### Fixed
+
+- **`check-unsafe`** checks every workspace member, read from `cargo metadata`, instead of a hard-coded list that left out `bench-regress` (`engine_bench_regress`), and it now works when started from a subdirectory (it used to find no crates there and pass). That crate already forbade `unsafe`, so nothing else changed.

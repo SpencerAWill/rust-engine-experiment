@@ -88,7 +88,7 @@ fn lcov_args(regex: &str) -> Vec<String> {
 }
 
 /// The POSIX-extended regex (LLVM has no lookahead) for the files the reports leave out: tooling
-/// (`xtask/`, `benches/`), every `tests/` and `benches/` directory of a library or example, and
+/// (`xtask/`, `bench/`), every `tests/` and `benches/` directory of a library or example, and
 /// the sources of dependencies and the standard library, which stop being filtered once the
 /// default is off. Anchored at `root`, so a checkout under a directory named `tests` is safe.
 fn ignore_regex(root: &Path) -> String {
@@ -100,7 +100,7 @@ fn ignore_regex(root: &Path) -> String {
         escaped.push(c);
     }
     format!(
-        "^{escaped}/(xtask|benches|(libs|examples)/[^/]+/(tests|benches))/\
+        "^{escaped}/(xtask|bench|(libs|examples)/[^/]+/(tests|benches))/\
          |/(registry/src|git/checkouts)/|^/rustc/"
     )
 }
@@ -235,7 +235,7 @@ mod tests {
     fn ignore_regex_lists_the_excluded_dirs() {
         assert_eq!(
             ignore_regex(Path::new("/w")),
-            "^/w/(xtask|benches|(libs|examples)/[^/]+/(tests|benches))/\
+            "^/w/(xtask|bench|(libs|examples)/[^/]+/(tests|benches))/\
              |/(registry/src|git/checkouts)/|^/rustc/"
         );
     }
