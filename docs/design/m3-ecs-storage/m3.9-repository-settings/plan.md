@@ -120,4 +120,9 @@ Runs after the maintainer approves the merge and `pulumi up`:
 
 ## 4. Deviations
 
-None yet.
+- **Probe (2026-11-14):** no contradiction. `@pulumi/github` is still 6.15.1 with no private-vulnerability-reporting resource, so the dynamic resource stands. GitHub's options reference lists `cooldown` `default-days` as supported for `devcontainers`, so all five entries carry it. Pins: `github/codeql-action` v4.39.3 (`33d7b85d`) and `ossf/scorecard-action` v2.5.0 (`fa7117db`, the commit behind the annotated tag).
+- **Step 3:** the first scorecard commit had a comment containing `id-token`, which made the plan's `grep` print a line. The comment was reworded and the commit amended before any push.
+- **Step 5, R12:** the wiki check passed (`git ls-remote` fails with "Repository not found", so the wiki has no content). The Projects check could not run: `gh project list` and the GraphQL `projectsV2` field need the `read:project` scope, which the `gh` token lacks, and the classic-projects query is sunset. R12 is therefore still open and must be confirmed before `pulumi up`.
+- **Step 6:** `ts-node` under Pulumi has no `@types/node`, and the plan allows no new dependency, so the file declares the one global it uses (`declare const process`). The owner is read as `new pulumi.Config("github").require("owner")`, because `new pulumi.Config()` takes the project namespace. The stub-`create` red step was skipped, since the real check is the error path.
+- **Step 6, R5:** as the plan anticipated, `GITHUB_TOKEN=invalid pulumi preview --refresh` fails on the Repository lookup (`GET /orgs/SpencerAWill: 401`) and never reaches the new resource's provider. The invalid-token check and the `pulumi stack export | grep -c gho_` check move to after `pulumi up` (Step 8).
+

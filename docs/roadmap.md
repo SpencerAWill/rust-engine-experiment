@@ -33,7 +33,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | M3.6 | Runtime-registered components in safe byte columns, in the leading prototype | M3.3, M3.4, M3.5 | Planned | |
 | M3.7 | `unsafe` type-erased variant of the leading prototype: an ADR for a spike-scoped exception, an `unsafe-allowlist.toml` entry and Miri in CI; measures the safe and `unsafe` gap | M3.3, M3.4, M3.5 | Planned | |
 | M3.8 | Decision ADRs (storage model, component identity, foreign and mod-defined component storage, transform layout) and the `benchmarks.md` section | M3.0 to M3.7 | Planned | |
-| M3.9 | Repository settings hardening (not part of M3's exit criteria): private vulnerability reporting, squash-only merging with linear history, Dependabot security updates and cooldown, CodeQL and Scorecard code scanning, a `check-workflows` allowlist for write scopes, wiki and Projects off | none | Drafting | [spec](design/m3-ecs-storage/m3.9-repository-settings/spec.md), [plan](design/m3-ecs-storage/m3.9-repository-settings/plan.md) |
+| M3.9 | Repository settings hardening (not part of M3's exit criteria): private vulnerability reporting, squash-only merging with linear history, Dependabot security updates and cooldown, CodeQL and Scorecard code scanning, a `check-workflows` allowlist for write scopes, wiki and Projects off | none | In progress | [spec](design/m3-ecs-storage/m3.9-repository-settings/spec.md), [plan](design/m3-ecs-storage/m3.9-repository-settings/plan.md) |
 
 ## M2 chunks
 
@@ -61,7 +61,7 @@ Rough lists, refined when each becomes current.
 | M7 | Systems with access sets; explicit ordering and ambiguity detection; single-threaded mode; parallel execution on host-provided threads; loom, ThreadSanitizer, stress tests and the concurrency allowlist | The threading model (thread pool, fibers, work stealing). How systems send events to each other: typed per-tick queues or short-lived entities |
 | M8 | `engine_ffi` (the first allowlisted `unsafe` crate outside `spikes/`; Miri arrives in M3.7); generated header; C# binding and sample; FFI panic policy; evaluation of WASM component-model mods | Binding generator; ownership across the boundary; native or WASM mods |
 | M9 | Tracing facade; profiler integration; remote inspection protocol; record/replay with desync detection | Protocol transport and encoding |
-| Later | Windowing and input; 2D then 3D rendering; assets; audio; physics; mod loading; optional app runner; the editor | Unnumbered until scheduled |
+| Later | Release infrastructure (a `v*` tag ruleset, a protected `release` environment, crates.io trusted publishing), when the first release is planned; windowing and input; 2D then 3D rendering; assets; audio; physics; mod loading; optional app runner; the editor | Unnumbered until scheduled |
 
 ## Milestone numbering note
 

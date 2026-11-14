@@ -23,6 +23,8 @@ The engine is a set of libraries with no network, file-format parsing, authentic
 
 ## Our own safeguards
 
-- Third-party GitHub Actions are pinned to commit hashes, workflows use a read-only token, and `cargo xtask check-workflows` enforces this in CI.
+- Third-party GitHub Actions are pinned to commit hashes, workflows use a read-only token, and `cargo xtask check-workflows` enforces this in CI. The two code-scanning jobs are the exception: each can also write security events, to upload its results, and is allowlisted by name in `check-workflows`.
 - `cargo-deny` checks advisories, licences, and sources on every push.
-- Dependabot proposes dependency and action updates weekly.
+- Dependabot proposes dependency and action updates weekly, waiting 7 days after a release, and opens a pull request for a dependency with a security advisory straight away.
+- CodeQL scans the workflows and the Rust code on pull requests, on pushes to `main` and weekly.
+- OpenSSF Scorecard scores the repository's supply-chain hygiene weekly. Its results go to the Security tab and are not published.

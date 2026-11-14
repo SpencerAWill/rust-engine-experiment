@@ -3,8 +3,8 @@
 Status: Active (2026-11-12)
 
 This Pulumi project declares the GitHub settings for `SpencerAWill/rust-engine-experiment`:
-repository settings, the ruleset on `main`, labels, Actions permissions, and Actions variables
-and secrets. `index.ts` is the source of truth. A setting changed in the GitHub UI is drift, and
+repository settings, the ruleset on `main`, labels, Actions permissions, Actions variables
+and secrets, Dependabot security updates and private vulnerability reporting. `index.ts` is the source of truth. A setting changed in the GitHub UI is drift, and
 the next `pulumi up` reverts it.
 
 Commands run on your machine. Pulumi Cloud only stores the state (stack `SpencerAWill/github/prod`).
@@ -27,6 +27,18 @@ pulumi up
   check that never reports blocks every pull request.
 - **Admin bypass** is on, so the repository admin can still push to `main` directly. Everyone
   else needs a pull request with passing checks.
+- **Settings without a provider resource.** `@pulumi/github` 6.15.1 has no resource for private
+  vulnerability reporting, so `privateVulnerabilityReporting.ts` is a dynamic resource that calls
+  `PUT`, `GET` and `DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` with Node's
+  `fetch` and `GITHUB_TOKEN`. Its read reports the live value, so `pulumi preview --refresh`
+  shows the setting drifting if someone turns it off in the UI. When a released provider has a
+  native resource, switch to it and delete the file.
+- **Code scanning is configured by workflows**, `codeql.yml` and `scorecard.yml`, not by default
+  setup. Default setup must stay off (`gh api repos/SpencerAWill/rust-engine-experiment/code-scanning/default-setup --jq .state`
+  prints `not-configured`): GitHub rejects the workflows' uploads while it is on. Neither
+  workflow is a required check.
+- **Merging** is squash only, with the pull request title as the commit subject, in both the
+  repository settings and the `main` ruleset.
 - **Labels** are authoritative: a label not listed in `index.ts` is deleted on `pulumi up`.
 - **The repository resource is protected** and has `archiveOnDestroy`, so `pulumi destroy`
   cannot delete the repository.
