@@ -38,11 +38,11 @@ fn package_name(crate_dir: &Path) -> Option<String> {
     None
 }
 
-/// Directories of every workspace crate: `libs/*`, `examples/*`, `benches`, `xtask`.
-pub(crate) fn workspace_crates() -> Vec<PathBuf> {
+/// Directories of every workspace crate below `root`: `libs/*`, `examples/*`, `benches`, `xtask`.
+pub(crate) fn workspace_crates(root: &Path) -> Vec<PathBuf> {
     let mut crates = Vec::new();
     for group in ["libs", "examples"] {
-        if let Ok(entries) = fs::read_dir(group) {
+        if let Ok(entries) = fs::read_dir(root.join(group)) {
             crates.extend(
                 entries
                     .filter_map(Result::ok)
@@ -52,7 +52,7 @@ pub(crate) fn workspace_crates() -> Vec<PathBuf> {
         }
     }
     for single in ["benches", "xtask"] {
-        let p = PathBuf::from(single);
+        let p = root.join(single);
         if p.join("Cargo.toml").is_file() {
             crates.push(p);
         }
@@ -89,7 +89,7 @@ pub(crate) fn crate_roots(dir: &Path) -> Vec<PathBuf> {
 pub(crate) fn run() -> Result<(), String> {
     let allow = parse_allowlist(&fs::read_to_string("unsafe-allowlist.toml").unwrap_or_default());
     let mut failures = Vec::new();
-    for dir in workspace_crates() {
+    for dir in workspace_crates(Path::new("")) {
         if package_name(&dir).is_some_and(|n| allow.contains(&n)) {
             continue;
         }
