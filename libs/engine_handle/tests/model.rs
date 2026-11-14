@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
+use engine_handle::{Handle, HandleAllocator, HandlePool};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -133,7 +133,7 @@ proptest! {
 #[derive(Debug, Clone)]
 enum AllocOp {
     Allocate,
-    /// Allocate this many handles in one batch (lean allocator) or a loop (dense).
+    /// Allocate this many handles in one batch (lean allocator) or a loop (unit pool).
     AllocateMany(u8),
     Free(usize),
     IsAlive(usize),
@@ -153,41 +153,41 @@ fn alloc_op() -> impl Strategy<Value = AllocOp> {
     ]
 }
 
-/// Runs `ops` against the allocator and a `BTreeSet` model; returns every handle issued
-/// and the `iter()` order after each step.
+/// Runs `ops` against a `HandlePool<()>` (the pool as an iterable ID allocator) and a
+/// `BTreeSet` model; returns every handle issued and the `iter()` order after each step.
 fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
-    let mut alloc = DenseHandleAllocator::<u8>::new();
+    let mut alloc = HandlePool::<()>::new();
     let mut model = BTreeSet::<u64>::new();
-    let mut issued: Vec<Handle<u8>> = Vec::new();
+    let mut issued: Vec<Handle<()>> = Vec::new();
     let mut trace = Vec::new();
 
     for op in ops {
         let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
         match *op {
             AllocOp::Allocate => {
-                let h = alloc.allocate();
+                let h = alloc.insert(());
                 assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
                 issued.push(h);
             }
             AllocOp::AllocateMany(n) => {
                 for _ in 0..n {
-                    let h = alloc.allocate();
+                    let h = alloc.insert(());
                     assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
                     issued.push(h);
                 }
             }
             AllocOp::Free(i) => {
                 if let Some(h) = pick(i) {
-                    assert_eq!(alloc.free(h), model.remove(&h.to_bits()));
+                    assert_eq!(alloc.remove(h).is_some(), model.remove(&h.to_bits()));
                 }
             }
             AllocOp::IsAlive(i) => {
                 if let Some(h) = pick(i) {
-                    assert_eq!(alloc.is_alive(h), model.contains(&h.to_bits()));
+                    assert_eq!(alloc.contains(h), model.contains(&h.to_bits()));
                 }
             }
             AllocOp::Retain(k) => {
-                alloc.retain(|h| h.index() % k != 0);
+                alloc.retain(|h, ()| h.index() % k != 0);
                 model.retain(|bits| u32::try_from(bits >> 32).expect("index") % k != 0);
             }
             AllocOp::Clear => {
@@ -198,10 +198,10 @@ fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
 
         alloc.check_invariants().expect("invariants hold");
         assert_eq!(alloc.len(), model.len());
-        let snapshot: Vec<u64> = alloc.iter().map(Handle::to_bits).collect();
+        let snapshot: Vec<u64> = alloc.iter().map(|(h, ())| h.to_bits()).collect();
         assert_eq!(snapshot.iter().copied().collect::<BTreeSet<_>>(), model);
         for h in &issued {
-            assert_eq!(alloc.is_alive(*h), model.contains(&h.to_bits()));
+            assert_eq!(alloc.contains(*h), model.contains(&h.to_bits()));
         }
         trace.push(snapshot);
     }
@@ -212,7 +212,7 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
-    fn allocator_matches_model_and_is_deterministic(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+    fn unit_pool_matches_model_and_is_deterministic(ops in proptest::collection::vec(alloc_op(), 0..200)) {
         let first = run_alloc(&ops);
         let second = run_alloc(&ops);
         prop_assert_eq!(first, second);
@@ -220,27 +220,27 @@ proptest! {
 }
 
 /// Runs `ops` (without `Retain`, which the lean allocator lacks) against the lean allocator,
-/// the dense allocator and a set model. Both allocators must issue identical handles and agree
-/// on liveness after every step.
-fn run_lean_against_dense(ops: &[AllocOp]) {
-    let mut lean = HandleAllocator::<u8>::new();
-    let mut dense = DenseHandleAllocator::<u8>::new();
+/// a `HandlePool<()>` and a set model. Both must issue identical handles and agree on liveness
+/// after every step.
+fn run_lean_against_unit_pool(ops: &[AllocOp]) {
+    let mut lean = HandleAllocator::<()>::new();
+    let mut unit = HandlePool::<()>::new();
     let mut model = BTreeSet::<u64>::new();
-    let mut issued: Vec<Handle<u8>> = Vec::new();
+    let mut issued: Vec<Handle<()>> = Vec::new();
 
     for op in ops {
         let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
         match *op {
             AllocOp::Allocate => {
-                let (a, b) = (lean.allocate(), dense.allocate());
-                assert_eq!(a, b, "allocators issued different handles");
+                let (a, b) = (lean.allocate(), unit.insert(()));
+                assert_eq!(a, b, "the allocator and the pool issued different handles");
                 assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
                 issued.push(a);
             }
             AllocOp::AllocateMany(n) => {
                 let batch = lean.allocate_many(usize::from(n));
                 for a in batch {
-                    let b = dense.allocate();
+                    let b = unit.insert(());
                     assert_eq!(a, b, "batch and loop issued different handles");
                     assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
                     issued.push(a);
@@ -250,19 +250,19 @@ fn run_lean_against_dense(ops: &[AllocOp]) {
                 if let Some(h) = pick(i) {
                     let was_live = model.remove(&h.to_bits());
                     assert_eq!(lean.free(h), was_live);
-                    assert_eq!(dense.free(h), was_live);
+                    assert_eq!(unit.remove(h).is_some(), was_live);
                 }
             }
             AllocOp::IsAlive(_) | AllocOp::Retain(_) => {}
             AllocOp::Clear => {
                 lean.clear();
-                dense.clear();
+                unit.clear();
                 model.clear();
             }
         }
         lean.check_invariants().expect("invariants hold");
         assert_eq!(lean.len(), model.len());
-        assert_eq!(lean.len(), dense.len());
+        assert_eq!(lean.len(), unit.len());
         for h in &issued {
             assert_eq!(lean.is_alive(*h), model.contains(&h.to_bits()));
         }
@@ -273,8 +273,8 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
-    fn lean_allocator_matches_dense_allocator_and_model(ops in proptest::collection::vec(alloc_op(), 0..200)) {
-        run_lean_against_dense(&ops);
+    fn lean_allocator_matches_unit_pool_and_model(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+        run_lean_against_unit_pool(&ops);
     }
 }
 

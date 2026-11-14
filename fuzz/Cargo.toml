@@ -36,10 +36,3 @@ path = "fuzz_targets/handle_allocator_ops.rs"
 test = false
 doc = false
 bench = false
-
-[[bin]]
-name = "dense_allocator_ops"
-path = "fuzz_targets/dense_allocator_ops.rs"
-test = false
-doc = false
-bench = false

@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine_handle::{DenseHandleAllocator, HandleAllocator, HandlePool};
+use engine_handle::{HandleAllocator, HandlePool};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -58,7 +58,7 @@ type Case = Box<dyn FnOnce()>;
 
 #[test]
 fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
-    let cases: [(&str, Case); 3] = [
+    let cases: [(&str, Case); 2] = [
         (
             "HandlePool",
             Box::new(|| HandlePool::<u8>::new().reserve(usize::MAX)),
@@ -66,10 +66,6 @@ fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
         (
             "HandleAllocator",
             Box::new(|| HandleAllocator::<u8>::new().reserve(usize::MAX)),
-        ),
-        (
-            "DenseHandleAllocator",
-            Box::new(|| DenseHandleAllocator::<u8>::new().reserve(usize::MAX)),
         ),
     ];
     for (name, case) in cases {

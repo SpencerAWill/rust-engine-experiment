@@ -13,10 +13,9 @@ pub(crate) const FUZZ_NIGHTLY: &str = "nightly-2026-11-12";
 
 /// The fuzz targets, in the order `fuzz all` runs them. A test checks this list against
 /// `fuzz/fuzz_targets/*.rs`.
-pub(crate) const TARGETS: [&str; 4] = [
+pub(crate) const TARGETS: [&str; 3] = [
     "handle_pool_ops",
     "handle_allocator_ops",
-    "dense_allocator_ops",
     "handle_from_bits",
 ];
 

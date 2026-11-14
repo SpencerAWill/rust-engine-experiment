@@ -23,7 +23,7 @@
 
 use core::hint::black_box;
 
-use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
+use engine_handle::{Handle, HandleAllocator, HandlePool};
 use engine_random::Prng;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 
@@ -38,7 +38,6 @@ fn shuffled<T>(mut items: Vec<T>) -> Vec<T> {
 
 type Pool = HandlePool<u64>;
 type Alloc = HandleAllocator<u64>;
-type Dense = DenseHandleAllocator<u64>;
 
 fn empty_pool() -> Pool {
     HandlePool::with_capacity(N)
@@ -85,16 +84,6 @@ fn allocator_with_stale_half() -> (Alloc, Vec<Handle<u64>>) {
     for handle in &handles[..N / 2] {
         allocator.free(*handle);
     }
-    (allocator, shuffled(handles))
-}
-
-fn empty_dense() -> Dense {
-    DenseHandleAllocator::with_capacity(N)
-}
-
-fn filled_dense_shuffled() -> (Dense, Vec<Handle<u64>>) {
-    let mut allocator = empty_dense();
-    let handles = (0..N).map(|_| allocator.allocate()).collect();
     (allocator, shuffled(handles))
 }
 
@@ -234,34 +223,6 @@ fn allocator_is_alive_1k(input: (Alloc, Vec<Handle<u64>>)) -> usize {
     black_box(allocator_is_alive_1k_work(black_box(input)))
 }
 
-#[inline(never)]
-fn dense_allocate_1k_work(mut allocator: Dense) -> Dense {
-    for _ in 0..N {
-        black_box(allocator.allocate());
-    }
-    allocator
-}
-
-#[library_benchmark]
-#[bench::fixed(setup = empty_dense)]
-fn dense_allocate_1k(allocator: Dense) -> Dense {
-    black_box(dense_allocate_1k_work(black_box(allocator)))
-}
-
-#[inline(never)]
-fn dense_free_1k_work((mut allocator, handles): (Dense, Vec<Handle<u64>>)) -> Dense {
-    for handle in handles {
-        black_box(allocator.free(handle));
-    }
-    allocator
-}
-
-#[library_benchmark]
-#[bench::fixed(setup = filled_dense_shuffled)]
-fn dense_free_1k(input: (Dense, Vec<Handle<u64>>)) -> Dense {
-    black_box(dense_free_1k_work(black_box(input)))
-}
-
 library_benchmark_group!(
     name = map;
     benchmarks =
@@ -278,9 +239,4 @@ library_benchmark_group!(
     benchmarks = allocator_allocate_1k, allocator_free_realloc_1k, allocator_is_alive_1k
 );
 
-library_benchmark_group!(
-    name = dense;
-    benchmarks = dense_allocate_1k, dense_free_1k
-);
-
-main!(library_benchmark_groups = map, allocator, dense);
+main!(library_benchmark_groups = map, allocator);

@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 #![cfg(not(target_os = "wasi"))]
 
-use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
+use engine_handle::{Handle, HandleAllocator, HandlePool};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -37,40 +37,40 @@ const N: usize = 1_000;
 struct Fixed {
     pool: HandlePool<u64>,
     lean: HandleAllocator<u8>,
-    dense: DenseHandleAllocator<u8>,
+    unit: HandlePool<()>,
     pool_handles: Vec<Handle<u64>>,
     lean_handles: Vec<Handle<u8>>,
-    dense_handles: Vec<Handle<u8>>,
+    unit_handles: Vec<Handle<()>>,
 }
 
 fn work_on_fixed(c: &mut Fixed) {
     for round in 0..20_u64 {
         c.pool_handles.clear();
         c.lean_handles.clear();
-        c.dense_handles.clear();
+        c.unit_handles.clear();
         for i in 0..N as u64 {
             c.pool_handles.push(c.pool.insert(i + round));
             c.lean_handles.push(c.lean.allocate());
-            c.dense_handles.push(c.dense.allocate());
+            c.unit_handles.push(c.unit.insert(()));
         }
         assert!(c.pool.try_insert(0).is_err());
         assert!(c.lean.try_allocate().is_none());
-        assert!(c.dense.try_allocate().is_none());
+        assert!(c.unit.try_insert(()).is_err());
         for h in c.pool_handles.iter().step_by(3) {
             c.pool.remove(*h);
         }
         c.pool.retain(|_, v| *v % 2 == 0);
-        let _ = c.pool.iter().count() + c.dense.iter().count();
+        let _ = c.pool.iter().count() + c.unit.iter().count();
         if round % 2 == 0 {
             c.pool.clear();
             c.lean.clear();
-            c.dense.clear();
+            c.unit.clear();
         } else {
             for h in &c.lean_handles {
                 c.lean.free(*h);
             }
-            for h in &c.dense_handles {
-                c.dense.free(*h);
+            for h in &c.unit_handles {
+                c.unit.remove(*h);
             }
             for (_, _) in c.pool.drain() {}
         }
@@ -86,11 +86,11 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
         || Fixed {
             pool: HandlePool::with_fixed_capacity(N),
             lean: HandleAllocator::with_fixed_capacity(N),
-            dense: DenseHandleAllocator::with_fixed_capacity(N),
+            unit: HandlePool::with_fixed_capacity(N),
             // The handle lists are test scaffolding, built before measuring starts.
             pool_handles: Vec::with_capacity(N),
             lean_handles: Vec::with_capacity(N),
-            dense_handles: Vec::with_capacity(N),
+            unit_handles: Vec::with_capacity(N),
         },
         work_on_fixed,
     );
@@ -103,14 +103,15 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
         || {
             (
                 HandleAllocator::<u8>::with_capacity(N),
-                DenseHandleAllocator::<u8>::with_capacity(N),
-                Vec::with_capacity(2 * N),
+                HandlePool::<()>::with_capacity(N),
+                Vec::with_capacity(N),
+                Vec::with_capacity(N),
             )
         },
-        |(lean, dense, handles)| {
+        |(lean, unit, lean_handles, unit_handles)| {
             for _ in 0..N {
-                handles.push(lean.allocate());
-                handles.push(dense.allocate());
+                lean_handles.push(lean.allocate());
+                unit_handles.push(unit.insert(()));
             }
         },
     );

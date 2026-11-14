@@ -167,11 +167,6 @@ impl<T> HandlePool<T> {
             .try_reserve_slots(self.len().saturating_add(additional))
     }
 
-    /// The most slots this pool will create.
-    pub(crate) const fn slot_limit(&self) -> u32 {
-        self.slots.limit()
-    }
-
     /// Slots the pool can hold without reallocating its slot array.
     #[cfg(test)]
     pub(crate) fn slot_capacity(&self) -> usize {
@@ -984,6 +979,16 @@ mod tests {
         let err = p.check_invariants().unwrap_err();
         let message = alloc::format!("{err}");
         assert!(message.contains("generation"), "message was {message}");
+    }
+
+    #[test]
+    fn check_invariants_reports_a_dense_length_mismatch() {
+        let mut p = HandlePool::<()>::new();
+        let _ = p.insert(());
+        assert!(p.check_invariants().is_ok());
+        p.corrupt_dense_length();
+        let message = alloc::format!("{}", p.check_invariants().unwrap_err());
+        assert!(message.contains("dense arrays"), "message was {message}");
     }
 
     #[test]

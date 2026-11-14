@@ -15,12 +15,12 @@ use crate::slots::{SlotTable, VACANT_BIT};
 /// This is the shape of an ECS entity allocator whose data lives elsewhere. It keeps one 8-byte
 /// slot per slot ever used and a free list, so [`allocate`](Self::allocate),
 /// [`free`](Self::free) and [`is_alive`](Self::is_alive) touch a single array. It does **not**
-/// list its live handles; use [`DenseHandleAllocator`](crate::DenseHandleAllocator) when you need
-/// to iterate them (at the cost of a second array maintained on every allocate and free).
+/// list its live handles; use a [`HandlePool<()>`](crate::HandlePool) when you need to iterate
+/// them (at the cost of a second array maintained on every insert and remove).
 ///
-/// Handles follow the same rules as [`HandlePool`](crate::HandlePool) and
-/// [`DenseHandleAllocator`](crate::DenseHandleAllocator), and for the same sequence of
-/// `allocate`, `free` and `clear` calls all three issue identical handles: new slots start at
+/// Handles follow the same rules as [`HandlePool`](crate::HandlePool), and for the same sequence
+/// of `allocate`, `free` and `clear` calls (`insert`, `remove` and `clear` on a pool) both issue
+/// identical handles: new slots start at
 /// generation 1; freeing bumps the generation (or retires the slot on exhaustion); freed slots
 /// are reused last-freed-first; [`clear`](Self::clear) returns slots in ascending index order.
 ///

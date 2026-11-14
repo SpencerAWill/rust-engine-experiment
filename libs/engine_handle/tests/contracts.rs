@@ -5,7 +5,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use engine_handle::{DenseHandleAllocator, Handle, HandleAllocator, HandlePool};
+use engine_handle::{Handle, HandleAllocator, HandlePool};
 
 fn hash_of(handle: Handle<u8>) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -28,13 +28,6 @@ fn emptiness_follows_the_live_count() {
     assert!(!alloc.is_empty());
     assert!(alloc.free(h));
     assert!(alloc.is_empty());
-
-    let mut dense = DenseHandleAllocator::<u8>::new();
-    assert!(dense.is_empty());
-    let h = dense.allocate();
-    assert!(!dense.is_empty());
-    assert!(dense.free(h));
-    assert!(dense.is_empty());
 }
 
 #[test]
@@ -56,20 +49,6 @@ fn a_clone_is_independent_and_continues_identically() {
     assert_eq!(copy.allocate(), alloc.allocate());
     let _ = copy.allocate();
     assert_eq!(copy.len(), alloc.len() + 1);
-
-    let mut dense = DenseHandleAllocator::<u8>::new();
-    let hs: Vec<_> = (0..4).map(|_| dense.allocate()).collect();
-    assert!(dense.free(hs[2]));
-    let mut copy = dense.clone();
-    assert_eq!(copy.len(), dense.len());
-    assert!(hs.iter().all(|h| copy.is_alive(*h) == dense.is_alive(*h)));
-    assert_eq!(
-        copy.iter().collect::<Vec<_>>(),
-        dense.iter().collect::<Vec<_>>()
-    );
-    assert_eq!(copy.allocate(), dense.allocate());
-    let _ = copy.allocate();
-    assert_eq!(copy.len(), dense.len() + 1);
 }
 
 #[test]
@@ -125,13 +104,4 @@ fn iterator_debug_output_shows_the_remaining_count() {
     let mut into = pool.into_iter();
     let _ = into.next();
     assert_eq!(format!("{into:?}"), "IntoIter { remaining: 2, .. }");
-
-    let mut dense = DenseHandleAllocator::<u8>::new();
-    for _ in 0..3 {
-        let _ = dense.allocate();
-    }
-    let mut iter = dense.iter();
-    assert_eq!(format!("{iter:?}"), "DenseAllocIter { remaining: 3, .. }");
-    let _ = iter.next();
-    assert_eq!(format!("{iter:?}"), "DenseAllocIter { remaining: 2, .. }");
 }

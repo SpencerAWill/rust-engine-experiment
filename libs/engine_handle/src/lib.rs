@@ -19,9 +19,9 @@
 //! | --- | --- |
 //! | Store values, iterate them contiguously | [`HandlePool`] |
 //! | Only IDs (data lives elsewhere), no iteration | [`HandleAllocator`] |
-//! | Only IDs, and iterate the live ones | [`DenseHandleAllocator`] |
+//! | Only IDs, and iterate the live ones | [`HandlePool<()>`](HandlePool) |
 //!
-//! All three issue identical handles for the same sequence of operations.
+//! Both issue identical handles for the same sequence of operations.
 //!
 //! # Known limitation
 //!
@@ -46,14 +46,12 @@ extern crate alloc;
 extern crate std;
 
 mod allocator;
-mod dense_allocator;
 mod error;
 mod handle;
 mod pool;
 mod slots;
 
 pub use allocator::HandleAllocator;
-pub use dense_allocator::{DenseAllocIter, DenseHandleAllocator};
 #[cfg(any(test, feature = "test-invariants"))]
 pub use error::InvariantViolation;
 pub use error::{CapacityError, InvalidHandleBits};
