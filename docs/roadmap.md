@@ -26,14 +26,15 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 |---|---|---|---|---|
 | M3.0 | Windowed baseline sample: `examples/agents_2d` (`winit` and `softbuffer`, example-only), the agent workload and its order-independent checksum | none | Done (PR #24) | [spec](design/m3-ecs-storage/m3.0-windowed-baseline/spec.md), [plan](design/m3-ecs-storage/m3.0-windowed-baseline/plan.md) |
 | M3.1 | `engine_collections`: deterministic map and set | none | Done (PR #26) | [spec](design/m3-ecs-storage/m3.1-collections/spec.md), [plan](design/m3-ecs-storage/m3.1-collections/plan.md) |
-| M3.2 | Spike harness under `spikes/`: one minimal storage interface, the workloads (simple and fragmented iteration, add/remove, heavy compute, entity churn, 100k 2D sprites, and the M3.0 agent workload), a struct-of-arrays variant of the agent workload, and bevy_ecs, hecs and plain-`Vec` baselines | M3.0, M3.1 | Drafting | [spec](design/m3-ecs-storage/m3.2-spike-harness/spec.md), [plan](design/m3-ecs-storage/m3.2-spike-harness/plan.md) |
+| M3.2 | Spike harness under `spikes/ecs_storage/`: the `Workload` interface and conformance check, seven workloads (simple and fragmented iteration, heavy compute, add/remove, entity churn, 100k 2D sprites, the M3.0 agent workload), the plain-`Vec` backends (array-of-structs, and struct-of-arrays for agents), Criterion and Gungraun cache-simulation benches | M3.0, M3.1 | Drafting | [spec](design/m3-ecs-storage/m3.2-spike-harness/spec.md), [plan](design/m3-ecs-storage/m3.2-spike-harness/plan.md) |
 | M3.3 | Sparse-set prototype (safe) | M3.2 | Planned | |
 | M3.4 | Archetype prototype (safe) | M3.2 | Planned | |
 | M3.5 | Per-component hybrid prototype (safe) | M3.3, M3.4 | Planned | |
 | M3.6 | Runtime-registered components in safe byte columns, in the leading prototype | M3.3, M3.4, M3.5 | Planned | |
 | M3.7 | `unsafe` type-erased variant of the leading prototype: an ADR for a spike-scoped exception, an `unsafe-allowlist.toml` entry and Miri in CI; measures the safe and `unsafe` gap | M3.3, M3.4, M3.5 | Planned | |
-| M3.8 | Decision ADRs (storage model, component identity, foreign and mod-defined component storage, transform layout) and the `benchmarks.md` section | M3.0 to M3.7 | Planned | |
+| M3.8 | Decision ADRs (storage model, component identity, foreign and mod-defined component storage, transform layout) and the `benchmarks.md` section | M3.0 to M3.7, M3.10 | Planned | |
 | M3.9 | Repository settings hardening (not part of M3's exit criteria): private vulnerability reporting, squash-only merging with linear history, Dependabot security updates and cooldown, CodeQL and Scorecard code scanning, a `check-workflows` allowlist for write scopes, wiki and Projects off | none | Done (PR #35) | [spec](design/m3-ecs-storage/m3.9-repository-settings/spec.md), [plan](design/m3-ecs-storage/m3.9-repository-settings/plan.md) |
+| M3.10 | bevy_ecs and hecs baselines as harness backends (split out of M3.2, which keeps the harness and the plain-`Vec` backends) | M3.2 | Planned | |
 
 ## M2 chunks
 
