@@ -100,12 +100,16 @@ fn runner_version(output: &str) -> Option<String> {
     (!version.is_empty()).then(|| version.to_string())
 }
 
+/// Where the regression package (`crate::REGRESS_PACKAGE`) lives, relative to the repository root.
+/// `RELEVANT` lists it too.
+const REGRESS_DIR: &str = "bench/regress";
+
 /// What the head run can see changed: a change to any of these can change an instruction count
 /// (spec §4.4 step 2). A pattern ending in `/**` matches everything below that directory; any
 /// other pattern matches the path exactly.
 const RELEVANT: &[&str] = &[
     "libs/**",
-    "bench-regress/**",
+    "bench/regress/**",
     "Cargo.toml",
     "Cargo.lock",
     "rust-toolchain.toml",
@@ -137,7 +141,7 @@ fn target_dir(cargo_target_dir: Option<&str>, repo: &Path) -> PathBuf {
 /// Why the base run does not happen (spec §4.4 step 4).
 #[derive(Debug, PartialEq, Eq)]
 enum BaseSkip {
-    /// The base has no `bench-regress/Cargo.toml`: every benchmark is new.
+    /// The base has no regression package (`bench/regress/Cargo.toml`): every benchmark is new.
     NoCrate,
     /// The base was built against another `gungraun`, whose binaries the installed runner cannot
     /// run: not compared.
@@ -550,7 +554,7 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
             "--name-only",
             &base,
             "--",
-            "bench-regress/Cargo.toml",
+            &format!("{REGRESS_DIR}/Cargo.toml"),
         ],
         "could not list the files of the base",
     )?
@@ -571,7 +575,7 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
         let _ = fs::remove_file(stale);
     }
     let exes = build(&repo, None, false)?;
-    let exits = run_targets(&repo.join("bench-regress"), &exes, &head_args(), &env);
+    let exits = run_targets(&repo.join(REGRESS_DIR), &exes, &head_args(), &env);
     let verdict = report::classify(&exits);
 
     // 6. Verdict and summary.
@@ -612,12 +616,7 @@ fn run_base(repo: &Path, work: &Path, base: &str, env: &[(&str, String)]) -> Res
         ));
     }
     let exes = build(&worktree.path, Some(&work.join("base-target")), true)?;
-    let exits = run_targets(
-        &worktree.path.join("bench-regress"),
-        &exes,
-        &base_args(),
-        env,
-    );
+    let exits = run_targets(&worktree.path.join(REGRESS_DIR), &exes, &base_args(), env);
     match exits.iter().find(|(_, code)| *code != Some(0)) {
         Some((name, code)) => Err(format!(
             "the base run failed: `{name}` ended with {}",
@@ -711,7 +710,7 @@ mod tests {
     fn relevance_table() {
         for path in [
             "libs/engine_handle/src/pool.rs",
-            "bench-regress/benches/prng.rs",
+            "bench/regress/benches/prng.rs",
             "Cargo.toml",
             "Cargo.lock",
             "rust-toolchain.toml",
@@ -722,11 +721,13 @@ mod tests {
         ] {
             assert!(is_relevant(path), "{path} should be relevant");
         }
+        let in_package = format!("{REGRESS_DIR}/benches/new.rs");
+        assert!(is_relevant(&in_package), "RELEVANT must cover REGRESS_DIR");
         for path in [
             "docs/benchmarks.md",
             "README.md",
             "xtask/src/mutants.rs",
-            "benches/benches/prng.rs",
+            "bench/compare/benches/prng.rs",
             "libs",
             "examples/fixed_step_sim/src/main.rs",
         ] {

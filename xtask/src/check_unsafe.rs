@@ -218,8 +218,8 @@ mod tests {
         for member in [
             "libs/engine_handle",
             "examples/agents_2d",
-            "benches",
-            "bench-regress",
+            "bench/compare",
+            "bench/regress",
             "xtask",
         ] {
             assert!(
