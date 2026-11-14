@@ -127,6 +127,15 @@ fn disables_persisted_credentials(lines: &[&str], uses_index: usize) -> bool {
     })
 }
 
+/// `text` without one pair of surrounding YAML quotes.
+fn unquote(text: &str) -> &str {
+    let text = text.trim();
+    text.strip_prefix('"')
+        .and_then(|t| t.strip_suffix('"'))
+        .or_else(|| text.strip_prefix('\'').and_then(|t| t.strip_suffix('\'')))
+        .unwrap_or(text)
+}
+
 /// The `scope: value` pairs of an inline `permissions:` value (`{ a: read, b: write }`).
 fn inline_pairs(value: &str) -> Vec<(&str, &str)> {
     value
@@ -183,7 +192,7 @@ pub(crate) fn scan_workflow(
             in_jobs = trimmed == "jobs:";
             job.clear();
         } else if in_jobs && depth == 2 {
-            job = trimmed.split(':').next().unwrap_or("").to_string();
+            job = unquote(trimmed.split(':').next().unwrap_or("")).to_string();
         }
         let level = match depth {
             0 => Some(Level::Top),
@@ -267,7 +276,7 @@ fn write_problem(
     access: &str,
     allowlist: &[(&str, &str, &str)],
 ) -> Option<String> {
-    if access != "write" {
+    if unquote(access) != "write" {
         return None;
     }
     match level {
@@ -558,6 +567,25 @@ mod tests {
         assert_eq!(write_findings("w.yml", &inline), Vec::new());
         let read_all = with_job_permissions("    permissions: read-all\n");
         assert_eq!(write_findings("w.yml", &read_all), Vec::new());
+    }
+
+    #[test]
+    fn quoted_write_values_and_quoted_job_ids_are_understood() {
+        let quoted = with_job_permissions("    permissions:\n      contents: \"write\"\n");
+        assert_eq!(write_findings("w.yml", &quoted).len(), 1);
+        let single = with_job_permissions("    permissions: { contents: 'write' }\n");
+        assert_eq!(write_findings("w.yml", &single).len(), 1);
+        let top = good().replace("contents: read", "contents: 'write'");
+        assert_eq!(write_findings("w.yml", &top).len(), 1);
+        let id = good().replace("  build:", "  \"build\":").replace(
+            "    runs-on: ubuntu-latest\n",
+            "    runs-on: ubuntu-latest\n    permissions:\n      security-events: write\n",
+        );
+        assert_eq!(
+            write_findings("w.yml", &id),
+            Vec::new(),
+            "allowlisted by its unquoted id"
+        );
     }
 
     #[test]
