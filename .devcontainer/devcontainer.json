@@ -8,7 +8,7 @@
 	"postCreateCommand": "sudo chown -R vscode:vscode /commandhistory /home/vscode/.claude /home/vscode/.cargo /target && touch /commandhistory/.bash_history && bash .devcontainer/install-tools.sh",
 	"features": {
 		"ghcr.io/devcontainers/features/rust:1": {},
-		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainers/features/node:2": {},
 		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
 	},
 	"remoteUser": "vscode",
