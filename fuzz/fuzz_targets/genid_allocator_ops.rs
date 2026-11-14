@@ -1,4 +1,4 @@
-//! Fuzzes `HandleAllocator` against a `BTreeSet` reference model, checking the allocator's
+//! Fuzzes `GenIdAllocator` against a `BTreeSet` reference model, checking the allocator's
 //! internal invariants after every operation.
 
 #![no_main]
@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use arbitrary::Arbitrary;
-use engine_handle::{Handle, HandleAllocator};
+use engine_genid::{GenId, GenIdAllocator};
 use libfuzzer_sys::fuzz_target;
 
 #[derive(Arbitrary, Debug)]
@@ -36,13 +36,13 @@ struct Input {
 
 /// The allocator under test, its model, and the bookkeeping the checks need.
 struct Harness {
-    allocator: HandleAllocator<()>,
+    allocator: GenIdAllocator<()>,
     /// `to_bits` of the live handles. Derived only from the ops applied so far.
     model: BTreeSet<u64>,
     /// The fixed capacity, if any.
     limit: Option<usize>,
     /// Every handle the allocator has issued, for modulo selection (stale ones included).
-    issued: Vec<Handle<()>>,
+    issued: Vec<GenId<()>>,
     /// `to_bits` of every handle issued so far. A freed slot already holds the generation of its
     /// next occupant, and `clear` bumps only occupied slots, so no pair is ever issued twice,
     /// not even across a `clear`.
@@ -53,8 +53,7 @@ impl Harness {
     fn new(capacity: Option<u8>) -> Self {
         let limit = capacity.map(|c| usize::from(c % 17));
         Self {
-            allocator: limit
-                .map_or_else(HandleAllocator::new, HandleAllocator::with_fixed_capacity),
+            allocator: limit.map_or_else(GenIdAllocator::new, GenIdAllocator::with_fixed_capacity),
             model: BTreeSet::new(),
             limit,
             issued: Vec::new(),
@@ -69,12 +68,12 @@ impl Harness {
     }
 
     /// An issued handle chosen by `i`, or `None` before the first allocation.
-    fn pick(&self, i: usize) -> Option<Handle<()>> {
+    fn pick(&self, i: usize) -> Option<GenId<()>> {
         (!self.issued.is_empty()).then(|| self.issued[i % self.issued.len()])
     }
 
     /// Records a handle the allocator just issued.
-    fn register(&mut self, handle: Handle<()>) {
+    fn register(&mut self, handle: GenId<()>) {
         let bits = handle.to_bits();
         assert!(self.ever_issued.insert(bits), "{handle:?} was issued twice");
         assert!(self.model.insert(bits), "{handle:?} was already live");
@@ -82,8 +81,8 @@ impl Harness {
     }
 
     /// Records a batch, which must be exactly what `n` single `allocate` calls would issue.
-    fn register_batch(&mut self, batch: Vec<Handle<()>>, mut replay: HandleAllocator<()>) {
-        let expected: Vec<Handle<()>> = (0..batch.len()).map(|_| replay.allocate()).collect();
+    fn register_batch(&mut self, batch: Vec<GenId<()>>, mut replay: GenIdAllocator<()>) {
+        let expected: Vec<GenId<()>> = (0..batch.len()).map(|_| replay.allocate()).collect();
         assert_eq!(batch, expected, "a batch differs from single allocations");
         for handle in batch {
             self.register(handle);
@@ -163,7 +162,7 @@ impl Harness {
                 self.model.clear();
             }
             Op::Probe(bits) => {
-                if let Some(handle) = Handle::<()>::from_bits(bits) {
+                if let Some(handle) = GenId::<()>::from_bits(bits) {
                     self.probe(handle);
                 }
             }
@@ -174,7 +173,7 @@ impl Harness {
                         .get()
                         .wrapping_add_signed(i32::from(delta));
                     let bits = (u64::from(issued.index()) << 32) | u64::from(generation);
-                    if let Some(handle) = Handle::<()>::from_bits(bits) {
+                    if let Some(handle) = GenId::<()>::from_bits(bits) {
                         self.probe(handle);
                     }
                 }
@@ -184,7 +183,7 @@ impl Harness {
 
     /// A handle the model does not hold must be reported not alive and must not be freeable,
     /// without panicking and without changing the allocator (`check` verifies the latter).
-    fn probe(&mut self, handle: Handle<()>) {
+    fn probe(&mut self, handle: GenId<()>) {
         if self.model.contains(&handle.to_bits()) {
             return;
         }

@@ -203,11 +203,11 @@ mod tests {
 
     #[test]
     fn rows_are_ordered_by_crate_with_total_last() {
-        let pkgs = packages(&["engine_random", "engine_handle"]);
+        let pkgs = packages(&["engine_random", "engine_genid"]);
         let outcomes = Outcomes {
-            caught: "libs/engine_random/src/a.rs:1:1: x\nlibs/engine_handle/src/a.rs:1:1: y\nlibs/engine_handle/src/a.rs:2:1: z\n",
+            caught: "libs/engine_random/src/a.rs:1:1: x\nlibs/engine_genid/src/a.rs:1:1: y\nlibs/engine_genid/src/a.rs:2:1: z\n",
             missed: "libs/engine_random/src/a.rs:3:1: m\n",
-            timeout: "libs/engine_handle/src/a.rs:5:1: t\n",
+            timeout: "libs/engine_genid/src/a.rs:5:1: t\n",
             unviable: "libs/engine_random/src/a.rs:4:1: u\nlibs/engine_random/src/a.rs:9:1: v\n",
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
@@ -216,7 +216,7 @@ mod tests {
             rows,
             [
                 "| Crate | Tested | Caught | Missed | Timeout | Unviable |",
-                "| engine_handle | 3 | 2 | 0 | 1 | 0 |",
+                "| engine_genid | 3 | 2 | 0 | 1 | 0 |",
                 "| engine_random | 4 | 1 | 1 | 0 | 2 |",
                 "| Total | 7 | 3 | 1 | 1 | 2 |",
             ]
@@ -225,9 +225,9 @@ mod tests {
 
     #[test]
     fn selected_crate_without_outcomes_shows_zeros() {
-        let pkgs = packages(&["engine_handle", "engine_time"]);
+        let pkgs = packages(&["engine_genid", "engine_time"]);
         let outcomes = Outcomes {
-            caught: "libs/engine_handle/src/a.rs:1:1: x\n",
+            caught: "libs/engine_genid/src/a.rs:1:1: x\n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
@@ -236,9 +236,9 @@ mod tests {
 
     #[test]
     fn missed_list_is_in_file_and_line_order() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let outcomes = Outcomes {
-            missed: "libs/engine_handle/src/b.rs:9:3: r1\nlibs/engine_handle/src/a.rs:30:1: r2\nlibs/engine_handle/src/a.rs:4:1: r3\n",
+            missed: "libs/engine_genid/src/b.rs:9:3: r1\nlibs/engine_genid/src/a.rs:30:1: r2\nlibs/engine_genid/src/a.rs:4:1: r3\n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
@@ -247,9 +247,9 @@ mod tests {
         assert_eq!(
             listed,
             [
-                "libs/engine_handle/src/a.rs:4:1: r3",
-                "libs/engine_handle/src/a.rs:30:1: r2",
-                "libs/engine_handle/src/b.rs:9:3: r1",
+                "libs/engine_genid/src/a.rs:4:1: r3",
+                "libs/engine_genid/src/a.rs:30:1: r2",
+                "libs/engine_genid/src/b.rs:9:3: r1",
             ]
         );
         assert!(missed.contains("```text\n"), "{missed}");
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn no_missed_says_none() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let out = render(&header(&pkgs), &EMPTY).unwrap();
         assert!(out.contains("### Missed (0)\n\nNone.\n"), "{out}");
         assert!(!out.contains("```"), "{out}");
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn heading_line_names_version_packages_and_exclusions() {
-        let pkgs = packages(&["engine_handle", "engine_random"]);
+        let pkgs = packages(&["engine_genid", "engine_random"]);
         let head = Header {
             excluded_mutants: 12,
             exclude_entries: 5,
@@ -274,7 +274,7 @@ mod tests {
         let out = render(&head, &EMPTY).unwrap();
         assert!(out.starts_with("## Mutation testing\n\n"), "{out}");
         assert!(
-            out.contains("cargo-mutants 27.1.0; packages: engine_handle, engine_random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.\n"),
+            out.contains("cargo-mutants 27.1.0; packages: engine_genid, engine_random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.\n"),
             "{out}"
         );
     }
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn name_outside_the_patterns_is_an_error() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let outcomes = Outcomes {
             caught: "xtask/src/main.rs:1:1: x\n",
             ..EMPTY
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn line_that_is_not_a_name_is_an_error() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let outcomes = Outcomes {
             missed: "garbage\n",
             ..EMPTY
@@ -317,23 +317,23 @@ mod tests {
 
     #[test]
     fn blank_lines_are_ignored() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let outcomes = Outcomes {
-            caught: "\nlibs/engine_handle/src/a.rs:1:1: x\n\n   \n",
+            caught: "\nlibs/engine_genid/src/a.rs:1:1: x\n\n   \n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
         assert!(
-            out.contains("| engine_handle | 1 | 1 | 0 | 0 | 0 |"),
+            out.contains("| engine_genid | 1 | 1 | 0 | 0 | 0 |"),
             "{out}"
         );
     }
 
     #[test]
     fn descriptions_may_contain_colons() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = packages(&["engine_genid"]);
         let outcomes = Outcomes {
-            missed: "libs/engine_handle/src/a.rs:7:5: replace <impl fmt::Debug for Handle<T>>::fmt with Ok(Default::default())\n",
+            missed: "libs/engine_genid/src/a.rs:7:5: replace <impl fmt::Debug for GenId<T>>::fmt with Ok(Default::default())\n",
             ..EMPTY
         };
         assert!(render(&header(&pkgs), &outcomes).is_ok());
@@ -341,11 +341,11 @@ mod tests {
 
     #[test]
     fn a_diff_without_mutants_says_nothing_was_run() {
-        let pkgs = packages(&["engine_handle", "engine_random"]);
+        let pkgs = packages(&["engine_genid", "engine_random"]);
         let out = render_no_mutants(&header(&pkgs));
         assert!(out.starts_with("## Mutation testing\n\n"), "{out}");
         assert!(
-            out.contains("cargo-mutants 27.1.0; packages: engine_handle, engine_random;"),
+            out.contains("cargo-mutants 27.1.0; packages: engine_genid, engine_random;"),
             "{out}"
         );
         assert!(

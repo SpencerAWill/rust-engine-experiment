@@ -20,7 +20,7 @@ on:
       - xtask/src/mutants.rs
       - xtask/src/mutants/**
       - libs/engine_collections/src/**
-      - libs/engine_handle/src/**
+      - libs/engine_genid/src/**
       - libs/engine_random/src/**
 
 # Least privilege: nothing here writes to the repository.

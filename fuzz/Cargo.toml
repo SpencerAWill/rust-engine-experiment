@@ -3,7 +3,7 @@ name = "engine-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
-description = "cargo-fuzz targets for engine_handle (a developer tool, outside the workspace)"
+description = "cargo-fuzz targets for engine_genid (a developer tool, outside the workspace)"
 
 [package.metadata]
 cargo-fuzz = true
@@ -11,28 +11,28 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
-engine_handle = { path = "../libs/engine_handle", features = ["test-invariants"] }
+engine_genid = { path = "../libs/engine_genid", features = ["test-invariants"] }
 
 # Standalone: do not look for a parent workspace (the root `Cargo.toml` excludes this directory).
 [workspace]
 
 [[bin]]
-name = "handle_from_bits"
-path = "fuzz_targets/handle_from_bits.rs"
+name = "genid_from_bits"
+path = "fuzz_targets/genid_from_bits.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "handle_pool_ops"
-path = "fuzz_targets/handle_pool_ops.rs"
+name = "genid_map_ops"
+path = "fuzz_targets/genid_map_ops.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "handle_allocator_ops"
-path = "fuzz_targets/handle_allocator_ops.rs"
+name = "genid_allocator_ops"
+path = "fuzz_targets/genid_allocator_ops.rs"
 test = false
 doc = false
 bench = false

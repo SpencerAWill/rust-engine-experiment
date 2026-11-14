@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! Handle pool and allocator comparisons: `engine_handle` vs `slotmap` vs `thunderdome`.
+//! `GenId` pool and allocator comparisons: `engine_genid` vs `slotmap` vs `thunderdome`.
 //!
 //! Every group runs over `N` in `{1_000, 100_000, 1_000_000}` and two value types
 //! (`u64` and a 64-byte `[u64; 8]`). Randomness comes from `engine_random::Prng` with fixed
@@ -17,7 +17,7 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_genid::{GenId, GenIdAllocator, GenIdMap};
 use engine_random::Prng;
 use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
@@ -104,24 +104,24 @@ trait Store<V: Value> {
     }
 }
 
-struct Pool<V>(HandlePool<V>);
+struct Pool<V>(GenIdMap<V>);
 struct Slot<V>(SlotMap<DefaultKey, V>);
 struct Dense<V>(DenseSlotMap<DefaultKey, V>);
 struct Thunder<V>(Arena<V>);
 
 impl<V: Value> Store<V> for Pool<V> {
-    type Key = Handle<V>;
-    const NAME: &'static str = "engine_handle";
+    type Key = GenId<V>;
+    const NAME: &'static str = "engine_genid";
     fn new() -> Self {
-        Self(HandlePool::new())
+        Self(GenIdMap::new())
     }
-    fn insert(&mut self, v: V) -> Handle<V> {
+    fn insert(&mut self, v: V) -> GenId<V> {
         self.0.insert(v)
     }
-    fn get(&self, k: Handle<V>) -> Option<&V> {
+    fn get(&self, k: GenId<V>) -> Option<&V> {
         self.0.get(k)
     }
-    fn remove(&mut self, k: Handle<V>) -> Option<V> {
+    fn remove(&mut self, k: GenId<V>) -> Option<V> {
         self.0.remove(k)
     }
     fn fold_all(&self) -> u64 {
@@ -505,22 +505,22 @@ trait Alloc {
     fn is_alive(&self, k: Self::Key) -> bool;
 }
 
-struct LeanAlloc(HandleAllocator<()>);
+struct LeanAlloc(GenIdAllocator<()>);
 struct SlotAlloc(SlotMap<DefaultKey, ()>);
 
 impl Alloc for LeanAlloc {
-    type Key = Handle<()>;
-    const NAME: &'static str = "engine_handle_lean";
+    type Key = GenId<()>;
+    const NAME: &'static str = "engine_genid_lean";
     fn new() -> Self {
-        Self(HandleAllocator::new())
+        Self(GenIdAllocator::new())
     }
-    fn allocate(&mut self) -> Handle<()> {
+    fn allocate(&mut self) -> GenId<()> {
         self.0.allocate()
     }
-    fn free(&mut self, k: Handle<()>) -> bool {
+    fn free(&mut self, k: GenId<()>) -> bool {
         self.0.free(k)
     }
-    fn is_alive(&self, k: Handle<()>) -> bool {
+    fn is_alive(&self, k: GenId<()>) -> bool {
         self.0.is_alive(k)
     }
 }
@@ -567,7 +567,7 @@ fn bench_batch_allocate(c: &mut Criterion) {
                 "allocator/batch_fresh"
             };
             let setup = move || {
-                let mut a = HandleAllocator::<()>::new();
+                let mut a = GenIdAllocator::<()>::new();
                 if recycled {
                     let hs: Vec<_> = (0..n).map(|_| a.allocate()).collect();
                     for h in hs {

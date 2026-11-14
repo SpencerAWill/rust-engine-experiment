@@ -45,12 +45,12 @@ name = "engine-fuzz"
 version = "0.0.0"
 dependencies = [
  "arbitrary",
- "engine_handle",
+ "engine_genid",
  "libfuzzer-sys",
 ]
 
 [[package]]
-name = "engine_handle"
+name = "engine_genid"
 version = "0.1.0"
 
 [[package]]

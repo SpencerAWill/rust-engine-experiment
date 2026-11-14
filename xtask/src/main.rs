@@ -232,7 +232,7 @@ fn no_std() -> Result<(), String> {
             "-p",
             "engine_collections",
             "-p",
-            "engine_handle",
+            "engine_genid",
             "-p",
             "engine_random",
             "-p",
@@ -271,7 +271,7 @@ fn wasm() -> Result<(), String> {
             "-p",
             "engine_collections",
             "-p",
-            "engine_handle",
+            "engine_genid",
             "-p",
             "engine_random",
             "-p",
@@ -396,7 +396,7 @@ fn bench_build_args() -> Vec<String> {
 }
 
 /// The `cargo hack` command line: check every package with each of its features alone, and with
-/// none. `--no-dev-deps` keeps `engine_handle`'s self dev-dependency (which turns on
+/// none. `--no-dev-deps` keeps `engine_genid`'s self dev-dependency (which turns on
 /// `test-invariants`) from hiding a feature-gated build break.
 fn hack_args() -> Vec<String> {
     [
@@ -701,7 +701,7 @@ mod tests {
         assert!(parse(&["hack", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::Hack));
         assert!(!ci_steps(true).contains(&Command::Hack));
-        // `--no-dev-deps` matters: engine_handle's self dev-dependency would otherwise turn on
+        // `--no-dev-deps` matters: engine_genid's self dev-dependency would otherwise turn on
         // `test-invariants` everywhere and hide feature-gated breakage.
         assert_eq!(
             hack_args(),

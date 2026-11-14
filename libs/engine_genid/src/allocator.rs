@@ -1,24 +1,24 @@
-//! [`HandleAllocator`]: handle allocation without value storage or a live-handle list.
+//! [`GenIdAllocator`]: handle allocation without value storage or a live-handle list.
 
 use alloc::collections::TryReserveError;
 use alloc::vec::Vec;
 use core::fmt;
 use core::marker::PhantomData;
 
-use crate::handle::{Handle, write_short_type_name};
+use crate::id::{GenId, write_short_type_name};
 #[cfg(any(test, feature = "test-invariants"))]
 use crate::slots::violation;
 use crate::slots::{SlotTable, VACANT_BIT};
 
-/// Lean handle allocation: it hands out [`Handle`]s and tracks which are alive, and nothing more.
+/// Lean handle allocation: it hands out [`GenId`]s and tracks which are alive, and nothing more.
 ///
 /// This is the shape of an ECS entity allocator whose data lives elsewhere. It keeps one 8-byte
 /// slot per slot ever used and a free list, so [`allocate`](Self::allocate),
 /// [`free`](Self::free) and [`is_alive`](Self::is_alive) touch a single array. It does **not**
-/// list its live handles; use a [`HandlePool<()>`](crate::HandlePool) when you need to iterate
+/// list its live handles; use a [`GenIdMap<()>`](crate::GenIdMap) when you need to iterate
 /// them (at the cost of a second array maintained on every insert and remove).
 ///
-/// Handles follow the same rules as [`HandlePool`](crate::HandlePool), and for the same sequence
+/// Handles follow the same rules as [`GenIdMap`](crate::GenIdMap), and for the same sequence
 /// of `allocate`, `free` and `clear` calls (`insert`, `remove` and `clear` on a pool) both issue
 /// identical handles: new slots start at
 /// generation 1; freeing bumps the generation (or retires the slot on exhaustion); freed slots
@@ -32,11 +32,11 @@ use crate::slots::{SlotTable, VACANT_BIT};
 /// # Examples
 ///
 /// ```
-/// use engine_handle::HandleAllocator;
+/// use engine_genid::GenIdAllocator;
 ///
 /// struct Entity;
 ///
-/// let mut entities = HandleAllocator::<Entity>::new();
+/// let mut entities = GenIdAllocator::<Entity>::new();
 /// let a = entities.allocate();
 /// assert!(entities.is_alive(a));
 /// assert!(entities.free(a));
@@ -48,16 +48,16 @@ use crate::slots::{SlotTable, VACANT_BIT};
 /// Handles are typed, so one allocator cannot free another's:
 ///
 /// ```compile_fail,E0308
-/// use engine_handle::HandleAllocator;
+/// use engine_genid::GenIdAllocator;
 ///
 /// struct A;
 /// struct B;
 ///
-/// let mut a = HandleAllocator::<A>::new();
-/// let from_b = HandleAllocator::<B>::new().allocate();
-/// a.free(from_b); // error: expected `Handle<A>`, found `Handle<B>`
+/// let mut a = GenIdAllocator::<A>::new();
+/// let from_b = GenIdAllocator::<B>::new().allocate();
+/// a.free(from_b); // error: expected `GenId<A>`, found `GenId<B>`
 /// ```
-pub struct HandleAllocator<T> {
+pub struct GenIdAllocator<T> {
     slots: SlotTable,
     live: usize,
     _marker: PhantomData<fn() -> T>,
@@ -67,14 +67,14 @@ pub struct HandleAllocator<T> {
 /// value below [`VACANT_BIT`] means "occupied".
 const OCCUPIED: u32 = 0;
 
-impl<T> HandleAllocator<T> {
+impl<T> GenIdAllocator<T> {
     /// Creates an empty allocator. Does not allocate.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// assert!(HandleAllocator::<u8>::new().is_empty());
+    /// # use engine_genid::GenIdAllocator;
+    /// assert!(GenIdAllocator::<u8>::new().is_empty());
     /// ```
     #[inline]
     pub const fn new() -> Self {
@@ -90,8 +90,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let _ = HandleAllocator::<u8>::with_capacity(64);
+    /// # use engine_genid::GenIdAllocator;
+    /// let _ = GenIdAllocator::<u8>::with_capacity(64);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -114,15 +114,15 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut x = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut x = GenIdAllocator::<u8>::new();
     /// x.reserve(1000);
     /// ```
     #[track_caller]
     pub fn reserve(&mut self, additional: usize) {
         if let Err(error) = self.try_reserve(additional) {
             panic!(
-                "HandleAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
+                "GenIdAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
                  use try_reserve to handle this without panicking"
             );
         }
@@ -138,8 +138,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut x = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut x = GenIdAllocator::<u8>::new();
     /// assert!(x.try_reserve(16).is_ok());
     /// assert!(x.try_reserve(usize::MAX).is_err());
     /// ```
@@ -164,8 +164,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::with_fixed_capacity(2);
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::with_fixed_capacity(2);
     /// let a = alloc.allocate();
     /// let _b = alloc.allocate();
     /// assert!(alloc.try_allocate().is_none()); // full: no growth
@@ -199,17 +199,17 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.is_alive(h));
     /// ```
     #[must_use = "dropping the handle leaks a live slot until clear()"]
     #[track_caller]
-    pub fn allocate(&mut self) -> Handle<T> {
+    pub fn allocate(&mut self) -> GenId<T> {
         let Some(handle) = self.try_allocate() else {
             panic!(
-                "HandleAllocator::allocate: allocator is full ({} slots in use or retired); \
+                "GenIdAllocator::allocate: allocator is full ({} slots in use or retired); \
                  use try_allocate to handle this without panicking",
                 self.slots.limit()
             )
@@ -222,15 +222,15 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// assert!(alloc.try_allocate().is_some());
     /// ```
     #[inline]
-    pub fn try_allocate(&mut self) -> Option<Handle<T>> {
+    pub fn try_allocate(&mut self) -> Option<GenId<T>> {
         let (index, generation) = self.slots.acquire(OCCUPIED)?;
         self.live += 1;
-        Some(Handle::new(index, generation))
+        Some(GenId::new(index, generation))
     }
 
     /// Allocates `n` handles at once and returns them.
@@ -249,18 +249,18 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let handles = alloc.allocate_many(100);
     /// assert_eq!(handles.len(), 100);
     /// assert!(handles.iter().all(|h| alloc.is_alive(*h)));
     /// ```
     #[must_use = "dropping the handles leaks live slots until clear()"]
     #[track_caller]
-    pub fn allocate_many(&mut self, n: usize) -> Vec<Handle<T>> {
+    pub fn allocate_many(&mut self, n: usize) -> Vec<GenId<T>> {
         let Some(handles) = self.try_allocate_many(n) else {
             panic!(
-                "HandleAllocator::allocate_many: cannot allocate {n} handles; use \
+                "GenIdAllocator::allocate_many: cannot allocate {n} handles; use \
                  try_allocate_many to handle this without panicking"
             )
         };
@@ -273,18 +273,18 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// assert_eq!(alloc.try_allocate_many(3).map(|hs| hs.len()), Some(3));
     /// ```
-    pub fn try_allocate_many(&mut self, n: usize) -> Option<Vec<Handle<T>>> {
+    pub fn try_allocate_many(&mut self, n: usize) -> Option<Vec<GenId<T>>> {
         if n > self.slots.obtainable(self.live) {
             return None;
         }
         let mut handles = Vec::with_capacity(n);
         self.slots
             .acquire_exactly(n, OCCUPIED, |index, generation| {
-                handles.push(Handle::new(index, generation));
+                handles.push(GenId::new(index, generation));
             });
         self.live += n;
         Some(handles)
@@ -296,14 +296,14 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.free(h));
     /// assert!(!alloc.free(h));
     /// ```
     #[inline]
-    pub fn free(&mut self, handle: Handle<T>) -> bool {
+    pub fn free(&mut self, handle: GenId<T>) -> bool {
         if self.is_alive(handle) {
             self.slots.release(handle.index());
             self.live -= 1;
@@ -318,13 +318,13 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// assert!(alloc.is_alive(h));
     /// ```
     #[inline]
-    pub fn is_alive(&self, handle: Handle<T>) -> bool {
+    pub fn is_alive(&self, handle: GenId<T>) -> bool {
         // Vacant and retired links have the top bit set; a matching generation alone is not
         // enough, because a vacant slot stores the generation its next occupant will get.
         self.slots
@@ -337,8 +337,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let _ = alloc.allocate();
     /// assert_eq!(alloc.len(), 1);
     /// ```
@@ -352,8 +352,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// assert!(HandleAllocator::<u8>::new().is_empty());
+    /// # use engine_genid::GenIdAllocator;
+    /// assert!(GenIdAllocator::<u8>::new().is_empty());
     /// ```
     #[inline]
     pub const fn is_empty(&self) -> bool {
@@ -367,8 +367,8 @@ impl<T> HandleAllocator<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandleAllocator;
-    /// let mut alloc = HandleAllocator::<u8>::new();
+    /// # use engine_genid::GenIdAllocator;
+    /// let mut alloc = GenIdAllocator::<u8>::new();
     /// let h = alloc.allocate();
     /// alloc.clear();
     /// assert!(!alloc.is_alive(h));
@@ -399,13 +399,13 @@ impl<T> HandleAllocator<T> {
     }
 }
 
-impl<T> Default for HandleAllocator<T> {
+impl<T> Default for GenIdAllocator<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Clone for HandleAllocator<T> {
+impl<T> Clone for GenIdAllocator<T> {
     fn clone(&self) -> Self {
         Self {
             slots: self.slots.clone(),
@@ -415,10 +415,10 @@ impl<T> Clone for HandleAllocator<T> {
     }
 }
 
-impl<T> fmt::Debug for HandleAllocator<T> {
-    /// Prints `HandleAllocator<T> { live: n }`. The allocator does not list its handles.
+impl<T> fmt::Debug for GenIdAllocator<T> {
+    /// Prints `GenIdAllocator<T> { live: n }`. The allocator does not list its handles.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("HandleAllocator<")?;
+        f.write_str("GenIdAllocator<")?;
         write_short_type_name::<T>(f)?;
         write!(f, "> {{ live: {} }}", self.live)
     }
@@ -429,8 +429,8 @@ mod tests {
     use super::*;
 
     /// Builds an allocator with some live handles and a free list in a known order.
-    fn churned() -> HandleAllocator<u8> {
-        let mut a = HandleAllocator::<u8>::new();
+    fn churned() -> GenIdAllocator<u8> {
+        let mut a = GenIdAllocator::<u8>::new();
         let hs: alloc::vec::Vec<_> = (0..10).map(|_| a.allocate()).collect();
         for i in [3, 7, 1, 8] {
             a.free(hs[i]);
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn allocate_many_returns_n_live_handles() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let first = a.allocate_many(4);
         let second = a.allocate_many(2);
         assert_eq!((first.len(), second.len(), a.len()), (4, 2, 6));
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn try_allocate_many_is_all_or_nothing() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(5);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(5);
         let kept = a.allocate();
         assert!(a.try_allocate_many(5).is_none()); // only 4 left: nothing is allocated
         assert_eq!(a.len(), 1);
@@ -478,11 +478,11 @@ mod tests {
 
     #[test]
     fn try_allocate_many_never_counts_retired_slots() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(3);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(3);
         let h = a.allocate();
         a.slots
             .set_generation(h.index(), core::num::NonZeroU32::MAX);
-        let last = Handle::<u8>::new(h.index(), core::num::NonZeroU32::MAX);
+        let last = GenId::<u8>::new(h.index(), core::num::NonZeroU32::MAX);
         assert!(a.free(last)); // retires the slot: 2 usable slots remain
         assert!(a.try_allocate_many(3).is_none());
         assert_eq!(a.try_allocate_many(2).unwrap().len(), 2);
@@ -492,13 +492,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_allocate_many")]
     fn allocate_many_past_the_limit_panics_with_hint() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(2);
         let _ = a.allocate_many(3);
     }
 
     #[test]
     fn reserve_then_allocate_does_not_reallocate() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         a.reserve(100);
         let capacity = a.slots.capacity();
         assert!(capacity >= 100);
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn reserve_counts_live_handles() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         for _ in 0..50 {
             let _ = a.allocate();
         }
@@ -522,16 +522,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_reserve")]
     fn reserve_panics_on_capacity_overflow() {
-        HandleAllocator::<u8>::new().reserve(usize::MAX);
+        GenIdAllocator::<u8>::new().reserve(usize::MAX);
     }
 
     #[test]
     fn try_reserve_reports_overflow_instead_of_panicking() {
-        assert!(
-            HandleAllocator::<u8>::new()
-                .try_reserve(usize::MAX)
-                .is_err()
-        );
+        assert!(GenIdAllocator::<u8>::new().try_reserve(usize::MAX).is_err());
     }
 
     #[test]
@@ -541,7 +537,7 @@ mod tests {
     )]
     fn length_queries_are_const() {
         const _: () = {
-            let a = HandleAllocator::<u8>::new();
+            let a = GenIdAllocator::<u8>::new();
             assert!(a.is_empty());
             assert!(a.len() == 0);
             core::mem::forget(a); // a const context cannot run `Drop`
@@ -550,7 +546,7 @@ mod tests {
 
     #[test]
     fn fixed_capacity_allocator_never_grows_and_reports_full() {
-        let mut a = HandleAllocator::<u8>::with_fixed_capacity(4);
+        let mut a = GenIdAllocator::<u8>::with_fixed_capacity(4);
         let capacity = a.slots.capacity();
         assert!(capacity >= 4);
         let mut hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
@@ -570,7 +566,7 @@ mod tests {
 
     #[test]
     fn check_invariants_reports_a_violation_instead_of_panicking() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let _ = a.allocate();
         assert!(a.check_invariants().is_ok());
         a.live += 1; // corrupt the live count
@@ -580,7 +576,7 @@ mod tests {
 
     #[test]
     fn free_returns_false_for_stale_handle() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.free(h));
         assert!(!a.free(h));
@@ -590,11 +586,11 @@ mod tests {
 
     #[test]
     fn a_forged_handle_to_a_vacant_slot_is_not_alive() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.free(h));
         // A vacant slot stores the generation its next occupant will get; forge exactly that.
-        let forged = Handle::<u8>::from_bits(h.to_bits() + 1).unwrap();
+        let forged = GenId::<u8>::from_bits(h.to_bits() + 1).unwrap();
         assert!(!a.is_alive(forged));
         assert!(!a.free(forged));
         assert_eq!(a.len(), 0);
@@ -603,7 +599,7 @@ mod tests {
 
     #[test]
     fn reuse_is_lifo_with_the_next_generation() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let first = a.allocate();
         let second = a.allocate();
         a.free(first);
@@ -617,7 +613,7 @@ mod tests {
 
     #[test]
     fn try_allocate_returns_none_at_the_slot_limit() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(2);
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_some());
         assert!(a.try_allocate().is_none());
@@ -627,18 +623,18 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_allocate")]
     fn allocate_past_limit_panics_with_hint() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(1);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(1);
         let _ = a.allocate();
         let _ = a.allocate();
     }
 
     #[test]
     fn exhausted_generation_retires_the_slot() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(1);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(1);
         let h = a.allocate();
         a.slots
             .set_generation(h.index(), core::num::NonZeroU32::MAX);
-        let last = Handle::<u8>::new(h.index(), core::num::NonZeroU32::MAX);
+        let last = GenId::<u8>::new(h.index(), core::num::NonZeroU32::MAX);
         assert!(a.free(last));
         assert!(!a.is_alive(last));
         // The only slot is retired, so the allocator is now full.
@@ -648,7 +644,7 @@ mod tests {
 
     #[test]
     fn clear_makes_handles_stale_and_reuses_in_ascending_order() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
         a.free(hs[2]);
         a.clear();
@@ -660,9 +656,9 @@ mod tests {
 
     #[test]
     fn debug_shows_the_live_count() {
-        let mut a = HandleAllocator::<u8>::new();
+        let mut a = GenIdAllocator::<u8>::new();
         let _ = a.allocate();
-        assert_eq!(alloc::format!("{a:?}"), "HandleAllocator<u8> { live: 1 }");
+        assert_eq!(alloc::format!("{a:?}"), "GenIdAllocator<u8> { live: 1 }");
     }
 
     #[test]
@@ -672,14 +668,14 @@ mod tests {
 
     #[test]
     fn with_capacity_reserves_slots_up_front() {
-        let a = HandleAllocator::<u8>::with_capacity(16);
+        let a = GenIdAllocator::<u8>::with_capacity(16);
         assert!(a.slots.capacity() >= 16);
         assert!(a.is_empty());
     }
 
     #[test]
     fn clear_retires_slots_whose_generation_is_exhausted() {
-        let mut a = HandleAllocator::<u8>::with_slot_limit(2);
+        let mut a = GenIdAllocator::<u8>::with_slot_limit(2);
         let h = a.allocate();
         let other = a.allocate();
         a.slots

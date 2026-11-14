@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 #![cfg(not(target_os = "wasi"))]
 
-use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_genid::{GenId, GenIdAllocator, GenIdMap};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -35,12 +35,12 @@ const N: usize = 1_000;
 
 /// The containers of the fixed-capacity run, with room for their handles built in advance.
 struct Fixed {
-    pool: HandlePool<u64>,
-    lean: HandleAllocator<u8>,
-    unit: HandlePool<()>,
-    pool_handles: Vec<Handle<u64>>,
-    lean_handles: Vec<Handle<u8>>,
-    unit_handles: Vec<Handle<()>>,
+    pool: GenIdMap<u64>,
+    lean: GenIdAllocator<u8>,
+    unit: GenIdMap<()>,
+    pool_handles: Vec<GenId<u64>>,
+    lean_handles: Vec<GenId<u8>>,
+    unit_handles: Vec<GenId<()>>,
 }
 
 fn work_on_fixed(c: &mut Fixed) {
@@ -84,9 +84,9 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
 
     let blocks = fewest_blocks(
         || Fixed {
-            pool: HandlePool::with_fixed_capacity(N),
-            lean: HandleAllocator::with_fixed_capacity(N),
-            unit: HandlePool::with_fixed_capacity(N),
+            pool: GenIdMap::with_fixed_capacity(N),
+            lean: GenIdAllocator::with_fixed_capacity(N),
+            unit: GenIdMap::with_fixed_capacity(N),
             // The handle lists are test scaffolding, built before measuring starts.
             pool_handles: Vec::with_capacity(N),
             lean_handles: Vec::with_capacity(N),
@@ -102,8 +102,8 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
     let blocks = fewest_blocks(
         || {
             (
-                HandleAllocator::<u8>::with_capacity(N),
-                HandlePool::<()>::with_capacity(N),
+                GenIdAllocator::<u8>::with_capacity(N),
+                GenIdMap::<()>::with_capacity(N),
                 Vec::with_capacity(N),
                 Vec::with_capacity(N),
             )

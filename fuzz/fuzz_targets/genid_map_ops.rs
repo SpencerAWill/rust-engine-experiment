@@ -1,4 +1,4 @@
-//! Fuzzes `HandlePool` against a `BTreeMap` reference model, checking the pool's internal
+//! Fuzzes `GenIdMap` against a `BTreeMap` reference model, checking the pool's internal
 //! invariants and its drop accounting after every operation.
 
 #![no_main]
@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use arbitrary::Arbitrary;
-use engine_handle::{Handle, HandlePool};
+use engine_genid::{GenId, GenIdMap};
 use libfuzzer_sys::fuzz_target;
 
 /// The pool's value type: counts its own drops in a counter shared with the harness, so a value
@@ -55,13 +55,13 @@ struct Input {
 
 /// The pool under test, its model, and the bookkeeping the checks need.
 struct Harness {
-    pool: HandlePool<Tracked>,
+    pool: GenIdMap<Tracked>,
     /// Live handles by `to_bits`, with their values. Derived only from the ops applied so far.
     model: BTreeMap<u64, u16>,
     /// The fixed capacity, if any.
     limit: Option<usize>,
     /// Every handle the pool has issued, for modulo selection (stale ones included).
-    issued: Vec<Handle<Tracked>>,
+    issued: Vec<GenId<Tracked>>,
     /// `to_bits` of every handle issued so far: no pair may ever be issued twice.
     ever_issued: BTreeSet<u64>,
     drops: Rc<Cell<u32>>,
@@ -73,7 +73,7 @@ impl Harness {
     fn new(capacity: Option<u8>) -> Self {
         let limit = capacity.map(|c| usize::from(c % 17));
         Self {
-            pool: limit.map_or_else(HandlePool::new, HandlePool::with_fixed_capacity),
+            pool: limit.map_or_else(GenIdMap::new, GenIdMap::with_fixed_capacity),
             model: BTreeMap::new(),
             limit,
             issued: Vec::new(),
@@ -96,12 +96,12 @@ impl Harness {
     }
 
     /// An issued handle chosen by `i`, or `None` before the first insert.
-    fn pick(&self, i: usize) -> Option<Handle<Tracked>> {
+    fn pick(&self, i: usize) -> Option<GenId<Tracked>> {
         (!self.issued.is_empty()).then(|| self.issued[i % self.issued.len()])
     }
 
     /// Records a handle the pool just issued for `value`.
-    fn register(&mut self, handle: Handle<Tracked>, value: u16) {
+    fn register(&mut self, handle: GenId<Tracked>, value: u16) {
         let bits = handle.to_bits();
         assert!(self.ever_issued.insert(bits), "{handle:?} was issued twice");
         assert!(
@@ -198,7 +198,7 @@ impl Harness {
             }
             Op::Drain(n) => {
                 let mut drain = self.pool.drain();
-                let drained: Vec<(Handle<Tracked>, Tracked)> = if n % 2 == 0 {
+                let drained: Vec<(GenId<Tracked>, Tracked)> = if n % 2 == 0 {
                     drain.by_ref().collect()
                 } else {
                     drain.by_ref().take(usize::from(n / 2 % 8)).collect()
@@ -232,7 +232,7 @@ impl Harness {
                 assert_eq!(values, expected);
             }
             Op::Probe(bits) => {
-                if let Some(handle) = Handle::<Tracked>::from_bits(bits) {
+                if let Some(handle) = GenId::<Tracked>::from_bits(bits) {
                     self.probe(handle);
                 }
             }
@@ -243,7 +243,7 @@ impl Harness {
                         .get()
                         .wrapping_add_signed(i32::from(delta));
                     let bits = (u64::from(issued.index()) << 32) | u64::from(generation);
-                    if let Some(handle) = Handle::<Tracked>::from_bits(bits) {
+                    if let Some(handle) = GenId::<Tracked>::from_bits(bits) {
                         self.probe(handle);
                     }
                 }
@@ -253,7 +253,7 @@ impl Harness {
 
     /// A handle the model does not hold must be reported absent everywhere, without panicking
     /// and without changing the pool (`check` verifies the latter).
-    fn probe(&mut self, handle: Handle<Tracked>) {
+    fn probe(&mut self, handle: GenId<Tracked>) {
         if self.model.contains_key(&handle.to_bits()) {
             return;
         }
@@ -271,7 +271,7 @@ impl Harness {
         assert_eq!(self.pool.len(), self.model.len());
         assert_eq!(self.pool.is_empty(), self.model.is_empty());
 
-        let snapshot = |pool: &HandlePool<Tracked>| -> Vec<(u64, u16)> {
+        let snapshot = |pool: &GenIdMap<Tracked>| -> Vec<(u64, u16)> {
             pool.iter()
                 .map(|(handle, tracked)| (handle.to_bits(), tracked.value))
                 .collect()

@@ -1,4 +1,4 @@
-//! The slot table shared by [`HandlePool`](crate::HandlePool) and the allocators: generations,
+//! The slot table shared by [`GenIdMap`](crate::GenIdMap) and the allocators: generations,
 //! the LIFO free list, retirement on generation exhaustion, and the slot limit.
 //!
 //! The table knows nothing about values. An occupied slot carries one `u32` of caller data (its

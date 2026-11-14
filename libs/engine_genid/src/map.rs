@@ -1,4 +1,4 @@
-//! [`HandlePool`]: dense storage addressed by generational handles.
+//! [`GenIdMap`]: dense storage addressed by generational handles.
 
 use alloc::vec::Vec;
 use core::fmt;
@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use alloc::collections::TryReserveError;
 
 use crate::error::CapacityError;
-use crate::handle::Handle;
+use crate::id::GenId;
 #[cfg(test)]
 use crate::slots::MAX_SLOTS;
 #[cfg(any(test, feature = "test-invariants"))]
@@ -20,7 +20,7 @@ mod iter;
 
 pub use iter::{Drain, IntoIter, Iter, IterMut};
 
-/// Dense storage addressed by generational [`Handle`]s: a "sparse set with generations".
+/// Dense storage addressed by generational [`GenId`]s: a "sparse set with generations".
 ///
 /// Values live in one contiguous array, so iteration is `O(len)` over contiguous
 /// memory, and [`values`](Self::values) exposes them as a slice. Each slot
@@ -52,7 +52,7 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 /// `insert`, `get`, `remove`, and `contains` are `O(1)`. Iteration, `retain`,
 /// `values`, and `drain` are `O(len)` over contiguous memory. Memory is 8 bytes per
 /// slot ever used (slots never shrink, because indices must stay stable), plus 8 bytes
-/// per live value (its dense `Handle`), plus the values themselves.
+/// per live value (its dense `GenId`), plus the values themselves.
 /// [`shrink_to_fit`](Self::shrink_to_fit) releases dense capacity after a spike.
 ///
 /// # Limitation
@@ -63,9 +63,9 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 /// # Examples
 ///
 /// ```
-/// use engine_handle::HandlePool;
+/// use engine_genid::GenIdMap;
 ///
-/// let mut pool = HandlePool::new();
+/// let mut pool = GenIdMap::new();
 /// let a = pool.insert("a");
 /// let b = pool.insert("b");
 ///
@@ -76,20 +76,20 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 /// assert_eq!(pool[b], "b");
 /// ```
 #[derive(Clone)]
-pub struct HandlePool<T> {
+pub struct GenIdMap<T> {
     slots: SlotTable,
-    handles: Vec<Handle<T>>,
+    handles: Vec<GenId<T>>,
     values: Vec<T>,
 }
 
-impl<T> HandlePool<T> {
+impl<T> GenIdMap<T> {
     /// Creates an empty pool. Does not allocate.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let pool = HandlePool::<u8>::new();
+    /// # use engine_genid::GenIdMap;
+    /// let pool = GenIdMap::<u8>::new();
     /// assert!(pool.is_empty());
     /// ```
     #[inline]
@@ -106,8 +106,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let pool = HandlePool::<u8>::with_capacity(16);
+    /// # use engine_genid::GenIdMap;
+    /// let pool = GenIdMap::<u8>::with_capacity(16);
     /// assert!(pool.capacity() >= 16);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
@@ -131,15 +131,15 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut x = HandlePool::<u64>::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut x = GenIdMap::<u64>::new();
     /// x.reserve(1000);
     /// ```
     #[track_caller]
     pub fn reserve(&mut self, additional: usize) {
         if let Err(error) = self.try_reserve(additional) {
             panic!(
-                "HandlePool::reserve: cannot reserve room for {additional} more values ({error}); \
+                "GenIdMap::reserve: cannot reserve room for {additional} more values ({error}); \
                  use try_reserve to handle this without panicking"
             );
         }
@@ -155,8 +155,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut x = HandlePool::<u64>::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut x = GenIdMap::<u64>::new();
     /// assert!(x.try_reserve(16).is_ok());
     /// assert!(x.try_reserve(usize::MAX).is_err());
     /// ```
@@ -198,8 +198,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::with_fixed_capacity(2);
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::with_fixed_capacity(2);
     /// let a = pool.insert('a');
     /// let _b = pool.insert('b');
     /// assert!(pool.try_insert('c').is_err()); // full: no growth
@@ -226,17 +226,17 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(42);
     /// assert_eq!(pool[h], 42);
     /// ```
     #[must_use = "dropping the handle makes the value unreachable except by iteration"]
     #[track_caller]
-    pub fn insert(&mut self, value: T) -> Handle<T> {
+    pub fn insert(&mut self, value: T) -> GenId<T> {
         let Ok(handle) = self.try_insert(value) else {
             panic!(
-                "HandlePool::insert: pool is full ({} slots in use or retired); \
+                "GenIdMap::insert: pool is full ({} slots in use or retired); \
                  use try_insert to handle this without panicking",
                 self.slots.limit()
             )
@@ -254,16 +254,16 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.try_insert("x").unwrap();
     /// assert_eq!(pool[h], "x");
     /// ```
-    pub fn try_insert(&mut self, value: T) -> Result<Handle<T>, CapacityError<T>> {
+    pub fn try_insert(&mut self, value: T) -> Result<GenId<T>, CapacityError<T>> {
         let Some((index, generation)) = self.slots.acquire(to_u32(self.handles.len())) else {
             return Err(CapacityError::new(value, self.slots.limit()));
         };
-        let handle = Handle::new(index, generation);
+        let handle = GenId::new(index, generation);
         self.handles.push(handle);
         self.values.push(value);
         Ok(handle)
@@ -285,23 +285,23 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::{Handle, HandlePool};
+    /// # use engine_genid::{GenId, GenIdMap};
     /// struct Node {
-    ///     me: Handle<Node>,
+    ///     me: GenId<Node>,
     ///     depth: u32,
     /// }
     ///
-    /// let mut nodes = HandlePool::new();
+    /// let mut nodes = GenIdMap::new();
     /// let root = nodes.insert_with(|me| Node { me, depth: 0 });
     /// assert_eq!(nodes[root].me, root);
     /// assert_eq!(nodes[root].depth, 0);
     /// ```
     #[must_use = "dropping the handle makes the value unreachable except by iteration"]
     #[track_caller]
-    pub fn insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Handle<T> {
+    pub fn insert_with(&mut self, make: impl FnOnce(GenId<T>) -> T) -> GenId<T> {
         let Some(handle) = self.try_insert_with(make) else {
             panic!(
-                "HandlePool::insert_with: pool is full ({} slots in use or retired); \
+                "GenIdMap::insert_with: pool is full ({} slots in use or retired); \
                  use try_insert_with to handle this without panicking",
                 self.slots.limit()
             )
@@ -315,14 +315,14 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.try_insert_with(|h| h.index()).unwrap();
     /// assert_eq!(pool[h], h.index());
     /// ```
-    pub fn try_insert_with(&mut self, make: impl FnOnce(Handle<T>) -> T) -> Option<Handle<T>> {
+    pub fn try_insert_with(&mut self, make: impl FnOnce(GenId<T>) -> T) -> Option<GenId<T>> {
         let (index, generation) = self.slots.peek_next()?;
-        let handle = Handle::new(index, generation);
+        let handle = GenId::new(index, generation);
         // `make` cannot reach the pool, and the slot is not taken until it returns, so a panic
         // inside it leaves the pool exactly as it was.
         let value = make(handle);
@@ -335,7 +335,7 @@ impl<T> HandlePool<T> {
 
     /// Dense position of the value `handle` names, if the handle is live.
     #[inline]
-    fn resolve(&self, handle: Handle<T>) -> Option<usize> {
+    fn resolve(&self, handle: GenId<T>) -> Option<usize> {
         let dense = self.slots.lookup(handle.index(), handle.generation())? as usize;
         // Occupied slots have the top bit clear, so the link is the dense position. Vacant and
         // retired links are at least `VACANT_BIT`, which exceeds any dense length, so one range
@@ -348,8 +348,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(1);
     /// assert_eq!(pool.get(h), Some(&1));
     /// pool.remove(h);
@@ -359,15 +359,15 @@ impl<T> HandlePool<T> {
     /// The reference borrows the pool, so it cannot outlive a change to it:
     ///
     /// ```compile_fail,E0502
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert(1);
     /// let first = pool.get(a).unwrap();
     /// let _b = pool.insert(2); // needs `&mut pool` while `first` still borrows it
     /// println!("{first}");
     /// ```
     #[inline]
-    pub fn get(&self, handle: Handle<T>) -> Option<&T> {
+    pub fn get(&self, handle: GenId<T>) -> Option<&T> {
         self.resolve(handle).map(|dense| &self.values[dense])
     }
 
@@ -376,14 +376,14 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(1);
     /// *pool.get_mut(h).unwrap() += 1;
     /// assert_eq!(pool[h], 2);
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T> {
+    pub fn get_mut(&mut self, handle: GenId<T>) -> Option<&mut T> {
         self.resolve(handle).map(|dense| &mut self.values[dense])
     }
 
@@ -392,15 +392,15 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(());
     /// assert!(pool.contains(h));
     /// pool.remove(h);
     /// assert!(!pool.contains(h));
     /// ```
     #[inline]
-    pub fn contains(&self, handle: Handle<T>) -> bool {
+    pub fn contains(&self, handle: GenId<T>) -> bool {
         self.resolve(handle).is_some()
     }
 
@@ -412,8 +412,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert('a');
     /// let b = pool.insert('b');
     /// let c = pool.insert('c');
@@ -423,7 +423,7 @@ impl<T> HandlePool<T> {
     /// assert_eq!(pool.remove(a), None);
     /// # let _ = b;
     /// ```
-    pub fn remove(&mut self, handle: Handle<T>) -> Option<T> {
+    pub fn remove(&mut self, handle: GenId<T>) -> Option<T> {
         let dense = self.resolve(handle)?;
         Some(self.remove_at(dense))
     }
@@ -445,8 +445,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let _ = pool.insert(1);
     /// assert_eq!(pool.len(), 1);
     /// ```
@@ -460,8 +460,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// assert!(HandlePool::<u8>::new().is_empty());
+    /// # use engine_genid::GenIdMap;
+    /// assert!(GenIdMap::<u8>::new().is_empty());
     /// ```
     #[inline]
     pub const fn is_empty(&self) -> bool {
@@ -474,8 +474,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// assert!(HandlePool::<u8>::with_capacity(8).capacity() >= 8);
+    /// # use engine_genid::GenIdMap;
+    /// assert!(GenIdMap::<u8>::with_capacity(8).capacity() >= 8);
     /// ```
     pub const fn capacity(&self) -> usize {
         self.values.capacity()
@@ -489,8 +489,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::with_capacity(100);
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::with_capacity(100);
     /// let _ = pool.insert(1);
     /// pool.shrink_to_fit();
     /// assert!(pool.capacity() < 100);
@@ -507,8 +507,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let _ = pool.insert(1);
     /// let _ = pool.insert(2);
     /// assert_eq!(pool.values().iter().sum::<i32>(), 3);
@@ -523,8 +523,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(1);
     /// for v in pool.values_mut() {
     ///     *v *= 10;
@@ -545,15 +545,15 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// for i in 0..6 {
     ///     let _ = pool.insert(i);
     /// }
     /// pool.retain(|_, v| *v % 2 == 0);
     /// assert_eq!(pool.len(), 3);
     /// ```
-    pub fn retain(&mut self, mut keep: impl FnMut(Handle<T>, &mut T) -> bool) {
+    pub fn retain(&mut self, mut keep: impl FnMut(GenId<T>, &mut T) -> bool) {
         let mut dense = 0;
         while dense < self.values.len() {
             let handle = self.handles[dense];
@@ -574,8 +574,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert(1);
     /// let b = pool.insert(2);
     /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
@@ -587,8 +587,8 @@ impl<T> HandlePool<T> {
     /// The references borrow the whole pool, so it cannot be used again while they are alive:
     ///
     /// ```compile_fail,E0502
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert(1);
     /// let b = pool.insert(2);
     /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
@@ -597,7 +597,7 @@ impl<T> HandlePool<T> {
     /// ```
     pub fn get_disjoint_mut<const N: usize>(
         &mut self,
-        handles: [Handle<T>; N],
+        handles: [GenId<T>; N],
     ) -> Option<[&mut T; N]> {
         let mut positions = [0_usize; N];
         for (position, handle) in positions.iter_mut().zip(handles) {
@@ -611,8 +611,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert('a');
     /// assert_eq!(pool.iter().next(), Some((a, &'a')));
     /// ```
@@ -621,8 +621,8 @@ impl<T> HandlePool<T> {
     /// handles first, or use [`retain`](Self::retain)):
     ///
     /// ```compile_fail,E0502
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let _ = pool.insert(1);
     /// for (h, _) in &pool {
     ///     pool.remove(h);
@@ -640,8 +640,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert(1);
     /// for (_, v) in pool.iter_mut() {
     ///     *v += 1;
@@ -663,8 +663,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let a = pool.insert(1);
     /// let drained: Vec<_> = pool.drain().collect();
     /// assert_eq!(drained, vec![(a, 1)]);
@@ -686,8 +686,8 @@ impl<T> HandlePool<T> {
     /// # Examples
     ///
     /// ```
-    /// # use engine_handle::HandlePool;
-    /// let mut pool = HandlePool::new();
+    /// # use engine_genid::GenIdMap;
+    /// let mut pool = GenIdMap::new();
     /// let h = pool.insert(1);
     /// pool.clear();
     /// assert!(pool.is_empty() && !pool.contains(h));
@@ -743,34 +743,34 @@ impl<T> HandlePool<T> {
         let generation = NonZeroU32::new(generation).unwrap();
         self.slots.set_generation(index, generation);
         if let SlotState::Occupied { dense } = self.slots.state(index) {
-            self.handles[dense as usize] = Handle::new(index, generation);
+            self.handles[dense as usize] = GenId::new(index, generation);
         }
     }
 }
 
 /// Test support: breaks an invariant on purpose, to check that `check_invariants` reports it.
 #[cfg(test)]
-impl HandlePool<()> {
+impl GenIdMap<()> {
     pub(crate) fn corrupt_dense_length(&mut self) {
         self.values.push(());
     }
 }
 
-impl<T> Default for HandlePool<T> {
+impl<T> Default for GenIdMap<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for HandlePool<T> {
+impl<T: fmt::Debug> fmt::Debug for GenIdMap<T> {
     /// Prints as a map of live handles to values, in dense order.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<'a, T> IntoIterator for &'a HandlePool<T> {
-    type Item = (Handle<T>, &'a T);
+impl<'a, T> IntoIterator for &'a GenIdMap<T> {
+    type Item = (GenId<T>, &'a T);
     type IntoIter = Iter<'a, T>;
 
     fn into_iter(self) -> Iter<'a, T> {
@@ -778,8 +778,8 @@ impl<'a, T> IntoIterator for &'a HandlePool<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut HandlePool<T> {
-    type Item = (Handle<T>, &'a mut T);
+impl<'a, T> IntoIterator for &'a mut GenIdMap<T> {
+    type Item = (GenId<T>, &'a mut T);
     type IntoIter = IterMut<'a, T>;
 
     fn into_iter(self) -> IterMut<'a, T> {
@@ -787,8 +787,8 @@ impl<'a, T> IntoIterator for &'a mut HandlePool<T> {
     }
 }
 
-impl<T> IntoIterator for HandlePool<T> {
-    type Item = (Handle<T>, T);
+impl<T> IntoIterator for GenIdMap<T> {
+    type Item = (GenId<T>, T);
     type IntoIter = IntoIter<T>;
 
     fn into_iter(self) -> IntoIter<T> {
@@ -799,15 +799,15 @@ impl<T> IntoIterator for HandlePool<T> {
     }
 }
 
-impl<T> Index<Handle<T>> for HandlePool<T> {
+impl<T> Index<GenId<T>> for GenIdMap<T> {
     type Output = T;
 
     /// # Panics
     ///
-    /// Panics if `handle` is stale. Use [`HandlePool::get`] to handle that without panicking.
+    /// Panics if `handle` is stale. Use [`GenIdMap::get`] to handle that without panicking.
     #[inline]
     #[track_caller]
-    fn index(&self, handle: Handle<T>) -> &T {
+    fn index(&self, handle: GenId<T>) -> &T {
         match self.get(handle) {
             Some(value) => value,
             None => stale_handle(handle),
@@ -815,13 +815,13 @@ impl<T> Index<Handle<T>> for HandlePool<T> {
     }
 }
 
-impl<T> IndexMut<Handle<T>> for HandlePool<T> {
+impl<T> IndexMut<GenId<T>> for GenIdMap<T> {
     /// # Panics
     ///
-    /// Panics if `handle` is stale. Use [`HandlePool::get_mut`] to handle that without panicking.
+    /// Panics if `handle` is stale. Use [`GenIdMap::get_mut`] to handle that without panicking.
     #[inline]
     #[track_caller]
-    fn index_mut(&mut self, handle: Handle<T>) -> &mut T {
+    fn index_mut(&mut self, handle: GenId<T>) -> &mut T {
         match self.get_mut(handle) {
             Some(value) => value,
             None => stale_handle(handle),
@@ -831,9 +831,9 @@ impl<T> IndexMut<Handle<T>> for HandlePool<T> {
 
 #[cold]
 #[track_caller]
-fn stale_handle<T>(handle: Handle<T>) -> ! {
+fn stale_handle<T>(handle: GenId<T>) -> ! {
     panic!(
-        "HandlePool index: stale handle {handle:?} (its value was removed, or the pool was \
+        "GenIdMap index: stale handle {handle:?} (its value was removed, or the pool was \
          cleared); use get() to handle this without panicking"
     )
 }
@@ -845,7 +845,7 @@ mod tests {
 
     #[test]
     fn insert_get_remove_roundtrip() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let h = p.insert(5);
         assert_eq!(p.get(h), Some(&5));
         assert_eq!(p.remove(h), Some(5));
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn removed_handle_is_stale_and_slot_reused_lifo() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let a = p.insert('a');
         let b = p.insert('b');
         p.remove(a);
@@ -871,10 +871,10 @@ mod tests {
 
     #[test]
     fn generation_exhaustion_retires_slot() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let h = p.insert(1);
         p.set_generation_for_test(h.index(), u32::MAX);
-        let h = Handle::new(h.index(), NonZeroU32::new(u32::MAX).unwrap());
+        let h = GenId::new(h.index(), NonZeroU32::new(u32::MAX).unwrap());
         assert_eq!(p.remove(h), Some(1));
         let n = p.insert(2);
         assert_ne!(n.index(), h.index()); // retired, never reused
@@ -886,7 +886,7 @@ mod tests {
 
     #[test]
     fn clear_staleness_and_ascending_reuse() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let old: Vec<_> = (0..3).map(|i| p.insert(i)).collect();
         p.clear();
         assert!(old.iter().all(|h| !p.contains(*h)));
@@ -899,7 +899,7 @@ mod tests {
 
     #[test]
     fn remove_swaps_last_into_hole() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let a = p.insert('a');
         let b = p.insert('b');
         let c = p.insert('c');
@@ -912,7 +912,7 @@ mod tests {
 
     #[test]
     fn values_mut_and_shrink_to_fit() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..1000).map(|i| p.insert(i)).collect();
         for h in &hs[10..] {
             p.remove(*h);
@@ -930,11 +930,11 @@ mod tests {
 
     #[test]
     fn forged_handle_to_vacant_slot_is_stale_not_a_panic() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let h = p.insert(1);
         p.remove(h);
         // A vacant slot stores the generation its next occupant will get; forge exactly that.
-        let forged = Handle::<i32>::from_bits(h.to_bits() + 1).unwrap();
+        let forged = GenId::<i32>::from_bits(h.to_bits() + 1).unwrap();
         assert_eq!(p.get(forged), None);
         assert_eq!(p.get_mut(forged), None);
         assert!(!p.contains(forged));
@@ -943,7 +943,7 @@ mod tests {
 
     #[test]
     fn fixed_capacity_pool_never_grows_and_reports_full() {
-        let mut p = HandlePool::<u64>::with_fixed_capacity(8);
+        let mut p = GenIdMap::<u64>::with_fixed_capacity(8);
         let (values, slots) = (p.capacity(), p.slot_capacity());
         assert!(values >= 8 && slots >= 8);
         let mut hs: Vec<_> = (0..8).map(|i| p.insert(i)).collect();
@@ -964,13 +964,13 @@ mod tests {
 
     #[test]
     fn fixed_capacity_zero_holds_nothing() {
-        let mut p = HandlePool::<u8>::with_fixed_capacity(0);
+        let mut p = GenIdMap::<u8>::with_fixed_capacity(0);
         assert!(p.try_insert(1).is_err());
     }
 
     #[test]
     fn check_invariants_reports_a_violation_instead_of_panicking() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let h = p.insert(1);
         assert!(p.check_invariants().is_ok());
         // Corrupt the slot's generation without updating the dense handle.
@@ -983,7 +983,7 @@ mod tests {
 
     #[test]
     fn check_invariants_reports_a_dense_length_mismatch() {
-        let mut p = HandlePool::<()>::new();
+        let mut p = GenIdMap::<()>::new();
         let _ = p.insert(());
         assert!(p.check_invariants().is_ok());
         p.corrupt_dense_length();
@@ -995,10 +995,10 @@ mod tests {
     fn insert_with_passes_the_handle_the_value_will_have() {
         #[derive(Debug, PartialEq)]
         struct Node {
-            me: Handle<Node>,
+            me: GenId<Node>,
             tag: u8,
         }
-        let mut p = HandlePool::<Node>::new();
+        let mut p = GenIdMap::<Node>::new();
         let a = p.insert_with(|me| Node { me, tag: 1 });
         assert_eq!(p[a].me, a);
         p.remove(a);
@@ -1011,7 +1011,7 @@ mod tests {
 
     #[test]
     fn insert_with_issues_the_same_handles_as_insert() {
-        let (mut with, mut plain) = (HandlePool::new(), HandlePool::new());
+        let (mut with, mut plain) = (GenIdMap::new(), GenIdMap::new());
         for i in 0..20_u32 {
             let a = with.insert_with(|_| i);
             let b = plain.insert(i);
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "wasi"))]
     fn a_panicking_insert_with_closure_leaves_the_pool_unchanged() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let keep = p.insert(1);
         let freed = p.insert(2);
         p.remove(freed);
@@ -1047,7 +1047,7 @@ mod tests {
 
     #[test]
     fn try_insert_with_does_not_call_the_closure_when_full() {
-        let mut p = HandlePool::with_slot_limit(1);
+        let mut p = GenIdMap::with_slot_limit(1);
         let _ = p.insert(1);
         let mut called = false;
         let got = p.try_insert_with(|_| {
@@ -1060,7 +1060,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_insert_with")]
     fn insert_with_past_limit_panics_with_hint() {
-        let mut p = HandlePool::with_slot_limit(1);
+        let mut p = GenIdMap::with_slot_limit(1);
         let _ = p.insert(1);
         let _ = p.insert_with(|_| 2);
     }
@@ -1072,7 +1072,7 @@ mod tests {
     )]
     fn length_and_capacity_queries_are_const() {
         const _: () = {
-            let pool = HandlePool::<u8>::new();
+            let pool = GenIdMap::<u8>::new();
             assert!(pool.is_empty());
             assert!(pool.len() == 0);
             assert!(pool.capacity() == 0);
@@ -1082,20 +1082,24 @@ mod tests {
 
     #[test]
     fn capacity_error_reports_the_pools_own_limit() {
-        let mut p = HandlePool::with_slot_limit(3);
+        let mut p = GenIdMap::with_slot_limit(3);
         for i in 0..3 {
             let _ = p.insert(i);
         }
         let e = p.try_insert(9).unwrap_err();
         assert_eq!(e.limit(), 3);
         let message = alloc::format!("{e}");
+        assert!(
+            message.starts_with("GenIdMap is full"),
+            "message was {message}"
+        );
         assert!(message.contains("all 3 slot"), "message was {message}");
         assert_eq!(e.into_inner(), 9);
     }
 
     #[test]
     fn try_insert_returns_value_when_full() {
-        let mut p = HandlePool::with_slot_limit(1);
+        let mut p = GenIdMap::with_slot_limit(1);
         let _ = p.insert(1);
         assert_eq!(p.try_insert(2).unwrap_err().into_inner(), 2);
     }
@@ -1103,14 +1107,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_insert")]
     fn insert_past_limit_panics_with_hint() {
-        let mut p = HandlePool::with_slot_limit(1);
+        let mut p = GenIdMap::with_slot_limit(1);
         let _ = p.insert(1);
         let _ = p.insert(2);
     }
 
     #[test]
     fn reserve_then_insert_does_not_reallocate_any_array() {
-        let mut p = HandlePool::<u64>::new();
+        let mut p = GenIdMap::<u64>::new();
         p.reserve(100);
         let (values, slots) = (p.capacity(), p.slot_capacity());
         assert!(values >= 100 && slots >= 100);
@@ -1122,7 +1126,7 @@ mod tests {
 
     #[test]
     fn reserve_counts_live_values() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         for i in 0..50 {
             let _ = p.insert(i);
         }
@@ -1133,19 +1137,19 @@ mod tests {
     #[test]
     #[should_panic(expected = "try_reserve")]
     fn reserve_panics_on_capacity_overflow() {
-        HandlePool::<u8>::new().reserve(usize::MAX);
+        GenIdMap::<u8>::new().reserve(usize::MAX);
     }
 
     #[test]
     fn try_reserve_reports_overflow_instead_of_panicking() {
-        let mut p = HandlePool::<u8>::new();
+        let mut p = GenIdMap::<u8>::new();
         assert!(p.try_reserve(usize::MAX).is_err());
         assert!(p.try_reserve(16).is_ok());
     }
 
     #[test]
     fn zero_sized_values_work() {
-        let mut p = HandlePool::<()>::new();
+        let mut p = GenIdMap::<()>::new();
         let a = p.insert(());
         let b = p.insert(());
         let c = p.insert(());
@@ -1158,7 +1162,7 @@ mod tests {
 
     #[test]
     fn iteration_is_dense_and_exact_size() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..5).map(|i| p.insert(i)).collect();
         p.remove(hs[1]);
         p.remove(hs[3]);
@@ -1177,7 +1181,7 @@ mod tests {
 
     #[test]
     fn iter_mut_and_into_iter_cover_every_element() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..4).map(|i| p.insert(i)).collect();
         for (h, v) in &mut p {
             *v += i32::try_from(h.index()).unwrap() * 10;
@@ -1194,15 +1198,15 @@ mod tests {
 
     #[test]
     fn drain_dropped_early_equals_clear() {
-        let fill = |p: &mut HandlePool<i32>| (0..4).map(|i| p.insert(i)).collect::<Vec<_>>();
-        let mut a = HandlePool::new();
+        let fill = |p: &mut GenIdMap<i32>| (0..4).map(|i| p.insert(i)).collect::<Vec<_>>();
+        let mut a = GenIdMap::new();
         let old = fill(&mut a);
         {
             let mut d = a.drain();
             assert_eq!(d.len(), 4);
             assert_eq!(d.next().map(|(_, v)| v), Some(0));
         }
-        let mut b = HandlePool::new();
+        let mut b = GenIdMap::new();
         fill(&mut b);
         b.clear();
         assert!(a.is_empty());
@@ -1215,12 +1219,12 @@ mod tests {
 
     #[test]
     fn drain_yields_dense_order_and_forgotten_drain_is_safe() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..3).map(|i| p.insert(i)).collect();
         p.remove(hs[0]);
         let drained: Vec<_> = p.drain().map(|(_, v)| v).collect();
         assert_eq!(drained, [2, 1]);
-        let mut q = HandlePool::new();
+        let mut q = GenIdMap::new();
         let _ = q.insert(1);
         core::mem::forget(q.drain());
         assert!(q.is_empty());
@@ -1229,7 +1233,7 @@ mod tests {
 
     #[test]
     fn retain_visits_dense_order_and_swaps_correctly() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..6).map(|i| p.insert(i)).collect();
         let mut visited = Vec::new();
         p.retain(|_, v| {
@@ -1248,7 +1252,7 @@ mod tests {
 
     #[test]
     fn get_disjoint_mut_rules() {
-        let mut pool = HandlePool::new();
+        let mut pool = GenIdMap::new();
         let first = pool.insert(1);
         let second = pool.insert(2);
         let gone = pool.insert(3);
@@ -1264,14 +1268,14 @@ mod tests {
 
     #[test]
     fn debug_prints_as_map() {
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let _ = p.insert(7_u8);
         let b = p.insert(8_u8);
         let _ = p.insert(9_u8);
         p.remove(b); // 9 swaps into dense position 1
         assert_eq!(
             alloc::format!("{p:?}"),
-            "{Handle<u8>(0v1): 7, Handle<u8>(2v1): 9}"
+            "{GenId<u8>(0v1): 7, GenId<u8>(2v1): 9}"
         );
     }
 
@@ -1280,7 +1284,7 @@ mod tests {
     #[test]
     fn retain_panic_leaves_pool_consistent() {
         use std::panic::{AssertUnwindSafe, catch_unwind};
-        let mut p = HandlePool::new();
+        let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..10).map(|i| p.insert(i)).collect();
         let result = catch_unwind(AssertUnwindSafe(|| {
             p.retain(|_, v| {
@@ -1299,6 +1303,6 @@ mod tests {
     #[test]
     fn slot_limit_leaves_room_for_the_tag_bit_and_sentinels() {
         assert_eq!(MAX_SLOTS, 0x7FFF_FFFE);
-        assert_eq!(HandlePool::<u8>::new().slots.limit(), MAX_SLOTS);
+        assert_eq!(GenIdMap::<u8>::new().slots.limit(), MAX_SLOTS);
     }
 }

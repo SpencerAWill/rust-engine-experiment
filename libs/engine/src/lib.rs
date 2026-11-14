@@ -9,7 +9,7 @@
 //!
 //! | Module | Crate | What it is |
 //! |---|---|---|
-//! | [`handle`] | `engine_handle` | Typed generational [`Handle`](handle::Handle)s, a dense [`HandlePool`](handle::HandlePool), and the lean [`HandleAllocator`](handle::HandleAllocator) |
+//! | [`genid`] | `engine_genid` | Typed generational [`GenId`](genid::GenId)s, a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
 //! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
 //! | [`collections`] | `engine_collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
@@ -50,7 +50,7 @@
 //! ```
 //! use engine::prelude::*;
 //!
-//! let mut pool = HandlePool::new();
+//! let mut pool = GenIdMap::new();
 //! let h = pool.insert(Transform::IDENTITY);
 //! let mut prng = Prng::from_seed(42);
 //! let mut clock = ManualClock::new();
@@ -61,7 +61,7 @@
 //! ```
 
 pub use engine_collections as collections;
-pub use engine_handle as handle;
+pub use engine_genid as genid;
 pub use engine_math as math;
 pub use engine_random as random;
 pub use engine_time as time;
@@ -70,7 +70,7 @@ pub use engine_time as time;
 ///
 /// Only this facade has a prelude: the leaf crates expose a small, flat public surface instead.
 pub mod prelude {
-    pub use engine_handle::{Handle, HandleAllocator, HandlePool};
+    pub use engine_genid::{GenId, GenIdAllocator, GenIdMap};
     pub use engine_math::{
         DVec2, DVec3, Mat4, Quat, Transform, Transform2d, Vec2, Vec3, Vec4, WorldTransform,
         WorldTransform2d, axis,

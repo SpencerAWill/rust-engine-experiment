@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! A headless, deterministic particle simulation that exercises the M1 crates together.
 //!
-//! Particles live in a [`HandlePool`], are respawned from per-handle [`Prng`] streams, and are
+//! Particles live in a [`GenIdMap`], are respawned from per-handle [`Prng`] streams, and are
 //! stepped by a [`FixedTimestep`] driven from a [`ManualClock`] with jittery frame times. The
 //! whole simulation is plain data: it can be cloned mid-run and continued, and it produces the
 //! same [`checksum`](Sim::checksum) on every architecture, because it uses only basic IEEE `f32`
@@ -96,7 +96,7 @@ pub struct SimSummary {
 /// The complete simulation state. Plain data: cloning it snapshots the simulation.
 #[derive(Clone, Debug)]
 pub struct Sim {
-    pool: HandlePool<Particle>,
+    pool: GenIdMap<Particle>,
     prng: Prng,
     jitter_prng: Prng,
     timestep: FixedTimestep,
@@ -118,7 +118,7 @@ impl Sim {
         let mut timestep = FixedTimestep::from_hz(NonZeroU32::new(60).expect("60 is non-zero"));
         let pending = timestep.accumulate(Duration::ZERO); // an empty `Steps` to start from
         let mut sim = Self {
-            pool: HandlePool::with_capacity(config.particles),
+            pool: GenIdMap::with_capacity(config.particles),
             prng: Prng::from_seed(config.seed),
             jitter_prng: Prng::from_seed(config.jitter_seed),
             dt: timestep.step().as_secs_f32(),

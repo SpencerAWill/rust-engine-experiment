@@ -1,9 +1,9 @@
-//! Model-based property tests: `HandlePool` against a `BTreeMap` reference.
+//! Model-based property tests: `GenIdMap` against a `BTreeMap` reference.
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use engine_handle::{Handle, HandleAllocator, HandlePool};
+use engine_genid::{GenId, GenIdAllocator, GenIdMap};
 use proptest::prelude::*;
 
 /// WASI has no writable directory for proptest's failure persistence.
@@ -47,9 +47,9 @@ type Snapshot = Vec<(u64, u16)>;
 /// Runs `ops` against the pool and the model, checking every invariant after each op.
 /// Returns every handle issued and the `iter()` order after each step.
 fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
-    let mut pool = HandlePool::<u16>::new();
+    let mut pool = GenIdMap::<u16>::new();
     let mut model = BTreeMap::<u64, u16>::new();
-    let mut issued: Vec<Handle<u16>> = Vec::new();
+    let mut issued: Vec<GenId<u16>> = Vec::new();
     let mut trace = Vec::new();
 
     for op in ops {
@@ -153,12 +153,12 @@ fn alloc_op() -> impl Strategy<Value = AllocOp> {
     ]
 }
 
-/// Runs `ops` against a `HandlePool<()>` (the pool as an iterable ID allocator) and a
+/// Runs `ops` against a `GenIdMap<()>` (the pool as an iterable ID allocator) and a
 /// `BTreeSet` model; returns every handle issued and the `iter()` order after each step.
 fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
-    let mut alloc = HandlePool::<()>::new();
+    let mut alloc = GenIdMap::<()>::new();
     let mut model = BTreeSet::<u64>::new();
-    let mut issued: Vec<Handle<()>> = Vec::new();
+    let mut issued: Vec<GenId<()>> = Vec::new();
     let mut trace = Vec::new();
 
     for op in ops {
@@ -220,13 +220,13 @@ proptest! {
 }
 
 /// Runs `ops` (without `Retain`, which the lean allocator lacks) against the lean allocator,
-/// a `HandlePool<()>` and a set model. Both must issue identical handles and agree on liveness
+/// a `GenIdMap<()>` and a set model. Both must issue identical handles and agree on liveness
 /// after every step.
 fn run_lean_against_unit_pool(ops: &[AllocOp]) {
-    let mut lean = HandleAllocator::<()>::new();
-    let mut unit = HandlePool::<()>::new();
+    let mut lean = GenIdAllocator::<()>::new();
+    let mut unit = GenIdMap::<()>::new();
     let mut model = BTreeSet::<u64>::new();
-    let mut issued: Vec<Handle<()>> = Vec::new();
+    let mut issued: Vec<GenId<()>> = Vec::new();
 
     for op in ops {
         let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
@@ -285,7 +285,7 @@ proptest! {
     /// `from_bits` rejects exactly the values whose generation (low) half is zero.
     #[test]
     fn bits_roundtrip(bits in any::<u64>()) {
-        if let Some(handle) = Handle::<u8>::from_bits(bits) {
+        if let Some(handle) = GenId::<u8>::from_bits(bits) {
             prop_assert_ne!(bits & 0xFFFF_FFFF, 0);
             prop_assert_eq!(handle.to_bits(), bits);
             prop_assert_eq!(u64::from(handle.index()), bits >> 32);

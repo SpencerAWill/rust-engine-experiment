@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine_handle::{HandleAllocator, HandlePool};
+use engine_genid::{GenIdAllocator, GenIdMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -16,7 +16,7 @@ static HOOK_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn index_on_stale_handle_panics_at_caller() {
-    let mut pool = HandlePool::new();
+    let mut pool = GenIdMap::new();
     let stale = pool.insert(1_u8);
     pool.remove(stale);
 
@@ -26,6 +26,10 @@ fn index_on_stale_handle_panics_at_caller() {
     assert!(
         file.ends_with("tests/panics.rs"),
         "panic location was {file}"
+    );
+    assert!(
+        message.starts_with("GenIdMap index"),
+        "message was {message}"
     );
     assert!(message.contains("stale handle"), "message was {message}");
     assert!(message.contains("use get()"), "message was {message}");
@@ -60,12 +64,12 @@ type Case = Box<dyn FnOnce()>;
 fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
     let cases: [(&str, Case); 2] = [
         (
-            "HandlePool",
-            Box::new(|| HandlePool::<u8>::new().reserve(usize::MAX)),
+            "GenIdMap",
+            Box::new(|| GenIdMap::<u8>::new().reserve(usize::MAX)),
         ),
         (
-            "HandleAllocator",
-            Box::new(|| HandleAllocator::<u8>::new().reserve(usize::MAX)),
+            "GenIdAllocator",
+            Box::new(|| GenIdAllocator::<u8>::new().reserve(usize::MAX)),
         ),
     ];
     for (name, case) in cases {
@@ -73,6 +77,10 @@ fn reserve_overflow_panics_at_caller_with_an_actionable_message() {
         assert!(
             file.ends_with("tests/panics.rs"),
             "{name}: panic location was {file}"
+        );
+        assert!(
+            message.starts_with(&format!("{name}::reserve")),
+            "{name}: message was {message}"
         );
         assert!(
             message.contains("try_reserve"),
