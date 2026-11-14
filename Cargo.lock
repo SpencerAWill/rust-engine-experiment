@@ -1957,6 +1957,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_bench_cache"
+version = "0.1.0"
+dependencies = [
+ "gungraun",
+ "spike_ecs_harness",
+ "spike_ecs_vec",
+]
+
+[[package]]
 name = "spike_ecs_bench_compare"
 version = "0.1.0"
 dependencies = [
