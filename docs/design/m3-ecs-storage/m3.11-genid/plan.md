@@ -143,3 +143,11 @@ Not commits. Each result goes into the pull request.
 ## 4. Deviations
 
 Filled in during implementation.
+
+- **Criterion subject names.** §1 and B3 say both subjects become `engine_genid`. They would then share a name, and `bench-doc` tallies by exact subject name, so the allocator's results would be counted with the map's. The lean allocator subject is `engine_genid_lean` instead, and spec §4.2 is amended to match (decided with the maintainer).
+- **`GenIdMap::capacity`.** Found in code review: for a zero-sized `T` it returned `usize::MAX`, because it reported only the values array. It now returns the smaller of the ID and value capacities (`capacity_of_a_unit_map_counts_its_id_storage`, written first and watched fail). This changes the result of an existing public method for zero-sized `T`, which the spec did not list (decided with the maintainer).
+- **`clippy.toml`.** Gains `doc-valid-idents = ["GenId", "GenIds", ".."]` so the glossary can write "GenId" bare.
+- **`.cargo/mutants.toml`.** The `to_bits` exclusion names `UntypedGenId::to_bits`, since `GenId::to_bits` now only forwards.
+- **B4 script.** The wording pass used a scripted, region-aware replacement and a line-by-line review of the diff, because there were about 650 occurrences.
+- **Not renamed.** `bench/compare/benches/handles.rs` and its `[[bench]] name = "handles"` (outside spec §4.2).
+- **Verification environment.** `bench-regress` ran in a `rust:1-trixie` aarch64 container with Valgrind and `seccomp=unconfined` instead of the devcontainer.

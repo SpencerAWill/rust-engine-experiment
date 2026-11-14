@@ -114,7 +114,7 @@ assert_eq!(again.to_bits(), erased.to_bits()); // one frozen layout
 | source files `handle.rs`, `pool.rs`, `pool/iter.rs` | `id.rs`, `map.rs`, `map/iter.rs` |
 | fuzz targets `handle_from_bits`, `handle_pool_ops`, `handle_allocator_ops` | `genid_from_bits`, `genid_map_ops`, `genid_allocator_ops` |
 | regress bench target `bench/regress/benches/handle.rs` (`[[bench]] name = "handle"`) | `genid.rs` (`name = "genid"`), renamed by the preceding chore pull request (§4.7) |
-| Criterion subjects `engine_handle`, `engine_handle_lean` (`bench/compare`) | `engine_genid` |
+| Criterion subjects `engine_handle`, `engine_handle_lean` (`bench/compare`) | `engine_genid`, `engine_genid_lean` (two distinct subjects, so `bench-doc`'s tally by exact subject name keeps counting only the map) |
 
 - Method names MUST NOT change. None of them contains "handle".
 - Parameters, locals, private fields (`GenIdMap`'s `handles` array becomes `ids`, and locals and parameters named `pool` for this type become `map`), messages and prose in code and docs MUST say "ID" or "id" for the identifier, not "handle". Panic and `Display` messages MUST name the new types, for example `GenIdMap is full: ...`.

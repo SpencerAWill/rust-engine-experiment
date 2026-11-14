@@ -8,7 +8,7 @@ drawing conclusions.
 > **Note (2026-11-14, M3.11).** These results were measured before [ADR 0012](adr/0012-generational-ids.md)
 > and keep the names of that time. `engine_handle` is now `engine_genid`, `HandlePool` is `GenIdMap`,
 > `HandleAllocator` is `GenIdAllocator` and `Handle` is `GenId`; the subject `engine_handle` is now
-> `engine_genid` (including `engine_handle_lean`, the lean allocator subject). The `engine_handle_dense` rows
+> `engine_genid`, and `engine_handle_lean` (the lean allocator subject) is now `engine_genid_lean`. The `engine_handle_dense` rows
 > describe `DenseHandleAllocator`, a type that has been removed (a `GenIdMap<()>` replaces it). The next
 > `cargo xtask bench-doc` run regenerates the tables under the new names.
 
