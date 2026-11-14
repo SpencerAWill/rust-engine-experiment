@@ -1,6 +1,6 @@
 # M3.11: `engine_genid`: one lean allocator, `GenId<T>`, and an untyped core
 
-- **Status:** Accepted (2026-11-14)
+- **Status:** Implemented (PR #52, 2026-11-14). Changed during implementation: the lean allocator's Criterion subject is `engine_genid_lean` (§4.2), and `GenIdMap::capacity` reports the smaller of the ID and value capacities. See the plan's §4.
 - **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
 - **Issues:** #34 (remove `DenseHandleAllocator`) and #39 (rename `Handle` to `GenId`, with an `UntypedGenId` core). #40 (crate granularity) is related but out of scope.
 - **Estimated size:** about 480 changed lines of new or rewritten code, excluding tests, lockfiles and generated files: the untyped core and the typed wrapper about 250, the fuzz and bench changes about 80, configuration and documents about 120, the glossary about 30. On top of that come about 1,100 deleted lines (`dense_allocator.rs`, its fuzz target, its tests and benches) and a mechanical rename that touches about 1,500 lines. The rename is kept in its own commits so it can be reviewed as a rename (§4.8).
@@ -333,18 +333,18 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 
 ## 9. Done when
 
-- [ ] The chore pull request renaming the regress bench target to `genid` is merged.
-- [ ] `DenseHandleAllocator` and its fuzz target, tests and benchmarks are gone, and the shared code's tests run on `GenIdMap<()>` or `GenIdAllocator`.
-- [ ] The crate, module, types, fuzz targets and Criterion subjects carry the new names. Nothing outside the historical records (§6) uses the old ones for this identifier (`git grep -i handle` reviewed).
-- [ ] `UntypedGenId` and `GenId<T>` match §4.3 and §4.4, with size assertions, golden tests, proptests and `compile_fail` doctests.
-- [ ] `cargo xtask ci` passes.
-- [ ] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request.
-- [ ] Each fuzz target ran locally for 60 seconds without a finding.
-- [ ] `cargo xtask mutants` on `engine_genid` shows the exclusions still applying.
-- [ ] The `engine_genid` crate docs have the §4.10 glossary, and the rustdoc spells out "generational ID".
-- [ ] ADR 0012 is accepted and ADR 0010 is marked superseded. ADR 0004's table, the live documents and the notes in `benchmarks.md` and `mutation-triage.md` are updated, and the CHANGELOG has the breaking entry.
-- [ ] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`.
-- [ ] The pull request closes #34 and #39 and lists the eight reviews.
+- [x] The chore pull request renaming the regress bench target to `genid` is merged (PR #43).
+- [x] `DenseHandleAllocator` and its fuzz target, tests and benchmarks are gone, and the shared code's tests run on `GenIdMap<()>` or `GenIdAllocator`.
+- [x] The crate, module, types, fuzz targets and Criterion subjects carry the new names. Nothing outside the historical records (§6) uses the old ones for this identifier (`git grep -i handle` reviewed).
+- [x] `UntypedGenId` and `GenId<T>` match §4.3 and §4.4, with size assertions, golden tests, proptests and `compile_fail` doctests.
+- [x] `cargo xtask ci` passes.
+- [x] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request (aarch64 container run: every `genid::*` +0.0%).
+- [x] Each fuzz target ran locally for 60 seconds without a finding (1,082,028, 832,097 and 167,516,861 runs).
+- [x] `cargo xtask mutants` on `engine_genid` shows the exclusions still applying (311 tested, 4 excluded, 1 missed and 3 timeouts, all already triaged).
+- [x] The `engine_genid` crate docs have the §4.10 glossary, and the rustdoc spells out "generational ID".
+- [x] ADR 0012 is accepted and ADR 0010 is marked superseded. ADR 0004's table, the live documents and the notes in `benchmarks.md` and `mutation-triage.md` are updated, and the CHANGELOG has the breaking entry.
+- [x] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`.
+- [x] The pull request closes #34 and #39 and lists the eight reviews.
 
 ## 10. Open questions
 
