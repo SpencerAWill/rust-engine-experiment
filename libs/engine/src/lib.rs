@@ -45,19 +45,19 @@
 //!
 //! # Example
 //!
-//! A pool of transforms, a seeded generator, and a fixed-step clock working together:
+//! A map of transforms, a seeded generator, and a fixed-step clock working together:
 //!
 //! ```
 //! use engine::prelude::*;
 //!
-//! let mut pool = GenIdMap::new();
-//! let h = pool.insert(Transform::IDENTITY);
+//! let mut map = GenIdMap::new();
+//! let h = map.insert(Transform::IDENTITY);
 //! let mut prng = Prng::from_seed(42);
 //! let mut clock = ManualClock::new();
 //! let mut step = FixedTimestep::from_hz(core::num::NonZeroU32::new(60).unwrap());
 //! clock.advance(core::time::Duration::from_millis(20));
 //! assert_eq!(step.accumulate(core::time::Duration::from_millis(20)).len(), 1);
-//! assert!(pool.contains(h) && prng.range(0..10) < 10);
+//! assert!(map.contains(h) && prng.range(0..10) < 10);
 //! ```
 
 pub use engine_collections as collections;

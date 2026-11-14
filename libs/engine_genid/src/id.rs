@@ -10,11 +10,11 @@ use crate::error::InvalidGenIdBits;
 
 /// A typed, generational identifier: 8 bytes, and `Option<GenId<T>>` is also 8 bytes.
 ///
-/// A handle names a slot (`index`) and the slot's `generation` when the handle
+/// An ID names a slot (`index`) and the slot's `generation` when the ID
 /// was issued. When the slot is freed its generation is bumped, so every
-/// outstanding handle becomes stale instead of silently pointing at a new value.
+/// outstanding ID becomes stale instead of silently pointing at a new value.
 ///
-/// A handle refers to a `T` but never owns one, so it is `Copy`, `Send`, and
+/// An ID refers to a `T` but never owns one, so it is `Copy`, `Send`, and
 /// `Sync` whatever `T` is, and it implements every comparison trait without
 /// requiring anything of `T`.
 ///
@@ -36,7 +36,7 @@ use crate::error::InvalidGenIdBits;
 /// assert_eq!(format!("{h:?}"), "GenId<Particle>(3v2)");
 /// ```
 ///
-/// Handles for different types do not mix:
+/// IDs for different types do not mix:
 ///
 /// ```compile_fail
 /// use engine_genid::GenId;
@@ -50,8 +50,8 @@ use crate::error::InvalidGenIdBits;
 pub struct GenId<T> {
     index: u32,
     generation: NonZeroU32,
-    // `fn() -> T` keeps the handle covariant in `T`, `Send + Sync` for any `T`,
-    // and free of drop-check implications: the handle never owns a `T`.
+    // `fn() -> T` keeps the ID covariant in `T`, `Send + Sync` for any `T`,
+    // and free of drop-check implications: the ID never owns a `T`.
     _marker: PhantomData<fn() -> T>,
 }
 
@@ -80,7 +80,7 @@ impl<T> GenId<T> {
         self.index
     }
 
-    /// Generation of the slot when this handle was issued.
+    /// Generation of the slot when this ID was issued.
     ///
     /// # Examples
     ///
@@ -97,7 +97,7 @@ impl<T> GenId<T> {
     /// Stable encoding: `(index as u64) << 32 | generation as u64`. Never 0.
     ///
     /// The index is in the high half, so the numeric order of the bits equals
-    /// the [`Ord`] order of handles. **This layout is frozen**: it feeds PRNG
+    /// the [`Ord`] order of IDs. **This layout is frozen**: it feeds PRNG
     /// stream ids, so it is part of deterministic output (ADR 0003). Changing
     /// it is a breaking change that requires an ADR.
     ///
@@ -116,7 +116,7 @@ impl<T> GenId<T> {
     /// Inverse of [`to_bits`](Self::to_bits). Returns `None` if and only if the
     /// generation (low) half is 0.
     ///
-    /// The result is only meaningful for the pool that issued the original handle.
+    /// The result is only meaningful for the map that issued the original ID.
     ///
     /// # Examples
     ///
@@ -142,8 +142,8 @@ impl<T> GenId<T> {
 impl<T> From<GenId<T>> for u64 {
     /// Same as [`GenId::to_bits`].
     #[inline]
-    fn from(handle: GenId<T>) -> u64 {
-        handle.to_bits()
+    fn from(id: GenId<T>) -> u64 {
+        id.to_bits()
     }
 }
 

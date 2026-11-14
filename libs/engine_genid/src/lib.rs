@@ -3,14 +3,14 @@
 //! Typed, generational, copyable identifiers, and containers that hand them out.
 //!
 //! `engine_genid` is a separate crate because it is `no_std` + `alloc` and
-//! dependency-free, because handles cross the C ABI in a later milestone, and
+//! dependency-free, because IDs cross the C ABI in a later milestone, and
 //! because it is the foundation layer for the ECS, assets, and FFI (ADR 0004).
 //!
 //! # Guarantees
 //!
 //! - [`GenId`] is 8 bytes (`Option<GenId<T>>` too), `Copy`, and `Send + Sync`
 //!   for every `T`. Its bit encoding ([`GenId::to_bits`]) is frozen.
-//! - Everything is deterministic: the handles and iteration order a pool produces
+//! - Everything is deterministic: the IDs and iteration order a map produces
 //!   are a pure function of the sequence of operations performed on it.
 //!
 //! # Choosing a container
@@ -21,15 +21,15 @@
 //! | Only IDs (data lives elsewhere), no iteration | [`GenIdAllocator`] |
 //! | Only IDs, and iterate the live ones | [`GenIdMap<()>`](GenIdMap) |
 //!
-//! Both issue identical handles for the same sequence of operations.
+//! Both issue identical IDs for the same sequence of operations.
 //!
 //! # Known limitation
 //!
-//! A [`GenId<T>`] issued by one pool and used on a *different* pool of the same
+//! A [`GenId<T>`] issued by one map and used on a *different* map of the same
 //! `T` can resolve to an unrelated element. Detecting this would need extra bits
-//! per handle, breaking the 8-byte size and the FFI encoding, or branded
-//! lifetimes that make the API much harder to use. Treat a handle as meaningful
-//! only for the pool that issued it.
+//! per ID, breaking the 8-byte size and the FFI encoding, or branded
+//! lifetimes that make the API much harder to use. Treat an ID as meaningful
+//! only for the map that issued it.
 //!
 //! # Quick start
 //!

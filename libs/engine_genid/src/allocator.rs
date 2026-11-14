@@ -1,4 +1,4 @@
-//! [`GenIdAllocator`]: handle allocation without value storage or a live-handle list.
+//! [`GenIdAllocator`]: ID allocation without value storage or a live-ID list.
 
 use alloc::collections::TryReserveError;
 use alloc::vec::Vec;
@@ -10,23 +10,23 @@ use crate::id::{GenId, write_short_type_name};
 use crate::slots::violation;
 use crate::slots::{SlotTable, VACANT_BIT};
 
-/// Lean handle allocation: it hands out [`GenId`]s and tracks which are alive, and nothing more.
+/// Lean ID allocation: it hands out [`GenId`]s and tracks which are alive, and nothing more.
 ///
 /// This is the shape of an ECS entity allocator whose data lives elsewhere. It keeps one 8-byte
 /// slot per slot ever used and a free list, so [`allocate`](Self::allocate),
 /// [`free`](Self::free) and [`is_alive`](Self::is_alive) touch a single array. It does **not**
-/// list its live handles; use a [`GenIdMap<()>`](crate::GenIdMap) when you need to iterate
+/// list its live IDs; use a [`GenIdMap<()>`](crate::GenIdMap) when you need to iterate
 /// them (at the cost of a second array maintained on every insert and remove).
 ///
-/// Handles follow the same rules as [`GenIdMap`](crate::GenIdMap), and for the same sequence
-/// of `allocate`, `free` and `clear` calls (`insert`, `remove` and `clear` on a pool) both issue
-/// identical handles: new slots start at
+/// IDs follow the same rules as [`GenIdMap`](crate::GenIdMap), and for the same sequence
+/// of `allocate`, `free` and `clear` calls (`insert`, `remove` and `clear` on a map) both issue
+/// identical IDs: new slots start at
 /// generation 1; freeing bumps the generation (or retires the slot on exhaustion); freed slots
 /// are reused last-freed-first; [`clear`](Self::clear) returns slots in ascending index order.
 ///
 /// # Limitation
 ///
-/// A handle used on a *different* allocator than the one that issued it can look alive; see the
+/// An ID used on a *different* allocator than the one that issued it can look alive; see the
 /// [crate docs](crate#known-limitation).
 ///
 /// # Examples
@@ -45,7 +45,7 @@ use crate::slots::{SlotTable, VACANT_BIT};
 /// assert_eq!((b.index(), b.generation().get()), (a.index(), 2));
 /// ```
 ///
-/// Handles are typed, so one allocator cannot free another's:
+/// IDs are typed, so one allocator cannot free another's:
 ///
 /// ```compile_fail,E0308
 /// use engine_genid::GenIdAllocator;
@@ -63,7 +63,7 @@ pub struct GenIdAllocator<T> {
     _marker: PhantomData<fn() -> T>,
 }
 
-/// The link stored in an occupied slot. The lean allocator keeps no per-handle data, and any
+/// The link stored in an occupied slot. The lean allocator keeps no per-ID data, and any
 /// value below [`VACANT_BIT`] means "occupied".
 const OCCUPIED: u32 = 0;
 
@@ -101,9 +101,9 @@ impl<T> GenIdAllocator<T> {
         }
     }
 
-    /// Reserves room for at least `additional` more live handles without reallocating.
+    /// Reserves room for at least `additional` more live IDs without reallocating.
     ///
-    /// The room is counted from the live handles now: after `reserve(n)`, the next `n`
+    /// The room is counted from the live IDs now: after `reserve(n)`, the next `n`
     /// allocations do not reallocate.
     ///
     /// # Panics
@@ -122,7 +122,7 @@ impl<T> GenIdAllocator<T> {
     pub fn reserve(&mut self, additional: usize) {
         if let Err(error) = self.try_reserve(additional) {
             panic!(
-                "GenIdAllocator::reserve: cannot reserve room for {additional} more handles ({error}); \
+                "GenIdAllocator::reserve: cannot reserve room for {additional} more IDs ({error}); \
                  use try_reserve to handle this without panicking"
             );
         }
@@ -148,7 +148,7 @@ impl<T> GenIdAllocator<T> {
             .try_reserve_slots(self.live.saturating_add(additional))
     }
 
-    /// Creates an empty allocator that holds at most `capacity` live handles, allocating all the memory it will
+    /// Creates an empty allocator that holds at most `capacity` live IDs, allocating all the memory it will
     /// ever need up front.
     ///
     /// After this call, `allocate`, `free` and `clear` never touch the heap: once full, `try_allocate` returns `None`. Use it when
@@ -189,7 +189,7 @@ impl<T> GenIdAllocator<T> {
         }
     }
 
-    /// Allocates a fresh handle.
+    /// Allocates a fresh ID.
     ///
     /// # Panics
     ///
@@ -204,17 +204,17 @@ impl<T> GenIdAllocator<T> {
     /// let h = alloc.allocate();
     /// assert!(alloc.is_alive(h));
     /// ```
-    #[must_use = "dropping the handle leaks a live slot until clear()"]
+    #[must_use = "dropping the ID leaks a live slot until clear()"]
     #[track_caller]
     pub fn allocate(&mut self) -> GenId<T> {
-        let Some(handle) = self.try_allocate() else {
+        let Some(id) = self.try_allocate() else {
             panic!(
                 "GenIdAllocator::allocate: allocator is full ({} slots in use or retired); \
                  use try_allocate to handle this without panicking",
                 self.slots.limit()
             )
         };
-        handle
+        id
     }
 
     /// Fallible twin of [`allocate`](Self::allocate): `None` if the allocator is full.
@@ -233,12 +233,12 @@ impl<T> GenIdAllocator<T> {
         Some(GenId::new(index, generation))
     }
 
-    /// Allocates `n` handles at once and returns them.
+    /// Allocates `n` IDs at once and returns them.
     ///
-    /// The handles are exactly the ones `n` calls to [`allocate`](Self::allocate) would issue, in
+    /// The IDs are exactly the ones `n` calls to [`allocate`](Self::allocate) would issue, in
     /// the same order. A batch also reserves all the room it needs up front, which makes it about
     /// 2x faster than a loop when it has to create new slots. When it only reuses freed slots the
-    /// gain is 1.7-2x up to 100k handles and disappears at 1M (see `docs/benchmarks.md`).
+    /// gain is 1.7-2x up to 100k IDs and disappears at 1M (see `docs/benchmarks.md`).
     ///
     /// # Panics
     ///
@@ -251,20 +251,20 @@ impl<T> GenIdAllocator<T> {
     /// ```
     /// # use engine_genid::GenIdAllocator;
     /// let mut alloc = GenIdAllocator::<u8>::new();
-    /// let handles = alloc.allocate_many(100);
-    /// assert_eq!(handles.len(), 100);
-    /// assert!(handles.iter().all(|h| alloc.is_alive(*h)));
+    /// let ids = alloc.allocate_many(100);
+    /// assert_eq!(ids.len(), 100);
+    /// assert!(ids.iter().all(|h| alloc.is_alive(*h)));
     /// ```
-    #[must_use = "dropping the handles leaks live slots until clear()"]
+    #[must_use = "dropping the IDs leaks live slots until clear()"]
     #[track_caller]
     pub fn allocate_many(&mut self, n: usize) -> Vec<GenId<T>> {
-        let Some(handles) = self.try_allocate_many(n) else {
+        let Some(ids) = self.try_allocate_many(n) else {
             panic!(
-                "GenIdAllocator::allocate_many: cannot allocate {n} handles; use \
+                "GenIdAllocator::allocate_many: cannot allocate {n} IDs; use \
                  try_allocate_many to handle this without panicking"
             )
         };
-        handles
+        ids
     }
 
     /// Fallible twin of [`allocate_many`](Self::allocate_many): `None`, with nothing allocated,
@@ -281,16 +281,16 @@ impl<T> GenIdAllocator<T> {
         if n > self.slots.obtainable(self.live) {
             return None;
         }
-        let mut handles = Vec::with_capacity(n);
+        let mut ids = Vec::with_capacity(n);
         self.slots
             .acquire_exactly(n, OCCUPIED, |index, generation| {
-                handles.push(GenId::new(index, generation));
+                ids.push(GenId::new(index, generation));
             });
         self.live += n;
-        Some(handles)
+        Some(ids)
     }
 
-    /// Frees `handle`, making it and every copy of it stale. Returns `false` if it
+    /// Frees `id`, making it and every copy of it stale. Returns `false` if it
     /// was already stale.
     ///
     /// # Examples
@@ -303,9 +303,9 @@ impl<T> GenIdAllocator<T> {
     /// assert!(!alloc.free(h));
     /// ```
     #[inline]
-    pub fn free(&mut self, handle: GenId<T>) -> bool {
-        if self.is_alive(handle) {
-            self.slots.release(handle.index());
+    pub fn free(&mut self, id: GenId<T>) -> bool {
+        if self.is_alive(id) {
+            self.slots.release(id.index());
             self.live -= 1;
             true
         } else {
@@ -313,7 +313,7 @@ impl<T> GenIdAllocator<T> {
         }
     }
 
-    /// Returns `true` if `handle` has been allocated and not yet freed.
+    /// Returns `true` if `id` has been allocated and not yet freed.
     ///
     /// # Examples
     ///
@@ -324,15 +324,15 @@ impl<T> GenIdAllocator<T> {
     /// assert!(alloc.is_alive(h));
     /// ```
     #[inline]
-    pub fn is_alive(&self, handle: GenId<T>) -> bool {
+    pub fn is_alive(&self, id: GenId<T>) -> bool {
         // Vacant and retired links have the top bit set; a matching generation alone is not
         // enough, because a vacant slot stores the generation its next occupant will get.
         self.slots
-            .lookup(handle.index(), handle.generation())
+            .lookup(id.index(), id.generation())
             .is_some_and(|link| link & VACANT_BIT == 0)
     }
 
-    /// Number of live handles.
+    /// Number of live IDs.
     ///
     /// # Examples
     ///
@@ -347,7 +347,7 @@ impl<T> GenIdAllocator<T> {
         self.live
     }
 
-    /// Returns `true` if no handle is alive.
+    /// Returns `true` if no ID is alive.
     ///
     /// # Examples
     ///
@@ -360,7 +360,7 @@ impl<T> GenIdAllocator<T> {
         self.live == 0
     }
 
-    /// Frees every handle. Slots are then reused in ascending index order.
+    /// Frees every ID. Slots are then reused in ascending index order.
     ///
     /// This walks every slot ever used, so it is `O(slots)` and not `O(len)`.
     ///
@@ -416,7 +416,7 @@ impl<T> Clone for GenIdAllocator<T> {
 }
 
 impl<T> fmt::Debug for GenIdAllocator<T> {
-    /// Prints `GenIdAllocator<T> { live: n }`. The allocator does not list its handles.
+    /// Prints `GenIdAllocator<T> { live: n }`. The allocator does not list its IDs.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("GenIdAllocator<")?;
         write_short_type_name::<T>(f)?;
@@ -428,7 +428,7 @@ impl<T> fmt::Debug for GenIdAllocator<T> {
 mod tests {
     use super::*;
 
-    /// Builds an allocator with some live handles and a free list in a known order.
+    /// Builds an allocator with some live IDs and a free list in a known order.
     fn churned() -> GenIdAllocator<u8> {
         let mut a = GenIdAllocator::<u8>::new();
         let hs: alloc::vec::Vec<_> = (0..10).map(|_| a.allocate()).collect();
@@ -439,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn allocate_many_issues_the_same_handles_as_repeated_allocate() {
+    fn allocate_many_issues_the_same_ids_as_repeated_allocate() {
         for n in [0, 1, 3, 4, 5, 50] {
             let mut batch = churned();
             let mut looped = churned();
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn allocate_many_returns_n_live_handles() {
+    fn allocate_many_returns_n_live_ids() {
         let mut a = GenIdAllocator::<u8>::new();
         let first = a.allocate_many(4);
         let second = a.allocate_many(2);
@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn reserve_counts_live_handles() {
+    fn reserve_counts_live_ids() {
         let mut a = GenIdAllocator::<u8>::new();
         for _ in 0..50 {
             let _ = a.allocate();
@@ -575,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn free_returns_false_for_stale_handle() {
+    fn free_returns_false_for_stale_id() {
         let mut a = GenIdAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.free(h));
@@ -585,7 +585,7 @@ mod tests {
     }
 
     #[test]
-    fn a_forged_handle_to_a_vacant_slot_is_not_alive() {
+    fn a_forged_id_to_a_vacant_slot_is_not_alive() {
         let mut a = GenIdAllocator::<u8>::new();
         let h = a.allocate();
         assert!(a.free(h));
@@ -643,7 +643,7 @@ mod tests {
     }
 
     #[test]
-    fn clear_makes_handles_stale_and_reuses_in_ascending_order() {
+    fn clear_makes_ids_stale_and_reuses_in_ascending_order() {
         let mut a = GenIdAllocator::<u8>::new();
         let hs: alloc::vec::Vec<_> = (0..4).map(|_| a.allocate()).collect();
         a.free(hs[2]);

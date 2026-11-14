@@ -1,7 +1,7 @@
 [package]
 name = "engine_genid"
-description = "Typed generational handles, a dense handle-addressed pool, and a handle allocator"
-keywords = ["handle", "generational", "arena", "gamedev", "no-std"]
+description = "Typed generational IDs, a dense ID-addressed map, and an ID allocator"
+keywords = ["id", "generational", "arena", "gamedev", "no-std"]
 categories = ["data-structures", "no-std"]
 version.workspace = true
 edition.workspace = true

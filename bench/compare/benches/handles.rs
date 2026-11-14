@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `GenId` pool and allocator comparisons: `engine_genid` vs `slotmap` vs `thunderdome`.
+//! `GenId` map and allocator comparisons: `engine_genid` vs `slotmap` vs `thunderdome`.
 //!
 //! Every group runs over `N` in `{1_000, 100_000, 1_000_000}` and two value types
 //! (`u64` and a 64-byte `[u64; 8]`). Randomness comes from `engine_random::Prng` with fixed
@@ -104,12 +104,12 @@ trait Store<V: Value> {
     }
 }
 
-struct Pool<V>(GenIdMap<V>);
+struct Map<V>(GenIdMap<V>);
 struct Slot<V>(SlotMap<DefaultKey, V>);
 struct Dense<V>(DenseSlotMap<DefaultKey, V>);
 struct Thunder<V>(Arena<V>);
 
-impl<V: Value> Store<V> for Pool<V> {
+impl<V: Value> Store<V> for Map<V> {
     type Key = GenId<V>;
     const NAME: &'static str = "engine_genid";
     fn new() -> Self {
@@ -237,7 +237,7 @@ fn group<'a>(
     g
 }
 
-// --- pool benchmarks -----------------------------------------------------------------------------
+// --- map benchmarks -----------------------------------------------------------------------------
 
 fn bench_insert<S: Store<V>, V: Value>(c: &mut Criterion) {
     for n in SIZES {
@@ -360,7 +360,7 @@ fn bench_iterate_after_churn<S: Store<V>, V: Value>(c: &mut Criterion) {
 
 // --- realistic scenarios ------------------------------------------------------------------------
 //
-// These model how a simulation uses a handle container, not single operations in isolation.
+// These model how a simulation uses an ID container, not single operations in isolation.
 // Sizes are mostly cache-resident (100..100k), and values are 16 B and 64 B.
 
 fn real_group<'a>(
@@ -450,7 +450,7 @@ fn bench_despawn_random_order<S: Store<V>, V: Value>(c: &mut Criterion) {
     }
 }
 
-/// Each entity resolves its own handle and the handle of a random "target" entity.
+/// Each entity resolves its own ID and the ID of a random "target" entity.
 fn bench_resolve_target<S: Store<V>, V: Value>(c: &mut Criterion) {
     for n in REAL_SIZES {
         let (store, keys) = filled::<S, V>(n);
@@ -469,7 +469,7 @@ fn bench_resolve_target<S: Store<V>, V: Value>(c: &mut Criterion) {
     }
 }
 
-/// Dangling references: a fraction of the handles being resolved were despawned (stale),
+/// Dangling references: a fraction of the IDs being resolved were despawned (stale),
 /// so `get` must take its miss path.
 fn bench_get_stale<S: Store<V>, V: Value>(c: &mut Criterion) {
     for pct in [10_usize, 50] {
@@ -556,7 +556,7 @@ fn bench_allocate<A: Alloc>(c: &mut Criterion) {
     }
 }
 
-/// Spawning `n` handles at once: a loop of `allocate` against `allocate_many`, on a fresh
+/// Spawning `n` IDs at once: a loop of `allocate` against `allocate_many`, on a fresh
 /// allocator (all new slots) and on one whose free list holds `n` slots (all recycled).
 fn bench_batch_allocate(c: &mut Criterion) {
     for n in SIZES {
@@ -648,11 +648,11 @@ fn bench_is_alive<A: Alloc>(c: &mut Criterion) {
 /// Runs one generic store benchmark for every container and both value types.
 macro_rules! all_stores {
     ($c:expr, $bench:ident) => {
-        $bench::<Pool<u64>, u64>($c);
+        $bench::<Map<u64>, u64>($c);
         $bench::<Slot<u64>, u64>($c);
         $bench::<Dense<u64>, u64>($c);
         $bench::<Thunder<u64>, u64>($c);
-        $bench::<Pool<[u64; 8]>, [u64; 8]>($c);
+        $bench::<Map<[u64; 8]>, [u64; 8]>($c);
         $bench::<Slot<[u64; 8]>, [u64; 8]>($c);
         $bench::<Dense<[u64; 8]>, [u64; 8]>($c);
         $bench::<Thunder<[u64; 8]>, [u64; 8]>($c);
@@ -662,11 +662,11 @@ macro_rules! all_stores {
 /// Like `all_stores!`, for the scenario groups: 16 B and 64 B values.
 macro_rules! real_stores {
     ($c:expr, $bench:ident) => {
-        $bench::<Pool<[u64; 2]>, [u64; 2]>($c);
+        $bench::<Map<[u64; 2]>, [u64; 2]>($c);
         $bench::<Slot<[u64; 2]>, [u64; 2]>($c);
         $bench::<Dense<[u64; 2]>, [u64; 2]>($c);
         $bench::<Thunder<[u64; 2]>, [u64; 2]>($c);
-        $bench::<Pool<[u64; 8]>, [u64; 8]>($c);
+        $bench::<Map<[u64; 8]>, [u64; 8]>($c);
         $bench::<Slot<[u64; 8]>, [u64; 8]>($c);
         $bench::<Dense<[u64; 8]>, [u64; 8]>($c);
         $bench::<Thunder<[u64; 8]>, [u64; 8]>($c);
@@ -681,7 +681,7 @@ fn scenario_benches(c: &mut Criterion) {
     real_stores!(c, bench_get_stale);
 }
 
-fn pool_benches(c: &mut Criterion) {
+fn map_benches(c: &mut Criterion) {
     all_stores!(c, bench_insert);
     all_stores!(c, bench_get_sequential);
     all_stores!(c, bench_get_random);
@@ -701,5 +701,5 @@ fn allocator_benches(c: &mut Criterion) {
     bench_batch_allocate(c);
 }
 
-criterion_group!(benches, pool_benches, allocator_benches, scenario_benches);
+criterion_group!(benches, map_benches, allocator_benches, scenario_benches);
 criterion_main!(benches);

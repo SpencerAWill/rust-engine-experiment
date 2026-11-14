@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `engine_genid` pool and allocator hot paths, counted in instructions.
+//! `engine_genid` map and allocator hot paths, counted in instructions.
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work.
 //! Each benchmark builds its input in a `setup` function, which Gungraun does not count, and
@@ -36,31 +36,31 @@ fn shuffled<T>(mut items: Vec<T>) -> Vec<T> {
     items
 }
 
-type Pool = GenIdMap<u64>;
+type Map = GenIdMap<u64>;
 type Alloc = GenIdAllocator<u64>;
 
-fn empty_pool() -> Pool {
+fn empty_map() -> Map {
     GenIdMap::with_capacity(N)
 }
 
-fn filled_pool() -> (Pool, Vec<GenId<u64>>) {
-    let mut pool = empty_pool();
-    let handles = (0..N as u64).map(|i| pool.insert(i)).collect();
-    (pool, handles)
+fn filled_map() -> (Map, Vec<GenId<u64>>) {
+    let mut map = empty_map();
+    let ids = (0..N as u64).map(|i| map.insert(i)).collect();
+    (map, ids)
 }
 
 /// 10,000 values: the sum over 1,000 is vectorized and falls under the 10,000-instruction floor.
-fn filled_pool_10k() -> Pool {
-    let mut pool = GenIdMap::with_capacity(10 * N);
+fn filled_map_10k() -> Map {
+    let mut map = GenIdMap::with_capacity(10 * N);
     for i in 0..10 * N as u64 {
-        black_box(pool.insert(i));
+        black_box(map.insert(i));
     }
-    pool
+    map
 }
 
-fn filled_pool_shuffled() -> (Pool, Vec<GenId<u64>>) {
-    let (pool, handles) = filled_pool();
-    (pool, shuffled(handles))
+fn filled_map_shuffled() -> (Map, Vec<GenId<u64>>) {
+    let (map, ids) = filled_map();
+    (map, shuffled(ids))
 }
 
 fn empty_allocator() -> Alloc {
@@ -69,111 +69,111 @@ fn empty_allocator() -> Alloc {
 
 fn filled_allocator() -> (Alloc, Vec<GenId<u64>>) {
     let mut allocator = empty_allocator();
-    let handles = (0..N).map(|_| allocator.allocate()).collect();
-    (allocator, handles)
+    let ids = (0..N).map(|_| allocator.allocate()).collect();
+    (allocator, ids)
 }
 
 fn filled_allocator_shuffled() -> (Alloc, Vec<GenId<u64>>) {
-    let (allocator, handles) = filled_allocator();
-    (allocator, shuffled(handles))
+    let (allocator, ids) = filled_allocator();
+    (allocator, shuffled(ids))
 }
 
-/// An allocator and 1,000 handles in shuffled order, half of them stale (already freed).
+/// An allocator and 1,000 IDs in shuffled order, half of them stale (already freed).
 fn allocator_with_stale_half() -> (Alloc, Vec<GenId<u64>>) {
-    let (mut allocator, handles) = filled_allocator();
-    for handle in &handles[..N / 2] {
-        allocator.free(*handle);
+    let (mut allocator, ids) = filled_allocator();
+    for id in &ids[..N / 2] {
+        allocator.free(*id);
     }
-    (allocator, shuffled(handles))
+    (allocator, shuffled(ids))
 }
 
 #[inline(never)]
-fn map_insert_1k_work(mut pool: Pool) -> Pool {
+fn map_insert_1k_work(mut map: Map) -> Map {
     for i in 0..N as u64 {
-        black_box(pool.insert(i));
+        black_box(map.insert(i));
     }
-    pool
+    map
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = empty_pool)]
-fn map_insert_1k(pool: Pool) -> Pool {
-    black_box(map_insert_1k_work(black_box(pool)))
+#[bench::fixed(setup = empty_map)]
+fn map_insert_1k(map: Map) -> Map {
+    black_box(map_insert_1k_work(black_box(map)))
 }
 
 #[inline(never)]
-fn map_get_seq_1k_work((pool, handles): (Pool, Vec<GenId<u64>>)) -> u64 {
+fn map_get_seq_1k_work((map, ids): (Map, Vec<GenId<u64>>)) -> u64 {
     let mut sum = 0_u64;
-    for handle in &handles {
-        sum = sum.wrapping_add(*pool.get(*handle).unwrap());
+    for id in &ids {
+        sum = sum.wrapping_add(*map.get(*id).unwrap());
     }
     sum
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_pool)]
-fn map_get_seq_1k(input: (Pool, Vec<GenId<u64>>)) -> u64 {
+#[bench::fixed(setup = filled_map)]
+fn map_get_seq_1k(input: (Map, Vec<GenId<u64>>)) -> u64 {
     black_box(map_get_seq_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn map_get_random_1k_work((pool, handles): (Pool, Vec<GenId<u64>>)) -> u64 {
+fn map_get_random_1k_work((map, ids): (Map, Vec<GenId<u64>>)) -> u64 {
     let mut sum = 0_u64;
-    for handle in &handles {
-        sum = sum.wrapping_add(*pool.get(*handle).unwrap());
+    for id in &ids {
+        sum = sum.wrapping_add(*map.get(*id).unwrap());
     }
     sum
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_pool_shuffled)]
-fn map_get_random_1k(input: (Pool, Vec<GenId<u64>>)) -> u64 {
+#[bench::fixed(setup = filled_map_shuffled)]
+fn map_get_random_1k(input: (Map, Vec<GenId<u64>>)) -> u64 {
     black_box(map_get_random_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn map_remove_1k_work((mut pool, handles): (Pool, Vec<GenId<u64>>)) -> Pool {
-    for handle in handles {
-        black_box(pool.remove(handle));
+fn map_remove_1k_work((mut map, ids): (Map, Vec<GenId<u64>>)) -> Map {
+    for id in ids {
+        black_box(map.remove(id));
     }
-    pool
+    map
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_pool_shuffled)]
-fn map_remove_1k(input: (Pool, Vec<GenId<u64>>)) -> Pool {
+#[bench::fixed(setup = filled_map_shuffled)]
+fn map_remove_1k(input: (Map, Vec<GenId<u64>>)) -> Map {
     black_box(map_remove_1k_work(black_box(input)))
 }
 
 #[inline(never)]
-fn map_iter_10k_work(pool: &Pool) -> u64 {
+fn map_iter_10k_work(map: &Map) -> u64 {
     let mut sum = 0_u64;
-    for (_, value) in pool {
+    for (_, value) in map {
         sum = sum.wrapping_add(*value);
     }
     sum
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_pool_10k)]
-fn map_iter_10k(pool: Pool) -> u64 {
-    black_box(map_iter_10k_work(black_box(&pool)))
+#[bench::fixed(setup = filled_map_10k)]
+fn map_iter_10k(map: Map) -> u64 {
+    black_box(map_iter_10k_work(black_box(&map)))
 }
 
 #[inline(never)]
-fn map_churn_1k_work((mut pool, handles): (Pool, Vec<GenId<u64>>)) -> Pool {
-    for handle in &handles[..N / 2] {
-        black_box(pool.remove(*handle));
+fn map_churn_1k_work((mut map, ids): (Map, Vec<GenId<u64>>)) -> Map {
+    for id in &ids[..N / 2] {
+        black_box(map.remove(*id));
     }
     for i in 0..(N / 2) as u64 {
-        black_box(pool.insert(i));
+        black_box(map.insert(i));
     }
-    pool
+    map
 }
 
 #[library_benchmark]
-#[bench::fixed(setup = filled_pool_shuffled)]
-fn map_churn_1k(input: (Pool, Vec<GenId<u64>>)) -> Pool {
+#[bench::fixed(setup = filled_map_shuffled)]
+fn map_churn_1k(input: (Map, Vec<GenId<u64>>)) -> Map {
     black_box(map_churn_1k_work(black_box(input)))
 }
 
@@ -192,9 +192,9 @@ fn allocator_allocate_1k(allocator: Alloc) -> Alloc {
 }
 
 #[inline(never)]
-fn allocator_free_realloc_1k_work((mut allocator, handles): (Alloc, Vec<GenId<u64>>)) -> Alloc {
-    for handle in &handles[..N / 2] {
-        black_box(allocator.free(*handle));
+fn allocator_free_realloc_1k_work((mut allocator, ids): (Alloc, Vec<GenId<u64>>)) -> Alloc {
+    for id in &ids[..N / 2] {
+        black_box(allocator.free(*id));
     }
     for _ in 0..N / 2 {
         black_box(allocator.allocate());
@@ -209,10 +209,10 @@ fn allocator_free_realloc_1k(input: (Alloc, Vec<GenId<u64>>)) -> Alloc {
 }
 
 #[inline(never)]
-fn allocator_is_alive_1k_work((allocator, handles): (Alloc, Vec<GenId<u64>>)) -> usize {
+fn allocator_is_alive_1k_work((allocator, ids): (Alloc, Vec<GenId<u64>>)) -> usize {
     let mut alive = 0_usize;
-    for handle in &handles {
-        alive += usize::from(allocator.is_alive(*handle));
+    for id in &ids {
+        alive += usize::from(allocator.is_alive(*id));
     }
     alive
 }

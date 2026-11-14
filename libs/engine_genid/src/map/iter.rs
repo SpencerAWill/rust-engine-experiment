@@ -24,14 +24,14 @@ macro_rules! debug_remaining {
 
 /// Iterator over `(GenId<T>, &T)` in dense order; returned by [`GenIdMap::iter`](super::GenIdMap::iter).
 pub struct Iter<'a, T> {
-    pub(super) handles: slice::Iter<'a, GenId<T>>,
+    pub(super) ids: slice::Iter<'a, GenId<T>>,
     pub(super) values: slice::Iter<'a, T>,
 }
 
 impl<T> Clone for Iter<'_, T> {
     fn clone(&self) -> Self {
         Self {
-            handles: self.handles.clone(),
+            ids: self.ids.clone(),
             values: self.values.clone(),
         }
     }
@@ -42,7 +42,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((*self.handles.next()?, self.values.next()?))
+        Some((*self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -57,7 +57,7 @@ debug_remaining!("Iter", Iter);
 
 /// Iterator over `(GenId<T>, &mut T)` in dense order; returned by [`GenIdMap::iter_mut`](super::GenIdMap::iter_mut).
 pub struct IterMut<'a, T> {
-    pub(super) handles: slice::Iter<'a, GenId<T>>,
+    pub(super) ids: slice::Iter<'a, GenId<T>>,
     pub(super) values: slice::IterMut<'a, T>,
 }
 
@@ -66,7 +66,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((*self.handles.next()?, self.values.next()?))
+        Some((*self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -81,12 +81,12 @@ debug_remaining!("IterMut", IterMut);
 
 /// Draining iterator over `(GenId<T>, T)` in dense order; returned by [`GenIdMap::drain`](super::GenIdMap::drain).
 ///
-/// The pool is already in the state [`clear`](super::GenIdMap::clear) would
+/// The map is already in the state [`clear`](super::GenIdMap::clear) would
 /// produce when the `Drain` is created, so dropping it (consumed or not), or even
-/// leaking it, leaves the pool consistent. Values not yet yielded are dropped
+/// leaking it, leaves the map consistent. Values not yet yielded are dropped
 /// when the `Drain` is dropped.
 pub struct Drain<'a, T> {
-    pub(super) handles: vec::Drain<'a, GenId<T>>,
+    pub(super) ids: vec::Drain<'a, GenId<T>>,
     pub(super) values: vec::Drain<'a, T>,
 }
 
@@ -95,7 +95,7 @@ impl<T> Iterator for Drain<'_, T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((self.handles.next()?, self.values.next()?))
+        Some((self.ids.next()?, self.values.next()?))
     }
 
     #[inline]
@@ -110,7 +110,7 @@ debug_remaining!("Drain", Drain);
 
 /// Owning iterator over `(GenId<T>, T)` in dense order; returned by `GenIdMap::into_iter`.
 pub struct IntoIter<T> {
-    pub(super) handles: vec::IntoIter<GenId<T>>,
+    pub(super) ids: vec::IntoIter<GenId<T>>,
     pub(super) values: vec::IntoIter<T>,
 }
 
@@ -119,7 +119,7 @@ impl<T> Iterator for IntoIter<T> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        Some((self.handles.next()?, self.values.next()?))
+        Some((self.ids.next()?, self.values.next()?))
     }
 
     #[inline]

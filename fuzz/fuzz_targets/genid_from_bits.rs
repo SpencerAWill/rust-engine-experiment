@@ -15,19 +15,19 @@ fn check_one(bits: u64) {
 
     // The `TryFrom` conversion agrees, and its error carries the rejected bits.
     match GenId::<u8>::try_from(bits) {
-        Ok(handle) => assert_eq!(Some(handle), parsed),
+        Ok(id) => assert_eq!(Some(id), parsed),
         Err(error) => {
             assert!(parsed.is_none());
             assert_eq!(error.bits(), bits);
         }
     }
 
-    if let Some(handle) = parsed {
-        assert_eq!(handle.to_bits(), bits);
-        assert_eq!(u64::from(handle), bits);
-        assert_eq!(handle.index(), (bits >> 32) as u32);
-        assert_eq!(handle.generation().get(), bits as u32);
-        assert_eq!(GenId::<u8>::from_bits(handle.to_bits()), Some(handle));
+    if let Some(id) = parsed {
+        assert_eq!(id.to_bits(), bits);
+        assert_eq!(u64::from(id), bits);
+        assert_eq!(id.index(), (bits >> 32) as u32);
+        assert_eq!(id.generation().get(), bits as u32);
+        assert_eq!(GenId::<u8>::from_bits(id.to_bits()), Some(id));
     }
 }
 
@@ -36,7 +36,7 @@ fuzz_target!(|input: (u64, u64)| {
     check_one(a);
     check_one(b);
 
-    // The documented ordering claim: handle order is bit order.
+    // The documented ordering claim: ID order is bit order.
     if let (Some(ha), Some(hb)) = (GenId::<u8>::from_bits(a), GenId::<u8>::from_bits(b)) {
         assert_eq!(ha.cmp(&hb), a.cmp(&b));
         assert_eq!(ha == hb, a == b);

@@ -44,10 +44,10 @@ fn op() -> impl Strategy<Value = Op> {
 
 type Snapshot = Vec<(u64, u16)>;
 
-/// Runs `ops` against the pool and the model, checking every invariant after each op.
-/// Returns every handle issued and the `iter()` order after each step.
+/// Runs `ops` against the map and the model, checking every invariant after each op.
+/// Returns every ID issued and the `iter()` order after each step.
 fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
-    let mut pool = GenIdMap::<u16>::new();
+    let mut map = GenIdMap::<u16>::new();
     let mut model = BTreeMap::<u64, u16>::new();
     let mut issued: Vec<GenId<u16>> = Vec::new();
     let mut trace = Vec::new();
@@ -56,21 +56,21 @@ fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
         let pick = |i: usize| (!issued.is_empty()).then(|| issued[i % issued.len()]);
         match *op {
             Op::Insert(v) => {
-                let h = pool.insert(v);
+                let h = map.insert(v);
                 assert!(
                     model.insert(h.to_bits(), v).is_none(),
-                    "handle {h:?} issued twice"
+                    "ID {h:?} issued twice"
                 );
                 issued.push(h);
             }
             Op::Remove(i) => {
                 if let Some(h) = pick(i) {
-                    assert_eq!(pool.remove(h), model.remove(&h.to_bits()));
+                    assert_eq!(map.remove(h), model.remove(&h.to_bits()));
                 }
             }
             Op::Get(i) => {
                 if let Some(h) = pick(i) {
-                    assert_eq!(pool.get(h).copied(), model.get(&h.to_bits()).copied());
+                    assert_eq!(map.get(h).copied(), model.get(&h.to_bits()).copied());
                 }
             }
             Op::GetDisjoint(i, j) => {
@@ -78,7 +78,7 @@ fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
                     let expect = a != b
                         && model.contains_key(&a.to_bits())
                         && model.contains_key(&b.to_bits());
-                    let got = pool.get_disjoint_mut([a, b]);
+                    let got = map.get_disjoint_mut([a, b]);
                     assert_eq!(got.is_some(), expect);
                     if let Some([x, y]) = got {
                         *x = x.wrapping_add(1);
@@ -89,30 +89,30 @@ fn run(ops: &[Op]) -> (Vec<u64>, Vec<Snapshot>) {
                 }
             }
             Op::Retain(k) => {
-                pool.retain(|h, v| {
+                map.retain(|h, v| {
                     assert_eq!(model.get(&h.to_bits()), Some(&*v));
                     *v % k != 0
                 });
                 model.retain(|_, v| *v % k != 0);
             }
             Op::Clear => {
-                pool.clear();
+                map.clear();
                 model.clear();
             }
             Op::Iterate => {}
         }
 
-        pool.check_invariants().expect("invariants hold");
-        assert_eq!(pool.len(), model.len());
-        let snapshot: Snapshot = pool.iter().map(|(h, v)| (h.to_bits(), *v)).collect();
+        map.check_invariants().expect("invariants hold");
+        assert_eq!(map.len(), model.len());
+        let snapshot: Snapshot = map.iter().map(|(h, v)| (h.to_bits(), *v)).collect();
         let as_model: BTreeMap<_, _> = snapshot.iter().copied().collect();
         assert_eq!(as_model, model);
         assert!(
-            pool.values().iter().eq(snapshot.iter().map(|(_, v)| v)),
+            map.values().iter().eq(snapshot.iter().map(|(_, v)| v)),
             "values() order != iter() order"
         );
         for h in &issued {
-            assert_eq!(pool.contains(*h), model.contains_key(&h.to_bits()));
+            assert_eq!(map.contains(*h), model.contains_key(&h.to_bits()));
         }
         trace.push(snapshot);
     }
@@ -123,21 +123,21 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
-    fn pool_matches_model_and_is_deterministic(ops in proptest::collection::vec(op(), 0..200)) {
+    fn map_matches_model_and_is_deterministic(ops in proptest::collection::vec(op(), 0..200)) {
         let first = run(&ops);
         let second = run(&ops);
-        prop_assert_eq!(first, second); // same handles AND same iteration order
+        prop_assert_eq!(first, second); // same IDs AND same iteration order
     }
 }
 
 #[derive(Debug, Clone)]
 enum AllocOp {
     Allocate,
-    /// Allocate this many handles in one batch (lean allocator) or a loop (unit pool).
+    /// Allocate this many IDs in one batch (lean allocator) or a loop (unit map).
     AllocateMany(u8),
     Free(usize),
     IsAlive(usize),
-    /// Keep a handle if `index % k != 0`.
+    /// Keep an ID if `index % k != 0`.
     Retain(u32),
     Clear,
 }
@@ -153,8 +153,8 @@ fn alloc_op() -> impl Strategy<Value = AllocOp> {
     ]
 }
 
-/// Runs `ops` against a `GenIdMap<()>` (the pool as an iterable ID allocator) and a
-/// `BTreeSet` model; returns every handle issued and the `iter()` order after each step.
+/// Runs `ops` against a `GenIdMap<()>` (the map as an iterable ID allocator) and a
+/// `BTreeSet` model; returns every ID issued and the `iter()` order after each step.
 fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
     let mut alloc = GenIdMap::<()>::new();
     let mut model = BTreeSet::<u64>::new();
@@ -166,13 +166,13 @@ fn run_alloc(ops: &[AllocOp]) -> (Vec<u64>, Vec<Vec<u64>>) {
         match *op {
             AllocOp::Allocate => {
                 let h = alloc.insert(());
-                assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
+                assert!(model.insert(h.to_bits()), "ID {h:?} issued twice");
                 issued.push(h);
             }
             AllocOp::AllocateMany(n) => {
                 for _ in 0..n {
                     let h = alloc.insert(());
-                    assert!(model.insert(h.to_bits()), "handle {h:?} issued twice");
+                    assert!(model.insert(h.to_bits()), "ID {h:?} issued twice");
                     issued.push(h);
                 }
             }
@@ -212,7 +212,7 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
-    fn unit_pool_matches_model_and_is_deterministic(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+    fn unit_map_matches_model_and_is_deterministic(ops in proptest::collection::vec(alloc_op(), 0..200)) {
         let first = run_alloc(&ops);
         let second = run_alloc(&ops);
         prop_assert_eq!(first, second);
@@ -220,9 +220,9 @@ proptest! {
 }
 
 /// Runs `ops` (without `Retain`, which the lean allocator lacks) against the lean allocator,
-/// a `GenIdMap<()>` and a set model. Both must issue identical handles and agree on liveness
+/// a `GenIdMap<()>` and a set model. Both must issue identical IDs and agree on liveness
 /// after every step.
-fn run_lean_against_unit_pool(ops: &[AllocOp]) {
+fn run_lean_against_unit_map(ops: &[AllocOp]) {
     let mut lean = GenIdAllocator::<()>::new();
     let mut unit = GenIdMap::<()>::new();
     let mut model = BTreeSet::<u64>::new();
@@ -233,16 +233,16 @@ fn run_lean_against_unit_pool(ops: &[AllocOp]) {
         match *op {
             AllocOp::Allocate => {
                 let (a, b) = (lean.allocate(), unit.insert(()));
-                assert_eq!(a, b, "the allocator and the pool issued different handles");
-                assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
+                assert_eq!(a, b, "the allocator and the map issued different IDs");
+                assert!(model.insert(a.to_bits()), "ID {a:?} issued twice");
                 issued.push(a);
             }
             AllocOp::AllocateMany(n) => {
                 let batch = lean.allocate_many(usize::from(n));
                 for a in batch {
                     let b = unit.insert(());
-                    assert_eq!(a, b, "batch and loop issued different handles");
-                    assert!(model.insert(a.to_bits()), "handle {a:?} issued twice");
+                    assert_eq!(a, b, "batch and loop issued different IDs");
+                    assert!(model.insert(a.to_bits()), "ID {a:?} issued twice");
                     issued.push(a);
                 }
             }
@@ -273,22 +273,22 @@ proptest! {
     #![proptest_config(config())]
 
     #[test]
-    fn lean_allocator_matches_unit_pool_and_model(ops in proptest::collection::vec(alloc_op(), 0..200)) {
-        run_lean_against_unit_pool(&ops);
+    fn lean_allocator_matches_unit_map_and_model(ops in proptest::collection::vec(alloc_op(), 0..200)) {
+        run_lean_against_unit_map(&ops);
     }
 }
 
 proptest! {
     #![proptest_config(config())]
 
-    /// `to_bits` and `from_bits` are inverse for every `u64` that is a valid handle, and
+    /// `to_bits` and `from_bits` are inverse for every `u64` that is a valid ID, and
     /// `from_bits` rejects exactly the values whose generation (low) half is zero.
     #[test]
     fn bits_roundtrip(bits in any::<u64>()) {
-        if let Some(handle) = GenId::<u8>::from_bits(bits) {
+        if let Some(id) = GenId::<u8>::from_bits(bits) {
             prop_assert_ne!(bits & 0xFFFF_FFFF, 0);
-            prop_assert_eq!(handle.to_bits(), bits);
-            prop_assert_eq!(u64::from(handle.index()), bits >> 32);
+            prop_assert_eq!(id.to_bits(), bits);
+            prop_assert_eq!(u64::from(id.index()), bits >> 32);
         } else {
             prop_assert_eq!(bits & 0xFFFF_FFFF, 0);
         }

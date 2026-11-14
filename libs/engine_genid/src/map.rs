@@ -1,4 +1,4 @@
-//! [`GenIdMap`]: dense storage addressed by generational handles.
+//! [`GenIdMap`]: dense storage addressed by generational IDs.
 
 use alloc::vec::Vec;
 use core::fmt;
@@ -30,14 +30,14 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 /// # Semantics
 ///
 /// - New slots start at generation 1. [`remove`](Self::remove) bumps the slot's
-///   generation, so every outstanding handle to it becomes stale
+///   generation, so every outstanding ID to it becomes stale
 ///   ([`get`](Self::get) returns `None`).
 /// - Freed slots are reused **LIFO**, so allocation order is deterministic for a
 ///   given operation sequence.
 /// - **Generation exhaustion:** if bumping would overflow `u32::MAX`, the slot is
 ///   permanently retired. That costs one slot per 2³²−1 reuses and guarantees a
-///   stale handle can never become valid again.
-/// - [`clear`](Self::clear) makes every outstanding handle stale and returns all
+///   stale ID can never become valid again.
+/// - [`clear`](Self::clear) makes every outstanding ID stale and returns all
 ///   non-retired slots to the free list in ascending index order, so reuse after
 ///   `clear` is deterministic too.
 /// - [`remove`](Self::remove) **swap-removes**: the last dense element moves into
@@ -57,7 +57,7 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 ///
 /// # Limitation
 ///
-/// A handle used on a *different* pool than the one that issued it can resolve to an
+/// An ID used on a *different* map than the one that issued it can resolve to an
 /// unrelated element; see the [crate docs](crate#known-limitation).
 ///
 /// # Examples
@@ -65,55 +65,55 @@ pub use iter::{Drain, IntoIter, Iter, IterMut};
 /// ```
 /// use engine_genid::GenIdMap;
 ///
-/// let mut pool = GenIdMap::new();
-/// let a = pool.insert("a");
-/// let b = pool.insert("b");
+/// let mut map = GenIdMap::new();
+/// let a = map.insert("a");
+/// let b = map.insert("b");
 ///
-/// assert_eq!(pool[a], "a");
-/// assert_eq!(pool.remove(a), Some("a"));
-/// assert!(pool.get(a).is_none()); // `a` is stale now
-/// assert_eq!(pool.values(), &["b"]);
-/// assert_eq!(pool[b], "b");
+/// assert_eq!(map[a], "a");
+/// assert_eq!(map.remove(a), Some("a"));
+/// assert!(map.get(a).is_none()); // `a` is stale now
+/// assert_eq!(map.values(), &["b"]);
+/// assert_eq!(map[b], "b");
 /// ```
 #[derive(Clone)]
 pub struct GenIdMap<T> {
     slots: SlotTable,
-    handles: Vec<GenId<T>>,
+    ids: Vec<GenId<T>>,
     values: Vec<T>,
 }
 
 impl<T> GenIdMap<T> {
-    /// Creates an empty pool. Does not allocate.
+    /// Creates an empty map. Does not allocate.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let pool = GenIdMap::<u8>::new();
-    /// assert!(pool.is_empty());
+    /// let map = GenIdMap::<u8>::new();
+    /// assert!(map.is_empty());
     /// ```
     #[inline]
     pub const fn new() -> Self {
         Self {
             slots: SlotTable::new(),
-            handles: Vec::new(),
+            ids: Vec::new(),
             values: Vec::new(),
         }
     }
 
-    /// Creates an empty pool with room for `capacity` values before reallocating.
+    /// Creates an empty map with room for `capacity` values before reallocating.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let pool = GenIdMap::<u8>::with_capacity(16);
-    /// assert!(pool.capacity() >= 16);
+    /// let map = GenIdMap::<u8>::with_capacity(16);
+    /// assert!(map.capacity() >= 16);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             slots: SlotTable::with_capacity(capacity),
-            handles: Vec::with_capacity(capacity),
+            ids: Vec::with_capacity(capacity),
             values: Vec::with_capacity(capacity),
         }
     }
@@ -161,19 +161,19 @@ impl<T> GenIdMap<T> {
     /// assert!(x.try_reserve(usize::MAX).is_err());
     /// ```
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        self.handles.try_reserve(additional)?;
+        self.ids.try_reserve(additional)?;
         self.values.try_reserve(additional)?;
         self.slots
             .try_reserve_slots(self.len().saturating_add(additional))
     }
 
-    /// Slots the pool can hold without reallocating its slot array.
+    /// Slots the map can hold without reallocating its slot array.
     #[cfg(test)]
     pub(crate) fn slot_capacity(&self) -> usize {
         self.slots.capacity()
     }
 
-    /// A pool that holds at most `limit` slots, for testing the full-pool paths.
+    /// A map that holds at most `limit` slots, for testing the full-map paths.
     #[cfg(test)]
     pub(crate) fn with_slot_limit(limit: u32) -> Self {
         Self {
@@ -182,7 +182,7 @@ impl<T> GenIdMap<T> {
         }
     }
 
-    /// Creates an empty pool that holds at most `capacity` values, allocating all the memory it will
+    /// Creates an empty map that holds at most `capacity` values, allocating all the memory it will
     /// ever need up front.
     ///
     /// After this call, `insert`, `remove`, `clear`, `retain` and `drain` never touch the heap: once full, `try_insert` returns a `CapacityError`. Use it when
@@ -199,24 +199,24 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::with_fixed_capacity(2);
-    /// let a = pool.insert('a');
-    /// let _b = pool.insert('b');
-    /// assert!(pool.try_insert('c').is_err()); // full: no growth
-    /// pool.remove(a);
-    /// assert!(pool.try_insert('c').is_ok()); // a freed slot is reused
+    /// let mut map = GenIdMap::with_fixed_capacity(2);
+    /// let a = map.insert('a');
+    /// let _b = map.insert('b');
+    /// assert!(map.try_insert('c').is_err()); // full: no growth
+    /// map.remove(a);
+    /// assert!(map.try_insert('c').is_ok()); // a freed slot is reused
     /// ```
     pub fn with_fixed_capacity(capacity: usize) -> Self {
         let slots = SlotTable::with_fixed_capacity(capacity);
         let room = slots.limit() as usize;
         Self {
             slots,
-            handles: Vec::with_capacity(room),
+            ids: Vec::with_capacity(room),
             values: Vec::with_capacity(room),
         }
     }
 
-    /// Inserts `value` and returns the handle that names it.
+    /// Inserts `value` and returns the ID that names it.
     ///
     /// # Panics
     ///
@@ -227,21 +227,21 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(42);
-    /// assert_eq!(pool[h], 42);
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(42);
+    /// assert_eq!(map[h], 42);
     /// ```
-    #[must_use = "dropping the handle makes the value unreachable except by iteration"]
+    #[must_use = "dropping the ID makes the value unreachable except by iteration"]
     #[track_caller]
     pub fn insert(&mut self, value: T) -> GenId<T> {
-        let Ok(handle) = self.try_insert(value) else {
+        let Ok(id) = self.try_insert(value) else {
             panic!(
-                "GenIdMap::insert: pool is full ({} slots in use or retired); \
+                "GenIdMap::insert: map is full ({} slots in use or retired); \
                  use try_insert to handle this without panicking",
                 self.slots.limit()
             )
         };
-        handle
+        id
     }
 
     /// Fallible twin of [`insert`](Self::insert). On failure, ownership of `value`
@@ -255,27 +255,27 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.try_insert("x").unwrap();
-    /// assert_eq!(pool[h], "x");
+    /// let mut map = GenIdMap::new();
+    /// let h = map.try_insert("x").unwrap();
+    /// assert_eq!(map[h], "x");
     /// ```
     pub fn try_insert(&mut self, value: T) -> Result<GenId<T>, CapacityError<T>> {
-        let Some((index, generation)) = self.slots.acquire(to_u32(self.handles.len())) else {
+        let Some((index, generation)) = self.slots.acquire(to_u32(self.ids.len())) else {
             return Err(CapacityError::new(value, self.slots.limit()));
         };
-        let handle = GenId::new(index, generation);
-        self.handles.push(handle);
+        let id = GenId::new(index, generation);
+        self.ids.push(id);
         self.values.push(value);
-        Ok(handle)
+        Ok(id)
     }
 
-    /// Inserts the value `make` builds from the handle that will name it, and returns that
-    /// handle.
+    /// Inserts the value `make` builds from the ID that will name it, and returns that
+    /// ID.
     ///
-    /// Use it for values that must store their own handle, such as a node that links to its
-    /// parent or a component that registers itself. The handle is exactly the one
-    /// [`insert`](Self::insert) would have issued. `make` runs before the pool changes, so if it
-    /// panics the pool is left untouched.
+    /// Use it for values that must store their own ID, such as a node that links to its
+    /// parent or a component that registers itself. The ID is exactly the one
+    /// [`insert`](Self::insert) would have issued. `make` runs before the map changes, so if it
+    /// panics the map is left untouched.
     ///
     /// # Panics
     ///
@@ -296,145 +296,145 @@ impl<T> GenIdMap<T> {
     /// assert_eq!(nodes[root].me, root);
     /// assert_eq!(nodes[root].depth, 0);
     /// ```
-    #[must_use = "dropping the handle makes the value unreachable except by iteration"]
+    #[must_use = "dropping the ID makes the value unreachable except by iteration"]
     #[track_caller]
     pub fn insert_with(&mut self, make: impl FnOnce(GenId<T>) -> T) -> GenId<T> {
-        let Some(handle) = self.try_insert_with(make) else {
+        let Some(id) = self.try_insert_with(make) else {
             panic!(
-                "GenIdMap::insert_with: pool is full ({} slots in use or retired); \
+                "GenIdMap::insert_with: map is full ({} slots in use or retired); \
                  use try_insert_with to handle this without panicking",
                 self.slots.limit()
             )
         };
-        handle
+        id
     }
 
     /// Fallible twin of [`insert_with`](Self::insert_with): returns `None`, without calling
-    /// `make`, if the pool is full.
+    /// `make`, if the map is full.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.try_insert_with(|h| h.index()).unwrap();
-    /// assert_eq!(pool[h], h.index());
+    /// let mut map = GenIdMap::new();
+    /// let h = map.try_insert_with(|h| h.index()).unwrap();
+    /// assert_eq!(map[h], h.index());
     /// ```
     pub fn try_insert_with(&mut self, make: impl FnOnce(GenId<T>) -> T) -> Option<GenId<T>> {
         let (index, generation) = self.slots.peek_next()?;
-        let handle = GenId::new(index, generation);
-        // `make` cannot reach the pool, and the slot is not taken until it returns, so a panic
-        // inside it leaves the pool exactly as it was.
-        let value = make(handle);
-        let (taken, taken_generation) = self.slots.acquire(to_u32(self.handles.len()))?;
+        let id = GenId::new(index, generation);
+        // `make` cannot reach the map, and the slot is not taken until it returns, so a panic
+        // inside it leaves the map exactly as it was.
+        let value = make(id);
+        let (taken, taken_generation) = self.slots.acquire(to_u32(self.ids.len()))?;
         debug_assert_eq!((taken, taken_generation), (index, generation));
-        self.handles.push(handle);
+        self.ids.push(id);
         self.values.push(value);
-        Some(handle)
+        Some(id)
     }
 
-    /// Dense position of the value `handle` names, if the handle is live.
+    /// Dense position of the value `id` names, if the ID is live.
     #[inline]
-    fn resolve(&self, handle: GenId<T>) -> Option<usize> {
-        let dense = self.slots.lookup(handle.index(), handle.generation())? as usize;
+    fn resolve(&self, id: GenId<T>) -> Option<usize> {
+        let dense = self.slots.lookup(id.index(), id.generation())? as usize;
         // Occupied slots have the top bit clear, so the link is the dense position. Vacant and
         // retired links are at least `VACANT_BIT`, which exceeds any dense length, so one range
         // check against the dense length replaces a separate state test.
         (dense < self.values.len()).then_some(dense)
     }
 
-    /// Returns a reference to the value `handle` names, or `None` if it is stale.
+    /// Returns a reference to the value `id` names, or `None` if it is stale.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(1);
-    /// assert_eq!(pool.get(h), Some(&1));
-    /// pool.remove(h);
-    /// assert_eq!(pool.get(h), None);
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(1);
+    /// assert_eq!(map.get(h), Some(&1));
+    /// map.remove(h);
+    /// assert_eq!(map.get(h), None);
     /// ```
     ///
-    /// The reference borrows the pool, so it cannot outlive a change to it:
+    /// The reference borrows the map, so it cannot outlive a change to it:
     ///
     /// ```compile_fail,E0502
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert(1);
-    /// let first = pool.get(a).unwrap();
-    /// let _b = pool.insert(2); // needs `&mut pool` while `first` still borrows it
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert(1);
+    /// let first = map.get(a).unwrap();
+    /// let _b = map.insert(2); // needs `&mut map` while `first` still borrows it
     /// println!("{first}");
     /// ```
     #[inline]
-    pub fn get(&self, handle: GenId<T>) -> Option<&T> {
-        self.resolve(handle).map(|dense| &self.values[dense])
+    pub fn get(&self, id: GenId<T>) -> Option<&T> {
+        self.resolve(id).map(|dense| &self.values[dense])
     }
 
-    /// Returns a mutable reference to the value `handle` names, or `None` if it is stale.
+    /// Returns a mutable reference to the value `id` names, or `None` if it is stale.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(1);
-    /// *pool.get_mut(h).unwrap() += 1;
-    /// assert_eq!(pool[h], 2);
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(1);
+    /// *map.get_mut(h).unwrap() += 1;
+    /// assert_eq!(map[h], 2);
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, handle: GenId<T>) -> Option<&mut T> {
-        self.resolve(handle).map(|dense| &mut self.values[dense])
+    pub fn get_mut(&mut self, id: GenId<T>) -> Option<&mut T> {
+        self.resolve(id).map(|dense| &mut self.values[dense])
     }
 
-    /// Returns `true` if `handle` names a live value in this pool.
+    /// Returns `true` if `id` names a live value in this map.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(());
-    /// assert!(pool.contains(h));
-    /// pool.remove(h);
-    /// assert!(!pool.contains(h));
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(());
+    /// assert!(map.contains(h));
+    /// map.remove(h);
+    /// assert!(!map.contains(h));
     /// ```
     #[inline]
-    pub fn contains(&self, handle: GenId<T>) -> bool {
-        self.resolve(handle).is_some()
+    pub fn contains(&self, id: GenId<T>) -> bool {
+        self.resolve(id).is_some()
     }
 
-    /// Removes the value `handle` names and returns it, or `None` if the handle is stale.
+    /// Removes the value `id` names and returns it, or `None` if the ID is stale.
     ///
     /// The last dense element moves into the vacated position (swap-remove), so
-    /// [`values`](Self::values) changes order; every other handle stays valid.
+    /// [`values`](Self::values) changes order; every other ID stays valid.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert('a');
-    /// let b = pool.insert('b');
-    /// let c = pool.insert('c');
-    /// assert_eq!(pool.remove(a), Some('a'));
-    /// assert_eq!(pool.values(), &['c', 'b']); // `c` moved into `a`'s place
-    /// assert_eq!(pool[c], 'c');
-    /// assert_eq!(pool.remove(a), None);
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert('a');
+    /// let b = map.insert('b');
+    /// let c = map.insert('c');
+    /// assert_eq!(map.remove(a), Some('a'));
+    /// assert_eq!(map.values(), &['c', 'b']); // `c` moved into `a`'s place
+    /// assert_eq!(map[c], 'c');
+    /// assert_eq!(map.remove(a), None);
     /// # let _ = b;
     /// ```
-    pub fn remove(&mut self, handle: GenId<T>) -> Option<T> {
-        let dense = self.resolve(handle)?;
+    pub fn remove(&mut self, id: GenId<T>) -> Option<T> {
+        let dense = self.resolve(id)?;
         Some(self.remove_at(dense))
     }
 
     /// Swap-removes the element at dense position `dense`, keeping every slot consistent.
     fn remove_at(&mut self, dense: usize) -> T {
-        let handle = self.handles[dense];
-        self.slots.release(handle.index());
-        self.handles.swap_remove(dense);
+        let id = self.ids[dense];
+        self.slots.release(id.index());
+        self.ids.swap_remove(dense);
         let value = self.values.swap_remove(dense);
-        if let Some(moved) = self.handles.get(dense) {
+        if let Some(moved) = self.ids.get(dense) {
             self.slots.set_link(moved.index(), to_u32(dense));
         }
         value
@@ -446,16 +446,16 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let _ = pool.insert(1);
-    /// assert_eq!(pool.len(), 1);
+    /// let mut map = GenIdMap::new();
+    /// let _ = map.insert(1);
+    /// assert_eq!(map.len(), 1);
     /// ```
     #[inline]
     pub const fn len(&self) -> usize {
         self.values.len()
     }
 
-    /// Returns `true` if the pool holds no live values.
+    /// Returns `true` if the map holds no live values.
     ///
     /// # Examples
     ///
@@ -468,7 +468,7 @@ impl<T> GenIdMap<T> {
         self.values.is_empty()
     }
 
-    /// Number of values the pool can hold without reallocating its dense value
+    /// Number of values the map can hold without reallocating its dense value
     /// storage (`Vec::capacity` semantics).
     ///
     /// # Examples
@@ -481,7 +481,7 @@ impl<T> GenIdMap<T> {
         self.values.capacity()
     }
 
-    /// Shrinks the dense value and handle storage to fit [`len`](Self::len).
+    /// Shrinks the dense value and ID storage to fit [`len`](Self::len).
     ///
     /// The slot array cannot shrink, because indices must stay stable; it costs
     /// 8 bytes per slot ever used.
@@ -490,28 +490,28 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::with_capacity(100);
-    /// let _ = pool.insert(1);
-    /// pool.shrink_to_fit();
-    /// assert!(pool.capacity() < 100);
+    /// let mut map = GenIdMap::with_capacity(100);
+    /// let _ = map.insert(1);
+    /// map.shrink_to_fit();
+    /// assert!(map.capacity() < 100);
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        self.handles.shrink_to_fit();
+        self.ids.shrink_to_fit();
         self.values.shrink_to_fit();
     }
 
     /// All live values as one contiguous slice, in dense order.
     ///
-    /// The fastest way to process every value when handles are not needed.
+    /// The fastest way to process every value when IDs are not needed.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let _ = pool.insert(1);
-    /// let _ = pool.insert(2);
-    /// assert_eq!(pool.values().iter().sum::<i32>(), 3);
+    /// let mut map = GenIdMap::new();
+    /// let _ = map.insert(1);
+    /// let _ = map.insert(2);
+    /// assert_eq!(map.values().iter().sum::<i32>(), 3);
     /// ```
     #[inline]
     pub fn values(&self) -> &[T] {
@@ -524,12 +524,12 @@ impl<T> GenIdMap<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(1);
-    /// for v in pool.values_mut() {
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(1);
+    /// for v in map.values_mut() {
     ///     *v *= 10;
     /// }
-    /// assert_eq!(pool[h], 10);
+    /// assert_eq!(map[h], 10);
     /// ```
     #[inline]
     pub fn values_mut(&mut self) -> &mut [T] {
@@ -539,25 +539,25 @@ impl<T> GenIdMap<T> {
     /// Keeps only the elements for which `keep` returns `true`, visiting in dense order.
     ///
     /// Removed elements behave exactly like [`remove`](Self::remove), including
-    /// swap-removal. The pool is consistent after every removal, so if `keep`
-    /// panics the pool is left valid (elements not yet visited are kept).
+    /// swap-removal. The map is consistent after every removal, so if `keep`
+    /// panics the map is left valid (elements not yet visited are kept).
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
+    /// let mut map = GenIdMap::new();
     /// for i in 0..6 {
-    ///     let _ = pool.insert(i);
+    ///     let _ = map.insert(i);
     /// }
-    /// pool.retain(|_, v| *v % 2 == 0);
-    /// assert_eq!(pool.len(), 3);
+    /// map.retain(|_, v| *v % 2 == 0);
+    /// assert_eq!(map.len(), 3);
     /// ```
     pub fn retain(&mut self, mut keep: impl FnMut(GenId<T>, &mut T) -> bool) {
         let mut dense = 0;
         while dense < self.values.len() {
-            let handle = self.handles[dense];
-            if keep(handle, &mut self.values[dense]) {
+            let id = self.ids[dense];
+            if keep(id, &mut self.values[dense]) {
                 dense += 1;
             } else {
                 // The last element is swapped into `dense`, so it is visited next.
@@ -569,132 +569,129 @@ impl<T> GenIdMap<T> {
     /// Mutable access to several distinct elements at once (for example both
     /// bodies in a collision), without `RefCell` or `unsafe`.
     ///
-    /// Returns `None` if any handle is stale or two handles refer to the same slot.
+    /// Returns `None` if any ID is stale or two IDs refer to the same slot.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert(1);
-    /// let b = pool.insert(2);
-    /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert(1);
+    /// let b = map.insert(2);
+    /// let [x, y] = map.get_disjoint_mut([a, b]).unwrap();
     /// std::mem::swap(x, y);
-    /// assert_eq!((pool[a], pool[b]), (2, 1));
-    /// assert!(pool.get_disjoint_mut([a, a]).is_none());
+    /// assert_eq!((map[a], map[b]), (2, 1));
+    /// assert!(map.get_disjoint_mut([a, a]).is_none());
     /// ```
     ///
-    /// The references borrow the whole pool, so it cannot be used again while they are alive:
+    /// The references borrow the whole map, so it cannot be used again while they are alive:
     ///
     /// ```compile_fail,E0502
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert(1);
-    /// let b = pool.insert(2);
-    /// let [x, y] = pool.get_disjoint_mut([a, b]).unwrap();
-    /// let _len = pool.len(); // still mutably borrowed by `x` and `y`
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert(1);
+    /// let b = map.insert(2);
+    /// let [x, y] = map.get_disjoint_mut([a, b]).unwrap();
+    /// let _len = map.len(); // still mutably borrowed by `x` and `y`
     /// *x += *y;
     /// ```
-    pub fn get_disjoint_mut<const N: usize>(
-        &mut self,
-        handles: [GenId<T>; N],
-    ) -> Option<[&mut T; N]> {
+    pub fn get_disjoint_mut<const N: usize>(&mut self, ids: [GenId<T>; N]) -> Option<[&mut T; N]> {
         let mut positions = [0_usize; N];
-        for (position, handle) in positions.iter_mut().zip(handles) {
-            *position = self.resolve(handle)?;
+        for (position, id) in positions.iter_mut().zip(ids) {
+            *position = self.resolve(id)?;
         }
         self.values.get_disjoint_mut(positions).ok()
     }
 
-    /// Iterates `(handle, &value)` pairs in dense order.
+    /// Iterates `(id, &value)` pairs in dense order.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert('a');
-    /// assert_eq!(pool.iter().next(), Some((a, &'a')));
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert('a');
+    /// assert_eq!(map.iter().next(), Some((a, &'a')));
     /// ```
     ///
-    /// Iterating borrows the pool, so values cannot be removed from inside the loop (collect the
-    /// handles first, or use [`retain`](Self::retain)):
+    /// Iterating borrows the map, so values cannot be removed from inside the loop (collect the
+    /// IDs first, or use [`retain`](Self::retain)):
     ///
     /// ```compile_fail,E0502
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let _ = pool.insert(1);
-    /// for (h, _) in &pool {
-    ///     pool.remove(h);
+    /// let mut map = GenIdMap::new();
+    /// let _ = map.insert(1);
+    /// for (h, _) in &map {
+    ///     map.remove(h);
     /// }
     /// ```
     pub fn iter(&self) -> Iter<'_, T> {
         Iter {
-            handles: self.handles.iter(),
+            ids: self.ids.iter(),
             values: self.values.iter(),
         }
     }
 
-    /// Iterates `(handle, &mut value)` pairs in dense order.
+    /// Iterates `(id, &mut value)` pairs in dense order.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert(1);
-    /// for (_, v) in pool.iter_mut() {
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert(1);
+    /// for (_, v) in map.iter_mut() {
     ///     *v += 1;
     /// }
-    /// assert_eq!(pool[a], 2);
+    /// assert_eq!(map[a], 2);
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
-            handles: self.handles.iter(),
+            ids: self.ids.iter(),
             values: self.values.iter_mut(),
         }
     }
 
-    /// Removes all values, yielding `(handle, value)` in dense order.
+    /// Removes all values, yielding `(id, value)` in dense order.
     ///
-    /// When the [`Drain`] is dropped (fully consumed or not) the pool is in
+    /// When the [`Drain`] is dropped (fully consumed or not) the map is in
     /// exactly the state [`clear`](Self::clear) would produce.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let a = pool.insert(1);
-    /// let drained: Vec<_> = pool.drain().collect();
+    /// let mut map = GenIdMap::new();
+    /// let a = map.insert(1);
+    /// let drained: Vec<_> = map.drain().collect();
     /// assert_eq!(drained, vec![(a, 1)]);
-    /// assert!(pool.is_empty() && !pool.contains(a));
+    /// assert!(map.is_empty() && !map.contains(a));
     /// ```
     pub fn drain(&mut self) -> Drain<'_, T> {
-        // Release the slots first: from here on the pool already looks cleared,
+        // Release the slots first: from here on the map already looks cleared,
         // even if the `Drain` is leaked.
         self.slots.release_all();
         Drain {
-            handles: self.handles.drain(..),
+            ids: self.ids.drain(..),
             values: self.values.drain(..),
         }
     }
 
-    /// Removes every value. All outstanding handles become stale, and reuse of
+    /// Removes every value. All outstanding IDs become stale, and reuse of
     /// slots then proceeds in ascending index order.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// let h = pool.insert(1);
-    /// pool.clear();
-    /// assert!(pool.is_empty() && !pool.contains(h));
+    /// let mut map = GenIdMap::new();
+    /// let h = map.insert(1);
+    /// map.clear();
+    /// assert!(map.is_empty() && !map.contains(h));
     /// ```
     pub fn clear(&mut self) {
         self.slots.release_all();
-        self.handles.clear();
+        self.ids.clear();
         self.values.clear();
     }
 
@@ -708,42 +705,40 @@ impl<T> GenIdMap<T> {
     /// hold, which would be a bug in this crate.
     #[cfg(any(test, feature = "test-invariants"))]
     pub fn check_invariants(&self) -> Result<(), crate::InvariantViolation> {
-        if self.handles.len() != self.values.len() {
+        if self.ids.len() != self.values.len() {
             return Err(violation(format_args!("dense arrays differ in length")));
         }
         let occupied = self.slots.check_invariants()?;
-        if occupied != self.handles.len() {
+        if occupied != self.ids.len() {
             return Err(violation(format_args!(
                 "occupied slots ({occupied}) != dense length ({})",
-                self.handles.len()
+                self.ids.len()
             )));
         }
-        for (i, handle) in self.handles.iter().enumerate() {
+        for (i, id) in self.ids.iter().enumerate() {
             let points_back = matches!(
-                self.slots.state(handle.index()),
+                self.slots.state(id.index()),
                 SlotState::Occupied { dense } if dense as usize == i
             );
             if !points_back {
                 return Err(violation(format_args!(
-                    "slot of {handle:?} does not point back at dense position {i}"
+                    "slot of {id:?} does not point back at dense position {i}"
                 )));
             }
-            if self.slots.generation(handle.index()) != handle.generation() {
-                return Err(violation(format_args!(
-                    "generation mismatch for {handle:?}"
-                )));
+            if self.slots.generation(id.index()) != id.generation() {
+                return Err(violation(format_args!("generation mismatch for {id:?}")));
             }
         }
         Ok(())
     }
 
-    /// Overwrites a slot's generation (and its dense handle), for exhaustion tests.
+    /// Overwrites a slot's generation (and its dense ID), for exhaustion tests.
     #[cfg(test)]
     fn set_generation_for_test(&mut self, index: u32, generation: u32) {
         let generation = NonZeroU32::new(generation).unwrap();
         self.slots.set_generation(index, generation);
         if let SlotState::Occupied { dense } = self.slots.state(index) {
-            self.handles[dense as usize] = GenId::new(index, generation);
+            self.ids[dense as usize] = GenId::new(index, generation);
         }
     }
 }
@@ -763,7 +758,7 @@ impl<T> Default for GenIdMap<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for GenIdMap<T> {
-    /// Prints as a map of live handles to values, in dense order.
+    /// Prints as a map of live IDs to values, in dense order.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
@@ -793,7 +788,7 @@ impl<T> IntoIterator for GenIdMap<T> {
 
     fn into_iter(self) -> IntoIter<T> {
         IntoIter {
-            handles: self.handles.into_iter(),
+            ids: self.ids.into_iter(),
             values: self.values.into_iter(),
         }
     }
@@ -804,13 +799,13 @@ impl<T> Index<GenId<T>> for GenIdMap<T> {
 
     /// # Panics
     ///
-    /// Panics if `handle` is stale. Use [`GenIdMap::get`] to handle that without panicking.
+    /// Panics if `id` is stale. Use [`GenIdMap::get`] to handle that without panicking.
     #[inline]
     #[track_caller]
-    fn index(&self, handle: GenId<T>) -> &T {
-        match self.get(handle) {
+    fn index(&self, id: GenId<T>) -> &T {
+        match self.get(id) {
             Some(value) => value,
-            None => stale_handle(handle),
+            None => stale_id(id),
         }
     }
 }
@@ -818,22 +813,22 @@ impl<T> Index<GenId<T>> for GenIdMap<T> {
 impl<T> IndexMut<GenId<T>> for GenIdMap<T> {
     /// # Panics
     ///
-    /// Panics if `handle` is stale. Use [`GenIdMap::get_mut`] to handle that without panicking.
+    /// Panics if `id` is stale. Use [`GenIdMap::get_mut`] to handle that without panicking.
     #[inline]
     #[track_caller]
-    fn index_mut(&mut self, handle: GenId<T>) -> &mut T {
-        match self.get_mut(handle) {
+    fn index_mut(&mut self, id: GenId<T>) -> &mut T {
+        match self.get_mut(id) {
             Some(value) => value,
-            None => stale_handle(handle),
+            None => stale_id(id),
         }
     }
 }
 
 #[cold]
 #[track_caller]
-fn stale_handle<T>(handle: GenId<T>) -> ! {
+fn stale_id<T>(id: GenId<T>) -> ! {
     panic!(
-        "GenIdMap index: stale handle {handle:?} (its value was removed, or the pool was \
+        "GenIdMap index: stale ID {id:?} (its value was removed, or the map was \
          cleared); use get() to handle this without panicking"
     )
 }
@@ -856,7 +851,7 @@ mod tests {
     }
 
     #[test]
-    fn removed_handle_is_stale_and_slot_reused_lifo() {
+    fn removed_id_is_stale_and_slot_reused_lifo() {
         let mut p = GenIdMap::new();
         let a = p.insert('a');
         let b = p.insert('b');
@@ -929,7 +924,7 @@ mod tests {
     }
 
     #[test]
-    fn forged_handle_to_vacant_slot_is_stale_not_a_panic() {
+    fn forged_id_to_vacant_slot_is_stale_not_a_panic() {
         let mut p = GenIdMap::new();
         let h = p.insert(1);
         p.remove(h);
@@ -942,7 +937,7 @@ mod tests {
     }
 
     #[test]
-    fn fixed_capacity_pool_never_grows_and_reports_full() {
+    fn fixed_capacity_map_never_grows_and_reports_full() {
         let mut p = GenIdMap::<u64>::with_fixed_capacity(8);
         let (values, slots) = (p.capacity(), p.slot_capacity());
         assert!(values >= 8 && slots >= 8);
@@ -973,7 +968,7 @@ mod tests {
         let mut p = GenIdMap::new();
         let h = p.insert(1);
         assert!(p.check_invariants().is_ok());
-        // Corrupt the slot's generation without updating the dense handle.
+        // Corrupt the slot's generation without updating the dense ID.
         p.slots
             .set_generation(h.index(), NonZeroU32::new(5).unwrap());
         let err = p.check_invariants().unwrap_err();
@@ -992,7 +987,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_with_passes_the_handle_the_value_will_have() {
+    fn insert_with_passes_the_id_the_value_will_have() {
         #[derive(Debug, PartialEq)]
         struct Node {
             me: GenId<Node>,
@@ -1010,7 +1005,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_with_issues_the_same_handles_as_insert() {
+    fn insert_with_issues_the_same_ids_as_insert() {
         let (mut with, mut plain) = (GenIdMap::new(), GenIdMap::new());
         for i in 0..20_u32 {
             let a = with.insert_with(|_| i);
@@ -1025,7 +1020,7 @@ mod tests {
 
     #[test]
     #[cfg(not(target_os = "wasi"))]
-    fn a_panicking_insert_with_closure_leaves_the_pool_unchanged() {
+    fn a_panicking_insert_with_closure_leaves_the_map_unchanged() {
         let mut p = GenIdMap::new();
         let keep = p.insert(1);
         let freed = p.insert(2);
@@ -1072,16 +1067,16 @@ mod tests {
     )]
     fn length_and_capacity_queries_are_const() {
         const _: () = {
-            let pool = GenIdMap::<u8>::new();
-            assert!(pool.is_empty());
-            assert!(pool.len() == 0);
-            assert!(pool.capacity() == 0);
-            core::mem::forget(pool); // a const context cannot run `Drop`
+            let map = GenIdMap::<u8>::new();
+            assert!(map.is_empty());
+            assert!(map.len() == 0);
+            assert!(map.capacity() == 0);
+            core::mem::forget(map); // a const context cannot run `Drop`
         };
     }
 
     #[test]
-    fn capacity_error_reports_the_pools_own_limit() {
+    fn capacity_error_reports_the_maps_own_limit() {
         let mut p = GenIdMap::with_slot_limit(3);
         for i in 0..3 {
             let _ = p.insert(i);
@@ -1252,18 +1247,18 @@ mod tests {
 
     #[test]
     fn get_disjoint_mut_rules() {
-        let mut pool = GenIdMap::new();
-        let first = pool.insert(1);
-        let second = pool.insert(2);
-        let gone = pool.insert(3);
-        pool.remove(gone);
+        let mut map = GenIdMap::new();
+        let first = map.insert(1);
+        let second = map.insert(2);
+        let gone = map.insert(3);
+        map.remove(gone);
         {
-            let [left, right] = pool.get_disjoint_mut([first, second]).unwrap();
+            let [left, right] = map.get_disjoint_mut([first, second]).unwrap();
             core::mem::swap(left, right);
         }
-        assert_eq!((pool[first], pool[second]), (2, 1)); // mutation through both is visible
-        assert!(pool.get_disjoint_mut([first, first]).is_none());
-        assert!(pool.get_disjoint_mut([first, gone]).is_none());
+        assert_eq!((map[first], map[second]), (2, 1)); // mutation through both is visible
+        assert!(map.get_disjoint_mut([first, first]).is_none());
+        assert!(map.get_disjoint_mut([first, gone]).is_none());
     }
 
     #[test]
@@ -1282,7 +1277,7 @@ mod tests {
     // Panics abort on WASI, so unwinding tests run on native targets only (spec §4.7).
     #[cfg(not(target_os = "wasi"))]
     #[test]
-    fn retain_panic_leaves_pool_consistent() {
+    fn retain_panic_leaves_map_consistent() {
         use std::panic::{AssertUnwindSafe, catch_unwind};
         let mut p = GenIdMap::new();
         let hs: Vec<_> = (0..10).map(|i| p.insert(i)).collect();

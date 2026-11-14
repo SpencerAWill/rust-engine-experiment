@@ -4,7 +4,7 @@ use core::error::Error;
 use core::fmt;
 
 /// Returned by [`GenIdMap::try_insert`](crate::GenIdMap::try_insert) when
-/// the pool is full. Carries the rejected value back, so nothing is lost.
+/// the map is full. Carries the rejected value back, so nothing is lost.
 ///
 /// # Examples
 ///
@@ -28,14 +28,14 @@ impl<T> CapacityError<T> {
         Self { value, limit }
     }
 
-    /// The most slots the pool that rejected the value can hold.
+    /// The most slots the map that rejected the value can hold.
     ///
     /// # Examples
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// let mut pool = GenIdMap::new();
-    /// if let Err(e) = pool.try_insert(1) {
+    /// let mut map = GenIdMap::new();
+    /// if let Err(e) = map.try_insert(1) {
     ///     assert!(e.limit() > 0);
     /// }
     /// ```
@@ -49,10 +49,10 @@ impl<T> CapacityError<T> {
     ///
     /// ```
     /// # use engine_genid::GenIdMap;
-    /// // A pool only fills up after 2³¹−2 slots, so this just shows the API shape:
-    /// let mut pool = GenIdMap::new();
-    /// match pool.try_insert(7) {
-    ///     Ok(handle) => assert_eq!(pool[handle], 7),
+    /// // A map only fills up after 2³¹−2 slots, so this just shows the API shape:
+    /// let mut map = GenIdMap::new();
+    /// match map.try_insert(7) {
+    ///     Ok(id) => assert_eq!(map[id], 7),
     ///     Err(e) => assert_eq!(e.into_inner(), 7),
     /// }
     /// ```
@@ -65,7 +65,7 @@ impl<T> fmt::Display for CapacityError<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "GenIdMap is full: all {} slot indices are in use or retired; remove values or use another pool",
+            "GenIdMap is full: all {} slot indices are in use or retired; remove values or use another map",
             self.limit
         )
     }
@@ -74,7 +74,7 @@ impl<T> fmt::Display for CapacityError<T> {
 impl<T: fmt::Debug> Error for CapacityError<T> {}
 
 /// Returned by `GenId::try_from(u64)` when the generation (low) half of the bits is zero, which
-/// no handle ever has.
+/// no ID ever has.
 ///
 /// # Examples
 ///
@@ -120,7 +120,7 @@ impl fmt::Display for InvalidGenIdBits {
 
 impl Error for InvalidGenIdBits {}
 
-/// An internal invariant of a pool or allocator does not hold, which would be a bug in this
+/// An internal invariant of a map or allocator does not hold, which would be a bug in this
 /// crate. Returned by the `check_invariants` methods, which exist in tests and with the
 /// `test-invariants` feature.
 ///
@@ -131,9 +131,9 @@ impl Error for InvalidGenIdBits {}
 /// # {
 /// use engine_genid::GenIdMap;
 ///
-/// let mut pool = GenIdMap::new();
-/// let _ = pool.insert(1);
-/// assert!(pool.check_invariants().is_ok());
+/// let mut map = GenIdMap::new();
+/// let _ = map.insert(1);
+/// assert!(map.check_invariants().is_ok());
 /// # }
 /// ```
 #[cfg(any(test, feature = "test-invariants"))]

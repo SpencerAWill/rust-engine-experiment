@@ -15,13 +15,13 @@ static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 static HOOK_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
-fn index_on_stale_handle_panics_at_caller() {
-    let mut pool = GenIdMap::new();
-    let stale = pool.insert(1_u8);
-    pool.remove(stale);
+fn index_on_stale_id_panics_at_caller() {
+    let mut map = GenIdMap::new();
+    let stale = map.insert(1_u8);
+    map.remove(stale);
 
     let (file, message) = panic_info(|| {
-        let _ = pool[stale];
+        let _ = map[stale];
     });
     assert!(
         file.ends_with("tests/panics.rs"),
@@ -31,7 +31,7 @@ fn index_on_stale_handle_panics_at_caller() {
         message.starts_with("GenIdMap index"),
         "message was {message}"
     );
-    assert!(message.contains("stale handle"), "message was {message}");
+    assert!(message.contains("stale ID"), "message was {message}");
     assert!(message.contains("use get()"), "message was {message}");
 }
 

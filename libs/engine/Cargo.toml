@@ -1,6 +1,6 @@
 [package]
 name = "engine"
-description = "Facade for the engine: one dependency that re-exports the collections, handle, random, time, and math crates"
+description = "Facade for the engine: one dependency that re-exports the collections, generational ID, random, time, and math crates"
 keywords = ["gamedev", "simulation", "determinism"]
 categories = ["game-engines"]
 version.workspace = true

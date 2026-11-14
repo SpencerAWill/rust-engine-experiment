@@ -1,4 +1,4 @@
-//! A fixed-capacity pool or allocator never touches the heap after construction.
+//! A fixed-capacity map or allocator never touches the heap after construction.
 //!
 //! In its own binary because it installs a global allocator; `dhat` runs in testing mode, so no
 //! `unsafe` is needed. WASI is excluded because `dhat` needs OS features it does not have.
@@ -33,46 +33,46 @@ fn fewest_blocks<S>(mut setup: impl FnMut() -> S, mut work: impl FnMut(&mut S)) 
 
 const N: usize = 1_000;
 
-/// The containers of the fixed-capacity run, with room for their handles built in advance.
+/// The containers of the fixed-capacity run, with room for their IDs built in advance.
 struct Fixed {
-    pool: GenIdMap<u64>,
+    map: GenIdMap<u64>,
     lean: GenIdAllocator<u8>,
     unit: GenIdMap<()>,
-    pool_handles: Vec<GenId<u64>>,
-    lean_handles: Vec<GenId<u8>>,
-    unit_handles: Vec<GenId<()>>,
+    map_ids: Vec<GenId<u64>>,
+    lean_ids: Vec<GenId<u8>>,
+    unit_ids: Vec<GenId<()>>,
 }
 
 fn work_on_fixed(c: &mut Fixed) {
     for round in 0..20_u64 {
-        c.pool_handles.clear();
-        c.lean_handles.clear();
-        c.unit_handles.clear();
+        c.map_ids.clear();
+        c.lean_ids.clear();
+        c.unit_ids.clear();
         for i in 0..N as u64 {
-            c.pool_handles.push(c.pool.insert(i + round));
-            c.lean_handles.push(c.lean.allocate());
-            c.unit_handles.push(c.unit.insert(()));
+            c.map_ids.push(c.map.insert(i + round));
+            c.lean_ids.push(c.lean.allocate());
+            c.unit_ids.push(c.unit.insert(()));
         }
-        assert!(c.pool.try_insert(0).is_err());
+        assert!(c.map.try_insert(0).is_err());
         assert!(c.lean.try_allocate().is_none());
         assert!(c.unit.try_insert(()).is_err());
-        for h in c.pool_handles.iter().step_by(3) {
-            c.pool.remove(*h);
+        for h in c.map_ids.iter().step_by(3) {
+            c.map.remove(*h);
         }
-        c.pool.retain(|_, v| *v % 2 == 0);
-        let _ = c.pool.iter().count() + c.unit.iter().count();
+        c.map.retain(|_, v| *v % 2 == 0);
+        let _ = c.map.iter().count() + c.unit.iter().count();
         if round % 2 == 0 {
-            c.pool.clear();
+            c.map.clear();
             c.lean.clear();
             c.unit.clear();
         } else {
-            for h in &c.lean_handles {
+            for h in &c.lean_ids {
                 c.lean.free(*h);
             }
-            for h in &c.unit_handles {
+            for h in &c.unit_ids {
                 c.unit.remove(*h);
             }
-            for (_, _) in c.pool.drain() {}
+            for (_, _) in c.map.drain() {}
         }
     }
 }
@@ -84,13 +84,13 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
 
     let blocks = fewest_blocks(
         || Fixed {
-            pool: GenIdMap::with_fixed_capacity(N),
+            map: GenIdMap::with_fixed_capacity(N),
             lean: GenIdAllocator::with_fixed_capacity(N),
             unit: GenIdMap::with_fixed_capacity(N),
-            // The handle lists are test scaffolding, built before measuring starts.
-            pool_handles: Vec::with_capacity(N),
-            lean_handles: Vec::with_capacity(N),
-            unit_handles: Vec::with_capacity(N),
+            // The ID lists are test scaffolding, built before measuring starts.
+            map_ids: Vec::with_capacity(N),
+            lean_ids: Vec::with_capacity(N),
+            unit_ids: Vec::with_capacity(N),
         },
         work_on_fixed,
     );
@@ -108,10 +108,10 @@ fn fixed_capacity_containers_never_allocate_after_construction() {
                 Vec::with_capacity(N),
             )
         },
-        |(lean, unit, lean_handles, unit_handles)| {
+        |(lean, unit, lean_ids, unit_ids)| {
             for _ in 0..N {
-                lean_handles.push(lean.allocate());
-                unit_handles.push(unit.insert(()));
+                lean_ids.push(lean.allocate());
+                unit_ids.push(unit.insert(()));
             }
         },
     );
