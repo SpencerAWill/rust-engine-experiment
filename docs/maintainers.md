@@ -9,7 +9,8 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] **Add `CODE_OF_CONDUCT.md`** once there is a contact method for conduct reports (the Contributor Covenant needs one).
 - [x] **Branch protection on `main`:** a repository ruleset declared in [`infra/github`](../infra/github/README.md) (Pulumi). It requires a pull request and every job in `ci.yml` as a status check (`os-matrix` once per OS), and blocks force pushes and deletion; the repository admin can bypass it. Change it there, not in the GitHub UI, and keep its `requiredChecks` in step with the job names in `ci.yml`.
 - [x] **Run the macOS and Windows jobs on every push:** remove the `if: github.event_name == 'pull_request'` condition (and its comment) from `os-matrix` in `ci.yml`. It is only there to save private-repo minutes.
-- [ ] Enable Dependabot security updates; set the repository description and topics; decide whether to enable Discussions.
+- [ ] Enable Dependabot security updates; set the repository description and topics.
+- [x] **Discussions** are enabled for questions (declared in `infra/github`), and the issue chooser links to them.
 - [ ] **Never use a self-hosted runner for pull requests from forks.** A runner executes the pull request's code. If one is ever added, restrict it to scheduled jobs on `main`.
 - [ ] Re-read `docs/` and the history once more for anything private (the last scan found no secrets, private paths, or large binaries).
 
