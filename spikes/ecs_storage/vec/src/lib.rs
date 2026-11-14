@@ -5,6 +5,7 @@
 //! the best case that every storage prototype's cost is read against.
 
 pub mod add_remove;
+pub mod agents;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;

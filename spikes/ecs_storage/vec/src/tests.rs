@@ -5,6 +5,7 @@ use engine::prelude::*;
 use spike_ecs_harness::{Params, Workload, check_conformance};
 
 use crate::add_remove::VecAddRemove;
+use crate::agents::{SoaAgents, VecAgents};
 use crate::entity_churn::VecEntityChurn;
 use crate::frag_iter::VecFragIter;
 use crate::heavy_compute::VecHeavyCompute;
@@ -652,5 +653,58 @@ mod sprites {
         for e in &w.entities {
             assert!(e.transform.translation.is_finite());
         }
+    }
+}
+
+mod agents {
+    use super::*;
+    use agents_2d::SimConfig;
+
+    impl Reversible for SoaAgents {
+        fn reverse(&mut self) {
+            self.ids.reverse();
+            self.transforms.reverse();
+            self.velocities.reverse();
+            self.ttls.reverse();
+            self.seekers.reverse();
+        }
+    }
+
+    const AGENTS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+
+    #[test]
+    fn vec_aos_agents_is_sim() {
+        let mut w = VecAgents::setup(AGENTS);
+        for _ in 0..600 {
+            w.step();
+        }
+        let config = SimConfig {
+            agents: 1_000,
+            seed: 42,
+        };
+        assert_eq!(w.checksum(), agents_2d::run(&config, 600).checksum);
+    }
+
+    #[test]
+    fn vec_soa_agents_matches_vec_aos() {
+        // 1,300 ticks cover respawns (lifetimes end by tick 600) and a period without a cursor.
+        assert_eq!(
+            check_conformance::<VecAgents, SoaAgents>(AGENTS, 1_300),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn soa_agents_is_order_independent() {
+        assert_order_independent::<SoaAgents>(AGENTS);
+    }
+
+    #[test]
+    fn agents_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecAgents>();
+        assert_zero_count_is_valid::<SoaAgents>();
     }
 }

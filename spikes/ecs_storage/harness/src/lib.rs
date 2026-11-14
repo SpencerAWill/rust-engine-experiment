@@ -7,6 +7,7 @@
 //! `docs/design/m3-ecs-storage/m3.2-spike-harness/spec.md`.
 
 pub mod add_remove;
+pub mod agents;
 mod conformance;
 pub mod entity_churn;
 mod fnv;
