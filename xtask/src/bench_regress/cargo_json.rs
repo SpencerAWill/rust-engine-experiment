@@ -62,12 +62,12 @@ mod tests {
     const LIB: &str = r#"{"reason":"compiler-artifact","package_id":"p","target":{"kind":["lib"],"crate_types":["lib"],"name":"engine_bench_regress"},"profile":{"test":true},"executable":"/t/release/deps/engine_bench_regress-1","fresh":true}"#;
     const BUILD_SCRIPT: &str = r#"{"reason":"compiler-artifact","package_id":"q","target":{"kind":["custom-build"],"crate_types":["bin"],"name":"build-script-build"},"executable":"/t/release/build/q/build_script_build-2","fresh":true}"#;
     const PRNG: &str = r#"{"reason":"compiler-artifact","package_id":"p","target":{"kind":["bench"],"crate_types":["bin"],"name":"prng"},"executable":"/t/release/deps/prng-34248b49","fresh":true}"#;
-    const HANDLE: &str = r#"{"reason":"compiler-artifact","package_id":"p","target":{"kind":["bench"],"crate_types":["bin"],"name":"handle"},"executable":"/t/release/deps/handle-99e28a33","fresh":false}"#;
+    const GENID: &str = r#"{"reason":"compiler-artifact","package_id":"p","target":{"kind":["bench"],"crate_types":["bin"],"name":"genid"},"executable":"/t/release/deps/genid-99e28a33","fresh":false}"#;
     const FINISHED: &str = r#"{"reason":"build-finished","success":true}"#;
 
     #[test]
     fn bench_executables_picks_bench_artifacts() {
-        let messages = [LIB, BUILD_SCRIPT, PRNG, HANDLE, FINISHED].join("\n");
+        let messages = [LIB, BUILD_SCRIPT, PRNG, GENID, FINISHED].join("\n");
         let exes = bench_executables(&messages).unwrap();
         let found: Vec<_> = exes
             .iter()
@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(
             found,
             [
-                ("handle", "/t/release/deps/handle-99e28a33"),
+                ("genid", "/t/release/deps/genid-99e28a33"),
                 ("prng", "/t/release/deps/prng-34248b49")
             ]
         );

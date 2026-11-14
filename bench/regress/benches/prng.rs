@@ -10,7 +10,7 @@
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work. The
 //! operation runs in a separate `*_work` function that is never inlined, for the reason given in
-//! `handle.rs`.
+//! `genid.rs`.
 
 use core::hint::black_box;
 
