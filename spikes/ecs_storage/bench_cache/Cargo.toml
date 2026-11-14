@@ -1,0 +1,21 @@
+[package]
+name = "spike_ecs_bench_cache"
+description = "ECS storage spike: instruction counts and simulated cache misses of every backend (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bench]]
+name = "cache"
+harness = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+gungraun.workspace = true
+spike_ecs_harness = { path = "../harness" }
+spike_ecs_vec = { path = "../vec" }

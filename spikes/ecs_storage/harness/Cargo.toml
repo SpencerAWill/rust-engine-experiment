@@ -1,0 +1,16 @@
+[package]
+name = "spike_ecs_harness"
+description = "ECS storage spike: workloads, conformance check and hashing (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+agents_2d = { path = "../../../examples/agents_2d" }
+
+[lints]
+workspace = true

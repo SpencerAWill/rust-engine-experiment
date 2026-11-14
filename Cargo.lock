@@ -1957,6 +1957,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_bench_cache"
+version = "0.1.0"
+dependencies = [
+ "gungraun",
+ "spike_ecs_harness",
+ "spike_ecs_vec",
+]
+
+[[package]]
+name = "spike_ecs_bench_compare"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "spike_ecs_harness",
+ "spike_ecs_vec",
+]
+
+[[package]]
+name = "spike_ecs_harness"
+version = "0.1.0"
+dependencies = [
+ "agents_2d",
+ "engine",
+]
+
+[[package]]
+name = "spike_ecs_vec"
+version = "0.1.0"
+dependencies = [
+ "agents_2d",
+ "engine",
+ "spike_ecs_harness",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
