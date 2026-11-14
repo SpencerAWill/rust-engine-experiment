@@ -33,6 +33,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | M3.6 | Runtime-registered components in safe byte columns, in the leading prototype | M3.3, M3.4, M3.5 | Planned | |
 | M3.7 | `unsafe` type-erased variant of the leading prototype: an ADR for a spike-scoped exception, an `unsafe-allowlist.toml` entry and Miri in CI; measures the safe and `unsafe` gap | M3.3, M3.4, M3.5 | Planned | |
 | M3.8 | Decision ADRs (storage model, component identity, foreign and mod-defined component storage, transform layout) and the `benchmarks.md` section | M3.0 to M3.7 | Planned | |
+| M3.9 | Repository settings hardening (not part of M3's exit criteria): private vulnerability reporting, squash-only merging with linear history, Dependabot security updates and cooldown, CodeQL and Scorecard code scanning, a `check-workflows` allowlist for write scopes, wiki and Projects off | none | Drafting | [spec](design/m3-ecs-storage/m3.9-repository-settings/spec.md), [plan](design/m3-ecs-storage/m3.9-repository-settings/plan.md) |
 
 ## M2 chunks
 
