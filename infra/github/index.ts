@@ -29,7 +29,8 @@ const repo = new github.Repository(
         hasIssues: true,
         hasProjects: true,
         hasWiki: true,
-        hasDiscussions: false,
+        // Questions go here, not to issues (the issue chooser links to it: .github/ISSUE_TEMPLATE/config.yml).
+        hasDiscussions: true,
 
         allowMergeCommit: true,
         allowSquashMerge: true,
@@ -148,6 +149,19 @@ const labels: { name: string; color: string; description: string }[] = [
         name: "perf-regression-accepted",
         color: "fbca04",
         description: "An instruction-count regression in bench-regress is intended; justified in the PR description",
+    },
+    // Assigned by the issue templates in .github/ISSUE_TEMPLATE/: keep their `labels:` in step
+    // with this list.
+    {
+        name: "infrastructure",
+        color: "bfd4f2",
+        description: "CI, tooling, repository layout or settings, contributor process",
+    },
+    { name: "performance", color: "f9d0c4", description: "A measured slowdown, speedup or memory change" },
+    {
+        name: "determinism",
+        color: "b60205",
+        description: "Same build, same platform, same inputs, different results (ADR 0003)",
     },
 ];
 

@@ -1,0 +1,107 @@
+name: Performance report
+description: A measured slowdown, speedup or memory change, with a saved baseline and the noise floor
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Performance claims need measurements ([CONTRIBUTING, Benchmarks](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/CONTRIBUTING.md#benchmarks)). Wall-clock numbers drift by about 5% between runs on a quiet machine, so a report compares two saved baselines and states the noise floor. To compare: `cargo xtask bench --save OLD` at one commit, `cargo xtask bench --save NEW` at the other, then `cargo xtask bench-report --baseline NEW --against OLD`.
+
+        An idea for a speedup that you have not measured yet goes in a **Feature request**.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you reporting?
+      options:
+        - A regression (slower, or more memory)
+        - An improvement (faster, or less memory)
+        - Something else (explain in the summary)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: method
+    attributes:
+      label: How did you measure it?
+      options:
+        - Wall-clock time (cargo xtask bench and bench-report)
+        - Instruction counts (cargo xtask bench-regress)
+        - Something else (explain in the summary)
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What changed, by how much, and between which commits.
+    validations:
+      required: true
+
+  - type: input
+    id: benchmarks
+    attributes:
+      label: Benchmarks
+      description: The benchmark groups or functions that changed.
+      placeholder: insert, get_random
+    validations:
+      required: true
+
+  - type: input
+    id: baselines
+    attributes:
+      label: Baselines
+      description: The saved baseline names and the commit each was measured at. For instruction counts, the base and head commits.
+      placeholder: "OLD = f0f5640, NEW = 1a2b3c4"
+    validations:
+      required: true
+
+  - type: input
+    id: noise
+    attributes:
+      label: Noise floor
+      description: How much the same commit varies between runs on this machine, and how you measured that. Instruction counts are close to exact, so say so for those.
+      placeholder: Two runs of OLD differ by up to 3%
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: The changes section of the `bench-report` page (`target/bench-report/index.html`; a screenshot is fine) or the table printed by `bench-regress`.
+    validations:
+      required: true
+
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      description: CPU, core count and memory. For instruction counts, the architecture is what matters (aarch64 and x86_64 counts are not comparable).
+      placeholder: Apple M2 Pro, 12 cores, 32 GB
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS and target
+      placeholder: macOS 26.1, aarch64-apple-darwin
+    validations:
+      required: true
+
+  - type: input
+    id: rust
+    attributes:
+      label: Rust version
+      description: The output of `rustc --version`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: conditions
+    attributes:
+      label: Conditions
+      description: Required for wall-clock runs (CONTRIBUTING asks you to record them); optional for instruction counts. How you kept the machine quiet (AC power, other apps closed), and whether `pmset -g log` (macOS) showed a power change or sleep during the run. Say what you did not measure.
+      placeholder: AC power, other apps closed, no power events in pmset -g log.
