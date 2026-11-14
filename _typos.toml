@@ -3,3 +3,7 @@
 [default.extend-words]
 # Unreal Engine abbreviations in the spec's list of sources (UE5, UE).
 UE = "UE"
+# Terms in docs/research/data-structures.md: level of detail, the ReGIR technique, and an author's surname.
+LOD = "LOD"
+GIR = "GIR"
+Hendler = "Hendler"

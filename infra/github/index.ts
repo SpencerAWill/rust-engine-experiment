@@ -186,6 +186,12 @@ const labels: { name: string; color: string; description: string }[] = [
         color: "b60205",
         description: "Same build, same platform, same inputs, different results (ADR 0003)",
     },
+    // Applied by hand to research tracking issues (docs/research/) and the sub-issues spawned from them.
+    {
+        name: "research",
+        color: "c5def5",
+        description: "External research or survey; not a decision or scheduled work",
+    },
 ];
 
 new github.IssueLabels("labels", { repository: repo.name, labels });
