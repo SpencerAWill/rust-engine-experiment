@@ -104,6 +104,34 @@ fn runner_version(output: &str) -> Option<String> {
 /// `RELEVANT` lists it too.
 const REGRESS_DIR: &str = "bench/regress";
 
+/// Where the regression package lived before, newest first. A base commit from before a move has
+/// it there (for example the `m2` tag of the milestone check in `docs/maintainers.md`); its
+/// benchmarks still compare with the head's, because Gungraun keeps baselines under
+/// `GUNGRAUN_HOME/<target>/<group>/<function>`, not under the package's directory (see
+/// `output_dir` in `fixtures/`). #28 moved it from `bench-regress/`.
+const LEGACY_REGRESS_DIRS: &[&str] = &["bench-regress"];
+
+/// The manifests a base may have, current location first.
+fn regress_manifests() -> Vec<String> {
+    std::iter::once(REGRESS_DIR)
+        .chain(LEGACY_REGRESS_DIRS.iter().copied())
+        .map(|dir| format!("{dir}/Cargo.toml"))
+        .collect()
+}
+
+/// Where the base has the regression package: the first of `REGRESS_DIR` and the
+/// `LEGACY_REGRESS_DIRS` whose `Cargo.toml` appears in `listed` (the output of
+/// `git ls-tree --name-only` for `regress_manifests()`). `None` when the base has none of them.
+fn base_regress_dir(listed: &str) -> Option<&'static str> {
+    std::iter::once(REGRESS_DIR)
+        .chain(LEGACY_REGRESS_DIRS.iter().copied())
+        .find(|dir| {
+            listed
+                .lines()
+                .any(|line| line == format!("{dir}/Cargo.toml"))
+        })
+}
+
 /// What the head run can see changed: a change to any of these can change an instruction count
 /// (spec §4.4 step 2). A pattern ending in `/**` matches everything below that directory; any
 /// other pattern matches the path exactly.
@@ -547,27 +575,28 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
         &["show", &format!("{base}:Cargo.lock")],
         "could not read Cargo.lock of the base",
     )?;
-    let base_has_crate = !git(
+    let manifests = regress_manifests();
+    let mut ls_tree = vec!["ls-tree", "--name-only", &base, "--"];
+    ls_tree.extend(manifests.iter().map(String::as_str));
+    let base_dir = base_regress_dir(&git(
         &repo,
-        &[
-            "ls-tree",
-            "--name-only",
-            &base,
-            "--",
-            &format!("{REGRESS_DIR}/Cargo.toml"),
-        ],
+        &ls_tree,
         "could not list the files of the base",
-    )?
-    .is_empty();
-    let skip = base_skip(base_has_crate, &base_lock, &head_lock);
-    match &skip {
-        Some(BaseSkip::NoCrate) => println!(
+    )?);
+    let skip = base_skip(base_dir.is_some(), &base_lock, &head_lock);
+    match (&skip, base_dir) {
+        (Some(BaseSkip::NoCrate), _) | (None, None) => println!(
             "bench-regress: the base has no bench-regress crate, so every benchmark is new"
         ),
-        Some(BaseSkip::VersionChanged { base, head }) => {
+        (Some(BaseSkip::VersionChanged { base, head }), _) => {
             println!("bench-regress: not compared: gungraun changed from {base} to {head}");
         }
-        None => run_base(&repo, &work, &base, &env)?,
+        (None, Some(dir)) => {
+            if dir != REGRESS_DIR {
+                println!("bench-regress: the base has the package at its earlier location {dir}/");
+            }
+            run_base(&repo, &work, &base, dir, &env)?;
+        }
     }
 
     // 5. Head run.
@@ -596,8 +625,15 @@ pub(crate) fn bench_regress(options: &Options) -> Result<(), String> {
     Ok(())
 }
 
-/// The base run: a worktree of `base`, its own build, and the base arguments.
-fn run_base(repo: &Path, work: &Path, base: &str, env: &[(&str, String)]) -> Result<(), String> {
+/// The base run: a worktree of `base`, its own build, and the base arguments, with the targets run
+/// from `package_dir` (where the base has the regression package, see `base_regress_dir`).
+fn run_base(
+    repo: &Path,
+    work: &Path,
+    base: &str,
+    package_dir: &str,
+    env: &[(&str, String)],
+) -> Result<(), String> {
     let worktree = Worktree::add(repo, &work.join("base-worktree"), base)?;
     // The base's rust-toolchain.toml may name another toolchain than the head's.
     let install = ["toolchain", "install"];
@@ -616,7 +652,7 @@ fn run_base(repo: &Path, work: &Path, base: &str, env: &[(&str, String)]) -> Res
         ));
     }
     let exes = build(&worktree.path, Some(&work.join("base-target")), true)?;
-    let exits = run_targets(&worktree.path.join(REGRESS_DIR), &exes, &base_args(), env);
+    let exits = run_targets(&worktree.path.join(package_dir), &exes, &base_args(), env);
     match exits.iter().find(|(_, code)| *code != Some(0)) {
         Some((name, code)) => Err(format!(
             "the base run failed: `{name}` ended with {}",
@@ -741,6 +777,28 @@ mod tests {
         assert_eq!(target_dir(Some("/target"), repo), PathBuf::from("/target"));
         assert_eq!(target_dir(None, repo), PathBuf::from("/repo/target"));
         assert_eq!(target_dir(Some(""), repo), PathBuf::from("/repo/target"));
+    }
+
+    #[test]
+    fn the_base_package_is_found_at_the_current_or_a_legacy_location() {
+        assert_eq!(
+            base_regress_dir("bench/regress/Cargo.toml\n"),
+            Some("bench/regress")
+        );
+        // A base from before #28 moved the package, such as the `m2` tag.
+        assert_eq!(
+            base_regress_dir("bench-regress/Cargo.toml\n"),
+            Some("bench-regress")
+        );
+        // The current location wins over a stale copy at an old one.
+        assert_eq!(
+            base_regress_dir("bench-regress/Cargo.toml\nbench/regress/Cargo.toml\n"),
+            Some("bench/regress")
+        );
+        // Before M2.4 there was no package at all.
+        assert_eq!(base_regress_dir(""), None);
+        // Only a whole manifest path counts.
+        assert_eq!(base_regress_dir("bench/regress/Cargo.toml.orig\n"), None);
     }
 
     #[test]
