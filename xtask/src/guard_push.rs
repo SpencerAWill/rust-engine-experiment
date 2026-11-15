@@ -20,9 +20,19 @@ pub(crate) enum Decision {
 /// Decides whether `command` may run. `current_branch` is the checked-out branch of the hook's
 /// working directory, when known; a push with no explicit refspec pushes it.
 pub(crate) fn decide(command: &str, current_branch: Option<&str>) -> Decision {
-    let segments = match split_segments(command) {
+    let (stripped, shell_bodies) = strip_heredocs(command);
+    // A heredoc that feeds a shell is a script: decide on it as a nested command.
+    for body in &shell_bodies {
+        if let Decision::Block(reason) = decide(body, current_branch) {
+            return Decision::Block(reason);
+        }
+    }
+    let segments = match split_segments(&stripped) {
         Ok(segments) => segments,
-        Err(why) => return Decision::Block(blocked(&why)),
+        // Fail closed only when the text looks like a push; a command whose quoting the simple
+        // parser cannot follow, and that never says `git ... push`, is not the guard's business.
+        Err(why) if mentions_git_push(&stripped) => return Decision::Block(blocked(&why)),
+        Err(_) => return Decision::Allow,
     };
     for words in &segments {
         if let Some(reason) = check_segment(words, current_branch) {
@@ -47,6 +57,141 @@ fn decide_hook_input(input: &str, branch_of: impl Fn(&str) -> Option<String>) ->
     };
     let branch = value["cwd"].as_str().and_then(branch_of);
     decide(command, branch.as_deref())
+}
+
+/// True when some line of `text` has the word `git` and, later, the word `push`.
+fn mentions_git_push(text: &str) -> bool {
+    text.lines().any(|line| {
+        let mut words = line
+            .split(|c: char| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '.')))
+            .filter(|w| !w.is_empty());
+        words.any(|w| w == "git") && words.any(|w| w == "push")
+    })
+}
+
+/// True when the command text before a heredoc operator runs a shell (`bash`, `sh -s`, ...).
+fn feeds_shell(before: &str) -> bool {
+    let line = before
+        .rsplit(['\n', ';', '|', '&', '('])
+        .next()
+        .unwrap_or_default();
+    let mut words = line.split_whitespace().filter(|w| {
+        (!w.contains('=') || w.starts_with('-'))
+            && !matches!(*w, "env" | "command" | "exec" | "sudo" | "nohup")
+    });
+    words
+        .next()
+        .is_some_and(|w| matches!(w.rsplit('/').next(), Some("sh" | "bash" | "zsh")))
+}
+
+/// Parses a heredoc delimiter starting at `j`; returns it and the index after it.
+fn heredoc_word(chars: &[char], mut j: usize) -> (String, usize) {
+    let mut word = String::new();
+    while let Some(&w) = chars.get(j) {
+        if w == '\'' || w == '"' {
+            j += 1;
+            while let Some(&q) = chars.get(j) {
+                j += 1;
+                if q == w {
+                    break;
+                }
+                word.push(q);
+            }
+        } else if w == '\\' {
+            j += 1;
+        } else if w.is_whitespace() || ";|&()<>".contains(w) {
+            break;
+        } else {
+            word.push(w);
+            j += 1;
+        }
+    }
+    (word, j)
+}
+
+/// Removes heredoc operators and bodies (`<<WORD`, `<<'WORD'`, `<<"WORD"`, `<<-WORD`) from
+/// `command`; they are data. Returns the rest, and the bodies of heredocs that feed a shell, which
+/// are commands. Quotes are tracked so a `<<` inside a string is not an operator.
+fn strip_heredocs(command: &str) -> (String, Vec<String>) {
+    let chars: Vec<char> = command.chars().collect();
+    let mut out = String::new();
+    let mut shell_bodies = Vec::new();
+    // Heredocs opened on the current line: (delimiter, tabs allowed, feeds a shell).
+    let mut pending: Vec<(String, bool, bool)> = Vec::new();
+    let mut quote: Option<char> = None;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        match quote {
+            Some(q) => {
+                if c == '\\' && q == '"' {
+                    out.push(c);
+                    out.extend(chars.get(i + 1));
+                    i += 2;
+                    continue;
+                }
+                if c == q {
+                    quote = None;
+                }
+            }
+            None => match c {
+                '\'' | '"' => quote = Some(c),
+                '\\' => {
+                    out.push(c);
+                    out.extend(chars.get(i + 1));
+                    i += 2;
+                    continue;
+                }
+                '<' if chars.get(i + 1) == Some(&'<') && chars.get(i + 2) != Some(&'<') => {
+                    let mut j = i + 2;
+                    let dash = chars.get(j) == Some(&'-');
+                    j += usize::from(dash);
+                    while matches!(chars.get(j), Some(' ' | '\t')) {
+                        j += 1;
+                    }
+                    let (word, end) = heredoc_word(&chars, j);
+                    if !word.is_empty() {
+                        pending.push((word, dash, feeds_shell(&out)));
+                        i = end;
+                        continue;
+                    }
+                }
+                '\n' if !pending.is_empty() => {
+                    out.push('\n');
+                    i += 1;
+                    for (word, dash, shell) in std::mem::take(&mut pending) {
+                        let mut body = String::new();
+                        while i < chars.len() {
+                            let end = chars[i..]
+                                .iter()
+                                .position(|&x| x == '\n')
+                                .map_or(chars.len(), |p| i + p);
+                            let line: String = chars[i..end].iter().collect();
+                            i = (end + 1).min(chars.len());
+                            let test = if dash {
+                                line.trim_start_matches('\t')
+                            } else {
+                                &line
+                            };
+                            if test == word {
+                                break;
+                            }
+                            body.push_str(&line);
+                            body.push('\n');
+                        }
+                        if shell {
+                            shell_bodies.push(body);
+                        }
+                    }
+                    continue;
+                }
+                _ => {}
+            },
+        }
+        out.push(c);
+        i += 1;
+    }
+    (out, shell_bodies)
 }
 
 /// Splits a shell command into segments (on `&&`, `||`, `;`, `|`, `&`, newlines and parentheses
@@ -310,6 +455,41 @@ mod tests {
                 Decision::Allow,
                 "should allow: {command}"
             );
+        }
+    }
+
+    /// The shape that tripped the guard in the step 6 trial.
+    fn trial_command() -> String {
+        let python = "python3 - <<'EOF'\nimport re\ns = open('f').read()\nprint(s.replace(\"a\",\"b\"))\nEOF\n";
+        let prose = "cat >> f <<'EOF'\n- it's done: the `git push --dry-run origin main` blocked, and don't retry\nEOF\n";
+        let commit = "git add a b && git commit -q -m \"feat: x\n\nbody with push guard words\" && git log --oneline -1";
+        format!("{python}{prose}{commit}")
+    }
+
+    #[test]
+    fn heredoc_and_quote_cases() {
+        let allow = [
+            trial_command(),
+            "cat > f <<EOF\ngit push origin main\nEOF".to_string(),
+            "cat > f <<-EOF\n\tgit push origin main\n\tEOF\ngit status".to_string(),
+            "git commit -m \"it's the push guard\"".to_string(),
+            "echo 'it's a push\ngit status".to_string(),
+        ];
+        for command in &allow {
+            assert_eq!(
+                decide(command, None),
+                Decision::Allow,
+                "should allow: {command}"
+            );
+        }
+        let block = [
+            "bash <<'EOF'\ngit push origin main\nEOF".to_string(),
+            "sh -s <<EOF\ngit push origin main\nEOF".to_string(),
+            "git push \"origin main".to_string(),
+            "cat <<EOF\nx\nEOF\ngit push origin main".to_string(),
+        ];
+        for command in &block {
+            assert!(is_block(command, None), "should block: {command}");
         }
     }
 
