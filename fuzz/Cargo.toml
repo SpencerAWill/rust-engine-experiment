@@ -3,7 +3,7 @@ name = "engine-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
-description = "cargo-fuzz targets for the genid module of engine (a developer tool, outside the workspace)"
+description = "cargo-fuzz targets for the genid and collections modules of engine (a developer tool, outside the workspace)"
 
 [package.metadata]
 cargo-fuzz = true
@@ -33,6 +33,13 @@ bench = false
 [[bin]]
 name = "genid_allocator_ops"
 path = "fuzz_targets/genid_allocator_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bit_set_ops"
+path = "fuzz_targets/bit_set_ops.rs"
 test = false
 doc = false
 bench = false
