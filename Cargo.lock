@@ -613,6 +613,7 @@ dependencies = [
  "criterion",
  "engine",
  "fastrand",
+ "fixedbitset",
  "foldhash",
  "indexmap",
  "rand",
@@ -657,6 +658,12 @@ dependencies = [
  "dhat",
  "engine",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5905ec755cc8386d7928353e4d356d2be3e89e81e5ca01fe630a1ca4d08dc175"
 
 [[package]]
 name = "foldhash"

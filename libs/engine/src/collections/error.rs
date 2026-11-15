@@ -21,6 +21,15 @@ impl TryReserveError {
     pub(crate) fn from_inner(_inner: indexmap::TryReserveError) -> Self {
         Self(())
     }
+
+    /// An index or capacity past `BitSet::MAX_BITS`.
+    pub(crate) const fn capacity_overflow() -> Self {
+        Self(())
+    }
+
+    pub(crate) fn from_alloc(_inner: alloc::collections::TryReserveError) -> Self {
+        Self(())
+    }
 }
 
 impl fmt::Display for TryReserveError {
@@ -32,3 +41,56 @@ impl fmt::Display for TryReserveError {
 }
 
 impl Error for TryReserveError {}
+
+/// Returned by `BitArray::try_insert` and `try_remove` when the index is past the end.
+///
+/// # Examples
+///
+/// ```
+/// use engine::collections::BitArray;
+///
+/// let mut bits = BitArray::<1>::new();
+/// let error = bits.try_insert(70).unwrap_err();
+/// assert_eq!(error.index(), 70);
+/// assert_eq!(error.capacity(), 64);
+/// assert_eq!(
+///     error.to_string(),
+///     "bit index 70 is out of range: this set holds bits 0 to 63"
+/// );
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BitIndexError {
+    index: usize,
+    capacity: usize,
+}
+
+impl BitIndexError {
+    pub(crate) const fn new(index: usize, capacity: usize) -> Self {
+        Self { index, capacity }
+    }
+
+    /// The index that was out of range.
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    /// The number of bits the set holds: valid indices are `0..capacity`.
+    #[must_use]
+    pub const fn capacity(&self) -> usize {
+        self.capacity
+    }
+}
+
+impl fmt::Display for BitIndexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "bit index {} is out of range: ", self.index)?;
+        match self.capacity.checked_sub(1) {
+            Some(last) => write!(f, "this set holds bits 0 to {last}"),
+            None => f.write_str("this set holds no bits"),
+        }
+    }
+}
+
+impl Error for BitIndexError {}

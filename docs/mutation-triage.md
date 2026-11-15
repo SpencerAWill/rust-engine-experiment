@@ -165,3 +165,39 @@ Both runs: `cargo-mutants` 27.1.0, `cargo xtask mutants --module collections -j 
 | `libs/engine/src/collections/index_set/iter.rs:101:9: replace <impl ExactSizeIterator for IntoIter<T>>::len -> usize with 0` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
 | `libs/engine/src/collections/index_set/iter.rs:101:9: replace <impl ExactSizeIterator for IntoIter<T>>::len -> usize with 1` | test gap, fixed | `set_iterators_report_exact_sizes_as_they_advance` (contracts.rs) |
 | `libs/engine/src/collections/index_set/iter.rs:109:9: replace <impl fmt::Debug for IntoIter<T>>::fmt -> fmt::Result with Ok(Default::default())` | test gap, fixed | `owning_and_mutable_iterators_and_entries_have_nonempty_debug_output` (contracts.rs) |
+
+### Bitsets (M3.14)
+
+`BitSet`, `BitArray`, their iterators and the shared word routines. Three tests closed the `Hash`, `Extend<&usize>` and `From<[usize; N]>` gaps and one closed the `MAX_BITS` boundary of `try_ensure_capacity`. Two comparisons were removed or restructured so that their mutants no longer exist (an `if` that only skipped a no-op reservation, and a reserved amount that `resize` makes irrelevant), and two equivalent mutants are excluded in `.cargo/mutants.toml`. The eight timeouts are mutants that make an iterator or its loop never end; a test that does not finish detects them, so they need no action.
+
+| | Triage run | Confirming run (after the new tests) |
+|---|---|---|
+| Mutants tested | 453 | 446 |
+| Caught | 344 | 345 |
+| Missed | 9 | 1 (code then restructured, see below) |
+| Timeout | 8 | 8 |
+| Unviable | 92 | 92 |
+
+Both runs: `cargo-mutants` 27.1.0, `cargo xtask mutants --module collections -j 1`, in a Linux (aarch64) container limited to 4 GB of memory, with the other settings of `.cargo/mutants.toml`. They were not run on macOS with `-j 2`, because the first attempt that way exhausted the machine's memory (below). Peak container memory was 1,541 MiB in the triage run and 922 MiB in the confirming run. The counts include the `IndexMap` and `IndexSet` mutants of M3.1, which are unchanged.
+
+After the confirming run, the code review of the branch led to `#[inline]` on the hot methods, a `get_mut` fast path in `try_insert`, and panic messages that name `from_iter` and `from`. A targeted run of the 28 mutants in `try_insert`, `grow_to_hold`, `extend`, `from_iter`, `From`, `try_ensure_capacity` and `words_for_bits` caught all 28, which includes a new `Extend<usize>` test that closed a gap the change opened.
+
+**Memory.** A mutant that makes an iterator endless (`next` replaced by `Some(0)`) turns every test that collects it into an unbounded `Vec`, and every test that formats it into an unbounded `String`, until the timeout. That used up the memory of the first attempt. Tests that walk an iterator or `Debug` output of the code under test now use `bounded` and `debug_bounded` (`collections/tests/mod.rs`), which stop at a limit, and mutation runs go through a memory-limited container.
+
+| Mutant | Class | Action |
+|---|---|---|
+| `bit_set.rs:451:9: replace <impl Hash for BitSet>::hash with ()` | test gap, fixed | `hash_depends_on_the_members` (bit_set.rs) |
+| `bit_set.rs:494:9: replace <impl Extend<&'a usize> for BitSet>::extend with ()` | test gap, fixed | `extend_from_references_and_from_array_add_the_indices` (bit_set.rs) |
+| `bit_set.rs:505:9: replace <impl From<[usize; N]> for BitSet>::from -> Self with Default::default()` | test gap, fixed | `extend_from_references_and_from_array_add_the_indices` (bit_set.rs) |
+| `bit_set.rs:223:17: replace > with >= in BitSet::try_ensure_capacity` | test gap, fixed | `try_with_capacity_accepts_max_bits_and_rejects_one_more` (bit_set.rs; 64-bit targets) |
+| `bit_set.rs:227:19: replace > with >= in BitSet::try_ensure_capacity` | equivalent (code removed) | the guard only skipped a reservation that is a no-op when the capacity already covers it, so it was removed |
+| `bit_set.rs:229:43: replace - with + in BitSet::try_ensure_capacity` | not worth a test (code restructured) | over-reserving by the current length is space only and `ensure_capacity` promises `capacity() >= bits`; the amount is now `saturating_sub`, which has no operator to mutate |
+| `bit_set.rs:274:35: replace + with * in BitSet::try_insert` | equivalent (code restructured) | `resize` grows the vector whatever was reserved; growth now lives in `grow_to_hold`, so the reservation is no longer a separate expression |
+| `bit_set.rs:340:22: replace > with >= in BitSet::union_with` | equivalent | excluded: an equal length makes the resize a no-op |
+| `bit_set.rs:361:22: replace > with >= in BitSet::symmetric_difference_with` | equivalent | excluded: as for `union_with` |
+| `bit_set.rs:272:19: replace > with >= in BitSet::try_insert` (confirming run) | equivalent (code restructured) | `needed > len` no longer exists: `try_insert` tries `get_mut` first and calls `grow_to_hold` only when the word is missing |
+| `bit_set/iter.rs:34:9: replace Cursor::next -> Option<usize> with Some(0)` and `with Some(1)` | timeout, detected | the iterator never ends |
+| `bit_set/iter.rs:37:33: replace &= with \|= in Cursor::next` | timeout, detected | the lowest bit is never cleared |
+| `bit_set/iter.rs:37:52: replace - with + in Cursor::next` and `replace - with /` | timeout, detected | the clearing expression never clears the lowest bit |
+| `bit_set/iter.rs:46:24: replace += with *= in Cursor::next` | timeout, detected | the word index never advances |
+| `bit_set/iter.rs:118:9: replace <impl Iterator for Iter<'_>>::next -> Option<usize> with Some(0)` and `with Some(1)` | timeout, detected | the iterator never ends |
