@@ -11,12 +11,14 @@ case $input in
 *) exit 0 ;;
 esac
 cd "$(dirname "$0")/../.." || exit 2
-printf '%s' "$input" | cargo -q xtask guard-push
+root=$(pwd)
+# A target dir of its own, so a build running in the default one cannot hold the lock the guard needs.
+printf '%s' "$input" | CARGO_TARGET_DIR="$root/target/guard-push" cargo -q xtask guard-push
 status=$?
 case $status in
 0 | 2) exit "$status" ;;
 esac
-if printf '%s' "$input" | grep -Eq '(^|[^[:alnum:]_-])git([^[:alnum:]_-].*)?[^[:alnum:]_-]push([^[:alnum:]_-]|$)'; then
+if printf '%s' "$input" | grep -Eq '(^|[^[:alnum:]_-]|\\n)git([^[:alnum:]_-].*)?[^[:alnum:]_-]push([^[:alnum:]_-]|$)'; then
   echo "guard-push could not run (cargo exited $status); blocking a command that mentions git push. Fix xtask, or the maintainer can push with ! git push ..." >&2
   exit 2
 fi

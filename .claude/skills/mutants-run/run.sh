@@ -22,7 +22,7 @@ if [ -z "$toolchain" ] || [ -z "$mutants_version" ]; then
     echo "run.sh: could not read the toolchain ('$toolchain') or the cargo-mutants version ('$mutants_version')" >&2
     exit 1
 fi
-image="rust-engine-mutants:$toolchain"
+image="rust-engine-mutants:$toolchain-$mutants_version"
 
 dockerfile() {
     cat <<DOCKERFILE
@@ -49,8 +49,11 @@ if [ "$dry" = 1 ]; then
     echo "# image cached? docker image inspect $image"
     echo "$build_cmd   # Dockerfile piped on stdin by run.sh"
     echo "sh $here/watchdog.sh $name &"
+    echo "mkdir -p $root/target/mutants"
     echo "docker run --rm --name $name --memory=4g --memory-swap=4g \\"
-    echo "  -v $root:/workspace -v rust-engine-mutants-registry:/usr/local/cargo/registry \\"
+    echo "  --cap-drop=ALL --security-opt no-new-privileges --pids-limit=512 \\"
+    echo "  -v $root:/workspace:ro -v $root/target/mutants:/workspace/target/mutants \\"
+    echo "  -v rust-engine-mutants-registry:/usr/local/cargo/registry \\"
     echo "  -v rust-engine-mutants-target:/cargo-target -e CARGO_TARGET_DIR=/cargo-target \\"
     echo "  -w /workspace $image cargo xtask mutants -j 1 $*"
     exit 0
@@ -71,12 +74,16 @@ docker rm -f "$name" >/dev/null 2>&1
 
 sh "$here/watchdog.sh" "$name" &
 wd=$!
-trap 'kill $wd 2>/dev/null' EXIT INT TERM
+trap 'kill $wd 2>/dev/null; docker kill "$name" >/dev/null 2>&1' EXIT INT TERM
 
-# The repo is mounted at /workspace, so xtask writes target/mutants straight into the host's
-# target/mutants. CARGO_TARGET_DIR is a named volume, so builds never touch the host's target/.
+# The repo is mounted read-only at /workspace; only target/mutants is writable, and it is the only
+# path `cargo xtask mutants` writes in the tree (its output and summary). CARGO_TARGET_DIR is a
+# named volume, so builds never touch the host's target/.
+mkdir -p "$root/target/mutants"
 docker run --rm --name "$name" --memory=4g --memory-swap=4g \
-    -v "$root:/workspace" \
+    --cap-drop=ALL --security-opt no-new-privileges --pids-limit=512 \
+    -v "$root:/workspace:ro" \
+    -v "$root/target/mutants:/workspace/target/mutants" \
     -v rust-engine-mutants-registry:/usr/local/cargo/registry \
     -v rust-engine-mutants-target:/cargo-target \
     -e CARGO_TARGET_DIR=/cargo-target \
