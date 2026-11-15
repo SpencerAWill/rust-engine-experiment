@@ -433,6 +433,22 @@ mod tests {
     }
 
     #[test]
+    fn modules_are_the_public_modules_of_engine() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let lib = std::fs::read_to_string(root.join("libs/engine/src/lib.rs")).unwrap();
+        // `pub mod prelude { ... }` is inline and holds re-exports, not mutable code.
+        let mut declared: Vec<&str> = lib
+            .lines()
+            .filter_map(|l| l.strip_prefix("pub mod ")?.strip_suffix(';'))
+            .collect();
+        declared.sort_unstable();
+        assert_eq!(
+            declared, MODULES,
+            "`MODULES` and `pub mod` in libs/engine/src/lib.rs differ"
+        );
+    }
+
+    #[test]
     fn every_triaged_module_is_a_module() {
         for module in TRIAGED {
             assert!(MODULES.contains(module), "{module}");
