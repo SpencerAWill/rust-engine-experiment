@@ -1,6 +1,6 @@
-# M3.11: `engine_genid`: one lean allocator, `GenId<T>`, and an untyped core
+# M3.11: `engine::genid`: one lean allocator, `GenId<T>`, and an untyped core
 
-- **Status:** Implemented (PR #52, 2026-11-14). Changed during implementation: the lean allocator's Criterion subject is `engine_genid_lean` (§4.2), and `GenIdMap::capacity` reports the smaller of the ID and value capacities. See the plan's §4.
+- **Status:** Implemented (PR #52, 2026-11-14). Changed during implementation: the lean allocator's Criterion subject is `engine::GenIdAllocator` (§4.2), and `GenIdMap::capacity` reports the smaller of the ID and value capacities. See the plan's §4.
 - **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
 - **Issues:** #34 (remove `DenseHandleAllocator`) and #39 (rename `Handle` to `GenId`, with an `UntypedGenId` core). #40 (crate granularity) is related but out of scope.
 - **Estimated size:** about 480 changed lines of new or rewritten code, excluding tests, lockfiles and generated files: the untyped core and the typed wrapper about 250, the fuzz and bench changes about 80, configuration and documents about 120, the glossary about 30. On top of that come about 1,100 deleted lines (`dense_allocator.rs`, its fuzz target, its tests and benches) and a mechanical rename that touches about 1,500 lines. The rename is kept in its own commits so it can be reviewed as a rename (§4.8).
@@ -9,10 +9,10 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk does three things to `engine_handle`, in order:
+This chunk does three things to `engine::handle`, in order:
 
 1. It deletes `DenseHandleAllocator<T>` (#34), leaving one ID-only allocator, with `GenIdMap<()>` as the way to iterate live IDs.
-2. It renames the crate to `engine_genid` and its types from `Handle*` to `GenId*` (#39).
+2. It renames the module to `engine::genid` and its types from `Handle*` to `GenId*` (#39).
 3. It splits the identifier into an untyped core, `UntypedGenId`, and a typed `#[repr(transparent)]` wrapper, `GenId<T>`.
 
 It comes now because nothing depends on these names yet. M4 builds `Entity` on this crate and the M3.6 prototype passes type-erased IDs, so the names and the untyped type should be settled before either exists.
@@ -33,7 +33,7 @@ At the end, `use engine::prelude::*;` gives `GenId`, `GenIdMap` and `GenIdAlloca
 
 - No change to the bit layout, and no other widths or pluggable layouts (32-bit IDs, configurable splits). See #39's "Future" section.
 - No untyped operations on the containers (`map.get_untyped(..)` and the like). They are added when M3.6 or the M4 registry needs them (§10).
-- No change to the crate layout beyond the rename. Merging crates is #40.
+- No change to the layout beyond the rename.
 - No removal of `GenIdAllocator`. Whether M4's world needs an ID-only allocator is decided after M3 (#34, "Alternatives").
 - No deprecated aliases for the old names (§7).
 - No new wall-clock measurements. The tables in `benchmarks.md` stay as they were measured (§4.7).
@@ -43,7 +43,7 @@ At the end, `use engine::prelude::*;` gives `GenId`, `GenIdMap` and `GenIdAlloca
 A `GenId<T>` names a value of type `T` in the `GenIdMap` that issued it. When the value is removed, the slot's generation goes up, so the old ID stops resolving:
 
 ```rust
-use engine_genid::{GenId, GenIdMap};
+use engine::genid::{GenId, GenIdMap};
 
 struct Enemy { hp: u32 }
 
@@ -58,7 +58,7 @@ assert!(enemies.get(id).is_none()); // stale, not a different enemy
 If the data lives elsewhere, use the allocator, which only hands out IDs. To iterate the live IDs too, use a `GenIdMap<()>`, which stores no values:
 
 ```rust
-use engine_genid::{GenIdAllocator, GenIdMap};
+use engine::genid::{GenIdAllocator, GenIdMap};
 
 struct Body;
 
@@ -74,7 +74,7 @@ assert_eq!(live.iter().map(|(id, _)| id).collect::<Vec<_>>(), [b]);
 Code that does not know `T` at compile time (a registry of runtime-defined components, a serialiser, the C ABI) works with `UntypedGenId`. Converting is explicit in both directions, and nothing converts one typed ID into another:
 
 ```rust
-use engine_genid::{GenId, UntypedGenId};
+use engine::genid::{GenId, UntypedGenId};
 
 struct Texture;
 
@@ -93,7 +93,7 @@ assert_eq!(again.to_bits(), erased.to_bits()); // one frozen layout
 
 ### 4.1 Removal of `DenseHandleAllocator`
 
-- `DenseHandleAllocator<T>` and `DenseAllocIter<'a, T>` MUST be deleted, together with `libs/engine_handle/src/dense_allocator.rs`, their re-exports in the crate root and in `engine` (module and prelude), the `dense_allocator_ops` fuzz target (its file, its `fuzz/Cargo.toml` entry, and every list in `xtask` and the workflows that names it), their cases in the integration tests and `libs/engine/tests/auto_traits.rs`, and their benchmarks in `bench/regress` and `bench/compare`.
+- `DenseHandleAllocator<T>` and `DenseAllocIter<'a, T>` MUST be deleted, together with `libs/engine/src/handle/dense_allocator.rs`, their re-exports in the crate root and in `engine` (module and prelude), the `dense_allocator_ops` fuzz target (its file, its `fuzz/Cargo.toml` entry, and every list in `xtask` and the workflows that names it), their cases in the integration tests and `libs/engine/tests/auto_traits.rs`, and their benchmarks in `bench/regress` and `bench/compare`.
 - Tests that use the dense allocator only to cover shared code (the slot table, the slot limit) MUST be moved onto `GenIdMap<()>` or `GenIdAllocator`, so the shared code keeps the same coverage. Crate-private items whose only caller is the dense allocator (`HandlePool::slot_limit`) MUST be deleted with it. The mutation-triage row whose mutant was in `slot_limit` then refers to deleted code, which the note in §4.7 says.
 - The model test requiring the allocator and `GenIdMap` to issue identical IDs for the same operations MUST be kept.
 - Iterating live IDs without values is `GenIdMap<()>`: `iter`, `retain`, `len`, `drain`. The crate documentation MUST say so in its "Choosing a container" table.
@@ -102,19 +102,18 @@ assert_eq!(again.to_bits(), erased.to_bits()); // one frozen layout
 
 | Before | After |
 |---|---|
-| crate `engine_handle`, at `libs/engine_handle` | crate `engine_genid`, at `libs/engine_genid` |
-| facade module `engine::handle` | `engine::genid` |
+| module `engine::handle`, at `libs/engine/src/handle` | module `engine::genid`, at `libs/engine/src/genid` |
 | `Handle<T>` | `GenId<T>` |
 | (new) | `UntypedGenId` (§4.3) |
 | `HandlePool<T>` | `GenIdMap<T>` |
 | `HandleAllocator<T>` | `GenIdAllocator<T>` |
 | `InvalidHandleBits` | `InvalidGenIdBits` |
 | `CapacityError<T>`, `InvariantViolation` | unchanged |
-| `Iter`, `IterMut`, `Drain`, `IntoIter` (`GenIdMap` iterators) | unchanged, under `engine_genid` |
+| `Iter`, `IterMut`, `Drain`, `IntoIter` (`GenIdMap` iterators) | unchanged, under `engine::genid` |
 | source files `handle.rs`, `pool.rs`, `pool/iter.rs` | `id.rs`, `map.rs`, `map/iter.rs` |
 | fuzz targets `handle_from_bits`, `handle_pool_ops`, `handle_allocator_ops` | `genid_from_bits`, `genid_map_ops`, `genid_allocator_ops` |
 | regress bench target `bench/regress/benches/handle.rs` (`[[bench]] name = "handle"`) | `genid.rs` (`name = "genid"`), renamed by the preceding chore pull request (§4.7) |
-| Criterion subjects `engine_handle`, `engine_handle_lean` (`bench/compare`) | `engine_genid`, `engine_genid_lean` (two distinct subjects, so `bench-doc`'s tally by exact subject name keeps counting only the map) |
+| Criterion subjects `engine::HandlePool`, `engine::HandleAllocator` (`bench/compare`) | `engine::GenIdMap`, `engine::GenIdAllocator` (two distinct subjects, so `bench-doc`'s tally by exact subject name keeps counting only the map) |
 
 - Method names MUST NOT change. None of them contains "handle".
 - Parameters, locals, private fields (`GenIdMap`'s `handles` array becomes `ids`, and locals and parameters named `pool` for this type become `map`), messages and prose in code and docs MUST say "ID" or "id" for the identifier, not "handle". Panic and `Display` messages MUST name the new types, for example `GenIdMap is full: ...`.
@@ -197,10 +196,10 @@ Compile-time assertions (`const _: () = assert!(...)`) in the crate MUST check:
 ### 4.7 Benchmarks and measurement records
 
 - **Before this chunk**, a chore pull request MUST rename the regress bench target from `handle` to `genid`, its `pool` group to `map`, and the group's functions from `pool_*` to `map_*`: the file, its `[[bench]]` entry, the comments that point at `handle.rs` (in `prng.rs`, `collections.rs` and `spikes/ecs_storage/bench_cache/benches/cache.rs`), the CONTRIBUTING sentence on adding a benchmark, and the `xtask` fixtures that use `handle` as a target name or `pool_insert_1k` as a function name (`bench_regress/report.rs`, `bench_regress/cargo_json.rs`). It changes nothing under `libs/`, so its own gate run, which sees every benchmark as new, loses no comparison. Done in this chunk instead, the rename would leave this chunk's gate run comparing nothing.
-- `bench/regress` in this chunk: the `dense` group is removed. The rest keep their target, group and function names (§4.2). `cargo xtask bench-regress` MUST be run in the devcontainer before the pull request is ready. Every remaining benchmark MUST be within the gate's 5%, and the pull request MUST quote the table with base and head commits. Its relevance rule MUST cover `libs/engine_genid/`.
-- `bench/compare`: the dense subjects are removed, and the remaining ones are renamed per §4.2. `bench-doc` finds our subjects by the `engine` prefix, which still matches. Its hard-coded tally subject (`"engine_handle"` in `xtask/src/bench_doc.rs`) and its test fixtures MUST be updated to `"engine_genid"`.
-- `docs/benchmarks.md` is a record of measurements. Its tables and analysis MUST NOT be rewritten to the new names without a new run. A dated note at the top of the handle section MUST say that the results were measured before ADR 0012, map the old subject names to the new ones, and say that the `engine_handle_dense` rows describe a removed type. The next `bench-doc` run regenerates the tables under the new names.
-- `docs/mutation-triage.md` is also a record. Its existing rows MUST NOT be edited. A dated note MUST say that `engine_handle` is now `engine_genid`, that the `dense_allocator.rs` rows refer to a deleted file, and that the `slot_limit` row refers to a deleted function.
+- `bench/regress` in this chunk: the `dense` group is removed. The rest keep their target, group and function names (§4.2). `cargo xtask bench-regress` MUST be run in the devcontainer before the pull request is ready. Every remaining benchmark MUST be within the gate's 5%, and the pull request MUST quote the table with base and head commits. Its relevance rule MUST cover `libs/engine::genid/`.
+- `bench/compare`: the dense subjects are removed, and the remaining ones are renamed per §4.2. `bench-doc` finds our subjects by the `engine` prefix, which still matches. Its hard-coded tally subject (`"engine::handle"` in `xtask/src/bench_doc.rs`) and its test fixtures MUST be updated to `"engine::genid"`.
+- `docs/benchmarks.md` is a record of measurements. Its tables and analysis MUST NOT be rewritten to the new names without a new run. A dated note at the top of the handle section MUST say that the results were measured before ADR 0012, map the old subject names to the new ones, and say that the `engine::DenseHandleAllocator` rows describe a removed type. The next `bench-doc` run regenerates the tables under the new names.
+- `docs/mutation-triage.md` is also a record. Its existing rows MUST NOT be edited. A dated note MUST say that `engine::handle` is now `engine::genid`, that the `dense_allocator.rs` rows refer to a deleted file, and that the `slot_limit` row refers to a deleted function.
 
 ### 4.8 Change order
 
@@ -213,7 +212,7 @@ The pull request SHOULD be built as reviewable commits in this order:
 
 ### 4.9 Crate documentation
 
-The first paragraph of the crate docs MUST give its [ADR 0004](../../../adr/0004-crate-splitting-rule.md) justification under the new name: platform (`no_std` with `alloc`), dependency-free, FFI exposure (IDs cross the C ABI in M8), and layering (the foundation for the ECS, assets and FFI). The `engine_handle` row of ADR 0004's crate table MUST be updated to `engine_genid`. That table is the current list of crates, as M3.1 established when it added `engine_collections`; the ADR's decision text is not touched.
+The module docs MUST say that it needs only `core` and `alloc`, that IDs cross the C ABI in M8, and that they are the foundation for the ECS, assets and FFI.
 
 The "Choosing a container" table becomes:
 
@@ -228,7 +227,7 @@ The "Known limitation" section (an ID used on a map or allocator other than the 
 
 ### 4.10 Glossary
 
-The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Glossary` section, after "Choosing a container". It explains the crate's terms in plain words, next to the API they describe, so it renders with `cargo doc`. It is scoped to this crate: it is not a repository-wide glossary, and there is no `docs/glossary.md`.
+The `engine::genid` crate docs (`libs/engine/src/genid.rs`) MUST gain a `# Glossary` section, after "Choosing a container". It explains the crate's terms in plain words, next to the API they describe, so it renders with `cargo doc`. It is scoped to this crate: it is not a repository-wide glossary, and there is no `docs/glossary.md`.
 
 - Entries MUST be in alphabetical order, one table row each: the term and what it means in a sentence or two. Every type a row names MUST be an intra-doc link (for example ``[`GenIdMap`]``), so `broken_intra_doc_links = "deny"` fails the build if a name goes stale.
 - Every term MUST be specific to what it names: a type name, or a common word qualified by its subsystem ("GenId generation", not "Generation"). A bare common word ("map", "slot", "handle") would become wrong as soon as another part of the engine uses it.
@@ -246,12 +245,12 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
   | Stale `GenId` | A `GenId` whose slot has been freed (and perhaps reused) since the ID was issued. Lookups with it return `None` |
   | `UntypedGenId` | A `GenId` without its type, for code that does not know `T` at compile time (registries, serialisation, the C ABI). It carries the frozen bit encoding |
 
-- The first sentence of the `engine_genid` crate docs and of `GenId<T>`'s docs MUST also say "generational ID", and so MUST the `engine` crate map row for `genid`, so a reader who never scrolls to the glossary still sees the expansion.
+- The first sentence of the `engine::genid` crate docs and of `GenId<T>`'s docs MUST also say "generational ID", and so MUST the `engine` crate map row for `genid`, so a reader who never scrolls to the glossary still sees the expansion.
 
 ## 5. Requirements
 
 - **M3.11-R1** `DenseHandleAllocator` and `DenseAllocIter` MUST NOT exist. No file names them except the historical records (§6, Documentation), ADR 0012, this spec and plan, and this chunk's CHANGELOG entry.
-- **M3.11-R2** The crate MUST be `engine_genid` at `libs/engine_genid`, re-exported as `engine::genid`, with `GenId`, `GenIdMap` and `GenIdAllocator` in `engine::prelude` and `UntypedGenId` not in the prelude. `engine::handle` and `engine_handle` MUST NOT exist.
+- **M3.11-R2** The crate MUST be `engine::genid` at `libs/engine/src/genid`, re-exported as `engine::genid`, with `GenId`, `GenIdMap` and `GenIdAllocator` in `engine::prelude` and `UntypedGenId` not in the prelude. `engine::handle` and `engine::handle` MUST NOT exist.
 - **M3.11-R3** Every rename in §4.2 MUST be applied, with no alias left for an old name.
 - **M3.11-R4** `UntypedGenId` MUST provide exactly the API in §4.3, with no `Default`.
 - **M3.11-R5** `GenId<T>` MUST be `#[repr(transparent)]` over `UntypedGenId` and provide the API in §4.4. `untyped()` and `from_untyped()` MUST round-trip every ID.
@@ -264,11 +263,11 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 - **M3.11-R12** The fuzz targets MUST be renamed as in §4.2, and `genid_from_bits` MUST also check `UntypedGenId::from_bits` and the typed round trip. `cargo xtask fuzz-build` MUST pass, and the nightly job MUST list exactly the three targets.
 - **M3.11-R13** Every `.cargo/mutants.toml` exclusion MUST name the new paths and functions and still match its mutant.
 - **M3.11-R14** `cargo xtask bench-regress` MUST report no benchmark above the 5% gate, with the result quoted in the pull request.
-- **M3.11-R15** Live documents (README, CONTRIBUTING, AGENTS, SECURITY, the issue and PR templates, the CHANGELOG preamble, the roadmap, ADR 0004's crate table, the crate docs, the `engine` crate map, the `engine_time` crate docs, the research catalog's lines about this repository, and the doc comments and fixtures in §4.2) MUST use the new names. `benchmarks.md` and `mutation-triage.md` MUST get the notes in §4.7. The historical records (§6) MUST NOT be edited, apart from ADR 0010's status line and those notes.
+- **M3.11-R15** Live documents (README, CONTRIBUTING, AGENTS, SECURITY, the issue and PR templates, the CHANGELOG preamble, the roadmap, ADR 0004's crate table, the crate docs, the `engine` crate map, the `engine::time` crate docs, the research catalog's lines about this repository, and the doc comments and fixtures in §4.2) MUST use the new names. `benchmarks.md` and `mutation-triage.md` MUST get the notes in §4.7. The historical records (§6) MUST NOT be edited, apart from ADR 0010's status line and those notes.
 - **M3.11-R16** ADR 0012 MUST be accepted and ADR 0010's status MUST read `Superseded by ADR 0012 (date)`.
 - **M3.11-R17** The CHANGELOG MUST have an entry under "Changed" marked **breaking** that lists the renames, the removal and the new type.
 - **M3.11-R18** The crate MUST stay `no_std` with `alloc`, dependency-free and `#![forbid(unsafe_code)]`, and `cargo xtask no-std` and `cargo xtask wasm` MUST pass.
-- **M3.11-R19** The `engine_genid` crate docs MUST have the `# Glossary` section of §4.10, with intra-doc links for every type named, and the crate docs, `GenId<T>`'s docs and the `engine` crate map MUST spell out "generational ID" in their first sentence.
+- **M3.11-R19** The `engine::genid` crate docs MUST have the `# Glossary` section of §4.10, with intra-doc links for every type named, and the crate docs, `GenId<T>`'s docs and the `engine` crate map MUST spell out "generational ID" in their first sentence.
 
 ## 6. Cross-cutting concerns
 
@@ -281,7 +280,7 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 - **Public API changes:** breaking. One crate, one module, four types and three fuzz targets are renamed, two types are removed and one is added. There are no consumers outside the repository, and the crates are `0.x` with `publish = false`.
 - **FFI exposure:** `UntypedGenId` is the type that M8's FFI layer is expected to convert to and from. It crosses the boundary as a `to_bits` value, so this chunk fixes no C layout.
 - **Performance:** expected to be zero, because the wrapper is `#[repr(transparent)]` and the methods are the same `const fn`s. This is measured with `cargo xtask bench-regress` (instruction counts, base against head, R14). The Criterion comparison is not re-run (§4.7).
-- **Documentation:** new: ADR 0012, a glossary section in the `engine_genid` crate docs (§4.10), and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0008 (whose "context handle" is a different thing), 0010 (apart from its status line) and 0011; the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents. The research catalog (`docs/research/data-structures.md`) is dated research, but its "Repo fit" and "Notes" lines that describe this repository's types are updated (and its `DenseHandleAllocator` reference dropped). The industry term "handle", in entry names and sources, stays.
+- **Documentation:** new: ADR 0012, a glossary section in the `engine::genid` crate docs (§4.10), and this spec and plan. Updated: the live documents in R15. The **historical records** keep the old names by decision: the specs and plans of M0+M1, M2.x, M3.0 to M3.2 and M3.9; ADRs 0003, 0008 (whose "context handle" is a different thing), 0010 (apart from its status line) and 0011; the CHANGELOG entries written before this chunk; and the tables, analysis and rows of `benchmarks.md` and `mutation-triage.md` (which get the notes in §4.7). ADR 0012 has the old-to-new name table for readers of those documents. The research catalog (`docs/research/data-structures.md`) is dated research, but its "Repo fit" and "Notes" lines that describe this repository's types are updated (and its `DenseHandleAllocator` reference dropped). The industry term "handle", in entry names and sources, stays.
 - **Policy changes:** none. The frozen-format rule in AGENTS.md and CONTRIBUTING.md names the new method but is the same rule.
 
 ## 7. Alternatives considered
@@ -303,7 +302,7 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 - **Deprecated aliases (`pub type Handle<T> = GenId<T>` and so on).** Rejected. There are no consumers, the crates are `0.x`, and aliases would leave two names in the docs and search results.
 - **`From<GenId<T>> for UntypedGenId`.** Not added. Typed-to-untyped is lossless, but #39 asks for explicit names at both ends, and `untyped()` keeps every erasure searchable. It can be added later without breaking anything.
 - **Crate name `engine_id`.** Rejected: broader than the contents. A future persistent or asset ID gets its own home when it exists.
-- **Put the type into the `engine` facade.** Rejected. The facade sits at the top of the dependency graph, so everything built on IDs would have to move into it too. Crate granularity is #40.
+- **Put the type into the prelude only.** Rejected: the prelude re-exports; the type belongs in its module.
 - **Rename the Gungraun bench target in this chunk**, with a manual `cargo xtask bench-regress --base <first commit>` run as the evidence. Rejected. It keeps one pull request, but the required gate would compare nothing in the chunk that changes `libs/`. The preceding chore pull request keeps the required check meaningful (§4.7).
 - **Keep the bench target named `handle`.** Rejected: the goal is that no live file uses the old name.
 - **Migrate the fuzz corpus.** Rejected: it needs a temporary workflow step naming the old targets, for a cache that rebuilds itself (§4.2).
@@ -314,7 +313,7 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 | Requirement | Verified by |
 |---|---|
 | R1 | `git grep -n DenseHandleAllocator` and `git grep -n DenseAllocIter` return only the files R1 allows |
-| R2 | `cargo xtask ci`; the `engine` doctests and `libs/engine/tests/auto_traits.rs` use `engine::genid` and the prelude; `git grep -nw engine_handle` returns only the historical records, the notes in §4.7, ADR 0012, this spec and plan, and the CHANGELOG entry |
+| R2 | `cargo xtask ci`; the `engine` doctests and `libs/engine/tests/auto_traits.rs` use `engine::genid` and the prelude; `git grep -nw engine::handle` returns only the historical records, the notes in §4.7, ADR 0012, this spec and plan, and the CHANGELOG entry |
 | R3 | Review of the §4.2 table against the crate root's `pub use` list; `git grep -nwE 'Handle\|HandlePool\|HandleAllocator\|InvalidHandleBits'` outside the historical records, ADR 0012, this spec and plan, and the CHANGELOG entry |
 | R4, R5 | Unit tests and doctests in `src/id.rs` (the renamed `handle.rs`, holding both types); `untyped`/`from_untyped` round trip as a proptest over all `u64` with a non-zero low half |
 | R6 | `compile_fail` doctests: mixing `GenId<A>` and `GenId<B>`, calling `cast`, and passing an `UntypedGenId` where a `GenId<T>` is expected |
@@ -324,7 +323,7 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 | R10 | Compile-time assertions (the build fails if one does not hold) |
 | R11 | `cargo xtask test`; the diff of `tests/` shows renames only, apart from §4.1's moves |
 | R12 | `cargo xtask fuzz-build`; a 60-second local `cargo xtask fuzz` run of each target, reported in the pull request; review of `nightly.yml` and `xtask` |
-| R13 | `cargo xtask mutants` on `engine_genid`, whose summary shows the excluded mutants as excluded and nothing missed that was not missed before |
+| R13 | `cargo xtask mutants` on `engine::genid`, whose summary shows the excluded mutants as excluded and nothing missed that was not missed before |
 | R14 | `cargo xtask bench-regress` in the devcontainer, table quoted in the pull request |
 | R15 | `git grep` for the old names, reviewed against the list in §6 (Documentation); the documentation review |
 | R16, R17 | Review |
@@ -340,8 +339,8 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 - [x] `cargo xtask ci` passes.
 - [x] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request (aarch64 container run: every `genid::*` +0.0%).
 - [x] Each fuzz target ran locally for 60 seconds without a finding (1,082,028, 832,097 and 167,516,861 runs).
-- [x] `cargo xtask mutants` on `engine_genid` shows the exclusions still applying (311 tested, 4 excluded, 1 missed and 3 timeouts, all already triaged).
-- [x] The `engine_genid` crate docs have the §4.10 glossary, and the rustdoc spells out "generational ID".
+- [x] `cargo xtask mutants` on `engine::genid` shows the exclusions still applying (311 tested, 4 excluded, 1 missed and 3 timeouts, all already triaged).
+- [x] The `engine::genid` crate docs have the §4.10 glossary, and the rustdoc spells out "generational ID".
 - [x] ADR 0012 is accepted and ADR 0010 is marked superseded. ADR 0004's table, the live documents and the notes in `benchmarks.md` and `mutation-triage.md` are updated, and the CHANGELOG has the breaking entry.
 - [x] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`.
 - [x] The pull request closes #34 and #39 and lists the eight reviews.
@@ -351,7 +350,7 @@ The `engine_genid` crate docs (`libs/engine_genid/src/lib.rs`) MUST gain a `# Gl
 None. Deferred, with owners:
 
 - **Untyped operations on containers** (`contains`, `get` by `UntypedGenId`): added by M3.6 or the M4 registry chunk, whichever first needs them.
-- **Crate granularity**, including whether `engine_genid` later merges into a core crate: #40, decided before M4.
+- **Where the ECS lives:** M4.
 - **32-bit and configurable layouts:** #39's "Future" section, when M8, GPU-driven rendering or networking needs one.
 - **Whether `GenIdAllocator` stays:** after M3, with M4's world design.
 

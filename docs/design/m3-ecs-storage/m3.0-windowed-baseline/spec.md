@@ -196,7 +196,7 @@ The simulation never sees a `winit` or `softbuffer` type: the host turns events 
 | Chunk | Title | Depends on |
 |---|---|---|
 | M3.0 | Windowed baseline sample: `examples/agents_2d` (`winit` and `softbuffer`, example-only), the agent workload and its order-independent checksum | none |
-| M3.1 | `engine_collections`: deterministic map and set | none |
+| M3.1 | `engine::collections`: deterministic map and set | none |
 | M3.2 | Spike harness under `spikes/` (prototypes are kept there after the decision): one minimal storage interface, the workloads (simple and fragmented iteration, add/remove, heavy compute, entity churn, 100k 2D sprites, and the M3.0 agent workload), a struct-of-arrays variant of the agent workload, and bevy_ecs, hecs and plain-`Vec` baselines | M3.0, M3.1 |
 | M3.3 | Sparse-set prototype (safe) | M3.2 |
 | M3.4 | Archetype prototype (safe) | M3.2 |
