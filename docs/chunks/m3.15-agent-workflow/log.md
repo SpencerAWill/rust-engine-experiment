@@ -19,3 +19,4 @@
 - 2026-11-15 lesson? Moving docs one level up costs more in relative `../` fixes inside the moved files than in links from outside them.
 - 2026-11-15 surprise My first commit of step 2 missed five files: one `git add` with a path that no longer existed (`docs/design`) aborted the whole add, and `2>/dev/null` hid the error. Amended before anything was pushed.
 - 2026-11-15 done Step 3: log template, plan checkbox/Who/Lessons, spec length note and optional sections, PR template Reviews/Lessons/Follow-ups (the documentation-and-panics checklist line dropped: the Documentation and Public API reviews cover it).
+- 2026-11-15 done Step 4: eight agent files; models 4 opus, 3 sonnet, 1 haiku; read-only roles list Read, Grep, Glob, Bash; builder uses `disallowedTools: Agent`.

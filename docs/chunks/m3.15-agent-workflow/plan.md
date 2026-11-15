@@ -45,7 +45,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 4: Agent roles (R3)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `.claude/agents/{builder,review-code,review-security,review-conditional,review-docs,review-spec,lessons-researcher,spec-reader}.md`.
 - **Content:** frontmatter `name`, `description`, `model` and `tools` exactly as spec §4.2 (reviewers, researcher and cold reader: `Read, Grep, Glob, Bash`; builder: every tool but `Agent`). Each body says what the role gets, what it returns (findings as `file:line`, severity, one-line fix; or for the builder, the step result plus `log.md` entries), the rule against editing (reviewers), and links its checklist (`CONTRIBUTING.md#reviews-before-a-pull-request` and the spec) instead of copying it. Every body tells the agent to append candidate lessons to the chunk's `log.md` (builder) or to report them (read-only roles).
 - **Test first:** n/a (configuration). 
