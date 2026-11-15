@@ -1,7 +1,7 @@
 # M3.11: `engine::genid`: one lean allocator, `GenId<T>`, and an untyped core
 
 - **Status:** Implemented (PR #52, 2026-11-14). Changed during implementation: the lean allocator's Criterion subject is `engine::GenIdAllocator` (§4.2), and `GenIdMap::capacity` reports the smaller of the ID and value capacities. See the plan's §4.
-- **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../../adr/0010-two-handle-allocators.md)
+- **Milestone:** M3 (scheduled during M3; not part of its exit criteria, which are about the ECS storage decision) · **Depends on:** the bench-target rename (a chore pull request merged before this chunk, §4.7) · **Decides:** [ADR 0012](../../adr/0012-generational-ids.md), which supersedes [ADR 0010](../../adr/0010-two-handle-allocators.md)
 - **Issues:** #34 (remove `DenseHandleAllocator`) and #39 (rename `Handle` to `GenId`, with an `UntypedGenId` core). #40 (crate granularity) is related but out of scope.
 - **Estimated size:** about 480 changed lines of new or rewritten code, excluding tests, lockfiles and generated files: the untyped core and the typed wrapper about 250, the fuzz and bench changes about 80, configuration and documents about 120, the glossary about 30. On top of that come about 1,100 deleted lines (`dense_allocator.rs`, its fuzz target, its tests and benches) and a mechanical rename that touches about 1,500 lines. The rename is kept in its own commits so it can be reviewed as a rename (§4.8).
 
@@ -356,7 +356,7 @@ None. Deferred, with owners:
 
 ## 11. Prior art and sources
 
-Designs studied, not code copied ([ADR 0002](../../../adr/0002-originality-and-dependency-licensing.md)):
+Designs studied, not code copied ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)):
 
 - slotmap's `KeyData`, wrapped by typed keys from `new_key_type!`: an untyped core with typed newtypes over it. <https://docs.rs/slotmap>
 - Bevy's `UntypedHandle` and `Handle<A>` for assets: the same pairing, for an owning handle, and the source of the name clash this chunk avoids. <https://docs.rs/bevy_asset>

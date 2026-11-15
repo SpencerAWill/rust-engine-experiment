@@ -8,7 +8,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds `examples/agents_2d`: thousands of 2D agents that wander, bounce, gain and lose an optional "seeker" part, die and respawn, stored in one plain `Vec` and drawn into a window through `winit` and `softbuffer`. It comes first in M3 because it defines the agent workload and the plain-`Vec` baseline that every ECS storage prototype (M3.3 to M3.7) is checked and measured against, and because it tests [ADR 0007](../../../adr/0007-host-owns-the-loop.md) (the host owns the loop) against a real windowing event loop before M4 depends on it. At the end, `cargo run -p agents_2d --release` opens a window where agents chase the cursor, and `cargo run -p agents_2d --release -- --headless` prints a checksum that the tests pin.
+This chunk adds `examples/agents_2d`: thousands of 2D agents that wander, bounce, gain and lose an optional "seeker" part, die and respawn, stored in one plain `Vec` and drawn into a window through `winit` and `softbuffer`. It comes first in M3 because it defines the agent workload and the plain-`Vec` baseline that every ECS storage prototype (M3.3 to M3.7) is checked and measured against, and because it tests [ADR 0007](../../adr/0007-host-owns-the-loop.md) (the host owns the loop) against a real windowing event loop before M4 depends on it. At the end, `cargo run -p agents_2d --release` opens a window where agents chase the cursor, and `cargo run -p agents_2d --release -- --headless` prints a checksum that the tests pin.
 
 The chunk also breaks M3 into chunks in the roadmap, as the maintainers checklist asks at a milestone boundary.
 
@@ -113,7 +113,7 @@ pub struct SimSummary { pub tick: u64, pub agents: usize, pub seekers: usize, pu
 
 These rules define the checksum. A storage prototype that claims to run this workload MUST implement them exactly, including the order of floating-point operations.
 
-**Constants.** World width `W = 320.0` and height `H = 180.0` (meters, +X right, +Y up, origin bottom-left; [ADR 0005](../../../adr/0005-coordinate-system-and-units.md)). Tick rate 60 Hz, with `dt = FixedTimestep::from_hz(60).step().as_secs_f32()`. Maximum seeker speed `MAX_SPEED = 30.0` m/s. Catch radius `CATCH = 4.0` m. Acceleration of a seeker gained by bouncing `GAINED_ACCELERATION = 60.0` m/s².
+**Constants.** World width `W = 320.0` and height `H = 180.0` (meters, +X right, +Y up, origin bottom-left; [ADR 0005](../../adr/0005-coordinate-system-and-units.md)). Tick rate 60 Hz, with `dt = FixedTimestep::from_hz(60).step().as_secs_f32()`. Maximum seeker speed `MAX_SPEED = 30.0` m/s. Catch radius `CATCH = 4.0` m. Acceleration of a seeker gained by bouncing `GAINED_ACCELERATION = 60.0` m/s².
 
 **Spawning.** `spawn` takes `id = next_id`, increments `next_id`, creates `r = prng.stream(id)`, and draws, in this order:
 
@@ -184,7 +184,7 @@ The simulation never sees a `winit` or `softbuffer` type: the host turns events 
 
 - `winit = "0.30"` (0.30.13 at the time of writing, Apache-2.0) and `softbuffer = "0.4"` (0.4.8, MIT OR Apache-2.0), both declared in `examples/agents_2d/Cargo.toml` only. `winit` 0.31 is in beta and is not used.
 - Both use `raw-window-handle` 0.6. On Linux both load X11 and Wayland at runtime by default, so building them should need no system packages; §8 checks this on CI rather than assuming it.
-- The whole new dependency tree MUST pass `cargo xtask deny` with the current allow list. If a transitive crate's licence is outside it, the first remedy is to turn off the default feature that pulls it in (for example `winit`'s `wayland-csd-adwaita`, which draws window decorations with font crates). Changing the allow list is a policy change ([ADR 0002](../../../adr/0002-originality-and-dependency-licensing.md)) and stops the chunk for the maintainer.
+- The whole new dependency tree MUST pass `cargo xtask deny` with the current allow list. If a transitive crate's licence is outside it, the first remedy is to turn off the default feature that pulls it in (for example `winit`'s `wayland-csd-adwaita`, which draws window decorations with font crates). Changing the allow list is a policy change ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)) and stops the chunk for the maintainer.
 
 ### 4.8 Roadmap
 

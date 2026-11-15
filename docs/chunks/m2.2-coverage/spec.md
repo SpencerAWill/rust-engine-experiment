@@ -282,5 +282,5 @@ None. Decided before drafting (2026-11-12): the report stays on GitHub with no t
 - [LLVM `llvm-cov export`](https://llvm.org/docs/CommandGuide/llvm-cov.html#llvm-cov-export) for the lcov output read in §4.5, and the [`geninfo` tracefile format](https://github.com/linux-test-project/lcov/blob/master/man/geninfo.1) for the `SF`, `DA`, `FN` and `FNDA` records.
 - [`syn` documentation](https://docs.rs/syn) for item spans and attribute parsing.
 - [GitHub: adding a job summary](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions#adding-a-job-summary) for `$GITHUB_STEP_SUMMARY`.
-- [M0+M1 spec §4.7, §4.8 and §4.12](../../m0-m1-foundations/spec.md) for the original coverage plan; [M2.1 spec](../m2.1-fuzzing/spec.md) for the `xtask` and workflow patterns reused here.
+- [M0+M1 spec §4.7, §4.8 and §4.12](../m0-m1-foundations/spec.md) for the original coverage plan; [M2.1 spec](../m2.1-fuzzing/spec.md) for the `xtask` and workflow patterns reused here.
 - No code copied from other projects (ADR 0002).

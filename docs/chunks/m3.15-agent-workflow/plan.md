@@ -28,7 +28,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 2: Move chunk folders to `docs/chunks/` (R14)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** every folder under `docs/design/` (`git mv docs/design/_template docs/chunks/_template`, `git mv docs/design/m0-m1-foundations docs/chunks/m0-m1-foundations`, and each `docs/design/m<N>-<topic>/m<N>.<n>-<slug>` to `docs/chunks/m<N>.<n>-<slug>`); the 8 files outside the folders that link into them (`git grep -l 'design/m[0-9]\|design/_template'`); relative links inside the moved files that now point one level wrong; `docs/README.md` (table row and Conventions bullet for `docs/chunks/`); `CONTRIBUTING.md` "How work is organized" (template path); `spikes/ecs_storage/harness/src/lib.rs` (a doc comment path).
 - **Test first:** run the link-check script (§1) before the move and record the count of broken links (expected 0); after `git mv` alone, it reports the moved targets as broken.
 - **Change:** the moves, then fix every reported link. Do not edit anything in an ADR except link paths.

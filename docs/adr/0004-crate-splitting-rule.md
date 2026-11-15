@@ -1,6 +1,6 @@
 # ADR 0004: Crate-splitting rule
 
-Status: Accepted (2026-11-12). Rewritten in place by M3.13 (2026-11-14); see its [spec §4.8](../design/m3-ecs-storage/m3.13-one-engine-crate/spec.md).
+Status: Accepted (2026-11-12). Rewritten in place by M3.13 (2026-11-14); see its [spec §4.8](../chunks/m3.13-one-engine-crate/spec.md).
 
 ## Context
 

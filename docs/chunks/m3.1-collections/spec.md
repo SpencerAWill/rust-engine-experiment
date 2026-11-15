@@ -8,7 +8,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds `libs/engine/src/collections`, a module of `engine` that needs only `core` and `alloc`, with two types, `IndexMap<K, V>` and `IndexSet<T>`: hash-indexed collections whose iteration order is insertion order, so it is a pure function of the operations applied and never depends on hash values, seeds, capacity, platform or crate versions. It comes now because `clippy.toml` bans std's `HashMap` and `HashSet` (their iteration order is randomized per process, [ADR 0003](../../../adr/0003-same-build-determinism.md)), which leaves engine code only `BTreeMap`; the M3 storage prototypes need hashed lookups (`TypeId` to component id, component set to archetype, archetype edges) on the paths M3 measures, and the bevy_ecs and hecs baselines they are compared against use hashed maps there. At the end, `use engine::collections::IndexMap;` works in engine code, and the model tests show that iteration order is identical with the real hasher and with a hasher that maps every key to the same value.
+This chunk adds `libs/engine/src/collections`, a module of `engine` that needs only `core` and `alloc`, with two types, `IndexMap<K, V>` and `IndexSet<T>`: hash-indexed collections whose iteration order is insertion order, so it is a pure function of the operations applied and never depends on hash values, seeds, capacity, platform or crate versions. It comes now because `clippy.toml` bans std's `HashMap` and `HashSet` (their iteration order is randomized per process, [ADR 0003](../../adr/0003-same-build-determinism.md)), which leaves engine code only `BTreeMap`; the M3 storage prototypes need hashed lookups (`TypeId` to component id, component set to archetype, archetype edges) on the paths M3 measures, and the bevy_ecs and hecs baselines they are compared against use hashed maps there. At the end, `use engine::collections::IndexMap;` works in engine code, and the model tests show that iteration order is identical with the real hasher and with a hasher that maps every key to the same value.
 
 ## 2. Goals and non-goals
 
@@ -19,7 +19,7 @@ This chunk adds `libs/engine/src/collections`, a module of `engine` that needs o
 - Removal that names its effect on order (`swap_remove` or `shift_remove`), because order is the part that matters for determinism.
 - Equality and `Hash` that respect order, so equal collections behave identically.
 - A tool to put entries into a canonical order (`sort_keys`, `sort`) before hashing or saving.
-- Heap behaviour in line with [ADR 0011](../../../adr/0011-heap-allocation-control.md): capacity reserved up front is used without further allocation.
+- Heap behaviour in line with [ADR 0011](../../adr/0011-heap-allocation-control.md): capacity reserved up front is used without further allocation.
 - Clippy bans for the randomly seeded items of every hashing crate this chunk adds, checked to actually fire.
 
 **Non-goals**

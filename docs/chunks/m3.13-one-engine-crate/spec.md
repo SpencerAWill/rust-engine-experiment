@@ -1,7 +1,7 @@
 # M3.13: One `engine` library crate, and the rule for splitting from it
 
 - **Status:** Implemented (PR #54, 2026-11-14)
-- **Milestone:** M3 (scheduled during M3, not part of its exit criteria; it must land before M4, which decides where the ECS lives) · **Depends on:** none · **Decides:** [ADR 0004](../../../adr/0004-crate-splitting-rule.md), rewritten in place, and [ADR 0003](../../../adr/0003-same-build-determinism.md), edited in place for `no_std` builds, as a one-time exception to the rule that accepted ADRs are superseded rather than rewritten (§4.8)
+- **Milestone:** M3 (scheduled during M3, not part of its exit criteria; it must land before M4, which decides where the ECS lives) · **Depends on:** none · **Decides:** [ADR 0004](../../adr/0004-crate-splitting-rule.md), rewritten in place, and [ADR 0003](../../adr/0003-same-build-determinism.md), edited in place for `no_std` builds, as a one-time exception to the rule that accepted ADRs are superseded rather than rewritten (§4.8)
 - **Issues:** #40. Related: M3.12 (space metrics, #41, drafting on its own branch), which will depend on this chunk and put `HeapSize` in `engine` instead of a new `engine_heap` crate (§4.11).
 - **Estimated size:** about 700 changed lines of code and configuration, excluding tests, lockfiles and generated files: manifests and `xtask` about 200, the `scalar` `no_std` backend about 60, bench labels and `bench-doc` about 40, crate and module docs about 120, ADR 0004 about 120, the live documents about 150. On top of that come:
   - a move of about 12,800 lines (9,600 in the five crates' `src/`, 3,200 in their `tests/` and `benches/`) into `libs/engine`, kept in its own commit so `git diff -M` shows renames (§4.10);
@@ -349,7 +349,7 @@ None. Deferred, with owners:
 
 ## 11. Prior art and sources
 
-Guidance studied; no code copied ([ADR 0002](../../../adr/0002-originality-and-dependency-licensing.md)):
+Guidance studied; no code copied ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)):
 
 - The Rust Book, "Packages and Crates" (a package holds at most one library crate) and "Cargo Workspaces". <https://doc.rust-lang.org/book/ch07-01-packages-and-crates.html>, <https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html>
 - The Cargo Book, "Features": feature unification, "features should be *additive*", the `std` feature pattern for `no_std`, and separate packages as the alternative to mutually exclusive features (S3). <https://doc.rust-lang.org/cargo/reference/features.html>

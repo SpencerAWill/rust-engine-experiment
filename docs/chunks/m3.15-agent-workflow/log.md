@@ -13,3 +13,7 @@
 - 2026-11-15 done Spec rewritten for the split (§4.7 kept as a stub, §4.12 hands scope to M3.16, §4.13 bootstrapping); roadmap rows M3.15 and M3.16 added.
 - 2026-11-15 decision Grill round 2 (all accepted): main session merges after the go-ahead and starts the next chunk; follow-up issues may be opened without asking; flat `docs/chunks/<id>-<slug>/`, existing folders moved in M3.15; IDs keep the `M<N>.<n>` form.
 - 2026-11-15 done Spec accepted by the maintainer ("go ahead"); plan written (no plan stop, spec §4.13).
+- 2026-11-15 done Step 2 (builder, Sonnet, dispatched as general-purpose: agent files not yet registered). 20 folders moved with `git mv`; links fixed in 10 files plus the moved docs; `cargo xtask ci --quick` passed.
+- 2026-11-15 surprise The link check found 11 broken relative links before the move, not 0: 8 are quoted example links inside the M2.0 plan's prose, 1 is a stale `handle_model.rs` link in the M2.1 spec (renamed `genid_model.rs` in M3.11). 9 remain, all pre-existing in historical records; left for M3.16's `check-docs` to decide how to treat.
+- 2026-11-15 lesson? `git log --follow` returns nothing for a path that exists only in the index: verify history after committing a move.
+- 2026-11-15 lesson? Moving docs one level up costs more in relative `../` fixes inside the moved files than in links from outside them.

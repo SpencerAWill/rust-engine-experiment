@@ -298,7 +298,7 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 - [x] The model tests pass for both types, including under `cargo xtask wasm` (`bit_set_matches_model`, `bit_array_{0,1,3}_matches_model`).
 - [x] The fuzz target ran for 10 minutes without a failure (`bit_set_ops`: 4,204,841 runs in 601 s).
 - [x] `cargo xtask bench-regress` passes (aarch64 container run: no regression, six new benchmarks of 18,743 to 172,580 instructions), and the wall-clock comparison against `fixedbitset`, `BTreeSet` and `Vec<bool>` is in the pull request with its baseline and noise floor.
-- [x] The mutation triage is recorded ([docs/mutation-triage.md](../../../mutation-triage.md)).
+- [x] The mutation triage is recorded ([docs/mutation-triage.md](../../mutation-triage.md)).
 - [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
 - [x] The spec is `Implemented` and the plan `Historical`, with Deviations filled in, and #42's box in #38 is ticked.
 
