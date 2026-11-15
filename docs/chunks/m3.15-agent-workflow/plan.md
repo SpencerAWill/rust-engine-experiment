@@ -104,7 +104,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 11: `mutants-run` skill and its trial run (R9)
 
-- [ ] **Who:** builder (scripts), main session (`SKILL.md`, the announcement, the run).
+- [x] **Who:** builder (scripts), main session (`SKILL.md`, the announcement, the run).
 - **Files:** `.claude/skills/mutants-run/SKILL.md`, `.claude/skills/mutants-run/run.sh` (builds and runs the container of §1), `.claude/skills/mutants-run/watchdog.sh` (the watchdog of §1).
 - **Test first:** `sh -n` on both scripts; `run.sh --dry-run` prints the `docker` commands without running them.
 - **Verify:** tell the maintainer the run is starting; run `run.sh --module random` with the watchdog in the background; check its first results for `TIMEOUT`; on completion, `target/mutants/summary.md` exists. Record the summary table and the peak memory in `log.md`.
@@ -151,5 +151,6 @@ Inputs no step's tests cover that are most likely to bite:
 - **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed.
 - **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
 - **Step 9:** the plan expected "step 10"; the correct answer under the skill is step 9 (this trial is the first unticked step), which is what the trial gave.
+- **Step 11:** no rustup volume (the toolchain is baked into the image, tagged by version, so a volume could go stale); the reports land in the host's `target/mutants/` through the bind mount, with the container's build in its own named target volume.
 - **Step 12** was committed before step 11, which waited on its mutants run.
 - **Step 7:** `testing-1`'s `applies_to` is `libs/engine/src/collections/**`, narrower than the spec's example (`libs/engine/src/**/tests/**`), because the helpers are crate-private to `collections`.
