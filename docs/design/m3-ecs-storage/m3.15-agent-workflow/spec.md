@@ -1,14 +1,14 @@
 # M3.15: Agent workflow, lessons and documentation layout
 
 - **Status:** Draft (2026-11-15)
-- **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (PR #56; this branch is rebased onto `main` after it merges, because the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
+- **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 1,500 changed lines of Markdown (much of it moved, not new), about 400 lines of Rust in `xtask` plus tests, and one shell hook
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
 ## 1. Summary
 
-Agents on this project stop to ask the maintainer what to do next, read about 30 KB of process text per session of which most does not apply, and lose what they learned when a session ends or is killed. This chunk defines one loop (brainstorm, plan, work, review, compound, close out) with two stop points, assigns each stage to an agent role with a pinned model, records progress and lessons on disk as they happen, and reorganizes the documentation so each reader loads only what applies. At the end, `AGENTS.md` is a short router, `.claude/` holds the roles, skills and path-scoped rules, `docs/lessons/` holds lessons that the planning stage retrieves, and `cargo xtask check-docs` keeps the indexes honest.
+Agents on this project stop to ask the maintainer what to do next, read about 30 KB of process text per session of which most does not apply, and lose what they learned when a session ends or is killed. This chunk defines one loop (brainstorm, grill, plan, work, review, compound, close out) with two stop points, assigns each stage to an agent role with a pinned model, records progress and lessons on disk as they happen, and reorganizes the documentation so each reader loads only what applies. At the end, `AGENTS.md` is a short router, `.claude/` holds the roles, skills and path-scoped rules, `docs/lessons/` holds lessons that the planning stage retrieves, and `cargo xtask check-docs` keeps the indexes honest.
 
 ## 2. Goals and non-goals
 
@@ -38,7 +38,7 @@ Agents on this project stop to ask the maintainer what to do next, read about 30
 
 ## 3. Guide-level explanation
 
-The maintainer opens a session and runs `/chunk next`. The main session (Opus) reads the roadmap, proposes the first `Planned` chunk whose dependencies are done, and brainstorms it with the maintainer. It writes `spec.md` and stops. The maintainer approves the spec.
+The maintainer opens a session and runs `/chunk next`. The main session (Opus) reads the roadmap, proposes the first `Planned` chunk whose dependencies are done, and brainstorms it with the maintainer. It writes `spec.md`, then runs `/grill`: a fresh agent reads the spec cold and lists what it would have to guess, and the main session works through those and the remaining open decisions with the maintainer in rounds, writing each answer into the spec as it is given. When nothing is left open, the maintainer approves the spec.
 
 The main session then runs `/chunk resume`. It asks the lessons researcher which lessons apply to the paths the spec touches, writes `plan.md` listing them, and starts the work without stopping. For each plan step it hands the step to a builder agent (Sonnet), which writes the test first, makes the change, appends to `log.md` and reports back. The main session checks the result, ticks the step and commits it with the log.
 
@@ -52,17 +52,18 @@ If the session dies at any point, a new one runs `/chunk resume`: it reads the g
 
 | Stage | Done by | Model | Produces | Stops for the maintainer |
 |---|---|---|---|---|
-| 1. Brainstorm | main session, with the maintainer | Opus | `spec.md` (Draft) | **Yes: spec approval** |
-| 2. Plan | main session; lessons researcher | Opus; Haiku | `plan.md`, `log.md` | No |
-| 3. Work | builder, one per plan step | Sonnet | commits | No |
-| 4. Review | reviewers (§4.2), then builder for fixes | §4.2 | the PR's Reviews section | No |
-| 5. Compound | main session | Opus | edits to `docs/lessons/` and other docs | No |
-| 6. Close out | main session | Opus | PR, close-out commit | **Yes: merge go-ahead** |
+| 1. Brainstorm | main session, with the maintainer | Opus | `spec.md` (Draft) | No (the maintainer is in the conversation) |
+| 2. Grill (§4.10) | main session, with the maintainer; cold reader | Opus; Opus | spec edits, `log.md` entries | **Yes: spec approval, at its end** |
+| 3. Plan | main session; lessons researcher | Opus; Haiku | `plan.md`, `log.md` | No |
+| 4. Work | builder, one per plan step | Sonnet | commits | No |
+| 5. Review | reviewers (§4.2), then builder for fixes | §4.2 | the PR's Reviews section | No |
+| 6. Compound | main session | Opus | edits to `docs/lessons/` and other docs | No |
+| 7. Close out | main session | Opus | PR, close-out commit | **Yes: merge go-ahead** |
 
-- The main session MUST NOT write product or test code in stage 3 or 4; it dispatches, checks, commits and keeps the documents. It MAY edit documentation directly.
+- The main session MUST NOT write product or test code in stage 4 or 5; it dispatches, checks, commits and keeps the documents. It MAY edit documentation directly.
 - Stage 1 picks the next chunk as the first `Planned` row of the current milestone, in ID order, whose dependencies are `Done`; the maintainer MAY name another.
-- An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch and opening its pull request are part of stage 6 and need no further approval.
-- Compounding is not only stage 5: every agent writes candidate lessons to `log.md` as they happen (§4.3). Stage 5 promotes them.
+- An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch and opening its pull request are part of stage 7 and need no further approval.
+- Compounding is not only stage 6: every agent writes candidate lessons to `log.md` as they happen (§4.3). Stage 6 promotes them.
 - **Escalations.** Outside the two stop points, an agent MUST stop and ask when: the spec is wrong or silent on something that changes what gets built (the fix is a spec amendment, approved like the spec); a change would touch an ADR, a frozen format or a CI-enforced policy that the spec does not name; a reviewer and the builder still disagree after two fix rounds; or anything outward-facing beyond the chunk's branch and pull request (merging, pushing another branch, publishing, commenting elsewhere).
 - Long jobs that run mutated or untrusted code (mutants) run only by the procedure in §4.6, and the agent tells the maintainer when it starts one.
 
@@ -79,6 +80,7 @@ Roles are Claude Code agent files in `.claude/agents/`, each with `name`, `descr
 | Documentation reviewer | `review-docs.md` | `sonnet` | read-only plus Bash | as above |
 | Spec conformance reviewer | `review-spec.md` | `sonnet` | read-only plus Bash | as above |
 | Lessons researcher | `lessons-researcher.md` | `haiku` | read-only | the list of paths and topics the spec touches |
+| Cold reader (grill) | `spec-reader.md` | `opus` | read-only | the spec path only |
 
 - Reviewers MUST NOT edit files and MUST NOT receive the builder's or the main session's reasoning; the brief is the spec, the diff range, the checklist link and the lesson IDs.
 - A re-review after a fix MUST be a fresh reviewer agent, not a continued one.
@@ -116,7 +118,7 @@ applies_to:
 - **Fields:** the lesson in one or two sentences; *Why*; *Deviate when* (optional); *Retire when* (optional: the change that makes it obsolete); *From* (chunk); *Confirmed* (date it was last found true).
 - **Capture gate.** A candidate from `log.md` becomes a lesson only if it is non-obvious from the code, likely to recur, and costly to miss. If a test, lint or `xtask` check can enforce it, that is preferred, and the lesson is not written (or is deleted once the check exists).
 - **Edits are deltas.** An agent adds, edits or deletes single bullets. It MUST NOT regenerate a lesson file. Before adding, it MUST search the existing lessons for one that covers the same point and edit that one instead.
-- **Retrieval.** In stage 2 the lessons researcher matches the paths the spec touches against `applies_to` and returns the matching lesson IDs with one line each. The plan's Lessons section lists each ID as followed or deviated from, with the reason. Reviewers receive the same IDs. No session loads all lessons.
+- **Retrieval.** In stage 3 the lessons researcher matches the paths the spec touches against `applies_to` and returns the matching lesson IDs with one line each. The plan's Lessons section lists each ID as followed or deviated from, with the reason. Reviewers receive the same IDs. No session loads all lessons.
 - **Upkeep.** At each milestone boundary, a refresh (`/lessons-refresh`) checks every lesson against the code: keep (update *Confirmed*), edit, merge, or delete. `check-docs` (§4.7) fails when an `applies_to` pattern matches no tracked file.
 - **Seed lessons.** This chunk moves the project knowledge now held only in the maintainer's local Claude memory into lessons, skills or docs (§4.6), and writes nothing else as seed.
 
@@ -157,6 +159,7 @@ applies_to:
 
 - `agents/`: §4.2.
 - `skills/chunk/`: `SKILL.md` (under 150 lines) dispatches `/chunk next`, `/chunk resume` and `/chunk <stage>`; one reference file per stage holds that stage's steps, so only the current stage's text is loaded.
+- `skills/grill/`: §4.10.
 - `skills/lessons-refresh/`: the upkeep pass of §4.4.
 - `skills/bench-run/`: the wall-clock benchmark protocol (AC power, `caffeinate -i`, no builds during the run, power-log check afterwards), moved from local memory.
 - `skills/mutants-run/`: running mutants in a memory-capped container (`--memory=4g --memory-swap=4g`, `-j 1`) with a host-side watchdog, moved from local memory. The container recipe was lost with a session scratchpad and is rebuilt in this chunk, then tried once with `cargo xtask mutants --module random` in Docker Desktop on the maintainer's Mac; the agent says when it starts the run, and records its output in `log.md`.
@@ -185,7 +188,7 @@ The maintainer's local Claude memory for this project holds project knowledge no
 |---|---|
 | Benchmark run protocol | `skills/bench-run/` and `bench/README.md` |
 | Long jobs need memory caps | `skills/mutants-run/`, and a lesson in `docs/lessons/testing.md` (the `bounded` helpers) |
-| One PR per chunk, close-out in it | `docs/workflow.md` (stage 6) |
+| One PR per chunk, close-out in it | `docs/workflow.md` (stage 7) |
 | Direct push to main: one-off only | the `guard-push.sh` hook |
 | No copying other engines' code | already ADR 0002; nothing to add |
 | Engine project goals | already in the roadmap, ADRs and specs; nothing to add |
@@ -199,7 +202,19 @@ Personal preferences (tone, collaboration style, "grill me", DX over API stabili
 - `docs/design/_template/log.md`: new (§4.3).
 - `.github/PULL_REQUEST_TEMPLATE.md`: a Reviews section (the eight reviews, one line each) and a Lessons section (lessons added, edited or deleted, by ID) replace the checklist lines they duplicate.
 
-### 4.10 Keeping the workflow current
+### 4.10 Grilling the spec
+
+A skill, `/grill`, written for this repository from the method of Matt Pocock's `grilling` skill (MIT; cited, not copied, per ADR 0002). It runs after the spec is drafted and before it is approved, with the maintainer in the conversation.
+
+1. **Cold read.** Dispatch the cold reader (§4.2) with only the spec's path. It returns the questions a builder would have to guess at, where a wrong guess changes what gets built, ranked.
+2. **Sort.** The main session answers from the repository or the conversation what it can, and writes the answer into the spec. It settles minor points itself and marks them in the spec as its call. What is left are decisions only the maintainer can make.
+3. **Rounds.** Each round asks every open decision whose prerequisites are settled, numbered, each with the main session's recommended answer and its trade-off, worded so that "yes" accepts it. Facts are looked up (by the main session or a read-only agent), never asked. Questions probe the design; they never quiz the maintainer on it.
+4. **Record as it goes.** Each answer is written into the spec and noted in `log.md` before the next round, so a killed session loses nothing.
+5. **End.** When no decision is open, the main session lists the calls it made and asks for spec approval. That approval is the stop point of §4.1.
+
+The skill MAY also be invoked on a plan, an ADR or any design document; the steps are the same.
+
+### 4.11 Keeping the workflow current
 
 The milestone checklist in `docs/maintainers.md` gains two items: run `/lessons-refresh`, and, if a new model shipped since the last milestone, re-check the model assigned to each role in §4.2 against one chunk's results.
 
@@ -207,7 +222,7 @@ The milestone checklist in `docs/maintainers.md` gains two items: run `/lessons-
 
 - **M3.15-R1** `AGENTS.md` MUST describe the loop and its two stop points (spec approval, merge go-ahead) and the escalations of §4.1, and MUST stay under 80 lines.
 - **M3.15-R2** `docs/workflow.md` MUST describe §4.1 to §4.4, and `CONTRIBUTING.md` MUST link it instead of restating the process.
-- **M3.15-R3** `.claude/agents/` MUST define the seven roles of §4.2 with the models given there; reviewer roles MUST NOT have edit tools.
+- **M3.15-R3** `.claude/agents/` MUST define the eight roles of §4.2 with the models given there; reviewer roles MUST NOT have edit tools.
 - **M3.15-R4** The `chunk` skill MUST implement `next`, `resume` and per-stage invocation, with stage text in separate reference files.
 - **M3.15-R5** `resume` MUST reconstruct state from git, the plan's checkboxes and `log.md` only (§4.3).
 - **M3.15-R6** The templates MUST include `log.md`, plan checkboxes and the plan's Lessons section (§4.9).
@@ -219,6 +234,7 @@ The milestone checklist in `docs/maintainers.md` gains two items: run `/lessons-
 - **M3.15-R12** The project knowledge in §4.8 MUST be in the repository, and the mutants container procedure MUST complete one run of `--module random` with a report.
 - **M3.15-R13** The CLAUDE.md audit (`claude-md-management:claude-md-improver`) MUST be run against `AGENTS.md` and `CLAUDE.md` after the rewrite, and each finding fixed or answered in the pull request.
 - **M3.15-R14** This chunk's own reviews MUST be run with the new reviewer agents.
+- **M3.15-R15** The `grill` skill MUST implement §4.10, and the `chunk` skill MUST run it between brainstorm and spec approval.
 
 ## 6. Cross-cutting concerns
 
@@ -241,6 +257,7 @@ The milestone checklist in `docs/maintainers.md` gains two items: run `/lessons-
 - **Keep the plan review as a stop point.** It adds a wait to every chunk; the spec is where the maintainer's intent matters most, and the plan is reviewed at merge with the rest.
 - **Lessons in an always-loaded file** (a section of `AGENTS.md`). Measured context files raise cost and do not raise success much (ETH Zurich, 2026); lessons that load only by path keep the always-loaded part small.
 - **Per-subagent persistent memory** (`memory: project`). It splits knowledge by role, is Claude-specific, and is loaded at every start of that role; lessons by path are shared and readable by people.
+- **Install or copy Matt Pocock's `grill-me` / `grilling` skills.** The plugin brings many skills and updates itself outside a pull request; a copy would need an exception to ADR 0002. The method is adopted in §4.10 instead.
 - **Regenerating lesson files with an LLM to keep them tidy.** ACE (ICLR 2026) measured that a full rewrite collapsed a playbook and dropped accuracy below no playbook at all; edits are deltas.
 - **Only `.claude/rules/` and no directory READMEs.** Claude-only; people and other agents would get nothing.
 
@@ -259,6 +276,7 @@ The milestone checklist in `docs/maintainers.md` gains two items: run `/lessons-
 | R12 | `log.md` entry for the `--module random` container run with its summary table; spec conformance review against §4.8 |
 | R13 | the audit's output and responses in the pull request |
 | R14 | the Reviews section names the agent file used for each review |
+| R15 | this spec's own grill session, recorded in `log.md`; spec conformance review reads the skill against §4.10 |
 
 ## 9. Done when
 
@@ -280,4 +298,5 @@ None.
 - "Codified Context", [arXiv 2602.20478](https://arxiv.org/abs/2602.20478) (2026): a small always-loaded file, specialist agents, on-demand specs; stale docs caused conflicting code.
 - EveryInc, [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) (checked 2026-11-15): the loop, `docs/solutions/` with frontmatter, a learnings researcher in planning, overlap check, capture gate, refresh.
 - Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) (2025), [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (2025), [Harness design for long-running apps](https://www.anthropic.com/research/harness-design-long-running-apps) (2026), [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory) (2026): progress files and commits per session, separate evaluator, re-test harness parts when models change, keep memory to what cannot be re-derived.
+- Matt Pocock, [`grilling` skill](https://github.com/mattpocock/skills/tree/main/skills/productivity/grilling) (MIT, checked 2026-11-15): a design tree worked in rounds of questions with recommended answers; facts looked up, decisions asked.
 - Claude Code docs: [memory](https://code.claude.com/docs/en/memory) (AGENTS.md loading, path-scoped rules, under 200 lines), [subagents](https://code.claude.com/docs/en/sub-agents), [skills](https://code.claude.com/docs/en/skills).

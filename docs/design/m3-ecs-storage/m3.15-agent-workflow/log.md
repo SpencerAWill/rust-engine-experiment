@@ -1,0 +1,11 @@
+# M3.15 log: agent workflow, lessons and documentation layout
+
+- **Status:** Living (2026-11-15). Append-only; one or two lines per entry (spec §4.3).
+
+- 2026-11-15 decision Approach B (own `.claude/` layer, compound-engineering ideas, no plugin); stops at spec approval and merge go-ahead only.
+- 2026-11-15 decision Reviews by independent agents: code, security, conditional on Opus; docs, spec conformance on Sonnet. Builders on Sonnet.
+- 2026-11-15 decision "Lessons", not "rules": followed by default, deviations recorded with a reason. Promoted by direct edits in the chunk PR.
+- 2026-11-15 surprise Claude Code skips `AGENTS.md` when a `CLAUDE.md` exists; hence `CLAUDE.md` = `@AGENTS.md`.
+- 2026-11-15 decision Builder check answered: depends on M3.14 (now merged), resume trial by a cold agent, mutants trial `--module random` in Docker, main-session model not pinned, push guard in Rust behind a sh pre-filter.
+- 2026-11-15 decision Grill stage added between spec draft and approval, our own skill from Matt Pocock's method (option 3; ADR 0002 rules out a copy without an exception).
+- 2026-11-15 done Worktree dropped after PR #56 merged; branch rebased onto `main` in the main checkout.
