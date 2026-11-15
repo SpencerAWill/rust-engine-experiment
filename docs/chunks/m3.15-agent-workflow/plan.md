@@ -67,7 +67,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 6: Settings: hook wiring and read-only allowlist (R8)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `.claude/settings.json` (new).
 - **Change:** `hooks.PreToolUse` with matcher `Bash` running `sh "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-push.sh"`; `permissions.allow` built by running `/fewer-permission-prompts`, then cut by hand to read-only commands (nothing that writes, pushes, deletes or installs). No `model` key (spec §2).
 - **Verify:** hook trial in this session: run `git push --dry-run origin main` through Bash and confirm it is blocked with the guard's reason; run `git push --dry-run origin m3.15-agent-workflow` and confirm it is not. Record both in `log.md`.
@@ -148,5 +148,6 @@ Inputs no step's tests cover that are most likely to bite:
 ## 6. Deviations
 
 - **Step 5:** `run_reads_hook_json` tests a private `decide_hook_input` (which takes a branch-lookup closure) rather than `run`, which reads stdin. The guard covers more forms than listed (`sh -c`, env prefixes, `&` and parentheses, `-C` with no refspec blocked); see `log.md`.
+- **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed.
 - **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
 - **Step 7:** `testing-1`'s `applies_to` is `libs/engine/src/collections/**`, narrower than the spec's example (`libs/engine/src/**/tests/**`), because the helpers are crate-private to `collections`.
