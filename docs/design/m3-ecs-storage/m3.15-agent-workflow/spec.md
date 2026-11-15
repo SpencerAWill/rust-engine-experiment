@@ -1,6 +1,6 @@
 # M3.15: Agent workflow and lessons
 
-- **Status:** Draft (2026-11-15)
+- **Status:** Accepted (2026-11-15)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
