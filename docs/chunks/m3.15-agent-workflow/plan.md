@@ -112,7 +112,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 12: Workflow documentation (R1, R2)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `docs/workflow.md` (new: spec §4.1 to §4.4 and §4.10, for people and agents); `AGENTS.md` (rewritten, under 80 lines, spec §4.5); `CLAUDE.md` (new: `@AGENTS.md`); `CONTRIBUTING.md` ("How work is organized" links `docs/workflow.md`; "Reviews before a pull request" names the reviewer agents and the simplify pass); `docs/README.md` (`workflow.md`, `lessons/`, the writing rule); `docs/maintainers.md` (the two milestone items of spec §4.11; "Before merging a chunk" says the main session merges on the go-ahead); `.claude/README.md` (one line per entry; how to use `/chunk` and `/grill`); `CHANGELOG.md` (one entry under Changed).
 - **Verify:** `wc -l AGENTS.md` under 80; link-check reports 0; `git grep -n 'stop for the maintainer to review both'` prints nothing (the old rule is gone everywhere).
 - **Commit:** `docs: describe the agent workflow and rewrite AGENTS.md (M3.15)`
@@ -151,4 +151,5 @@ Inputs no step's tests cover that are most likely to bite:
 - **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed.
 - **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
 - **Step 9:** the plan expected "step 10"; the correct answer under the skill is step 9 (this trial is the first unticked step), which is what the trial gave.
+- **Step 12** was committed before step 11, which waited on its mutants run.
 - **Step 7:** `testing-1`'s `applies_to` is `libs/engine/src/collections/**`, narrower than the spec's example (`libs/engine/src/**/tests/**`), because the helpers are crate-private to `collections`.

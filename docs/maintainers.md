@@ -20,7 +20,7 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] The pull request title ends with the chunk ID, for example `(M2.1)`.
 - [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the roadmap row is `Done (PR #n)`.
 - [ ] `CHANGELOG.md` is updated.
-- [ ] Merge only on the maintainer's explicit go-ahead.
+- [ ] Merge only on the maintainer's explicit go-ahead. In the chunk loop the main session does the squash-merge after the go-ahead, once the required checks pass, never with `--admin`.
 - [ ] After merging any pull request (chunk or not) that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check, label or setting (such as Discussions) does not exist in the repository.
 
 ## When a milestone completes
@@ -28,6 +28,8 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] Instruction-count check (from M3 on): in the devcontainer or CI, run `cargo xtask bench-regress --report-only --base m<N-1>` (the previous milestone's tag) and record the result in `docs/benchmarks.md` ("Instruction counts across milestones"). The first run is at the end of M3, against `m2`; at the end of M2 no earlier tag contains the benchmarks.
 - [ ] Tag the commit that completed it: `git tag -a m<N> -m "M<N>: <goal>"`, then `git push origin m<N>`.
 - [ ] In the roadmap, mark the milestone `Done` and the next one `Current`, and break the next one into chunks.
+- [ ] Run `/lessons-refresh` over `docs/lessons/` (keep, edit, merge or delete each lesson against the code).
+- [ ] If a new Claude model shipped since the last milestone, re-check the model of each role in `.claude/agents/` against one chunk's results ([docs/workflow.md](workflow.md#roles)).
 - [ ] Decide whether this is the boundary at which to run "Before the repository goes public".
 
 ## Benchmarking
