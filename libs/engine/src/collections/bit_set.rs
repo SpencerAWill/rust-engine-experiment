@@ -223,12 +223,11 @@ impl BitSet {
         if bits > Self::MAX_BITS {
             return Err(TryReserveError::capacity_overflow());
         }
-        let needed = bits.div_ceil(WORD_BITS);
-        if needed > self.words.capacity() {
-            self.words
-                .try_reserve_exact(needed - self.words.len())
-                .map_err(TryReserveError::from_alloc)?;
-        }
+        // Reserving for `len + additional` words is a no-op when the capacity already covers it.
+        let additional = bits.div_ceil(WORD_BITS).saturating_sub(self.words.len());
+        self.words
+            .try_reserve_exact(additional)
+            .map_err(TryReserveError::from_alloc)?;
         Ok(())
     }
 
@@ -269,11 +268,12 @@ impl BitSet {
             return Err(TryReserveError::capacity_overflow());
         }
         let (word, mask) = words::locate(index);
-        if word >= self.words.len() {
+        let needed = word + 1;
+        if needed > self.words.len() {
             self.words
-                .try_reserve(word + 1 - self.words.len())
+                .try_reserve(needed - self.words.len())
                 .map_err(TryReserveError::from_alloc)?;
-            self.words.resize(word + 1, 0);
+            self.words.resize(needed, 0);
         }
         let added = self.words[word] & mask == 0;
         self.words[word] |= mask;
@@ -526,10 +526,9 @@ impl<'a> IntoIterator for &'a BitSet {
 
 #[cfg(test)]
 mod tests {
-    use alloc::format;
-    use alloc::vec::Vec;
 
     use super::*;
+    use crate::collections::tests::{bounded, debug_bounded};
 
     #[test]
     fn word_boundary_indices() {
@@ -538,8 +537,8 @@ mod tests {
             assert!(s.insert(i));
         }
         assert_eq!(s.as_words(), [1 | 1 << 63, 1 | 1 << 63, 1]);
-        assert_eq!(s.iter().collect::<Vec<_>>(), [0, 63, 64, 127, 128]);
-        assert_eq!(s.iter().rev().collect::<Vec<_>>(), [128, 127, 64, 63, 0]);
+        assert_eq!(bounded(s.iter(), 6), [0, 63, 64, 127, 128]);
+        assert_eq!(bounded(s.iter().rev(), 6), [128, 127, 64, 63, 0]);
         assert_eq!((s.first(), s.last()), (Some(0), Some(128)));
     }
 
@@ -576,7 +575,7 @@ mod tests {
     fn try_extend_stops_at_the_failing_index() {
         let mut s = BitSet::new();
         assert!(s.try_extend([1, 2, usize::MAX, 4]).is_err());
-        assert_eq!(s.iter().collect::<Vec<_>>(), [1, 2]);
+        assert_eq!(bounded(s.iter(), 3), [1, 2]);
     }
 
     #[test]
@@ -588,10 +587,10 @@ mod tests {
     #[test]
     fn debug_format() {
         let mut s = BitSet::new();
-        assert_eq!(format!("{s:?}"), "{}");
+        assert_eq!(debug_bounded(&s, 64), "{}");
         s.insert(130);
         s.insert(3);
-        assert_eq!(format!("{s:?}"), "{3, 130}");
+        assert_eq!(debug_bounded(&s, 64), "{3, 130}");
     }
 
     #[test]
@@ -599,7 +598,7 @@ mod tests {
         let mut a: BitSet = [1, 200].into_iter().collect();
         let b: BitSet = [1].into_iter().collect();
         a.intersect_with(&b);
-        assert_eq!(a.iter().collect::<Vec<_>>(), [1]);
+        assert_eq!(bounded(a.iter(), 2), [1]);
         assert_eq!(a.as_words().len(), 4);
     }
 
@@ -608,7 +607,7 @@ mod tests {
         let mut a: BitSet = [1, 200].into_iter().collect();
         let b: BitSet = [1].into_iter().collect();
         a.difference_with(&b);
-        assert_eq!(a.iter().collect::<Vec<_>>(), [200]);
+        assert_eq!(bounded(a.iter(), 2), [200]);
     }
 
     #[test]
@@ -622,6 +621,65 @@ mod tests {
         assert!(small.is_subset(&roomy));
         assert!(roomy.is_superset(&small));
         assert!(!roomy.is_disjoint(&small));
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn try_with_capacity_accepts_max_bits_and_rejects_one_more() {
+        // The reservation is not touched, so this does not use 512 MiB of memory.
+        let set = BitSet::try_with_capacity(BitSet::MAX_BITS).unwrap();
+        assert_eq!(set.capacity(), BitSet::MAX_BITS);
+        assert!(BitSet::try_with_capacity(BitSet::MAX_BITS + 1).is_err());
+        assert!(
+            BitSet::new()
+                .try_ensure_capacity(BitSet::MAX_BITS + 1)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn hash_depends_on_the_members() {
+        use core::hash::{Hash, Hasher};
+
+        /// FNV-1a, so the test needs no hasher from outside the crate.
+        struct Fnv(u64);
+        impl Hasher for Fnv {
+            fn finish(&self) -> u64 {
+                self.0
+            }
+            fn write(&mut self, bytes: &[u8]) {
+                for &b in bytes {
+                    self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+        }
+        fn hash(set: &BitSet) -> u64 {
+            let mut hasher = Fnv(0xcbf2_9ce4_8422_2325);
+            set.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let sets = [
+            BitSet::new(),
+            BitSet::from([0]),
+            BitSet::from([1]),
+            BitSet::from([64]),
+            BitSet::from([0, 64]),
+        ];
+        for (i, a) in sets.iter().enumerate() {
+            for b in &sets[i + 1..] {
+                assert_ne!(hash(a), hash(b), "{a:?} and {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn extend_from_references_and_from_array_add_the_indices() {
+        let mut s = BitSet::new();
+        s.extend(&[1_usize, 70]);
+        assert_eq!(bounded(s.iter(), 3), [1, 70]);
+        let t = BitSet::from([5, 130]);
+        assert_eq!(bounded(t.iter(), 3), [5, 130]);
     }
 
     #[test]

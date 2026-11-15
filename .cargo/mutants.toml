@@ -19,4 +19,12 @@ exclude_re = [
     # Equivalent: `type_name` never contains a lone `:`, so the guard is true whenever the byte
     # is `:`, which is the only time the arm is reached.
     '^libs/engine/src/genid/id\.rs:.*replace match guard bytes\.get\(i \+ 1\) == Some\(&b.:.\) with true in write_short_type_name',
+    # Equivalent: when the argument's trimmed length equals `self`'s, growing to it is a resize to
+    # the length the vector already has, so `>` and `>=` agree.
+    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::union_with',
+    # Equivalent: the same as for `union_with`: an equal length makes the resize a no-op.
+    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::symmetric_difference_with',
+    # Equivalent: when `needed` equals the current length, both the reservation of zero words and
+    # the resize to the same length do nothing, so `>` and `>=` agree.
+    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::try_insert',
 ]

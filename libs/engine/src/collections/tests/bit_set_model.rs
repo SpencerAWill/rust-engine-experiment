@@ -6,6 +6,7 @@ use std::vec::Vec;
 use proptest::prelude::*;
 
 use crate::collections::BitSet;
+use crate::collections::tests::bounded;
 
 #[derive(Clone, Debug)]
 enum Op {
@@ -153,14 +154,12 @@ fn check_relations(set: &BitSet, model: &BTreeSet<usize>, probe: &[usize]) {
 fn check(set: &BitSet, model: &BTreeSet<usize>) {
     let ascending: Vec<usize> = model.iter().copied().collect();
     let descending: Vec<usize> = model.iter().rev().copied().collect();
-    assert_eq!(set.iter().collect::<Vec<_>>(), ascending);
-    assert_eq!(set.iter().rev().collect::<Vec<_>>(), descending);
-    assert_eq!(set.into_iter().collect::<Vec<_>>(), ascending);
-    assert_eq!(set.clone().into_iter().collect::<Vec<_>>(), ascending);
-    assert_eq!(
-        set.clone().into_iter().rev().collect::<Vec<_>>(),
-        descending
-    );
+    let limit = model.len() + 1;
+    assert_eq!(bounded(set.iter(), limit), ascending);
+    assert_eq!(bounded(set.iter().rev(), limit), descending);
+    assert_eq!(bounded(set.into_iter(), limit), ascending);
+    assert_eq!(bounded(set.clone().into_iter(), limit), ascending);
+    assert_eq!(bounded(set.clone().into_iter().rev(), limit), descending);
     assert_eq!(set.len(), model.len());
     assert_eq!(set.is_empty(), model.is_empty());
     assert_eq!(set.first(), model.first().copied());

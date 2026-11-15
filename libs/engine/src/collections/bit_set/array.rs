@@ -275,11 +275,11 @@ impl<'a, const WORDS: usize> IntoIterator for &'a BitArray<WORDS> {
 
 #[cfg(test)]
 mod tests {
-    use alloc::format;
     use alloc::string::ToString;
     use alloc::vec::Vec;
 
     use super::*;
+    use crate::collections::tests::{bounded, debug_bounded};
 
     #[test]
     fn word_boundary_indices() {
@@ -288,8 +288,8 @@ mod tests {
             assert!(a.insert(i));
         }
         assert_eq!(a.as_words(), &[1 | 1 << 63, 1 | 1 << 63, 1]);
-        assert_eq!(a.iter().collect::<Vec<_>>(), [0, 63, 64, 127, 128]);
-        assert_eq!(a.iter().rev().collect::<Vec<_>>(), [128, 127, 64, 63, 0]);
+        assert_eq!(bounded(a.iter(), 6), [0, 63, 64, 127, 128]);
+        assert_eq!(bounded(a.iter().rev(), 6), [128, 127, 64, 63, 0]);
         assert_eq!((a.first(), a.last()), (Some(0), Some(128)));
         a.remove(0);
         a.remove(128);
@@ -303,7 +303,8 @@ mod tests {
         }
         let mut iter = a.iter();
         let mut seen = Vec::new();
-        for turn in 0.. {
+        // Bounded: a broken iterator that never ends must fail the assertions, not fill memory.
+        for turn in 0..=members.len() + 1 {
             let item = if turn % 2 == 0 {
                 iter.next()
             } else {
@@ -332,10 +333,10 @@ mod tests {
     #[test]
     fn debug_format() {
         let mut a = BitArray::<2>::new();
-        assert_eq!(format!("{a:?}"), "{}");
+        assert_eq!(debug_bounded(&a, 64), "{}");
         a.insert(3);
         a.insert(64);
-        assert_eq!(format!("{a:?}"), "{3, 64}");
+        assert_eq!(debug_bounded(&a, 64), "{3, 64}");
     }
 
     #[test]

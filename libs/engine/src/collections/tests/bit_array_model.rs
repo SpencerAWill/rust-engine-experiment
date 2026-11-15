@@ -6,6 +6,7 @@ use std::vec::Vec;
 use proptest::prelude::*;
 
 use crate::collections::bit_set::BitArray;
+use crate::collections::tests::bounded;
 
 #[derive(Clone, Debug)]
 enum Op {
@@ -148,9 +149,10 @@ fn check_relations<const WORDS: usize>(
 fn check<const WORDS: usize>(array: &BitArray<WORDS>, model: &BTreeSet<usize>) {
     let ascending: Vec<usize> = model.iter().copied().collect();
     let descending: Vec<usize> = model.iter().rev().copied().collect();
-    assert_eq!(array.iter().collect::<Vec<_>>(), ascending);
-    assert_eq!(array.iter().rev().collect::<Vec<_>>(), descending);
-    assert_eq!(array.into_iter().collect::<Vec<_>>(), ascending);
+    let limit = model.len() + 1;
+    assert_eq!(bounded(array.iter(), limit), ascending);
+    assert_eq!(bounded(array.iter().rev(), limit), descending);
+    assert_eq!(bounded(array.into_iter(), limit), ascending);
     assert_eq!(array.len(), model.len());
     assert_eq!(array.is_empty(), model.is_empty());
     assert_eq!(array.first(), model.first().copied());
