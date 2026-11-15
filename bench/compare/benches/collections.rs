@@ -35,7 +35,7 @@ trait Map {
 }
 
 impl Map for Engine<u64, u64> {
-    const NAME: &'static str = "engine_collections";
+    const NAME: &'static str = "engine::IndexMap";
     fn with_capacity(n: usize) -> Self {
         Engine::with_capacity(n)
     }

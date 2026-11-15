@@ -111,7 +111,7 @@ struct Thunder<V>(Arena<V>);
 
 impl<V: Value> Store<V> for Map<V> {
     type Key = GenId<V>;
-    const NAME: &'static str = "engine_genid_lean";
+    const NAME: &'static str = "engine::GenIdMap";
     fn new() -> Self {
         Self(GenIdMap::new())
     }
@@ -510,7 +510,7 @@ struct SlotAlloc(SlotMap<DefaultKey, ()>);
 
 impl Alloc for LeanAlloc {
     type Key = GenId<()>;
-    const NAME: &'static str = "engine_genid_lean";
+    const NAME: &'static str = "engine::GenIdAllocator";
     fn new() -> Self {
         Self(GenIdAllocator::new())
     }

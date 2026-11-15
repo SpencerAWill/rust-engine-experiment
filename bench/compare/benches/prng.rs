@@ -36,7 +36,7 @@ trait Generator {
 }
 
 impl Generator for Prng {
-    const NAME: &'static str = "engine_random";
+    const NAME: &'static str = "engine::Prng";
     fn new() -> Self {
         Prng::from_seed(SEED)
     }
