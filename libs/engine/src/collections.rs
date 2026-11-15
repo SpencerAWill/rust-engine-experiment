@@ -1,7 +1,7 @@
-//! Deterministic insertion-ordered hash map and set.
+//! Deterministic insertion-ordered hash map and set, and bitsets.
 //!
-//! It needs only `core` and `alloc`, and is the foundation for the ECS, the registry and
-//! persistence.
+//! It needs only `core` and `alloc` (`BitArray` needs only `core`), and is the foundation for the
+//! ECS, the registry and persistence.
 //!
 //! [`IndexMap`] and [`IndexSet`] iterate in insertion order, so iteration
 //! order is a pure function of the operations applied. The hashing algorithm
@@ -29,7 +29,26 @@
 //!   the next `n` insertions of new keys, and every lookup, iteration, removal,
 //!   `retain`, `clear` and sort, do not allocate.
 //!
+//! # Bitsets
+//!
+//! [`BitSet`] and [`BitArray`] hold sets of small non-negative integers, one bit per index, for
+//! component masks, dirty flags, occupancy and free bins. [`BitSet`] grows on the heap when an
+//! index past its end is inserted; [`BitArray<WORDS>`](BitArray) is inline, never allocates, and
+//! holds `WORDS × 64` bits.
+//!
+//! - **Iteration is ascending**, forwards and (as a double-ended iterator) backwards, so it does
+//!   not depend on the operations applied.
+//! - **Equality and `Hash` ignore capacity.** Two [`BitSet`]s with the same members are equal
+//!   and hash equally however much room they have and however they grew.
+//! - **The layout is the same on every target and is public.** Words are `u64`; bit `i` is bit
+//!   `i % 64`, from the least significant bit, of word `i / 64`; see [`bit_set`].
+//! - **The largest index is the same on every target:** [`BitSet::MAX_BITS`] is `u32::MAX`, so
+//!   valid indices are `0..MAX_BITS`, and `try_insert` and its relatives return an error past it.
+//! - **Heap use follows ADR 0011.** After `with_capacity(n)` or `ensure_capacity(n)`, nothing
+//!   for indices below `n` allocates.
+//!
 //! # Your part
+//!
 //!
 //! The caller owns a deterministic operation sequence. Inserting from several
 //! threads in completion order gives a different order on every run, and no
@@ -42,6 +61,8 @@
 //! | Hashed lookup, iteration in insertion order | [`IndexMap`], [`IndexSet`] |
 //! | Iteration in sorted key order | `BTreeMap`, `BTreeSet` |
 //! | A few order-independent keys | a sorted `Vec` |
+//! | A set of small indices that grows | [`BitSet`] |
+//! | A set of small indices whose size is known at compile time, with no heap use | [`BitArray`] |
 //!
 //! std's `HashMap` and `HashSet` are banned in engine code (`clippy.toml`):
 //! their iteration order is randomized per process.

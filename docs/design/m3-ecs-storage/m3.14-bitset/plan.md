@@ -148,4 +148,11 @@ Choices the spec leaves to implementation:
 
 ## 4. Deviations
 
-Filled in during implementation.
+Where the implementation differs from the plan above.
+
+- **Step 1: word routines.** `words.rs` got only the routines `BitArray` used in that commit (`locate`, `count`, `first`, `last`). `trimmed` and `highest_bit_u64` arrived with `BitSet` (Step 2) and the `*_into`, `is_subset` and `is_disjoint` routines with set algebra (Step 3), because an unused `pub(super)` function fails clippy's `dead_code`. The interfaces are as planned.
+- **Step 2: `from_iter` panic test.** It calls `BitSet::from_iter` directly instead of `.collect::<BitSet>()`. `Iterator::collect` is not `#[track_caller]`, so a panic through it reports a location inside `core`; the implementation is `#[track_caller]` as planned.
+- **Step 4: allocation checks.** The five checks run as labelled assertions inside the file's one `dhat` test (`check_bitsets_never_allocate`), not as five `#[test]`s: `dhat` allows one profiler per process and plain `cargo test` runs tests in threads. Breaking a setup on purpose made the check fail, so it can detect an allocation.
+- **Step 5: fuzz run.** `cargo xtask fuzz bit_set_ops --time 600`: 4,204,841 runs in 601 s, no finding.
+- **Step 6: `bit_set_union_256k`.** One union of two 262,144-bit sets measured 9,483 instructions, under the gate's 10,000 minimum (spec §4.8 expected it to clear it), so the benchmark runs the union twice (18,743). `bench-regress` was run in a throwaway Debian trixie container with Valgrind, not the devcontainer (none was available), and needed `--security-opt seccomp=unconfined` for `setarch`; it reported no regression, and the new benchmarks are `new` against a base without them. Wall-clock numbers are in the pull request.
+- **Step 7: mutation testing.** Run in a Linux container with a 4 GB memory limit and `-j 1`, not on macOS with `-j 2`: the first attempt exhausted the machine's memory, because mutants that make an iterator endless meet tests that collect or format it without a limit. Those tests now use `bounded` and `debug_bounded`. `try_ensure_capacity` and `try_insert` were restructured so two mutants that `resize` makes unobservable no longer exist; behaviour is unchanged. Three equivalent mutants are excluded. See [docs/mutation-triage.md](../../../mutation-triage.md).

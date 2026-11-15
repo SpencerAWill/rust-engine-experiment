@@ -679,10 +679,10 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** component masks, dirty flags, occupancy, free bins in allocators.
 - **Notes:** one bit per index, scanned a word at a time.
 - **Variants:** a fixed size or a growable size.
-- **Repo fit:** `safe`.
+- **Repo fit:** `safe`; `in repo` (`engine::collections::BitSet` and `BitArray`, M3.14).
 - **Determinism:** deterministic.
 - **Builds on:** nothing.
-- **Sources:** none checked yet.
+- **Sources:** [M3.14 spec §11](../design/m3-ecs-storage/m3.14-bitset/spec.md#11-prior-art-and-sources) lists them: the `fixedbitset`, `bitvec`, `bit-set` and `hibitset` documentation and `bevy_ecs`'s `ComponentIdSet`, read for the design; Lemire's [Iterating over set bits quickly](https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/), read for the trailing-zero iteration. Warren's *Hacker's Delight* (chapters 2 and 5) and Knuth's *TAOCP* 4A §7.1.3 are cited for the bit techniques, not read.
 
 #### Hierarchical bitset
 
