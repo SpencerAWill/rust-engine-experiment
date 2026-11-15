@@ -1,6 +1,6 @@
 # M3.15: Agent workflow and lessons
 
-- **Status:** Accepted (2026-11-15)
+- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
@@ -183,8 +183,8 @@ A skill, `/grill`, written for this repository from the method of Matt Pocock's 
 
 1. **Cold read.** Dispatch the cold reader (§4.2) with only the spec's path. It returns the questions a builder would have to guess at, where a wrong guess changes what gets built, ranked.
 2. **Sort.** The main session answers from the repository or the conversation what it can, and writes the answer into the spec. It settles minor points itself and marks them in the spec as its call. What is left are decisions only the maintainer can make.
-3. **Rounds.** Each round asks every open decision whose prerequisites are settled, numbered, each with the main session's recommended answer and its trade-off, worded so that "yes" accepts it. Facts are looked up (by the main session or a read-only agent), never asked. Questions probe the design; they never quiz the maintainer on it.
-4. **Record as it goes.** Each answer is written into the spec and noted in `log.md` before the next round, so a killed session loses nothing.
+3. **Questions.** One at a time by default, each with the main session's recommended answer and its trade-off, worded so that "yes" accepts it, the next built on the answer. Up to three MAY be batched only when they are independent: no possible answer to one changes whether another is asked, what its options are, or what is recommended for it; the main session says why before batching, and asks one at a time when unsure. Facts are looked up (by the main session or a read-only agent), never asked. Questions probe the design; they never quiz the maintainer on it. *(Amended 2026-11-15 by the maintainer: rounds of every open question became one at a time, because dependent questions in one batch can be made irrelevant by an unexpected answer.)*
+4. **Record as it goes.** Each answer is written into the spec and noted in `log.md` before the next question, so a killed session loses nothing.
 5. **End.** When no decision is open, the main session lists the calls it made and asks for spec approval. That approval is the stop point of §4.1.
 
 The skill MAY also be invoked on a plan, an ADR or any design document; the steps are the same.

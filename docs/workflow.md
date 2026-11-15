@@ -82,8 +82,8 @@ Agents get killed and sessions end; what is not on disk is lost.
 
 1. `spec-reader` reads the spec cold and returns the questions a builder would have to guess at.
 2. The main session answers what the repository or the conversation already answers, settles minor points as its own call (marked in the spec), and keeps the rest for the maintainer.
-3. Each round asks every open decision whose prerequisites are settled, numbered, each with a recommended answer and its trade-off, worded so "yes" accepts it. Facts are looked up, never asked. Questions probe the design; they do not quiz the maintainer.
-4. Each answer goes into the spec and `log.md` before the next round.
+3. Questions go one at a time, each with a recommended answer and its trade-off, worded so "yes" accepts it, and the next built on the answer. Up to three may be batched only if they are independent: no answer to one changes whether another is asked, its options or its recommendation. Facts are looked up, never asked. Questions probe the design; they do not quiz the maintainer.
+4. Each answer goes into the spec and `log.md` before the next question.
 5. When nothing is open, the main session lists its own calls and asks for approval.
 
 It works the same on a plan, an ADR or any design document.

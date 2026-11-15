@@ -1,6 +1,6 @@
 ---
 name: grill
-description: Grill a draft spec (or plan, ADR or design doc) with the maintainer until no decision is left open - a cold read first, then rounds of numbered questions with recommended answers, each answer written into the document as it is given. Use after drafting a spec and before asking for its approval, or when asked to "grill me" on a design.
+description: Grill a draft spec (or plan, ADR or design doc) with the maintainer until no decision is left open - a cold read first, then questions one at a time (small batches only when independent) with recommended answers, each answer written into the document as it is given. Use after drafting a spec and before asking for its approval, or when asked to "grill me" on a design.
 argument-hint: "<path to the spec or design document>"
 ---
 
@@ -23,23 +23,21 @@ For each question, and anything you noticed yourself:
 - **Answered already** by the repository or the conversation: write the answer into the document.
 - **Minor**, a sensible builder could settle it without changing what gets built: settle it, write it in marked as yours ("*(main session's call)*"), and keep a list of these calls. One `log.md` line lists them.
 - **A fact** you can look up (in the code, the docs, or the web): look it up, or send a read-only agent. Facts are never asked.
-- **The maintainer's:** only they can answer it, and the answer changes what gets built. These form the rounds.
+- **The maintainer's:** only they can answer it, and the answer changes what gets built. These are the questions of step 3.
 
-## 3. Rounds
+## 3. Questions
 
-Each round asks every open decision whose prerequisites are settled. In one message:
+**One question at a time by default.** A follow-up built on the maintainer's real answer goes further than one built on your guess of it.
 
-- number them;
-- for each: the question in plain words, why it matters (what it changes), your recommended answer and its trade-off; when there are named options, sketch each briefly;
-- word each so that "yes" accepts your recommendation.
+Each question: the decision in plain words, why it matters (what it changes), your recommended answer and its trade-off; when there are named options, sketch each briefly. Word it so that "yes" accepts your recommendation.
 
-Before sending the round, commit the document and `log.md` with step 2's edits, so nothing is lost while you wait. Keep a round to about five questions; if more are open, ask the ones the others depend on first.
+**Batch only independent questions**, at most three: no possible answer to one may change whether another is asked, what its options are, or what you would recommend for it. Check every pair before batching and say in one line why they are independent. When unsure, ask one at a time. Number the questions in a batch.
 
-Then wait. After the answers, recompute what is open: an answer can settle other questions or open new ones (a split, a new dependency). Repeat.
+Before the first question, commit the document and `log.md` with step 2's edits, so nothing is lost while you wait. After each answer, recompute what is open: an answer can settle other questions or open new ones (a split, a new dependency). Ask the next question that the remaining ones depend on.
 
 ## 4. Record as it goes
 
-Before the next round, write every answer into the document (as decided, in its own section, not as a transcript) and add one `decision` line per answer, or one line per round, to `log.md`. Commit the document and log. A killed session must lose nothing.
+Before the next question, write every answer into the document (as decided, in its own section, not as a transcript) and add one `decision` line per answer, or one line per batch, to `log.md`. Commit the document and log. A killed session must lose nothing.
 
 ## 5. End
 
