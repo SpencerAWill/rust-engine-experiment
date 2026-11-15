@@ -16,7 +16,7 @@ Claude Code configuration shared by everyone who works on this repository: the a
 - `skills/bench-run/`: how to take wall-clock benchmarks on a laptop that can be trusted.
 - `skills/mutants-run/`: mutation testing in a memory-capped container, with its scripts.
 - `hooks/guard-push.sh`: blocks agent pushes to `main` and force pushes; the logic is `cargo xtask guard-push`.
-- `settings.json`: the hook, and an allowlist of read-only commands. No model is set, so each contributor keeps their own.
+- `settings.json`: the hook, and an allowlist of check commands whose flags `xtask` itself restricts (no bare `cargo test *`: cargo's `--config` and `--manifest-path` flags can run any program). No model is set, so each contributor keeps their own.
 - `README.md`: this file.
 
 Local state is ignored by git: `settings.local.json` (personal overrides), `worktrees/`, `agent-memory-local/`.

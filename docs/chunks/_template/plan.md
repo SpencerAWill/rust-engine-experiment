@@ -1,6 +1,6 @@
 # M<N>.<n> plan: <title>
 
-- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Plan statuses: `Draft (date)`, `Accepted (date)`, `Historical: executed in PR #n (date); the spec and the code are authoritative`. Set `Historical` in the chunk's own pull request, in the close-out commit after its checks pass (see docs/README.md).
+- **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Plan statuses: `Draft (date)`, `Accepted (date)`, `Historical: executed in PR #n (date); the spec and the code are authoritative`. Set `Historical` in the chunk's own pull request, in the close-out commit pushed as soon as the PR is open (see docs/README.md).
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 Keep it short: a plan records the decisions a builder cannot make alone (files, names, signatures, the tests that prove each step). It does not restate the spec.

@@ -6,6 +6,6 @@
 4. **Wait** for the merge go-ahead. Tell the maintainer what is in the PR in a few lines, with its link.
 5. **After the go-ahead**, in the same turn:
    - wait for the required checks (`gh pr checks <n> --required --watch` exits 0; the admin can bypass the ruleset, so this wait is the only thing enforcing them); if one fails, fix it as in stage 5 and ask for the go-ahead again;
-   - `gh pr merge <n> --squash --delete-branch` (never `--admin`, never bypass a check);
+   - note the head commit the checks passed on (`gh pr view <n> --json headRefOid -q .headRefOid`) and merge exactly that: `gh pr merge <n> --squash --delete-branch --match-head-commit <sha>` (never `--admin`, never bypass a check);
    - if the PR changed `infra/github/`, remind the maintainer to run `pulumi preview` and `pulumi up` there;
    - `git checkout main && git pull`, then `/chunk next`.

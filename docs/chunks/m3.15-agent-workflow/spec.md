@@ -243,7 +243,7 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 - **Frozen formats:** none touched.
 - **Public API changes:** none.
 - **FFI exposure:** none.
-- **Performance:** the push guard's `sh` pre-filter keeps `cargo` off every Bash call that is not a push; the plan measures the time of a push check.
+- **Performance:** the push guard's `sh` pre-filter keeps `cargo` off every Bash call whose hook input does not contain `push`; the guard builds in its own target directory so a concurrent build cannot stall it; the plan measures the time of a push check.
 - **Documentation:** §4.5 and §4.9.
 - **Policy changes:** yes. The stop points change from "spec and plan reviewed together, then merge" to "spec (after a grill), then merge"; reviews must be done by agents other than the builder, after a simplify pass; lessons may be edited directly in a chunk's pull request and are listed in its Lessons section; plugin defaults yield to the workflow; the main session merges after the maintainer's go-ahead and may open follow-up issues; chunk documents move from milestone folders to `docs/chunks/`.
 

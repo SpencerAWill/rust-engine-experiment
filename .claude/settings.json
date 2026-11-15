@@ -18,9 +18,6 @@
       "Bash(cargo xtask fuzz-build)",
       "Bash(cargo xtask bench-smoke)",
       "Bash(cargo xtask mutants --list)",
-      "Bash(cargo test *)",
-      "Bash(cargo nextest run *)",
-      "Bash(cargo tree *)",
       "Bash(pmset -g batt)",
       "Bash(pmset -g log)"
     ]
@@ -32,7 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-push.sh\""
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-push.sh\"",
+            "timeout": 120
           }
         ]
       }
