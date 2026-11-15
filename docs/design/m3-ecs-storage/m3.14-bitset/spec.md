@@ -1,6 +1,6 @@
 # M3.14: Bitsets (`BitSet` and `BitArray`)
 
-- **Status:** Accepted (2026-11-14)
+- **Status:** Accepted (2026-11-14). Amended the same day while writing the plan, before any code: `try_from_words` returns `TryReserveError` (a bit index on a 32-bit target may not fit in `usize`), `try_extend` is added as the fallible twin of `BitSet`'s `FromIterator`, `Extend` and `From`, `BitIndexError`'s module is stated once, and the set-algebra benchmarks use 262,144-bit sets to clear the gate's minimum (§4.1, §4.2, §4.3, §4.6, §4.8).
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; M3.5, M4 and the hierarchical bitset build on it) · **Depends on:** none · **Decides:** no ADR
 - **Issues:** #42 (sub-issue of #38). Related: #44 (hierarchical bitset, which builds on the word layout of §4.2), #41 / M3.12 (space metrics, left out here; §2).
 - **Estimated size:** about 900 changed lines, excluding tests, lockfiles and generated files (shared word routines about 120, `BitSet` about 300, `BitArray` about 180, iterators and the error type about 80, benchmarks about 100, fuzz target about 60, documents about 60)
@@ -98,7 +98,7 @@ assert_eq!(BitArray::<1>::CAPACITY, 64);
 
 ### 4.1 Module and layout
 
-- `engine::collections` MUST gain a public module `bit_set` holding `BitSet`, `BitArray`, their iterators and `BitIndexError`. `BitSet`, `BitArray` and `BitIndexError` MUST be re-exported at `engine::collections`. Neither type goes in `engine::prelude`, as with `IndexMap` (M3.1 §4.1).
+- `engine::collections` MUST gain a public module `bit_set` holding `BitSet`, `BitArray` and their iterators; `BitIndexError` goes in `collections::error` with `TryReserveError` (§4.6). `BitSet`, `BitArray` and `BitIndexError` MUST be re-exported at `engine::collections`. Neither type goes in `engine::prelude`, as with `IndexMap` (M3.1 §4.1).
 - The word routines the two types share (iteration, first and last, counting, subset and disjointness tests, equality and hashing over a trimmed word slice) MUST live in one private module and be used by both types, so the two cannot drift apart.
 - `BitSet` needs `alloc`; `BitArray` needs only `core`. Both build in `cargo xtask no-std` and run in `cargo xtask wasm`.
 - No `unsafe` and no new normal dependency.
@@ -109,7 +109,7 @@ assert_eq!(BitArray::<1>::CAPACITY, 64);
 - `BitSet::as_words(&self) -> &[u64]` returns the words in use. It MAY end in zero words (after removals, or after `intersect_with`); callers that need a canonical form use `as_trimmed_words`.
 - `BitSet::as_trimmed_words(&self) -> &[u64]` returns `as_words` without its trailing zero words. Equal sets return equal slices.
 - `BitArray::as_words(&self) -> &[u64; WORDS]` and `const fn BitArray::from_words(words: [u64; WORDS]) -> Self`.
-- `BitSet::from_words(words: &[u64]) -> BitSet` copies the words. It MUST panic if the slice holds a bit at or above `MAX_BITS` (§4.6), with `try_from_words` as its twin.
+- `BitSet::from_words(words: &[u64]) -> BitSet` copies the words. It MUST panic if the slice holds a bit at or above `MAX_BITS` (§4.6), with `try_from_words(&[u64]) -> Result<BitSet, TryReserveError>` as its twin. (The check is done in `u64` arithmetic: on a 32-bit target a slice can hold bits whose index does not fit in `usize`.)
 
 ### 4.3 `BitSet`
 
@@ -123,7 +123,7 @@ Invariant: no bit at or above `MAX_BITS` is set. Trailing zero words are allowed
 
 | Group | Items |
 |---|---|
-| Construction | `const fn new()`, `with_capacity(bits)`, `try_with_capacity(bits)`, `from_words(&[u64])`, `try_from_words(&[u64])`, `Default`, `FromIterator<usize>`, `Extend<usize>`, `Extend<&usize>`, `From<[usize; N]>` |
+| Construction | `const fn new()`, `with_capacity(bits)`, `try_with_capacity(bits)`, `from_words(&[u64])`, `try_from_words(&[u64])`, `Default`, `FromIterator<usize>`, `Extend<usize>`, `Extend<&usize>`, `From<[usize; N]>`, `try_extend(impl IntoIterator<Item = usize>) -> Result<(), TryReserveError>` (the fallible twin of the three trait impls; on `Err`, the indices before the failing one have been inserted) |
 | Size and capacity | `len()` (members, O(words)), `is_empty()` (O(words)), `capacity()` (bits that fit without allocating: `64 × words allocated`), `ensure_capacity(bits)`, `try_ensure_capacity(bits) -> Result<(), TryReserveError>`, `shrink_to_fit()` (drops trailing zero words, then shrinks the allocation), `clear()` (keeps the allocation) |
 | Bits | `insert(usize) -> bool` (true if newly added), `try_insert(usize) -> Result<bool, TryReserveError>`, `remove(usize) -> bool` (true if it was a member; never allocates), `contains(usize) -> bool` |
 | Order | `first() -> Option<usize>`, `last() -> Option<usize>`, `iter() -> Iter<'_>`; `IntoIterator` for `&BitSet` (`Iter`) and `BitSet` (`IntoIter`) |
@@ -177,11 +177,12 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 |---|---|---|
 | `BitSet::insert(i)` | `i >= MAX_BITS` | `try_insert`, `Err(TryReserveError)` |
 | `BitSet::with_capacity(bits)`, `ensure_capacity(bits)` | `bits > MAX_BITS` | `try_with_capacity`, `try_ensure_capacity` |
-| `BitSet::from_words(words)` | a bit at or above `MAX_BITS` is set | `try_from_words`, `Err(BitIndexError)` naming the lowest such bit |
+| `BitSet::from_words(words)` | a bit at or above `MAX_BITS` is set | `try_from_words`, `Err(TryReserveError)` |
+| `FromIterator<usize>`, `Extend<usize>`, `Extend<&usize>`, `From<[usize; N]>` for `BitSet` | an index `>= MAX_BITS` | `BitSet::try_extend` (on a new set, for `FromIterator` and `From`) |
 | `BitArray::insert(i)`, `remove(i)` | `i >= CAPACITY` | `try_insert`, `try_remove`, `Err(BitIndexError)` |
 
-- `BitSet::try_*` return the existing `TryReserveError` for an index or capacity past `MAX_BITS` and for allocation failure, since both mean "the capacity overflowed". Its constructor from `indexmap`'s error stays; a second private constructor is added.
-- `BitIndexError` is a new public error in `collections::error`, re-exported at `engine::collections`, with `index() -> usize` and `capacity() -> usize` accessors, `Display` (for example `bit index 70 is out of range: this set holds bits 0 to 63`), `Error`, `Debug`, `Clone`, `PartialEq` and `Eq`. It is `#[non_exhaustive]`.
+- Every `BitSet::try_*` returns the existing `TryReserveError`, for an index or capacity past `MAX_BITS` and for allocation failure, since both mean "the capacity overflowed". Its constructor from `indexmap`'s error stays; private constructors for these two cases are added.
+- `BitIndexError` is a new public error in `collections::error`, used by `BitArray`, re-exported at `engine::collections`, with `index() -> usize` and `capacity() -> usize` accessors, `Display` (for example `bit index 70 is out of range: this set holds bits 0 to 63`), `Error`, `Debug`, `Clone`, `PartialEq` and `Eq`. It is `#[non_exhaustive]`.
 - Example panic message: `BitArray::insert: bit index 70 is out of range for BitArray<1>, which holds bits 0 to 63; use a larger WORDS, or BitSet if the size is not known at compile time`.
 - `remove` and `contains` on `BitSet`, and `contains` on `BitArray`, never panic. No other public item panics, apart from allocation failure during growth, as with `Vec`.
 
@@ -207,7 +208,7 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 
 **Benchmarks.**
 
-- `bench/regress/benches/collections.rs` (Gungraun, gated at 5% like the existing benchmarks, each above the gate's 10,000-instruction minimum): inserting 4,096 indices into a `BitSet` made `with_capacity(4_096)`, `contains` over 4,096 indices at 50% occupancy, iterating that set, `union_with` and `is_subset` on two 4,096-bit sets, and `insert`, `contains` and iteration on a `BitArray<4>`.
+- `bench/regress/benches/collections.rs` (Gungraun, gated at 5% like the existing benchmarks, each above the gate's 10,000-instruction minimum): inserting 4,096 indices into a `BitSet` made `with_capacity(4_096)`, `contains` over 4,096 indices at 50% occupancy, iterating that set, `union_with` and `is_subset` on two 262,144-bit sets (smaller sets fall below the instruction minimum), and `insert`, `contains` and iteration on a `BitArray<4>`.
 - `bench/compare/benches/collections.rs` (wall clock, report only): the same operations on `BitSet`, `fixedbitset::FixedBitSet`, `BTreeSet<usize>` and `Vec<bool>`, at 1%, 50% and 99% occupancy. `fixedbitset` is added as a dev-dependency of `bench/compare` only, and MUST pass `cargo xtask deny` (it is `MIT OR Apache-2.0`).
 
 **xtask.** `collections` is already a triaged mutants module, so the new files fall under it; the new missed mutants and timeouts are triaged in `docs/mutation-triage.md`.
