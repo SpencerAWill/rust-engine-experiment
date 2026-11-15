@@ -103,8 +103,8 @@ pub(super) mod single {
         libm::sincosf(x)
     }
     #[inline]
-    pub(crate) fn atan2(x: f32, y: f32) -> f32 {
-        libm::atan2f(x, y)
+    pub(crate) fn atan2(y: f32, x: f32) -> f32 {
+        libm::atan2f(y, x)
     }
     #[inline]
     pub(crate) fn hypot(x: f32, y: f32) -> f32 {
@@ -217,8 +217,8 @@ pub(super) mod double {
         libm::sincos(x)
     }
     #[inline]
-    pub(crate) fn atan2(x: f64, y: f64) -> f64 {
-        libm::atan2(x, y)
+    pub(crate) fn atan2(y: f64, x: f64) -> f64 {
+        libm::atan2(y, x)
     }
     #[inline]
     pub(crate) fn hypot(x: f64, y: f64) -> f64 {

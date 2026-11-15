@@ -916,7 +916,7 @@ pub fn powf<T: Float>(x: T, y: T) -> T {
 
 /// `x` raised to the integer power `n`.
 ///
-/// Without `std`: `libm::powf` / `libm::pow`, with `n` converted to the float type (`libm` has no `powi`).
+/// Without `std`: `libm::powf` / `libm::pow`, with `n` converted to the float type (`libm` has no `powi`). `std`'s `powi` multiplies repeatedly, so for a large `|n|` the two backends can differ by more than a few ulps.
 #[inline]
 pub fn powi<T: Float>(x: T, n: i32) -> T {
     x.powi(n, Token(()))
@@ -935,6 +935,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "std")]
     #[allow(
         clippy::disallowed_methods,
         reason = "tests compare against the std methods the funnel wraps"
