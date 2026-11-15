@@ -1,6 +1,6 @@
 # M3.13 plan: One `engine` library crate, and the rule for splitting from it
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Accepted (2026-11-14)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
