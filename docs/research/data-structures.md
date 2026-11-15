@@ -95,7 +95,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** many objects of the same size: particles, nodes, components.
 - **Notes:** the free list is stored inside the free slots themselves, so it costs no extra memory. Allocation and free are O(1).
 - **Variants:** a fixed-capacity pool or a pool that grows in chunks; free lists kept per thread.
-- **Repo fit:** `safe` (index pool); `in repo` in spirit: the slot arrays inside `engine_genid` work this way.
+- **Repo fit:** `safe` (index pool); `in repo` in spirit: the slot arrays inside `engine::genid` work this way.
 - **Determinism:** the order in which freed slots are reused must be defined (LIFO is the usual choice).
 - **Builds on:** [Free-list array](#free-list-array).
 - **Sources:** [Middleditch, slot map](https://seanmiddleditch.github.io/2013-01-05-data-structures-for-game-developers-the-slot-map).
@@ -201,7 +201,7 @@ These patterns recur across many entries. They are not tracked items; each entry
   - Dense slot map: iterates fastest, but random access is slower.
   - Secondary map: a `Vec` holding extra data for the keys of a primary map.
   - Retire on overflow (`slotmap-careful`): a slot whose generation would wrap is retired for good, so no handle is ever reused, at the cost of memory that grows without bound under endless churn.
-- **Repo fit:** `in repo` (`engine_genid`: `GenIdAllocator`, `GenIdMap`).
+- **Repo fit:** `in repo` (`engine::genid`: `GenIdAllocator`, `GenIdMap`).
 - **Determinism:** handles are a pure function of the operation sequence (already guaranteed in this repo; `UntypedGenId::to_bits` is frozen).
 - **Builds on:** [Free-list array](#free-list-array).
 - **Sources:** [slotmap crate](https://docs.rs/slotmap/1.0.3), [slotmap-careful](https://docs.rs/slotmap-careful/latest/slotmap_careful/), [Middleditch](https://seanmiddleditch.github.io/2013-01-05-data-structures-for-game-developers-the-slot-map).
@@ -433,8 +433,8 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** O(1) weighted random choice: loot tables, emitter selection, spawn tables.
 - **Notes:** Vose's method builds the table in O(n); each sample draws one uniform number and makes one comparison.
 - **Variants:** use a [Fenwick tree](#fenwick-tree) when the weights change often.
-- **Repo fit:** `safe`. It could sit next to `engine_random`.
-- **Determinism:** the construction order and the PRNG calls per sample must be fixed, and the sampling algorithm specified exactly, as `engine_random` already does.
+- **Repo fit:** `safe`. It could sit next to `engine::random`.
+- **Determinism:** the construction order and the PRNG calls per sample must be fixed, and the sampling algorithm specified exactly, as `engine::random` already does.
 - **Builds on:** nothing.
 - **Sources:** none checked yet.
 
@@ -495,7 +495,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** hashed lookup with deterministic iteration; the engine's default map.
 - **Notes:** entries live in a dense vector, and a hash table stores their indices. Iteration follows insertion order, so it is a pure function of the operations.
 - **Variants:** `ankerl::unordered_dense` (dense storage and a separate index table); `indexmap`.
-- **Repo fit:** `in repo` (`engine_collections::IndexMap`, `IndexSet`).
+- **Repo fit:** `in repo` (`engine::collections::IndexMap`, `IndexSet`).
 - **Determinism:** already guaranteed (insertion order, defined `swap_remove` and `shift_remove`).
 - **Builds on:** [Swiss table](#swiss-table).
 - **Sources:** [Ankerl, which hash map](https://martin.ankerl.com/which-hash-map/).
@@ -1006,7 +1006,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Notes:** each component column stores the tick of the last write, and each system remembers the tick it last ran at.
 - **Variants:** per-component ticks; per-chunk ticks; bitsets of added and changed entities.
 - **Repo fit:** `safe`.
-- **Determinism:** ticks come from `engine_time::Tick`, never wall-clock time.
+- **Determinism:** ticks come from `engine::time::Tick`, never wall-clock time.
 - **Builds on:** [Bitset](#bitset).
 - **Sources:** none checked yet.
 
