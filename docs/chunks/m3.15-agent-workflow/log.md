@@ -32,3 +32,4 @@
 - 2026-11-15 done Agent files registered mid-session (about 40 minutes after they were written, with no restart); from here, roles are dispatched by name.
 - 2026-11-15 done Step 6: `.claude/settings.json` with the hook and 22 read-only allow rules (from `/fewer-permission-prompts` over the last 50 sessions; dropped `cargo fmt` without `--check`, `cargo clippy` (it could take `--fix`), anything that runs arbitrary code, and what Claude Code already auto-allows).
 - 2026-11-15 done Hook trial in this session: `git push --dry-run origin main` blocked with the guard's message; `git push --dry-run origin m3.15-agent-workflow` allowed. Settings and skills were picked up live; agent files later.
+- 2026-11-15 done Step 7: `docs/lessons/README.md` and `testing.md` with `testing-1` (from the "long jobs need memory caps" memory); its `applies_to` matches tracked files.

@@ -75,9 +75,9 @@ Choices the spec leaves open, decided here:
 
 ### Step 7: Lessons (R7, R9)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `docs/lessons/README.md` (what a lesson is, the format, the capture gate, the index), `docs/lessons/testing.md` (`testing-1`, spec §4.4).
-- **Verify:** `git ls-files 'libs/engine/src/**/tests/**' | head -1` prints a file (the `applies_to` pattern matches); link-check reports 0.
+- **Verify:** `git ls-files 'libs/engine/src/collections/**' | head -1` prints a file (the `applies_to` pattern matches); link-check reports 0.
 - **Commit:** `docs: add docs/lessons with its first lesson (M3.15)`
 
 ### Step 8: The `chunk` and `grill` skills (R4, R5, R12, R15)
