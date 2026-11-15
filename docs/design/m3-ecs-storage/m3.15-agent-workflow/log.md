@@ -9,3 +9,5 @@
 - 2026-11-15 decision Builder check answered: depends on M3.14 (now merged), resume trial by a cold agent, mutants trial `--module random` in Docker, main-session model not pinned, push guard in Rust behind a sh pre-filter.
 - 2026-11-15 decision Grill stage added between spec draft and approval, our own skill from Matt Pocock's method (option 3; ADR 0002 rules out a copy without an exception).
 - 2026-11-15 done Worktree dropped after PR #56 merged; branch rebased onto `main` in the main checkout.
+- 2026-11-15 decision Grill round 1 (all accepted): this chunk follows the new loop after spec approval (no plan stop); split into M3.15 (workflow) and M3.16 (documentation layout); `/simplify` once over the chunk diff before reviewers; plugin techniques allowed in any stage, but the workflow decides file locations and formats.
+- 2026-11-15 done Spec rewritten for the split (§4.7 kept as a stub, §4.12 hands scope to M3.16, §4.13 bootstrapping); roadmap rows M3.15 and M3.16 added.
