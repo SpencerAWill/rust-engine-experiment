@@ -56,3 +56,15 @@ fn bit_array_word_layout() {
     }
     assert_eq!(a.as_words(), &[0x8000_0000_0000_0003, 0x1, 0x4]);
 }
+
+#[test]
+fn bit_set_word_layout() {
+    let mut s = crate::collections::BitSet::new();
+    for i in [0, 1, 63, 64, 130] {
+        s.insert(i);
+    }
+    assert_eq!(s.as_words(), [0x8000_0000_0000_0003, 0x1, 0x4]);
+    s.remove(130);
+    assert_eq!(s.as_words().len(), 3);
+    assert_eq!(s.as_trimmed_words(), [0x8000_0000_0000_0003, 0x1]);
+}

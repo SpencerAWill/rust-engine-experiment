@@ -21,6 +21,15 @@ impl TryReserveError {
     pub(crate) fn from_inner(_inner: indexmap::TryReserveError) -> Self {
         Self(())
     }
+
+    /// An index or capacity past `BitSet::MAX_BITS`.
+    pub(crate) const fn capacity_overflow() -> Self {
+        Self(())
+    }
+
+    pub(crate) fn from_alloc(_inner: alloc::collections::TryReserveError) -> Self {
+        Self(())
+    }
 }
 
 impl fmt::Display for TryReserveError {

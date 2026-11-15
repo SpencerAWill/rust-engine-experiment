@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine::collections::{BitArray, IndexMap};
+use engine::collections::{BitArray, BitSet, IndexMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -76,6 +76,65 @@ fn bit_array_remove_out_of_range_panics_at_caller() {
     for part in ["bit index 64", "BitArray<1>", "use a larger WORDS"] {
         assert!(message.contains(part), "message was {message}");
     }
+}
+
+#[test]
+fn bit_set_insert_at_max_bits_panics_at_caller() {
+    let mut set = BitSet::new();
+    let (file, message) = panic_info(|| {
+        set.insert(BitSet::MAX_BITS);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "use try_insert"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn bit_set_from_iter_at_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        // `collect` is not `#[track_caller]`, so a panic through it reports a location in `core`.
+        let _ = BitSet::from_iter([BitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    assert!(message.contains("try_extend"), "message was {message}");
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn bit_set_with_capacity_past_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = BitSet::with_capacity(BitSet::MAX_BITS + 1);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "try_with_capacity"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn bit_set_from_words_past_max_bits_panics_at_caller() {
+    // `vec!` of zeros is calloc'd, so its pages stay unmapped until touched.
+    let mut words = vec![0_u64; 1 << 26];
+    *words.last_mut().unwrap() = 1 << 63; // bit 2^32 - 1 = MAX_BITS
+    let (file, message) = panic_info(|| {
+        let _ = BitSet::from_words(&words);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    assert!(message.contains("try_from_words"), "message was {message}");
 }
 
 /// Runs `f`, which must panic, and returns where it panicked and what it said.

@@ -1,5 +1,6 @@
 //! Iterators over the members of a bitset, in ascending order.
 
+use alloc::vec::Vec;
 use core::iter::FusedIterator;
 
 use super::words::WORD_BITS;
@@ -125,3 +126,48 @@ impl DoubleEndedIterator for Iter<'_> {
 }
 
 impl FusedIterator for Iter<'_> {}
+
+/// An owning iterator over the members of a [`BitSet`](super::BitSet), in ascending order.
+///
+/// Created by [`BitSet::into_iter`](super::BitSet#impl-IntoIterator-for-BitSet). It is
+/// double-ended: [`next_back`](DoubleEndedIterator::next_back) yields the largest remaining
+/// member.
+///
+/// # Examples
+///
+/// ```
+/// use engine::collections::BitSet;
+///
+/// let set: BitSet = [5, 1, 300].into_iter().collect();
+/// let mut iter = set.into_iter();
+/// assert_eq!(iter.next_back(), Some(300));
+/// assert_eq!(iter.collect::<Vec<_>>(), [1, 5]);
+/// ```
+#[derive(Debug)]
+pub struct IntoIter {
+    words: Vec<u64>,
+    cursor: Cursor,
+}
+
+impl IntoIter {
+    pub(super) fn new(words: Vec<u64>) -> Self {
+        let cursor = Cursor::new(&words);
+        Self { words, cursor }
+    }
+}
+
+impl Iterator for IntoIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        self.cursor.next(&self.words)
+    }
+}
+
+impl DoubleEndedIterator for IntoIter {
+    fn next_back(&mut self) -> Option<usize> {
+        self.cursor.next_back(&self.words)
+    }
+}
+
+impl FusedIterator for IntoIter {}

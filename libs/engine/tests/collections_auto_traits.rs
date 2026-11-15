@@ -4,7 +4,7 @@
 use engine::collections::index_map::{
     Entry, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Values, ValuesMut,
 };
-use engine::collections::{BitArray, IndexMap, IndexSet, bit_set, index_set};
+use engine::collections::{BitArray, BitSet, IndexMap, IndexSet, bit_set, index_set};
 
 fn assert_traits<T: Send + Sync + Unpin>() {}
 
@@ -33,4 +33,10 @@ fn set_and_its_iterators_are_send_sync_unpin() {
 fn bit_array_and_its_iterator_are_send_sync_unpin() {
     assert_traits::<BitArray<2>>();
     assert_traits::<bit_set::Iter<'static>>();
+}
+
+#[test]
+fn bit_set_and_its_iterators_are_send_sync_unpin() {
+    assert_traits::<BitSet>();
+    assert_traits::<bit_set::IntoIter>();
 }

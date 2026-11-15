@@ -27,6 +27,21 @@ pub(super) fn last(words: &[u64]) -> Option<usize> {
     Some(index * WORD_BITS + (WORD_BITS - 1 - word.leading_zeros() as usize))
 }
 
+/// `words` without its trailing zero words.
+pub(super) fn trimmed(words: &[u64]) -> &[u64] {
+    let end = words
+        .iter()
+        .rposition(|&w| w != 0)
+        .map_or(0, |last| last + 1);
+    &words[..end]
+}
+
+/// The highest set bit, as a `u64` because on a 32-bit target it may not fit in a `usize`.
+pub(super) fn highest_bit_u64(words: &[u64]) -> Option<u64> {
+    let (index, word) = words.iter().enumerate().rev().find(|(_, w)| **w != 0)?;
+    Some(index as u64 * WORD_BITS as u64 + u64::from(63 - word.leading_zeros()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -37,6 +52,22 @@ mod tests {
         assert_eq!(locate(63), (0, 1 << 63));
         assert_eq!(locate(64), (1, 1));
         assert_eq!(locate(130), (2, 4));
+    }
+
+    #[test]
+    fn highest_bit_u64_and_the_limit() {
+        assert_eq!(highest_bit_u64(&[]), None);
+        assert_eq!(highest_bit_u64(&[0, 0]), None);
+        assert_eq!(highest_bit_u64(&[1, 0, 0, 1 << 5, 0]), Some(3 * 64 + 5));
+        assert_eq!(highest_bit_u64(&[1 << 63]), Some(63));
+    }
+
+    #[test]
+    fn trimmed_drops_trailing_zero_words() {
+        assert_eq!(trimmed(&[]), &[] as &[u64]);
+        assert_eq!(trimmed(&[0, 0]), &[] as &[u64]);
+        assert_eq!(trimmed(&[0, 3, 0, 0]), &[0, 3]);
+        assert_eq!(trimmed(&[5]), &[5]);
     }
 
     #[test]
