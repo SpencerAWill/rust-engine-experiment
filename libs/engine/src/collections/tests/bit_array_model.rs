@@ -15,6 +15,10 @@ enum Op {
     TryRemove(usize),
     Clear,
     RoundTripWords,
+    UnionWith(Vec<usize>),
+    IntersectWith(Vec<usize>),
+    DifferenceWith(Vec<usize>),
+    SymmetricDifferenceWith(Vec<usize>),
 }
 
 /// What an operation returned, in a form both sides can produce.
@@ -29,6 +33,10 @@ fn index() -> impl Strategy<Value = usize> {
     prop_oneof![0..8_usize, 56..72_usize, 120..136_usize, 184..200_usize]
 }
 
+fn members() -> impl Strategy<Value = Vec<usize>> {
+    prop::collection::vec(index(), 0..6)
+}
+
 fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         index().prop_map(Op::Insert),
@@ -37,10 +45,27 @@ fn op() -> impl Strategy<Value = Op> {
         index().prop_map(Op::TryRemove),
         Just(Op::Clear),
         Just(Op::RoundTripWords),
+        members().prop_map(Op::UnionWith),
+        members().prop_map(Op::IntersectWith),
+        members().prop_map(Op::DifferenceWith),
+        members().prop_map(Op::SymmetricDifferenceWith),
     ]
 }
 
-fn run<const WORDS: usize>(ops: &[Op]) {
+/// The members of `items` that fit in a `BitArray` of `capacity` bits.
+fn model_of(items: &[usize], capacity: usize) -> BTreeSet<usize> {
+    items.iter().copied().filter(|&i| i < capacity).collect()
+}
+
+fn from_members<const WORDS: usize>(items: &[usize]) -> BitArray<WORDS> {
+    let mut array = BitArray::new();
+    for &i in items {
+        let _ = array.try_insert(i);
+    }
+    array
+}
+
+fn run<const WORDS: usize>(ops: &[Op], probe: &[usize]) {
     let capacity = BitArray::<WORDS>::CAPACITY;
     let mut array = BitArray::<WORDS>::new();
     let mut model = BTreeSet::<usize>::new();
@@ -75,10 +100,49 @@ fn run<const WORDS: usize>(ops: &[Op]) {
                 array = BitArray::from_words(*array.as_words());
                 (Ret::Unit, Ret::Unit)
             }
+            Op::UnionWith(ref items) => {
+                array.union_with(&from_members(items));
+                model.extend(items.iter().copied().filter(|&i| i < capacity));
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::IntersectWith(ref items) => {
+                array.intersect_with(&from_members(items));
+                let other = model_of(items, capacity);
+                model = model.intersection(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::DifferenceWith(ref items) => {
+                array.difference_with(&from_members(items));
+                let other = model_of(items, capacity);
+                model = model.difference(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::SymmetricDifferenceWith(ref items) => {
+                array.symmetric_difference_with(&from_members(items));
+                let other = model_of(items, capacity);
+                model = model.symmetric_difference(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
         };
         assert_eq!(got, want, "after {op:?}");
         check(&array, &model);
+        check_relations(&array, &model, probe);
     }
+}
+
+/// Subset, superset and disjointness against a second set, both ways round.
+fn check_relations<const WORDS: usize>(
+    array: &BitArray<WORDS>,
+    model: &BTreeSet<usize>,
+    probe: &[usize],
+) {
+    let other = from_members::<WORDS>(probe);
+    let other_model = model_of(probe, BitArray::<WORDS>::CAPACITY);
+    assert_eq!(array.is_subset(&other), model.is_subset(&other_model));
+    assert_eq!(array.is_superset(&other), model.is_superset(&other_model));
+    assert_eq!(array.is_disjoint(&other), model.is_disjoint(&other_model));
+    assert_eq!(other.is_subset(array), other_model.is_subset(model));
+    assert_eq!(other.is_disjoint(array), other_model.is_disjoint(model));
 }
 
 fn check<const WORDS: usize>(array: &BitArray<WORDS>, model: &BTreeSet<usize>) {
@@ -98,17 +162,26 @@ fn check<const WORDS: usize>(array: &BitArray<WORDS>, model: &BTreeSet<usize>) {
 
 proptest! {
     #[test]
-    fn bit_array_0_matches_model(ops in prop::collection::vec(op(), 0..200)) {
-        run::<0>(&ops);
+    fn bit_array_0_matches_model(
+        ops in prop::collection::vec(op(), 0..200),
+        probe in members(),
+    ) {
+        run::<0>(&ops, &probe);
     }
 
     #[test]
-    fn bit_array_1_matches_model(ops in prop::collection::vec(op(), 0..200)) {
-        run::<1>(&ops);
+    fn bit_array_1_matches_model(
+        ops in prop::collection::vec(op(), 0..200),
+        probe in members(),
+    ) {
+        run::<1>(&ops, &probe);
     }
 
     #[test]
-    fn bit_array_3_matches_model(ops in prop::collection::vec(op(), 0..200)) {
-        run::<3>(&ops);
+    fn bit_array_3_matches_model(
+        ops in prop::collection::vec(op(), 0..200),
+        probe in members(),
+    ) {
+        run::<3>(&ops, &probe);
     }
 }

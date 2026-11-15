@@ -334,6 +334,71 @@ impl BitSet {
         words::trimmed(&self.words)
     }
 
+    /// Adds every member of `other`. The set grows to hold `other`'s highest member.
+    pub fn union_with(&mut self, other: &Self) {
+        let src = words::trimmed(&other.words);
+        if src.len() > self.words.len() {
+            self.words.resize(src.len(), 0);
+        }
+        words::union_into(&mut self.words, src);
+    }
+
+    /// Keeps only the members that are also in `other`. It never allocates or shrinks the
+    /// storage.
+    pub fn intersect_with(&mut self, other: &Self) {
+        words::intersect_into(&mut self.words, &other.words);
+    }
+
+    /// Removes the members that are also in `other`. It never allocates or shrinks the storage.
+    pub fn difference_with(&mut self, other: &Self) {
+        words::difference_into(&mut self.words, &other.words);
+    }
+
+    /// Keeps the members that are in exactly one of the two sets. The set grows to hold
+    /// `other`'s highest member.
+    pub fn symmetric_difference_with(&mut self, other: &Self) {
+        let src = words::trimmed(&other.words);
+        if src.len() > self.words.len() {
+            self.words.resize(src.len(), 0);
+        }
+        words::xor_into(&mut self.words, src);
+    }
+
+    /// Whether every member is also in `other`. Capacity and trailing zero words do not matter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::BitSet;
+    ///
+    /// let archetype: BitSet = [0, 2, 5, 9].into_iter().collect();
+    /// let query: BitSet = [2, 5].into_iter().collect();
+    /// let excluded: BitSet = [7].into_iter().collect();
+    ///
+    /// assert!(query.is_subset(&archetype));
+    /// assert!(excluded.is_disjoint(&archetype));
+    ///
+    /// let mut shared = archetype.clone();
+    /// shared.intersect_with(&query);
+    /// assert_eq!(shared, query);
+    /// ```
+    #[must_use]
+    pub fn is_subset(&self, other: &Self) -> bool {
+        words::is_subset(&self.words, &other.words)
+    }
+
+    /// Whether every member of `other` is also in this set.
+    #[must_use]
+    pub fn is_superset(&self, other: &Self) -> bool {
+        other.is_subset(self)
+    }
+
+    /// Whether the two sets have no member in common.
+    #[must_use]
+    pub fn is_disjoint(&self, other: &Self) -> bool {
+        words::is_disjoint(&self.words, &other.words)
+    }
+
     /// Adds every index from `indices`.
     ///
     /// This is the fallible twin of the [`FromIterator`], [`Extend`] and `From` implementations.
@@ -527,6 +592,36 @@ mod tests {
         s.insert(130);
         s.insert(3);
         assert_eq!(format!("{s:?}"), "{3, 130}");
+    }
+
+    #[test]
+    fn intersect_with_shorter_clears_tail() {
+        let mut a: BitSet = [1, 200].into_iter().collect();
+        let b: BitSet = [1].into_iter().collect();
+        a.intersect_with(&b);
+        assert_eq!(a.iter().collect::<Vec<_>>(), [1]);
+        assert_eq!(a.as_words().len(), 4);
+    }
+
+    #[test]
+    fn difference_with_shorter_keeps_tail() {
+        let mut a: BitSet = [1, 200].into_iter().collect();
+        let b: BitSet = [1].into_iter().collect();
+        a.difference_with(&b);
+        assert_eq!(a.iter().collect::<Vec<_>>(), [200]);
+    }
+
+    #[test]
+    fn subset_ignores_trailing_zeros() {
+        let mut roomy = BitSet::with_capacity(4_096);
+        roomy.insert(1);
+        roomy.insert(4_000);
+        roomy.remove(4_000);
+        let small: BitSet = [1].into_iter().collect();
+        assert!(roomy.is_subset(&small));
+        assert!(small.is_subset(&roomy));
+        assert!(roomy.is_superset(&small));
+        assert!(!roomy.is_disjoint(&small));
     }
 
     #[test]

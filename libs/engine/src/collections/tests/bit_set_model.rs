@@ -18,6 +18,10 @@ enum Op {
     TryExtend(Vec<usize>),
     RoundTripWords,
     CloneSwap,
+    UnionWith(Vec<usize>),
+    IntersectWith(Vec<usize>),
+    DifferenceWith(Vec<usize>),
+    SymmetricDifferenceWith(Vec<usize>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,6 +35,10 @@ fn index() -> impl Strategy<Value = usize> {
     prop_oneof![0..8_usize, 56..72_usize, 120..136_usize, 4_000..4_200_usize]
 }
 
+fn members() -> impl Strategy<Value = Vec<usize>> {
+    prop::collection::vec(index(), 0..6)
+}
+
 fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         index().prop_map(Op::Insert),
@@ -39,9 +47,13 @@ fn op() -> impl Strategy<Value = Op> {
         Just(Op::Clear),
         (0..4_300_usize).prop_map(Op::EnsureCapacity),
         Just(Op::ShrinkToFit),
-        prop::collection::vec(index(), 0..6).prop_map(Op::TryExtend),
+        members().prop_map(Op::TryExtend),
         Just(Op::RoundTripWords),
         Just(Op::CloneSwap),
+        members().prop_map(Op::UnionWith),
+        members().prop_map(Op::IntersectWith),
+        members().prop_map(Op::DifferenceWith),
+        members().prop_map(Op::SymmetricDifferenceWith),
     ]
 }
 
@@ -55,7 +67,11 @@ fn model_words(model: &BTreeSet<usize>) -> Vec<u64> {
     words
 }
 
-fn run(ops: &[Op]) {
+fn from_members(items: &[usize]) -> BitSet {
+    items.iter().copied().collect()
+}
+
+fn run(ops: &[Op], probe: &[usize]) {
     let mut set = BitSet::new();
     let mut model = BTreeSet::<usize>::new();
     for op in ops {
@@ -93,10 +109,45 @@ fn run(ops: &[Op]) {
                 set = set.clone();
                 (Ret::Unit, Ret::Unit)
             }
+            Op::UnionWith(items) => {
+                set.union_with(&from_members(items));
+                model.extend(items.iter().copied());
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::IntersectWith(items) => {
+                set.intersect_with(&from_members(items));
+                let other: BTreeSet<usize> = items.iter().copied().collect();
+                model = model.intersection(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::DifferenceWith(items) => {
+                set.difference_with(&from_members(items));
+                let other: BTreeSet<usize> = items.iter().copied().collect();
+                model = model.difference(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::SymmetricDifferenceWith(items) => {
+                set.symmetric_difference_with(&from_members(items));
+                let other: BTreeSet<usize> = items.iter().copied().collect();
+                model = model.symmetric_difference(&other).copied().collect();
+                (Ret::Unit, Ret::Unit)
+            }
         };
         assert_eq!(got, want, "after {op:?}");
         check(&set, &model);
+        check_relations(&set, &model, probe);
     }
+}
+
+/// Subset, superset and disjointness against a second set, both ways round.
+fn check_relations(set: &BitSet, model: &BTreeSet<usize>, probe: &[usize]) {
+    let other = from_members(probe);
+    let other_model: BTreeSet<usize> = probe.iter().copied().collect();
+    assert_eq!(set.is_subset(&other), model.is_subset(&other_model));
+    assert_eq!(set.is_superset(&other), model.is_superset(&other_model));
+    assert_eq!(set.is_disjoint(&other), model.is_disjoint(&other_model));
+    assert_eq!(other.is_subset(set), other_model.is_subset(model));
+    assert_eq!(other.is_disjoint(set), other_model.is_disjoint(model));
 }
 
 fn check(set: &BitSet, model: &BTreeSet<usize>) {
@@ -123,7 +174,10 @@ fn check(set: &BitSet, model: &BTreeSet<usize>) {
 
 proptest! {
     #[test]
-    fn bit_set_matches_model(ops in prop::collection::vec(op(), 0..200)) {
-        run(&ops);
+    fn bit_set_matches_model(
+        ops in prop::collection::vec(op(), 0..200),
+        probe in members(),
+    ) {
+        run(&ops, &probe);
     }
 }

@@ -42,6 +42,48 @@ pub(super) fn highest_bit_u64(words: &[u64]) -> Option<u64> {
     Some(index as u64 * WORD_BITS as u64 + u64::from(63 - word.leading_zeros()))
 }
 
+/// `dst |= src`, word by word. A `src` longer than `dst` is cut off, so callers grow `dst` first.
+pub(super) fn union_into(dst: &mut [u64], src: &[u64]) {
+    for (d, s) in dst.iter_mut().zip(src) {
+        *d |= s;
+    }
+}
+
+/// `dst &= src`. Words of `dst` past the end of `src` are zeroed.
+pub(super) fn intersect_into(dst: &mut [u64], src: &[u64]) {
+    let shared = src.len().min(dst.len());
+    for (d, s) in dst.iter_mut().zip(src) {
+        *d &= s;
+    }
+    dst[shared..].fill(0);
+}
+
+/// `dst &= !src`. Words of `dst` past the end of `src` are unchanged.
+pub(super) fn difference_into(dst: &mut [u64], src: &[u64]) {
+    for (d, s) in dst.iter_mut().zip(src) {
+        *d &= !s;
+    }
+}
+
+/// `dst ^= src`. A `src` longer than `dst` is cut off, so callers grow `dst` first.
+pub(super) fn xor_into(dst: &mut [u64], src: &[u64]) {
+    for (d, s) in dst.iter_mut().zip(src) {
+        *d ^= s;
+    }
+}
+
+/// Whether every bit of `a` is in `b`. Words past the end of either slice are zero.
+pub(super) fn is_subset(a: &[u64], b: &[u64]) -> bool {
+    a.iter()
+        .enumerate()
+        .all(|(i, &w)| w & !b.get(i).copied().unwrap_or(0) == 0)
+}
+
+/// Whether `a` and `b` share no bit. Words past the end of either slice are zero.
+pub(super) fn is_disjoint(a: &[u64], b: &[u64]) -> bool {
+    a.iter().zip(b).all(|(x, y)| x & y == 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -68,6 +110,30 @@ mod tests {
         assert_eq!(trimmed(&[0, 0]), &[] as &[u64]);
         assert_eq!(trimmed(&[0, 3, 0, 0]), &[0, 3]);
         assert_eq!(trimmed(&[5]), &[5]);
+    }
+
+    #[test]
+    fn in_place_routines_treat_missing_words_as_zero() {
+        let mut dst = [0b1100, 0b1, 0b1];
+        union_into(&mut dst, &[0b0011]);
+        assert_eq!(dst, [0b1111, 0b1, 0b1]);
+        xor_into(&mut dst, &[0b0101, 0b1]);
+        assert_eq!(dst, [0b1010, 0, 0b1]);
+        difference_into(&mut dst, &[0b1000]);
+        assert_eq!(dst, [0b0010, 0, 0b1]);
+        intersect_into(&mut dst, &[0b0110]);
+        assert_eq!(dst, [0b0010, 0, 0]);
+    }
+
+    #[test]
+    fn relations_treat_missing_words_as_zero() {
+        assert!(is_subset(&[], &[]));
+        assert!(is_subset(&[1, 0, 0], &[1]));
+        assert!(!is_subset(&[1, 0, 1], &[1]));
+        assert!(is_subset(&[1], &[3, 4]));
+        assert!(is_disjoint(&[1, 1], &[2]));
+        assert!(!is_disjoint(&[1, 1], &[3]));
+        assert!(is_disjoint(&[], &[1]));
     }
 
     #[test]

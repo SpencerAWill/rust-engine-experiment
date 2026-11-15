@@ -177,6 +177,61 @@ impl<const WORDS: usize> BitArray<WORDS> {
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(&self.words)
     }
+
+    /// Adds every member of `other`.
+    pub fn union_with(&mut self, other: &Self) {
+        words::union_into(&mut self.words, &other.words);
+    }
+
+    /// Keeps only the members that are also in `other`.
+    pub fn intersect_with(&mut self, other: &Self) {
+        words::intersect_into(&mut self.words, &other.words);
+    }
+
+    /// Removes the members that are also in `other`.
+    pub fn difference_with(&mut self, other: &Self) {
+        words::difference_into(&mut self.words, &other.words);
+    }
+
+    /// Keeps the members that are in exactly one of the two sets.
+    pub fn symmetric_difference_with(&mut self, other: &Self) {
+        words::xor_into(&mut self.words, &other.words);
+    }
+
+    /// Whether every member is also in `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::BitArray;
+    ///
+    /// let mut archetype = BitArray::<1>::new();
+    /// for i in [0, 2, 5, 9] {
+    ///     archetype.insert(i);
+    /// }
+    /// let mut query = BitArray::<1>::new();
+    /// query.insert(2);
+    /// query.insert(5);
+    ///
+    /// assert!(query.is_subset(&archetype));
+    /// assert!(archetype.is_superset(&query));
+    /// ```
+    #[must_use]
+    pub fn is_subset(&self, other: &Self) -> bool {
+        words::is_subset(&self.words, &other.words)
+    }
+
+    /// Whether every member of `other` is also in this set.
+    #[must_use]
+    pub fn is_superset(&self, other: &Self) -> bool {
+        other.is_subset(self)
+    }
+
+    /// Whether the two sets have no member in common.
+    #[must_use]
+    pub fn is_disjoint(&self, other: &Self) -> bool {
+        words::is_disjoint(&self.words, &other.words)
+    }
 }
 
 #[cold]
