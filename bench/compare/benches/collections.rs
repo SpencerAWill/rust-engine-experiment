@@ -284,10 +284,10 @@ impl Bits for Vec<bool> {
     }
 }
 
-/// `percent`% of the indices below `BITS`, picked by a fixed shuffle (`salt` varies the pick).
-fn members(percent: usize, salt: u64) -> Vec<usize> {
+/// `percent`% of the indices below `BITS`, picked by a fixed shuffle (`pick` selects which shuffle).
+fn members(percent: usize, pick: u64) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..BITS).collect();
-    Prng::from_seed(0x5EED ^ salt).shuffle(&mut indices);
+    Prng::from_seed(0x5EED ^ pick).shuffle(&mut indices);
     indices.truncate(BITS * percent / 100);
     indices
 }

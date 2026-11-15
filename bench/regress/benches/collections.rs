@@ -173,9 +173,9 @@ const BITS: usize = 4_096;
 const BIG_BITS: usize = 262_144;
 
 /// Half of the indices below `bits`, chosen by a fixed shuffle: 50% occupancy.
-fn half_of(bits: usize, salt: u64) -> Vec<usize> {
+fn half_of(bits: usize, pick: u64) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..bits).collect();
-    Prng::from_seed(SEED ^ salt).shuffle(&mut indices);
+    Prng::from_seed(SEED ^ pick).shuffle(&mut indices);
     indices.truncate(bits / 2);
     indices
 }
