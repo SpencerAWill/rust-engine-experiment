@@ -183,14 +183,14 @@ mod tests {
         let bench = r#"{"group_id":"get_random","function_id":"engine::GenIdMap","value_str":"u64/1000","throughput":{"Elements":10},"full_id":"x","directory_name":"x","title":"x"}"#;
         write_bench(
             &root,
-            "get_random/engine::GenIdMap/u64_1000",
+            "get_random/engine__GenIdMap/u64_1000",
             "old",
             bench,
             2000.0,
         );
         write_bench(
             &root,
-            "get_random/engine::GenIdMap/u64_1000",
+            "get_random/engine__GenIdMap/u64_1000",
             "new",
             bench,
             1000.0,
