@@ -24,7 +24,4 @@ exclude_re = [
     '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::union_with',
     # Equivalent: the same as for `union_with`: an equal length makes the resize a no-op.
     '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::symmetric_difference_with',
-    # Equivalent: when `needed` equals the current length, both the reservation of zero words and
-    # the resize to the same length do nothing, so `>` and `>=` agree.
-    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::try_insert',
 ]

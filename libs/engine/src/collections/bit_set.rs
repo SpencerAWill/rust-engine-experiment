@@ -36,6 +36,11 @@ fn bits_for_words(words: usize) -> usize {
     words.saturating_mul(WORD_BITS).min(BitSet::MAX_BITS)
 }
 
+/// The words that hold `bits` bits, or `None` if `bits` is above [`BitSet::MAX_BITS`].
+fn words_for_bits(bits: usize) -> Option<usize> {
+    (bits <= BitSet::MAX_BITS).then(|| bits.div_ceil(WORD_BITS))
+}
+
 /// Whether a set bit at `highest` breaks the invariant of [`BitSet`].
 fn exceeds_max_bits(highest: u64) -> bool {
     highest >= BitSet::MAX_BITS as u64
@@ -179,18 +184,21 @@ impl BitSet {
 
     /// The number of members. This takes O(words) time.
     #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
         words::count(&self.words)
     }
 
     /// Whether the set has no members. This takes O(words) time.
     #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.words.iter().all(|&w| w == 0)
     }
 
     /// The number of bits that fit without allocating: 64 per word allocated, up to `MAX_BITS`.
     #[must_use]
+    #[inline]
     pub fn capacity(&self) -> usize {
         bits_for_words(self.words.capacity())
     }
@@ -220,11 +228,9 @@ impl BitSet {
     ///
     /// Returns [`TryReserveError`] if `bits > MAX_BITS` or the allocation fails.
     pub fn try_ensure_capacity(&mut self, bits: usize) -> Result<(), TryReserveError> {
-        if bits > Self::MAX_BITS {
-            return Err(TryReserveError::capacity_overflow());
-        }
+        let words = words_for_bits(bits).ok_or_else(TryReserveError::capacity_overflow)?;
         // Reserving for `len + additional` words is a no-op when the capacity already covers it.
-        let additional = bits.div_ceil(WORD_BITS).saturating_sub(self.words.len());
+        let additional = words.saturating_sub(self.words.len());
         self.words
             .try_reserve_exact(additional)
             .map_err(TryReserveError::from_alloc)?;
@@ -239,6 +245,7 @@ impl BitSet {
     }
 
     /// Removes every member and keeps the allocation.
+    #[inline]
     pub fn clear(&mut self) {
         self.words.clear();
     }
@@ -250,6 +257,7 @@ impl BitSet {
     /// Panics if `index >= MAX_BITS`, or if growing fails. Use [`try_insert`](Self::try_insert)
     /// to handle that.
     #[track_caller]
+    #[inline]
     pub fn insert(&mut self, index: usize) -> bool {
         match self.try_insert(index) {
             Ok(added) => added,
@@ -263,24 +271,36 @@ impl BitSet {
     ///
     /// Returns [`TryReserveError`] if `index >= MAX_BITS` or growing fails; the set is
     /// unchanged.
+    #[inline]
     pub fn try_insert(&mut self, index: usize) -> Result<bool, TryReserveError> {
         if index >= Self::MAX_BITS {
             return Err(TryReserveError::capacity_overflow());
         }
         let (word, mask) = words::locate(index);
-        let needed = word + 1;
-        if needed > self.words.len() {
-            self.words
-                .try_reserve(needed - self.words.len())
-                .map_err(TryReserveError::from_alloc)?;
-            self.words.resize(needed, 0);
+        // The common case: the word exists already.
+        if let Some(w) = self.words.get_mut(word) {
+            let added = *w & mask == 0;
+            *w |= mask;
+            return Ok(added);
         }
-        let added = self.words[word] & mask == 0;
+        self.grow_to_hold(word + 1)?;
         self.words[word] |= mask;
-        Ok(added)
+        Ok(true)
+    }
+
+    /// Grows the storage to `needed` words (more than it has), filled with zeros.
+    #[cold]
+    #[inline(never)]
+    fn grow_to_hold(&mut self, needed: usize) -> Result<(), TryReserveError> {
+        self.words
+            .try_reserve(needed - self.words.len())
+            .map_err(TryReserveError::from_alloc)?;
+        self.words.resize(needed, 0);
+        Ok(())
     }
 
     /// Removes `index`, returning `true` if it was a member. It never allocates.
+    #[inline]
     pub fn remove(&mut self, index: usize) -> bool {
         let (word, mask) = words::locate(index);
         match self.words.get_mut(word) {
@@ -295,6 +315,7 @@ impl BitSet {
 
     /// Whether `index` is a member. An index past the end is not, and nothing is allocated.
     #[must_use]
+    #[inline]
     pub fn contains(&self, index: usize) -> bool {
         let (word, mask) = words::locate(index);
         self.words.get(word).is_some_and(|w| w & mask != 0)
@@ -302,18 +323,21 @@ impl BitSet {
 
     /// The smallest member.
     #[must_use]
+    #[inline]
     pub fn first(&self) -> Option<usize> {
         words::first(&self.words)
     }
 
     /// The largest member.
     #[must_use]
+    #[inline]
     pub fn last(&self) -> Option<usize> {
         words::last(&self.words)
     }
 
     /// An iterator over the members in ascending order.
     #[must_use]
+    #[inline]
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(&self.words)
     }
@@ -323,6 +347,7 @@ impl BitSet {
     /// It may end in zero words, after removals or [`intersect_with`](Self::intersect_with);
     /// use [`as_trimmed_words`](Self::as_trimmed_words) for a canonical form.
     #[must_use]
+    #[inline]
     pub fn as_words(&self) -> &[u64] {
         &self.words
     }
@@ -330,11 +355,13 @@ impl BitSet {
     /// [`as_words`](Self::as_words) without its trailing zero words. Equal sets return equal
     /// slices.
     #[must_use]
+    #[inline]
     pub fn as_trimmed_words(&self) -> &[u64] {
         words::trimmed(&self.words)
     }
 
     /// Adds every member of `other`. The set grows to hold `other`'s highest member.
+    #[inline]
     pub fn union_with(&mut self, other: &Self) {
         let src = words::trimmed(&other.words);
         if src.len() > self.words.len() {
@@ -345,17 +372,20 @@ impl BitSet {
 
     /// Keeps only the members that are also in `other`. It never allocates or shrinks the
     /// storage.
+    #[inline]
     pub fn intersect_with(&mut self, other: &Self) {
         words::intersect_into(&mut self.words, &other.words);
     }
 
     /// Removes the members that are also in `other`. It never allocates or shrinks the storage.
+    #[inline]
     pub fn difference_with(&mut self, other: &Self) {
         words::difference_into(&mut self.words, &other.words);
     }
 
     /// Keeps the members that are in exactly one of the two sets. The set grows to hold
     /// `other`'s highest member.
+    #[inline]
     pub fn symmetric_difference_with(&mut self, other: &Self) {
         let src = words::trimmed(&other.words);
         if src.len() > self.words.len() {
@@ -383,18 +413,21 @@ impl BitSet {
     /// assert_eq!(shared, query);
     /// ```
     #[must_use]
+    #[inline]
     pub fn is_subset(&self, other: &Self) -> bool {
         words::is_subset(&self.words, &other.words)
     }
 
     /// Whether every member of `other` is also in this set.
     #[must_use]
+    #[inline]
     pub fn is_superset(&self, other: &Self) -> bool {
         other.is_subset(self)
     }
 
     /// Whether the two sets have no member in common.
     #[must_use]
+    #[inline]
     pub fn is_disjoint(&self, other: &Self) -> bool {
         words::is_disjoint(&self.words, &other.words)
     }
@@ -425,6 +458,18 @@ impl BitSet {
             self.try_insert(index)?;
         }
         Ok(())
+    }
+}
+
+impl BitSet {
+    /// Adds every index, or panics naming `operation`, the public item the caller used.
+    #[track_caller]
+    fn extend_named(&mut self, operation: &str, indices: impl IntoIterator<Item = usize>) {
+        for index in indices {
+            if self.try_insert(index).is_err() {
+                limit_exceeded(operation, format_args!("bit index {index}"), "try_extend");
+            }
+        }
     }
 }
 
@@ -466,7 +511,7 @@ impl FromIterator<usize> for BitSet {
     #[track_caller]
     fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
         let mut set = Self::new();
-        set.extend(iter);
+        set.extend_named("from_iter", iter);
         set
     }
 }
@@ -477,11 +522,7 @@ impl Extend<usize> for BitSet {
     /// Panics if an index is `>= MAX_BITS`. Use [`BitSet::try_extend`] to handle that.
     #[track_caller]
     fn extend<I: IntoIterator<Item = usize>>(&mut self, iter: I) {
-        for index in iter {
-            if self.try_insert(index).is_err() {
-                limit_exceeded("extend", format_args!("bit index {index}"), "try_extend");
-            }
-        }
+        self.extend_named("extend", iter);
     }
 }
 
@@ -491,7 +532,7 @@ impl<'a> Extend<&'a usize> for BitSet {
     /// Panics if an index is `>= MAX_BITS`. Use [`BitSet::try_extend`] to handle that.
     #[track_caller]
     fn extend<I: IntoIterator<Item = &'a usize>>(&mut self, iter: I) {
-        self.extend(iter.into_iter().copied());
+        self.extend_named("extend", iter.into_iter().copied());
     }
 }
 
@@ -502,7 +543,9 @@ impl<const N: usize> From<[usize; N]> for BitSet {
     /// that.
     #[track_caller]
     fn from(indices: [usize; N]) -> Self {
-        Self::from_iter(indices)
+        let mut set = Self::new();
+        set.extend_named("from", indices);
+        set
     }
 }
 
@@ -623,18 +666,19 @@ mod tests {
         assert!(!roomy.is_disjoint(&small));
     }
 
-    #[cfg(target_pointer_width = "64")]
     #[test]
-    fn try_with_capacity_accepts_max_bits_and_rejects_one_more() {
-        // The reservation is not touched, so this does not use 512 MiB of memory.
-        let set = BitSet::try_with_capacity(BitSet::MAX_BITS).unwrap();
-        assert_eq!(set.capacity(), BitSet::MAX_BITS);
-        assert!(BitSet::try_with_capacity(BitSet::MAX_BITS + 1).is_err());
-        assert!(
-            BitSet::new()
-                .try_ensure_capacity(BitSet::MAX_BITS + 1)
-                .is_err()
-        );
+    fn words_for_bits_accepts_max_bits_and_rejects_one_more() {
+        // No allocation, so this runs on every target and in any memory limit.
+        assert_eq!(words_for_bits(0), Some(0));
+        assert_eq!(words_for_bits(1), Some(1));
+        assert_eq!(words_for_bits(64), Some(1));
+        assert_eq!(words_for_bits(65), Some(2));
+        assert_eq!(words_for_bits(BitSet::MAX_BITS), Some(1 << 26));
+        // One past the limit does not fit in a `usize` on a 32-bit target.
+        if let Some(over) = BitSet::MAX_BITS.checked_add(1) {
+            assert_eq!(words_for_bits(over), None);
+            assert!(BitSet::try_with_capacity(over).is_err()); // refused before allocating
+        }
     }
 
     #[test]
@@ -678,6 +722,8 @@ mod tests {
         let mut s = BitSet::new();
         s.extend(&[1_usize, 70]);
         assert_eq!(bounded(s.iter(), 3), [1, 70]);
+        s.extend([2_usize, 200]);
+        assert_eq!(bounded(s.iter(), 5), [1, 2, 70, 200]);
         let t = BitSet::from([5, 130]);
         assert_eq!(bounded(t.iter(), 3), [5, 130]);
     }

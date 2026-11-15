@@ -6,28 +6,33 @@
 pub(super) const WORD_BITS: usize = 64;
 
 /// The word index and the single-bit mask of bit `i`.
+#[inline]
 pub(super) const fn locate(i: usize) -> (usize, u64) {
     (i / WORD_BITS, 1 << (i % WORD_BITS))
 }
 
 /// The number of set bits.
+#[inline]
 pub(super) fn count(words: &[u64]) -> usize {
     words.iter().map(|w| w.count_ones() as usize).sum()
 }
 
 /// The lowest set bit.
+#[inline]
 pub(super) fn first(words: &[u64]) -> Option<usize> {
     let (index, word) = words.iter().enumerate().find(|(_, w)| **w != 0)?;
     Some(index * WORD_BITS + word.trailing_zeros() as usize)
 }
 
 /// The highest set bit.
+#[inline]
 pub(super) fn last(words: &[u64]) -> Option<usize> {
     let (index, word) = words.iter().enumerate().rev().find(|(_, w)| **w != 0)?;
     Some(index * WORD_BITS + (WORD_BITS - 1 - word.leading_zeros() as usize))
 }
 
 /// `words` without its trailing zero words.
+#[inline]
 pub(super) fn trimmed(words: &[u64]) -> &[u64] {
     let end = words
         .iter()
@@ -37,12 +42,14 @@ pub(super) fn trimmed(words: &[u64]) -> &[u64] {
 }
 
 /// The highest set bit, as a `u64` because on a 32-bit target it may not fit in a `usize`.
+#[inline]
 pub(super) fn highest_bit_u64(words: &[u64]) -> Option<u64> {
     let (index, word) = words.iter().enumerate().rev().find(|(_, w)| **w != 0)?;
     Some(index as u64 * WORD_BITS as u64 + u64::from(63 - word.leading_zeros()))
 }
 
 /// `dst |= src`, word by word. A `src` longer than `dst` is cut off, so callers grow `dst` first.
+#[inline]
 pub(super) fn union_into(dst: &mut [u64], src: &[u64]) {
     for (d, s) in dst.iter_mut().zip(src) {
         *d |= s;
@@ -50,6 +57,7 @@ pub(super) fn union_into(dst: &mut [u64], src: &[u64]) {
 }
 
 /// `dst &= src`. Words of `dst` past the end of `src` are zeroed.
+#[inline]
 pub(super) fn intersect_into(dst: &mut [u64], src: &[u64]) {
     let shared = src.len().min(dst.len());
     for (d, s) in dst.iter_mut().zip(src) {
@@ -59,6 +67,7 @@ pub(super) fn intersect_into(dst: &mut [u64], src: &[u64]) {
 }
 
 /// `dst &= !src`. Words of `dst` past the end of `src` are unchanged.
+#[inline]
 pub(super) fn difference_into(dst: &mut [u64], src: &[u64]) {
     for (d, s) in dst.iter_mut().zip(src) {
         *d &= !s;
@@ -66,6 +75,7 @@ pub(super) fn difference_into(dst: &mut [u64], src: &[u64]) {
 }
 
 /// `dst ^= src`. A `src` longer than `dst` is cut off, so callers grow `dst` first.
+#[inline]
 pub(super) fn xor_into(dst: &mut [u64], src: &[u64]) {
     for (d, s) in dst.iter_mut().zip(src) {
         *d ^= s;
@@ -73,6 +83,7 @@ pub(super) fn xor_into(dst: &mut [u64], src: &[u64]) {
 }
 
 /// Whether every bit of `a` is in `b`. Words past the end of either slice are zero.
+#[inline]
 pub(super) fn is_subset(a: &[u64], b: &[u64]) -> bool {
     a.iter()
         .enumerate()
@@ -80,6 +91,7 @@ pub(super) fn is_subset(a: &[u64], b: &[u64]) -> bool {
 }
 
 /// Whether `a` and `b` share no bit. Words past the end of either slice are zero.
+#[inline]
 pub(super) fn is_disjoint(a: &[u64], b: &[u64]) -> bool {
     a.iter().zip(b).all(|(x, y)| x & y == 0)
 }

@@ -30,6 +30,7 @@ impl Cursor {
         }
     }
 
+    #[inline]
     fn next(&mut self, words: &[u64]) -> Option<usize> {
         loop {
             if self.front_bits != 0 {
@@ -52,6 +53,7 @@ impl Cursor {
         }
     }
 
+    #[inline]
     fn next_back(&mut self, words: &[u64]) -> Option<usize> {
         loop {
             if self.back_bits != 0 {
@@ -103,6 +105,7 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iter<'a> {
+    #[inline]
     pub(crate) fn new(words: &'a [u64]) -> Self {
         Self {
             words,
@@ -114,12 +117,14 @@ impl<'a> Iter<'a> {
 impl Iterator for Iter<'_> {
     type Item = usize;
 
+    #[inline]
     fn next(&mut self) -> Option<usize> {
         self.cursor.next(self.words)
     }
 }
 
 impl DoubleEndedIterator for Iter<'_> {
+    #[inline]
     fn next_back(&mut self) -> Option<usize> {
         self.cursor.next_back(self.words)
     }
@@ -159,12 +164,14 @@ impl IntoIter {
 impl Iterator for IntoIter {
     type Item = usize;
 
+    #[inline]
     fn next(&mut self) -> Option<usize> {
         self.cursor.next(&self.words)
     }
 }
 
 impl DoubleEndedIterator for IntoIter {
+    #[inline]
     fn next_back(&mut self) -> Option<usize> {
         self.cursor.next_back(&self.words)
     }

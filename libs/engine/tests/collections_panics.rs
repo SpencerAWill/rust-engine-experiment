@@ -104,6 +104,22 @@ fn bit_set_from_iter_at_max_bits_panics_at_caller() {
         "panic location was {file}"
     );
     assert!(message.contains("try_extend"), "message was {message}");
+    assert!(
+        message.contains("BitSet::from_iter:"),
+        "message was {message}"
+    );
+}
+
+#[test]
+fn bit_set_from_array_at_max_bits_names_from() {
+    let (file, message) = panic_info(|| {
+        let _ = BitSet::from([BitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    assert!(message.contains("BitSet::from:"), "message was {message}");
 }
 
 #[cfg(target_pointer_width = "64")]
