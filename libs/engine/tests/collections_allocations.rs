@@ -5,7 +5,9 @@
 #![forbid(unsafe_code)]
 #![cfg(not(target_os = "wasi"))]
 
-use engine::collections::{IndexMap, IndexSet};
+use std::hint::black_box;
+
+use engine::collections::{BitArray, BitSet, IndexMap, IndexSet};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -89,6 +91,117 @@ fn work_on_set(set: &mut IndexSet<u64>) {
     assert!(hits > 0);
 }
 
+const BITS: usize = 4_096;
+
+/// A set and the argument of the set-algebra calls, both made in setup.
+type BitState = (BitSet, BitSet);
+
+fn bit_state(mut set: BitSet) -> BitState {
+    let mut argument = BitSet::new();
+    argument.insert(0);
+    argument.insert(BITS - 1);
+    set.clear();
+    (set, argument)
+}
+
+/// Every `BitSet` operation that spec §4.7 promises not to allocate, within `BITS` bits.
+fn work_on_bit_set((set, argument): &mut BitState) {
+    for i in (0..BITS).step_by(2) {
+        set.insert(i);
+    }
+    let mut hits = 0;
+    for i in 0..BITS {
+        hits += usize::from(set.contains(i));
+    }
+    hits += set.iter().sum::<usize>() + set.iter().rev().sum::<usize>();
+    hits += set.first().unwrap_or(0) + set.last().unwrap_or(0) + set.len();
+    for i in (0..BITS).step_by(4) {
+        set.remove(i);
+    }
+    set.union_with(argument);
+    set.symmetric_difference_with(argument);
+    set.intersect_with(argument);
+    set.difference_with(argument);
+    hits += usize::from(set.is_subset(argument))
+        + usize::from(set.is_superset(argument))
+        + usize::from(set.is_disjoint(argument));
+    set.clear();
+    for i in (0..BITS).step_by(2) {
+        set.insert(i);
+    }
+    black_box(hits);
+}
+
+/// Every `BitArray<4>` operation.
+fn work_on_bit_array(array: &mut BitArray<4>) {
+    let other = BitArray::<4>::from_words([1, 2, 3, 4]);
+    let mut hits = 0;
+    for i in 0..BitArray::<4>::CAPACITY {
+        array.insert(i);
+        hits += usize::from(array.contains(i));
+        hits += usize::from(array.remove(i));
+        hits += usize::from(array.try_insert(i).expect("in range"));
+        hits += usize::from(array.try_remove(i).expect("in range"));
+    }
+    hits += usize::from(array.try_insert(BitArray::<4>::CAPACITY).is_err());
+    hits += usize::from(array.try_remove(BitArray::<4>::CAPACITY).is_err());
+    array.union_with(&other);
+    hits += array.len() + array.first().unwrap_or(0) + array.last().unwrap_or(0);
+    hits += array.iter().sum::<usize>() + array.iter().rev().sum::<usize>();
+    array.symmetric_difference_with(&other);
+    array.intersect_with(&other);
+    array.difference_with(&other);
+    hits += usize::from(array.is_subset(&other))
+        + usize::from(array.is_superset(&other))
+        + usize::from(array.is_disjoint(&other))
+        + usize::from(array.is_empty());
+    hits += array.as_words().len();
+    *array = BitArray::from_words(*array.as_words());
+    array.clear();
+    black_box(hits);
+}
+
+/// The bitset checks of spec §4.7. They run inside the test below, which owns the profiler.
+fn check_bitsets_never_allocate() {
+    let with_capacity = fewest_blocks(|| bit_state(BitSet::with_capacity(BITS)), work_on_bit_set);
+    let ensure_capacity = fewest_blocks(
+        || {
+            let mut set = BitSet::new();
+            set.ensure_capacity(BITS);
+            bit_state(set)
+        },
+        work_on_bit_set,
+    );
+    // `other` has trailing zero words (4,000 was inserted, then removed), but `union_with` grows
+    // `self` only to `other`'s trimmed length.
+    let union_trailing_zeros = fewest_blocks(
+        || {
+            let mut set = BitSet::with_capacity(64);
+            set.insert(1);
+            let mut other = BitSet::with_capacity(BITS);
+            other.insert(2);
+            other.insert(4_000);
+            other.remove(4_000);
+            (set, other)
+        },
+        |(set, other)| {
+            set.union_with(other);
+            set.symmetric_difference_with(other);
+        },
+    );
+    let limit = fewest_blocks(BitSet::new, |set| {
+        black_box(set.try_insert(BitSet::MAX_BITS).is_err());
+        black_box(set.try_insert(usize::MAX).is_err());
+    });
+    let array = fewest_blocks(BitArray::<4>::new, work_on_bit_array);
+
+    dhat::assert_eq!(with_capacity, 0, "BitSet::with_capacity");
+    dhat::assert_eq!(ensure_capacity, 0, "BitSet::ensure_capacity");
+    dhat::assert_eq!(union_trailing_zeros, 0, "union_with, trailing zeros");
+    dhat::assert_eq!(limit, 0, "try_insert at the limit");
+    dhat::assert_eq!(array, 0, "BitArray");
+}
+
 #[test]
 fn collections_never_allocate_within_their_reserved_capacity() {
     // `dhat` allows one profiler at a time, so everything runs in this single test.
@@ -112,4 +225,6 @@ fn collections_never_allocate_within_their_reserved_capacity() {
     dhat::assert_eq!(map_with_capacity, 0);
     dhat::assert_eq!(map_reserve, 0);
     dhat::assert_eq!(set_with_capacity, 0);
+
+    check_bitsets_never_allocate();
 }
