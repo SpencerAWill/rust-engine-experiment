@@ -43,7 +43,6 @@ WORKDIR /workspace
 DOCKERFILE
 }
 
-# show: print a command the way a shell would need it (arguments with spaces are not expected).
 build_cmd="docker build --build-arg TOOLCHAIN=$toolchain --build-arg MUTANTS_VERSION=$mutants_version -t $image -"
 
 if [ "$dry" = 1 ]; then

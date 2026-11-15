@@ -17,6 +17,12 @@ pub(crate) enum Decision {
     Block(String),
 }
 
+/// Why a command with a quote that never closes is blocked.
+const UNTERMINATED: &str = "the command has an unterminated quote";
+
+/// Why any force push is blocked.
+const FORCE: &str = "force pushes are not allowed";
+
 /// Decides whether `command` may run. `current_branch` is the checked-out branch of the hook's
 /// working directory, when known; a push with no explicit refspec pushes it.
 pub(crate) fn decide(command: &str, current_branch: Option<&str>) -> Decision {
@@ -211,7 +217,7 @@ fn split_segments(command: &str) -> Result<Vec<Vec<String>>, String> {
                     match chars.next() {
                         Some('\'') => break,
                         Some(q) => word.push(q),
-                        None => return Err("the command has an unterminated quote".to_string()),
+                        None => return Err(UNTERMINATED.to_string()),
                     }
                 }
             }
@@ -222,7 +228,7 @@ fn split_segments(command: &str) -> Result<Vec<Vec<String>>, String> {
                         Some('"') => break,
                         Some('\\') => word.extend(chars.next()),
                         Some(q) => word.push(q),
-                        None => return Err("the command has an unterminated quote".to_string()),
+                        None => return Err(UNTERMINATED.to_string()),
                     }
                 }
             }
@@ -320,15 +326,15 @@ fn check_push(args: &[String], current_branch: Option<&str>) -> Option<String> {
         }
         match arg.as_str() {
             "--all" | "--mirror" => return Some(format!("`git push {arg}` pushes every branch")),
-            "--force" => return Some("force pushes are not allowed".to_string()),
+            "--force" => return Some(FORCE.to_string()),
             "-o" | "--push-option" | "--repo" | "--receive-pack" | "--exec" => skip_next = true,
             long if long.starts_with("--force-with-lease") => {
-                return Some("force pushes are not allowed".to_string());
+                return Some(FORCE.to_string());
             }
             long if long.starts_with("--") => {}
             short if short.starts_with('-') && short.len() > 1 => {
                 if short.contains('f') {
-                    return Some("force pushes are not allowed".to_string());
+                    return Some(FORCE.to_string());
                 }
             }
             positional => positionals.push(positional),
