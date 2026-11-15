@@ -4,6 +4,8 @@
 - **Milestone:** M<N> (<milestone goal>) · **Depends on:** M<N>.<k>, or none · **Decides:** ADR NNNN, or "no ADR"
 - **Estimated size:** about <n> changed lines, excluding tests, lockfiles and generated files
 
+Keep it as short as the change allows: write what a builder needs and cannot find in the code, and link instead of copying. For a small chunk, sections 3, 7 and 11 are optional.
+
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
 ## 1. Summary
@@ -14,7 +16,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 <!-- Goals: what must be true afterwards. Non-goals: what a reader might expect but this chunk deliberately leaves out. -->
 
-## 3. Guide-level explanation
+## 3. Guide-level explanation (optional for a small chunk)
 
 <!-- How a user or contributor uses the result, as a short walkthrough. Code samples here become doctests. -->
 
@@ -44,7 +46,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 - **Documentation:**
 - **Policy changes:**
 
-## 7. Alternatives considered
+## 7. Alternatives considered (optional for a small chunk)
 
 <!-- Each alternative with the reason it was rejected. -->
 
@@ -65,6 +67,6 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 <!-- Must be empty, or each item deferred to a named chunk, before the spec is Accepted. -->
 
-## 11. Prior art and sources
+## 11. Prior art and sources (optional for a small chunk)
 
 <!-- Designs, papers and posts studied, with links. Never code copied from other projects (ADR 0002). -->

@@ -37,7 +37,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 3: Templates and the pull request template (R6)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `docs/chunks/_template/log.md` (new, spec §4.3), `docs/chunks/_template/plan.md` (checkbox per step, `Who:` line, Lessons section, length note), `docs/chunks/_template/spec.md` (length note; §3, §7, §11 optional for small chunks), `.github/PULL_REQUEST_TEMPLATE.md` (Reviews, Lessons, Follow-ups sections; drop the checklist lines they duplicate).
 - **Test first:** n/a (documentation).
 - **Verify:** link-check script reports 0; each template's status line still says `Template`.

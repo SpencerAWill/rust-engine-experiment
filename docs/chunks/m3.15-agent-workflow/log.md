@@ -17,3 +17,5 @@
 - 2026-11-15 surprise The link check found 11 broken relative links before the move, not 0: 8 are quoted example links inside the M2.0 plan's prose, 1 is a stale `handle_model.rs` link in the M2.1 spec (renamed `genid_model.rs` in M3.11). 9 remain, all pre-existing in historical records; left for M3.16's `check-docs` to decide how to treat.
 - 2026-11-15 lesson? `git log --follow` returns nothing for a path that exists only in the index: verify history after committing a move.
 - 2026-11-15 lesson? Moving docs one level up costs more in relative `../` fixes inside the moved files than in links from outside them.
+- 2026-11-15 surprise My first commit of step 2 missed five files: one `git add` with a path that no longer existed (`docs/design`) aborted the whole add, and `2>/dev/null` hid the error. Amended before anything was pushed.
+- 2026-11-15 done Step 3: log template, plan checkbox/Who/Lessons, spec length note and optional sections, PR template Reviews/Lessons/Follow-ups (the documentation-and-panics checklist line dropped: the Documentation and Public API reviews cover it).
