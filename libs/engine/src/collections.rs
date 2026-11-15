@@ -73,12 +73,14 @@
 //! assert_eq!(speeds.keys().copied().collect::<Vec<_>>(), ["crawl", "run"]);
 //! ```
 
+pub mod bit_set;
 mod error;
 mod hasher;
 pub mod index_map;
 pub mod index_set;
 
-pub use error::TryReserveError;
+pub use bit_set::BitArray;
+pub use error::{BitIndexError, TryReserveError};
 pub use index_map::IndexMap;
 pub use index_set::IndexSet;
 

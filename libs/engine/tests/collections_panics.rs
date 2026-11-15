@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine::collections::IndexMap;
+use engine::collections::{BitArray, IndexMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -46,6 +46,36 @@ fn index_mut_missing_key_panics_at_caller() {
         "message was {message}"
     );
     assert!(message.contains("use get"), "message was {message}");
+}
+
+#[test]
+fn bit_array_insert_out_of_range_panics_at_caller() {
+    let mut array = BitArray::<1>::new();
+    let (file, message) = panic_info(|| {
+        array.insert(64);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["bit index 64", "BitArray<1>", "use a larger WORDS"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn bit_array_remove_out_of_range_panics_at_caller() {
+    let mut array = BitArray::<1>::new();
+    let (file, message) = panic_info(|| {
+        array.remove(64);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["bit index 64", "BitArray<1>", "use a larger WORDS"] {
+        assert!(message.contains(part), "message was {message}");
+    }
 }
 
 /// Runs `f`, which must panic, and returns where it panicked and what it said.

@@ -47,3 +47,12 @@ fn set_golden_order() {
     s.insert(0);
     assert_eq!(s.iter().copied().collect::<Vec<_>>(), [1, 3, 9, 0]);
 }
+
+#[test]
+fn bit_array_word_layout() {
+    let mut a = crate::collections::BitArray::<3>::new();
+    for i in [0, 1, 63, 64, 130] {
+        a.insert(i);
+    }
+    assert_eq!(a.as_words(), &[0x8000_0000_0000_0003, 0x1, 0x4]);
+}
