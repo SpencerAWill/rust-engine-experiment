@@ -1,6 +1,6 @@
 # ECS storage spike
 
-Status: Accepted (2026-11-14), added by M3.2. The rules of every workload are in the [M3.2 spec](../../docs/design/m3-ecs-storage/m3.2-spike-harness/spec.md) (§4.4); this page is how to use them.
+Status: Accepted (2026-11-14), added by M3.2. The rules of every workload are in the [M3.2 spec](../../docs/chunks/m3.2-spike-harness/spec.md) (§4.4); this page is how to use them.
 
 ## What is here
 

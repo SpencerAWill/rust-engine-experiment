@@ -1,7 +1,7 @@
 # Mutation testing triage
 
 - **Status:** Living record. Last triage: 2026-11-13 (M3.1, `engine::collections`).
-- **Spec:** [M2.3](design/m2-infrastructure/m2.3-mutation-testing/spec.md)
+- **Spec:** [M2.3](chunks/m2.3-mutation-testing/spec.md)
 
 This is the hand-written record of what `cargo xtask mutants` found in each triaged module and what was done about every missed mutant and timeout. The classes are defined in [CONTRIBUTING.md](../CONTRIBUTING.md#mutation-testing): *test gap, fixed*, *test gap, deferred*, *bug*, *equivalent* and *not worth a test* (the last two are excluded in `.cargo/mutants.toml`, with the reason there), plus *detected (hang)* for a timeout. Names carry the line and column at the commit of the triage run, so they drift as the files change; the exclusion entries do not use positions. To triage another crate, add it to `TRIAGED` in `xtask/src/mutants.rs`, run the command, and add a section here with a row for each missed mutant and timeout, in file and line order.
 

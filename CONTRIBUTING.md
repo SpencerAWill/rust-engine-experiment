@@ -5,7 +5,7 @@ Thanks for your interest. This is an experimental engine: APIs change, and some 
 ## How work is organized
 
 - Work is planned in [docs/roadmap.md](docs/roadmap.md): milestones, broken into **chunks** of exactly one pull request each.
-- Each chunk has a `spec.md` and a `plan.md`, copied from [docs/design/_template/](docs/design/_template/). The maintainer reviews them before implementation starts.
+- Each chunk goes through the loop in [docs/workflow.md](docs/workflow.md): its `spec.md`, `plan.md` and `log.md` live in `docs/chunks/<id>-<slug>/`, copied from [docs/chunks/_template/](docs/chunks/_template/). The maintainer approves the spec before implementation starts, and gives the go-ahead to merge.
 - Pull request titles end with the chunk ID, for example `feat(genid): add UntypedGenId (M3.11)`.
 - Ideas and bugs that are not scheduled go into issues; questions go to [Discussions](https://github.com/SpencerAWill/rust-engine-experiment/discussions). When an issue is scheduled, a chunk spec links it.
 
@@ -159,16 +159,16 @@ A **spike** is a measured experiment whose code is kept so its numbers can be re
 
 ## Reviews before a pull request
 
-Before opening a pull request, review the change from each perspective below, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards.
+Before opening a pull request, review the change from each perspective below, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards. In the chunk loop each review is done by an agent that did not write the change, after a `/simplify` pass, using the reviewer files in `.claude/agents/` (named below); a person can run the same checklist by hand.
 
 **Always**
 
-- **Code review** (`/code-review`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
-- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps; a new `write` token scope needs an entry with a reason in `WRITE_ALLOWLIST` in `xtask/src/check_workflows.rs`).
-- **Documentation review**, by hand: every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` is current; the chunk is closed out in this pull request (spec `Implemented (PR #n, date)`, plan `Historical`, roadmap row `Done (PR #n)`, the spec's done-when list ticked with evidence), never in a documentation-only pull request after the merge; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
-- **Spec conformance review**, by hand: for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
+- **Code review** (`review-code`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
+- **Security review** (`review-security`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps; a new `write` token scope needs an entry with a reason in `WRITE_ALLOWLIST` in `xtask/src/check_workflows.rs`).
+- **Documentation review** (`review-docs`): every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` is current; the chunk is closed out in this pull request (spec `Implemented (PR #n, date)`, plan and log `Historical`, roadmap row `Done (PR #n)`, the spec's done-when list ticked with evidence), never in a documentation-only pull request after the merge; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
+- **Spec conformance review** (`review-spec`): for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
 
-**When the change touches it.** These are mandatory too, but you may answer "n/a" with the reason.
+**When the change touches it** (`review-conditional`, told which apply). These are mandatory too, but you may answer "n/a" with the reason.
 
 | Review | Applies when | Asks |
 | --- | --- | --- |

@@ -682,7 +682,7 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Repo fit:** `safe`; `in repo` (`engine::collections::BitSet` and `BitArray`, M3.14).
 - **Determinism:** deterministic.
 - **Builds on:** nothing.
-- **Sources:** [M3.14 spec §11](../design/m3-ecs-storage/m3.14-bitset/spec.md#11-prior-art-and-sources) lists them: the `fixedbitset`, `bitvec`, `bit-set` and `hibitset` documentation and `bevy_ecs`'s `ComponentIdSet`, read for the design; Lemire's [Iterating over set bits quickly](https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/), read for the trailing-zero iteration. Warren's *Hacker's Delight* (chapters 2 and 5) and Knuth's *TAOCP* 4A §7.1.3 are cited for the bit techniques, not read.
+- **Sources:** [M3.14 spec §11](../chunks/m3.14-bitset/spec.md#11-prior-art-and-sources) lists them: the `fixedbitset`, `bitvec`, `bit-set` and `hibitset` documentation and `bevy_ecs`'s `ComponentIdSet`, read for the design; Lemire's [Iterating over set bits quickly](https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/), read for the trailing-zero iteration. Warren's *Hacker's Delight* (chapters 2 and 5) and Knuth's *TAOCP* 4A §7.1.3 are cited for the bit techniques, not read.
 
 #### Hierarchical bitset
 

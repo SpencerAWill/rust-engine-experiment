@@ -1,0 +1,33 @@
+# docs/lessons/
+
+- **Status:** Living (2026-11-15). The workflow that writes and reads these is in [docs/workflow.md](../workflow.md).
+
+A lesson is guidance an agent or contributor follows by default and may deviate from, saying why. Lessons are written when a chunk learns something non-obvious, and read when a later chunk's plan touches the same paths. Nothing loads all of them.
+
+## Format
+
+One file per topic. Its frontmatter lists the paths the lessons apply to; the planning stage matches the paths a spec touches against them.
+
+```markdown
+---
+applies_to:
+  - "libs/engine/src/collections/**"
+---
+# Lessons: <topic>
+
+- Status: Living (<date>)
+
+- **<topic>-<n>.** The lesson, in one or two sentences. *Why:* what went wrong without it. *Deviate when:* (optional) the case it does not fit. *Retire when:* (optional) the change that makes it obsolete. *From:* <chunk> · *Confirmed:* <date>
+```
+
+- IDs are never reused. A retired lesson is deleted; git history is the archive.
+- **Capture gate:** write a lesson only if it is non-obvious from the code, likely to recur, and costly to miss. If a test, lint or `xtask` check can enforce it, write that instead.
+- **Edit one bullet at a time.** Search for an existing lesson on the same point and edit it rather than adding a second. Never regenerate a file.
+- **Upkeep:** `/lessons-refresh` at each milestone boundary keeps, edits, merges or deletes each lesson against the code.
+
+## Contents
+
+- [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
+- [`specs.md`](specs.md): writing specs and plans whose checks can pass.
+- [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
+- [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents.

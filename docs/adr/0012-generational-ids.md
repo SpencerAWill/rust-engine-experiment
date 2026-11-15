@@ -1,6 +1,6 @@
 # ADR 0012: Generational IDs: one lean allocator, the name `GenId`, and an untyped core
 
-Status: Accepted (2026-11-14). Supersedes [ADR 0010](0010-two-handle-allocators.md). Specified in [M3.11](../design/m3-ecs-storage/m3.11-genid/spec.md).
+Status: Accepted (2026-11-14). Supersedes [ADR 0010](0010-two-handle-allocators.md). Specified in [M3.11](../chunks/m3.11-genid/spec.md).
 
 ## Context
 
@@ -42,5 +42,5 @@ The packages are `0.x`, `publish = false`, and nothing outside the repository us
 - Type-erased code gets `UntypedGenId`, at no runtime cost: both types are 8 bytes, `Option` of either is 8 bytes, and the methods are the same `const fn`s.
 - The split does not reduce monomorphisation much, despite what #39 expected. The shared slot table was already non-generic, and only the thin typed wrappers are compiled per `T`. The split is justified by the type-erased API, not by compile time.
 - Documents written before this ADR (the M0+M1 spec, the M2 and earlier M3 specs and plans, ADRs 0003, 0010 and 0011, `benchmarks.md` and `mutation-triage.md`) keep the old names. The table above maps them.
-- Rejected alternatives: keeping `Handle`; `Id<T>` (too generic, collides with `egui::Id`); `Gid<T>` (read as a Unix group ID); `RawGenId` for the untyped type ("raw" does not say what is missing); `GenIdPool`, `GenIdVec`, `GenVec`, `GenIdStore` and `GenArena` for the value container; keeping `u64` bits for type-erased code; deprecated aliases; renaming the dense allocator instead of removing it. The reasons are in the [M3.11 spec](../design/m3-ecs-storage/m3.11-genid/spec.md) §7.
+- Rejected alternatives: keeping `Handle`; `Id<T>` (too generic, collides with `egui::Id`); `Gid<T>` (read as a Unix group ID); `RawGenId` for the untyped type ("raw" does not say what is missing); `GenIdPool`, `GenIdVec`, `GenVec`, `GenIdStore` and `GenArena` for the value container; keeping `u64` bits for type-erased code; deprecated aliases; renaming the dense allocator instead of removing it. The reasons are in the [M3.11 spec](../chunks/m3.11-genid/spec.md) §7.
 - Still open: whether M4's world needs `GenIdAllocator` at all; 32-bit or configurable layouts (#39, "Future").

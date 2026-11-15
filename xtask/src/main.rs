@@ -17,6 +17,7 @@ mod check_workflows;
 mod cmd;
 mod coverage;
 mod fuzz;
+mod guard_push;
 mod mutants;
 mod prng_stats;
 
@@ -40,6 +41,7 @@ enum Command {
     CheckUnsafe,
     CheckStatics,
     CheckWorkflows,
+    GuardPush,
     NoStd,
     Wasm,
     PrngStats {
@@ -101,6 +103,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
         "check-statics" => only(&[]).map(|()| Command::CheckStatics),
         "check-workflows" => only(&[]).map(|()| Command::CheckWorkflows),
+        "guard-push" => only(&[]).map(|()| Command::GuardPush),
         "prng-stats" => parse_prng_stats(flags),
         "no-std" => only(&[]).map(|()| Command::NoStd),
         "wasm" => only(&[]).map(|()| Command::Wasm),
@@ -488,6 +491,8 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::CheckUnsafe => check_unsafe::run(),
         Command::CheckStatics => check_statics::run(),
         Command::CheckWorkflows => check_workflows::run(),
+        // `main` runs this one directly, since it exits with a code other than 1.
+        Command::GuardPush => Err("guard-push is run by `main`".to_string()),
         Command::NoStd => no_std(),
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
@@ -552,6 +557,11 @@ fn execute(command: &Command) -> Result<(), String> {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    // The push guard exits 2 to block, which Claude Code treats as "refuse", so it bypasses the
+    // `Result` path below (which exits 1).
+    if args.first() == Some(&"guard-push") && parse(&args) == Ok(Command::GuardPush) {
+        return guard_push::run();
+    }
     match parse(&args).and_then(|c| execute(&c)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(msg) => {
@@ -614,6 +624,7 @@ mod tests {
     #[test]
     fn check_workflows_parses_and_runs_in_the_full_ci_only() {
         assert_eq!(parse(&["check-workflows"]), Ok(Command::CheckWorkflows));
+        assert_eq!(parse(&["guard-push"]), Ok(Command::GuardPush));
         assert!(parse(&["check-workflows", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::CheckWorkflows));
         assert!(!ci_steps(true).contains(&Command::CheckWorkflows));

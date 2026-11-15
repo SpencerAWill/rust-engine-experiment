@@ -25,8 +25,9 @@ pulumi up
 - **Required checks** are the job names in `.github/workflows/ci.yml`. When a job is added,
   renamed or removed, update `requiredChecks` in `index.ts` in the same pull request. A required
   check that never reports blocks every pull request.
-- **Admin bypass** is on, so the repository admin can still push to `main` directly. Everyone
-  else needs a pull request with passing checks.
+- **Admin bypass** is limited to pull requests (`bypassMode: "pull_request"`). Direct pushes to
+  `main` are refused for everyone, the admin included; the admin can still merge a pull request
+  without waiting for its checks.
 - **Settings without a provider resource.** `@pulumi/github` 6.15.1 has no resource for private
   vulnerability reporting, so `privateVulnerabilityReporting.ts` is a dynamic resource that calls
   `PUT`, `GET` and `DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` with Node's

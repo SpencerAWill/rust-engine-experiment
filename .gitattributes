@@ -1,0 +1,4 @@
+# Shell scripts run by tools (Claude Code hooks, the devcontainer, skills) must keep LF line
+# endings: a CRLF checkout on Windows turns them into syntax errors. The rule applies when git
+# writes a file; to fix a checkout made before it: git rm -r --cached -q . && git reset --hard
+*.sh text eol=lf

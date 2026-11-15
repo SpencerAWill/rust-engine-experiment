@@ -25,3 +25,8 @@ node_modules/
 
 # dhat writes its profile next to the crate when a test drops the profiler
 dhat-heap*.json
+
+# Claude Code: local state (the shared config in .claude/ is tracked)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/agent-memory-local/

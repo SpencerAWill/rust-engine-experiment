@@ -120,7 +120,8 @@ new github.RepositoryRuleset("main-ruleset", {
     conditions: {
         refName: { includes: ["~DEFAULT_BRANCH"], excludes: [] },
     },
-    bypassActors: [{ actorType: "RepositoryRole", actorId: adminRoleId, bypassMode: "always" }],
+    // Admins may bypass only through a pull request, so nobody pushes or force-pushes to main directly (spec M3.15 section 4.6).
+    bypassActors: [{ actorType: "RepositoryRole", actorId: adminRoleId, bypassMode: "pull_request" }],
     rules: {
         deletion: true,
         nonFastForward: true,
