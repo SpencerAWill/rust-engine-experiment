@@ -1,6 +1,6 @@
 # M3.13: One `engine` library crate, and the rule for splitting from it
 
-- **Status:** Accepted (2026-11-14)
+- **Status:** Implemented (PR #54, 2026-11-14)
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; it must land before M4, which decides where the ECS lives) · **Depends on:** none · **Decides:** [ADR 0004](../../../adr/0004-crate-splitting-rule.md), rewritten in place, and [ADR 0003](../../../adr/0003-same-build-determinism.md), edited in place for `no_std` builds, as a one-time exception to the rule that accepted ADRs are superseded rather than rewritten (§4.8)
 - **Issues:** #40. Related: M3.12 (space metrics, #41, drafting on its own branch), which will depend on this chunk and put `HeapSize` in `engine` instead of a new `engine_heap` crate (§4.11).
 - **Estimated size:** about 700 changed lines of code and configuration, excluding tests, lockfiles and generated files: manifests and `xtask` about 200, the `scalar` `no_std` backend about 60, bench labels and `bench-doc` about 40, crate and module docs about 120, ADR 0004 about 120, the live documents about 150. On top of that come:
@@ -324,19 +324,19 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 
 ## 9. Done when
 
-- [ ] `libs/` holds only `engine`, and every `engine::` path and prelude item resolves as before.
-- [ ] `cargo xtask ci` passes, including `no-std` (all of `engine`, math included) and `wasm`.
-- [ ] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request.
-- [ ] `cargo xtask fuzz-build` passes, and `cargo xtask mutants --module genid --list` matches the saved pre-change list.
-- [ ] The coverage and mutants tables have one row per module.
-- [ ] The `std_instead_of_core` and `std_instead_of_alloc` lints are on, and a deliberate `std::` path fails clippy.
-- [ ] The `bench-doc` tally test failed before the label rename and passes after it.
-- [ ] A fresh baseline is saved under the run protocol, and `benchmarks.md` is regenerated from it.
-- [ ] ADR 0004 and ADR 0003 are rewritten in place and accepted, and every document in §4.8 describes one crate.
-- [ ] `git grep` for the former crate names returns only this spec and its plan.
-- [ ] The pull request reports the clean build time before and after.
-- [ ] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`.
-- [ ] The pull request closes #40 and lists the eight reviews.
+- [x] `libs/` holds only `engine`, and every `engine::` path and prelude item resolves as before. Evidence: `ls libs` prints `engine`; the public-item list matches the old one apart from the removed crate roots (Step 4); the doctests and `prelude_auto_traits` pass.
+- [x] `cargo xtask ci` passes, including `no-std` (all of `engine`, math included) and `wasm`. Evidence: `cargo xtask ci` passed on the last code commit (Steps 5 to 7); the close-out and later commits change only documents and data files.
+- [x] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request. Evidence: No regression: 19 benchmarks, all within ±0.7%, base `dbf5c7b`, head `8b856f2` (arm64 Linux container); the table is in the pull request.
+- [x] `cargo xtask fuzz-build` passes, and `cargo xtask mutants --module genid --list` matches the saved pre-change list. Evidence: `fuzz-build` passes (inside `ci`). The mutant list matches except that two descriptions say `crate::genid::InvariantViolation` where they said `crate::InvariantViolation`; the four exclusions each match one mutant.
+- [x] The coverage and mutants tables have one row per module. Evidence: Unit tests `engine_rows_are_per_module` and `rows_are_ordered_by_module_with_total_last` pass. `cargo xtask coverage` itself was not run locally (`llvm-tools-preview` is missing).
+- [x] The `std_instead_of_core` and `std_instead_of_alloc` lints are on, and a deliberate `std::` path fails clippy. Evidence: A temporary `use std::vec::Vec as ProbeVec;` in `genid/map.rs` failed `cargo xtask clippy` on `std_instead_of_alloc`.
+- [x] The `bench-doc` tally test failed before the label rename and passes after it. Evidence: `tally_subject_is_a_compare_bench_subject` failed with "defines no subject named `engine_genid`" (Step 3), then passed.
+- [x] A fresh baseline is saved under the run protocol, and `benchmarks.md` is regenerated from it. Evidence: Baseline `m3.13` (476 benchmarks), 21:10 to 22:10 local on AC power, no sleep in the power log. Caveats (a busy background process for the first 16 minutes) are in `benchmarks.md`.
+- [x] ADR 0004 and ADR 0003 are rewritten in place and accepted, and every document in §4.8 describes one crate. Evidence: Steps 7 and 8.
+- [x] `git grep` for the former crate names returns only this spec and its plan. Evidence: Checked after Step 9.
+- [x] The pull request reports the clean build time before and after. Evidence: About 1.07 s before and about 1.9 s after (three runs); see the pull request.
+- [x] The roadmap row reads `Done (PR #n)`, this spec reads `Implemented`, and the plan reads `Historical`. Evidence: Done in the close-out commit.
+- [x] The pull request closes #40 and lists the eight reviews. Evidence: See the pull request.
 
 ## 10. Open questions
 

@@ -1,6 +1,6 @@
 # M3.13 plan: One `engine` library crate, and the rule for splitting from it
 
-- **Status:** Accepted (2026-11-14)
+- **Status:** Historical: executed in PR #54 (2026-11-14); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach
@@ -234,4 +234,14 @@ Each commit applies the §1 rewrite table to one group. Before committing, `git 
 
 ## 4. Deviations
 
-Filled in during implementation. Planned in advance: the bench-label fix and its test come first, in one commit, rather than as spec §4.10's steps 1 and 5 (see §1).
+- The bench-label fix and its test came first, in one commit (planned, see §1).
+- **Root `extern crate std`.** The root declares `#[cfg(test)] #[macro_use] extern crate std;` and `#[cfg(all(feature = "std", not(test)))] extern crate std;`, not one `cfg(any(...))` line: `collections`' tests need std's macros, `#[macro_use]` on `extern crate` is only legal at the root, and a test-only `macro_use` keeps std macros out of library code that the `no-std` build checks.
+- **Panic-location tests.** Four `*_panics.rs` files assert the file name of the panic location; the string now names the renamed file.
+- **`check_statics.rs` fixtures** use `libs/engine/src` (what `scanned_dirs` yields), not `libs/engine/src/random`.
+- **`libm` backend layout:** `libm_backend::single::<name>` and `libm_backend::double::<name>` instead of `<name>_f32` and `<name>_f64`, so the test macros address both widths by name.
+- **Step 6 order:** the `xtask` mutants and summary code was written before its tests, so those tests were never seen failing first. `--module` also rejects names that are not modules of `engine`.
+- **Step 8** used a script for the unambiguous tokens (paths, commands, `engine_<m>::`), then hand-edited the prose, with `git grep` and a read of each group's diff.
+- **Coverage** (`cargo xtask coverage`) was not run locally; its unit tests ran.
+- **`bench-regress`** ran in a Debian arm64 container with `seccomp=unconfined`, not in the devcontainer.
+- **Step 9:** the baseline ran with a busy background process for its first 16 minutes, and one stray `cargo bench --list` was run during it; both are recorded in `docs/benchmarks.md`.
+- **Review fixes:** the code review's findings led to a `std` gate on `scalar_matches_std_bitwise`, `atan2` argument names, and a `powi` doc note.
