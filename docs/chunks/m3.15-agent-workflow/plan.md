@@ -1,6 +1,6 @@
 # M3.15 plan: Agent workflow and lessons
 
-- **Status:** Accepted (2026-11-15). No plan stop under the new loop (spec §4.13); the maintainer reviews it with the pull request.
+- **Status:** Historical: executed in PR #59 (2026-11-15); the spec and the code are authoritative. No plan stop under the new loop (spec §4.13).
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

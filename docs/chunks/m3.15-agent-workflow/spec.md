@@ -1,6 +1,6 @@
 # M3.15: Agent workflow and lessons
 
-- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time; §8 R14, the check's scope; §4.1, the next-chunk rule; §4.6, the ruleset's admin bypass; §4.1, no automatic next chunk)
+- **Status:** Implemented (PR #59, 2026-11-15); accepted 2026-11-15, amended 2026-11-15 (§4.10, questions one at a time; §8 R14, the check's scope; §4.1, the next-chunk rule; §4.6, the ruleset's admin bypass; §4.1, no automatic next chunk)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
@@ -280,12 +280,12 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes, including the push guard's tests.
-- [ ] Every requirement in §5 has its evidence from §8.
-- [ ] The resume trial, the hook trial, the skill trials and the mutants container run are recorded in `log.md`.
-- [ ] The CLAUDE.md audit was run and answered.
-- [ ] The pull request lists all eight reviews, done by the new agents, and a Lessons section.
-- [ ] The spec is `Implemented`, the plan and log are `Historical`, the roadmap row is `Done`.
+- [x] `cargo xtask ci` passes, including the push guard's tests (locally, 2026-11-15; GitHub CI on PR #59 pending at close-out).
+- [x] Every requirement in §5 has its evidence from §8 (`review-spec`; R11 in PR #59's Reviews section; R15's own merge is recorded in `log.md` when it happens).
+- [x] The resume trial, the hook trial, the skill trials and the mutants container run are recorded in `log.md`.
+- [x] The CLAUDE.md audit was run and answered (`log.md`, PR #59).
+- [x] The pull request lists all eight reviews, done by the new agents, and a Lessons section (PR #59).
+- [x] The spec is `Implemented`, the plan and log are `Historical`, the roadmap row is `Done`.
 
 ## 10. Open questions
 

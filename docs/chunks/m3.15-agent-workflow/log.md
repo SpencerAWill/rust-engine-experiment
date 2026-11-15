@@ -1,6 +1,6 @@
 # M3.15 log: agent workflow, lessons and documentation layout
 
-- **Status:** Living (2026-11-15). Append-only; one or two lines per entry (spec §4.3).
+- **Status:** Historical: PR #59 (2026-11-15). Append-only; one or two lines per entry (spec §4.3).
 
 - 2026-11-15 decision Approach B (own `.claude/` layer, compound-engineering ideas, no plugin); stops at spec approval and merge go-ahead only.
 - 2026-11-15 decision Reviews by independent agents: code, security, conditional on Opus; docs, spec conformance on Sonnet. Builders on Sonnet.
@@ -79,3 +79,4 @@
 - 2026-11-15 done guard-push.sh nests its target dir under CARGO_TARGET_DIR (checked unset and set) and the fallback grep accepts `\n`/`\r`/`\t` before `git`; run.sh runs the container with --init in the background and the trap docker-kills it (scratch container gone at once after kill -TERM).
 - 2026-11-15 lesson? the guard hook compiles xtask: while guard_push.rs does not compile, any Bash command mentioning `git ... push` (even inside a script heredoc) is blocked; write edit scripts with the Write tool.
 - 2026-11-15 done Stage 6: 11 candidate lessons through the capture gate. Promoted 10: `tooling-1` to `tooling-7` (new `docs/lessons/tooling.md`), `specs-1`, `specs-2` (new `specs.md`), `docs-1` (new `docs.md`); `testing-1` edited earlier (narrowed). Dropped: `git log --follow` on staged paths (git trivia), the `../` cost of moving docs (one-off), `cd` before a bare push (now a guard test), `<<<` parsing (now a guard test). The rest went into agent files and skills directly (read-only agents may not change the tree; skill trials).
+- 2026-11-15 done Stage 7: follow-up issues #57 and #58; PR #59 opened; close-out commit pushed at once. Waiting for the merge go-ahead.
