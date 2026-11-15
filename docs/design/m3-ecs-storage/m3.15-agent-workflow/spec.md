@@ -2,14 +2,14 @@
 
 - **Status:** Draft (2026-11-15)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
-- **Estimated size:** about 800 changed lines of Markdown and about 250 lines of Rust in `xtask` plus tests
+- **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
 ## 1. Summary
 
-Agents on this project stop to ask the maintainer what to do next, read about 30 KB of process text per session of which most does not apply, and lose what they learned when a session ends or is killed. This chunk defines one loop (brainstorm, grill, plan, work, review, compound, close out) with two stop points, assigns each stage to an agent role with a pinned model, and records progress and lessons on disk as they happen. At the end, `AGENTS.md` is short and describes the loop, `.claude/` holds the roles, skills and a push guard, and `docs/lessons/` holds lessons that the planning stage retrieves by path. M3.16 then reorganizes the rest of the documentation, as the first chunk built with this loop.
+Agents on this project stop to ask the maintainer what to do next, read about 30 KB of process text per session of which most does not apply, and lose what they learned when a session ends or is killed. This chunk defines one loop (brainstorm, grill, plan, work, review, compound, close out) with two stop points, assigns each stage to an agent role with a pinned model, and records progress and lessons on disk as they happen. At the end, `AGENTS.md` is short and describes the loop, `.claude/` holds the roles, skills and a push guard, `docs/lessons/` holds lessons that the planning stage retrieves by path, and every chunk's documents live in one flat `docs/chunks/` instead of under milestone folders. M3.16 then reorganizes the rest of the documentation, as the first chunk built with this loop.
 
 ## 2. Goals and non-goals
 
@@ -43,7 +43,7 @@ The maintainer opens a session and runs `/chunk next`. The main session (Opus) r
 
 The main session then continues without stopping. It asks the lessons researcher which lessons apply to the paths the spec touches and writes `plan.md` listing them. For each plan step it hands the step to a builder agent (Sonnet), which writes the test first, makes the change, appends to `log.md` and reports back. The main session checks the result, ticks the step and commits it with the log.
 
-When the steps are done, a builder runs `/simplify` over the chunk's diff. Then the reviewers run in parallel, each with only the spec, the diff, its checklist and the relevant lessons. Findings go to a builder; a fresh reviewer of the same kind checks the fix. The main session promotes what `log.md` taught into `docs/lessons/` (adding or editing single bullets), opens the pull request with its Reviews and Lessons sections, pushes the close-out commit, and stops for the merge go-ahead.
+When the steps are done, a builder runs `/simplify` over the chunk's diff. Then the reviewers run in parallel, each with only the spec, the diff, its checklist and the relevant lessons. Findings go to a builder; a fresh reviewer of the same kind checks the fix. The main session promotes what `log.md` taught into `docs/lessons/` (adding or editing single bullets), opens the pull request with its Reviews, Lessons and Follow-ups sections, pushes the close-out commit, and stops for the merge go-ahead. Once the maintainer gives it, the main session merges, deletes the branch, and starts the next chunk's brainstorm.
 
 If the session dies at any point, a new one runs `/chunk resume`: it reads the git log, the plan's ticked steps and `log.md`, runs `cargo xtask ci --quick`, and continues from the first unticked step.
 
@@ -59,14 +59,15 @@ If the session dies at any point, a new one runs `/chunk resume`: it reads the g
 | 4. Work | builder, one per plan step | Sonnet | one commit per step | No |
 | 5. Review | builder runs `/simplify`; then reviewers (§4.2); builder for fixes | Sonnet; §4.2 | a simplify commit; the PR's Reviews section | No |
 | 6. Compound | main session | Opus | edits to `docs/lessons/` and other docs | No |
-| 7. Close out | main session | Opus | PR, close-out commit | **Yes: merge go-ahead** |
+| 7. Close out | main session | Opus | PR, close-out commit, follow-up issues; after the go-ahead, the merge | **Yes: merge go-ahead** |
 
 - The main session MUST NOT write product or test code in stages 4 and 5; it dispatches, checks, commits and keeps the documents. It MAY edit documentation directly.
 - Stage 1 picks the next chunk as the first `Planned` row of the current milestone, in ID order, whose dependencies are `Done`; the maintainer MAY name another.
-- An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch and opening its pull request are part of stage 7 and need no further approval.
+- An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch, opening its pull request, and opening issues for follow-ups found during the chunk (labelled, and listed in the pull request's Follow-ups section) are part of stage 7 and need no further approval.
+- **After the merge go-ahead** the main session, in the same turn: squash-merges the pull request once its required checks pass (`gh pr merge --squash --delete-branch`; it MUST NOT use `--admin` or otherwise bypass a check); reminds the maintainer to run `pulumi preview` and `pulumi up` if `infra/github/` changed; and starts stage 1 for the next chunk. If a check fails after the go-ahead, it does not merge: it fixes the failure on the branch as in stage 5 and asks for the go-ahead again.
 - The simplify pass in stage 5 runs once over the whole chunk's diff, before any reviewer, and is committed on its own (`refactor: simplify (M<N>.<n>)`, or no commit if nothing changed) so reviewers can see what it did.
 - Compounding is not only stage 6: every agent writes candidate lessons to `log.md` as they happen (§4.3). Stage 6 promotes them.
-- **Escalations.** Outside the two stop points, an agent MUST stop and ask when: the spec is wrong or silent on something that changes what gets built (the fix is a spec amendment, grilled and approved like the spec); a change would touch an ADR, a frozen format or a CI-enforced policy that the spec does not name; a reviewer and the builder still disagree after two fix rounds; or anything outward-facing beyond the chunk's branch and pull request (merging, pushing another branch, publishing, commenting elsewhere).
+- **Escalations.** Outside the two stop points, an agent MUST stop and ask when: the spec is wrong or silent on something that changes what gets built (the fix is a spec amendment, grilled and approved like the spec); a change would touch an ADR, a frozen format or a CI-enforced policy that the spec does not name; a reviewer and the builder still disagree after two fix rounds; or anything outward-facing beyond what stage 7 allows (pushing another branch, merging without the go-ahead, publishing, commenting on other issues or pull requests).
 - Long jobs that run mutated or untrusted code (mutants) run only by the procedure in §4.6, and the agent tells the maintainer when it starts one.
 - **Plugins.** Techniques from installed plugins (for example superpowers' brainstorming, test-driven development, systematic debugging and verification skills) MAY be used inside any stage. Where a plugin's defaults differ from this workflow, the workflow wins: specs, plans and logs go in the chunk folder from the repository's templates, never in a plugin's own location (such as `docs/superpowers/`). Nothing in the repository requires a plugin to be installed.
 
@@ -92,7 +93,7 @@ Roles are Claude Code agent files in `.claude/agents/`, each with `name`, `descr
 
 ### 4.3 Progress on disk: `log.md` and the plan's steps
 
-Each chunk folder gets a `log.md`, copied from `docs/design/_template/log.md` when the spec is started.
+Each chunk folder gets a `log.md`, copied from `docs/chunks/_template/log.md` when the spec is started.
 
 - It is append-only during the chunk. Each entry is one or two lines: `- <date> <tag> <text>`, where tag is one of `done`, `decision`, `surprise`, `dead-end`, `lesson?`.
 - Every agent (builder, reviewer through its report, main session) MUST record surprises, decisions and candidate lessons when they happen, not at the end. A builder appends before it reports back; the main session commits `log.md` with the step.
@@ -171,10 +172,10 @@ Personal preferences (tone, collaboration style, "grill me", DX over API stabili
 
 ### 4.9 Templates and the pull request
 
-- `docs/design/_template/plan.md`: a checkbox per step; a Lessons section (IDs followed or deviated from, with reasons); a length note.
-- `docs/design/_template/spec.md`: a length note; sections 3, 7 and 11 marked optional for small chunks.
-- `docs/design/_template/log.md`: new (§4.3).
-- `.github/PULL_REQUEST_TEMPLATE.md`: a Reviews section (the eight reviews, one line each, naming the agent) and a Lessons section (lessons added, edited or deleted, by ID) replace the checklist lines they duplicate.
+- `docs/chunks/_template/plan.md`: a checkbox per step; a Lessons section (IDs followed or deviated from, with reasons); a length note.
+- `docs/chunks/_template/spec.md`: a length note; sections 3, 7 and 11 marked optional for small chunks.
+- `docs/chunks/_template/log.md`: new (§4.3).
+- `.github/PULL_REQUEST_TEMPLATE.md`: a Reviews section (the eight reviews, one line each, naming the agent) a Lessons section (lessons added, edited or deleted, by ID) and a Follow-ups section (issues opened, by number) replace the checklist lines they duplicate.
 
 ### 4.10 Grilling the spec
 
@@ -206,6 +207,14 @@ Recorded here so the roadmap row and M3.16's brainstorm start from what was agre
 
 This chunk follows the new loop from its spec approval on: no plan stop. Its brainstorm and grill are the conversation of 2026-11-15, recorded in `log.md`. The plan's first step writes the agent files, and every later step is built by a builder and reviewed by the new reviewers. If Claude Code does not pick up the new agent files without a restart, the main session dispatches general-purpose agents with the agent file's model and body as their prompt, and notes it in `log.md`.
 
+### 4.14 Chunk folders
+
+- Every chunk's documents live in `docs/chunks/<id>-<slug>/` (for example `docs/chunks/m3.15-agent-workflow/`), flat, with the templates in `docs/chunks/_template/`. Milestones are goals with exit criteria in the roadmap and a field in each spec's header; they no longer group folders.
+- Chunk IDs keep their form, `M<N>.<n>`, never reused or renumbered. `N` is the milestone that was current when the chunk was added, not a claim that the chunk serves its exit criteria; the roadmap's milestone tables keep listing chunks under the milestone in which they were added.
+- This chunk moves every existing folder under `docs/design/` (including `m0-m1-foundations/`, which keeps its name) into `docs/chunks/` with `git mv`, so `git log --follow` keeps each file's history, and removes `docs/design/`.
+- Every link to a moved path is updated, in 8 files outside the folders (41 references when counted on 2026-11-15), including ADRs 0003, 0004 and 0012. Changing a link path in an accepted ADR does not change its decision and is allowed; the pull request says so.
+- `docs/README.md`'s table and Conventions describe `docs/chunks/` instead of `docs/design/`.
+
 ## 5. Requirements
 
 - **M3.15-R1** `AGENTS.md` MUST describe the loop, its two stop points (spec approval, merge go-ahead), the escalations and the plugin rule of §4.1, and MUST stay under 80 lines.
@@ -221,6 +230,8 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 - **M3.15-R11** This chunk's own reviews MUST be run with the new reviewer agents.
 - **M3.15-R12** The `grill` skill MUST implement §4.10, and the `chunk` skill MUST run it between brainstorm and spec approval.
 - **M3.15-R13** The roadmap MUST list M3.15 and M3.16, with M3.16's row carrying the scope of §4.12.
+- **M3.15-R14** Chunk folders MUST be moved as in §4.14, with no relative link to a moved path left broken.
+- **M3.15-R15** The `chunk` skill MUST implement the merge and next-chunk steps of stage 7, MUST NOT bypass required checks, and MUST list follow-up issues it opened in the pull request.
 
 ## 6. Cross-cutting concerns
 
@@ -234,7 +245,7 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 - **FFI exposure:** none.
 - **Performance:** the push guard's `sh` pre-filter keeps `cargo` off every Bash call that is not a push; the plan measures the time of a push check.
 - **Documentation:** §4.5 and §4.9.
-- **Policy changes:** yes. The stop points change from "spec and plan reviewed together, then merge" to "spec (after a grill), then merge"; reviews must be done by agents other than the builder, after a simplify pass; lessons may be edited directly in a chunk's pull request and are listed in its Lessons section; plugin defaults yield to the workflow.
+- **Policy changes:** yes. The stop points change from "spec and plan reviewed together, then merge" to "spec (after a grill), then merge"; reviews must be done by agents other than the builder, after a simplify pass; lessons may be edited directly in a chunk's pull request and are listed in its Lessons section; plugin defaults yield to the workflow; the main session merges after the maintainer's go-ahead and may open follow-up issues; chunk documents move from milestone folders to `docs/chunks/`.
 
 ## 7. Alternatives considered
 
@@ -263,6 +274,8 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 | R11 | the Reviews section names the agent file used for each review |
 | R12 | this spec's grill, recorded in `log.md`; spec conformance review reads the skill against §4.10 |
 | R13 | the roadmap diff |
+| R14 | `git grep 'design/m[0-9]'` finds nothing; a link check over every Markdown file in the repository (a one-off script in the plan) reports no broken relative link |
+| R15 | spec conformance review reads the skill against §4.1; this chunk's own merge, done by the main session after the go-ahead, recorded in `log.md` |
 
 ## 9. Done when
 

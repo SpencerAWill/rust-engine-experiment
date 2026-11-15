@@ -11,3 +11,4 @@
 - 2026-11-15 done Worktree dropped after PR #56 merged; branch rebased onto `main` in the main checkout.
 - 2026-11-15 decision Grill round 1 (all accepted): this chunk follows the new loop after spec approval (no plan stop); split into M3.15 (workflow) and M3.16 (documentation layout); `/simplify` once over the chunk diff before reviewers; plugin techniques allowed in any stage, but the workflow decides file locations and formats.
 - 2026-11-15 done Spec rewritten for the split (§4.7 kept as a stub, §4.12 hands scope to M3.16, §4.13 bootstrapping); roadmap rows M3.15 and M3.16 added.
+- 2026-11-15 decision Grill round 2 (all accepted): main session merges after the go-ahead and starts the next chunk; follow-up issues may be opened without asking; flat `docs/chunks/<id>-<slug>/`, existing folders moved in M3.15; IDs keep the `M<N>.<n>` form.
