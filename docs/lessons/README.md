@@ -27,4 +27,7 @@ applies_to:
 
 ## Contents
 
+- [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
+- [`specs.md`](specs.md): writing specs and plans whose checks can pass.
 - [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
+- [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents.
