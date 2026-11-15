@@ -25,9 +25,7 @@ workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
-engine_collections.workspace = true
-engine_genid.workspace = true
-engine_random.workspace = true
+engine.workspace = true
 fastrand = "2.5.0"
 foldhash = "0.2"
 indexmap = "2.14"

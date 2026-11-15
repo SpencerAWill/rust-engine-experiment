@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use arbitrary::Arbitrary;
-use engine_genid::{GenId, GenIdMap};
+use engine::genid::{GenId, GenIdMap};
 use libfuzzer_sys::fuzz_target;
 
 /// The map's value type: counts its own drops in a counter shared with the harness, so a value

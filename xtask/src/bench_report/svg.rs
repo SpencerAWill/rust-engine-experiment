@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use engine_math::scalar;
+use engine::math::scalar;
 
 use super::load::Point;
 use super::model::{Delta, Group, NOISE_PCT, Series, Verdict};

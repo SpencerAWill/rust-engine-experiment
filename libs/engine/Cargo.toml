@@ -1,6 +1,6 @@
 [package]
 name = "engine"
-description = "Facade for the engine: one dependency that re-exports the collections, generational ID, random, time, and math crates"
+description = "The engine library: generational IDs, deterministic collections, random numbers, simulation time and math"
 keywords = ["gamedev", "simulation", "determinism"]
 categories = ["game-engines"]
 version.workspace = true
@@ -12,15 +12,28 @@ publish.workspace = true
 
 [features]
 default = ["std"]
-# Forwarded to the leaf crates that have a `std` feature (enables `SystemClock`).
-std = ["engine_time/std"]
+# Enables `time::SystemClock` and `std` as the transcendental backend of `math::scalar`.
+std = ["glam/std"]
+# Exposes `check_invariants` on `GenIdMap` and `GenIdAllocator` to integration tests and fuzz targets.
+test-invariants = []
 
 [dependencies]
-engine_collections = { workspace = true }
-engine_genid = { workspace = true }
-engine_random = { workspace = true }
-engine_time = { workspace = true }
-engine_math = { workspace = true }
+indexmap = { workspace = true }
+foldhash = { workspace = true }
+glam = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+dhat = "0.3"
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+rand_xoshiro = "0.8.1"
+# Self dev-dependency: enables `test-invariants` for integration tests even without --all-features
+# (the wasm CI step runs `cargo test` without it).
+engine = { path = ".", features = ["test-invariants"] }
+
+[[bench]]
+name = "time_fixed_timestep"
+harness = false
 
 [lints]
 workspace = true

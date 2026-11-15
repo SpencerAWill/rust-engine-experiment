@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `engine_collections::IndexMap` hot paths, counted in instructions.
+//! `engine::collections::IndexMap` hot paths, counted in instructions.
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work. Each
 //! benchmark builds its input in a `setup` function, which Gungraun does not count, and runs the
@@ -16,8 +16,8 @@
 use core::any::TypeId;
 use core::hint::black_box;
 
-use engine_collections::IndexMap;
-use engine_random::Prng;
+use engine::collections::IndexMap;
+use engine::random::Prng;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 
 const N: usize = 1_024;

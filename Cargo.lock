@@ -587,20 +587,21 @@ dependencies = [
 name = "engine"
 version = "0.1.0"
 dependencies = [
- "engine_collections",
- "engine_genid",
- "engine_math",
- "engine_random",
- "engine_time",
+ "criterion",
+ "dhat",
+ "engine",
+ "foldhash",
+ "glam",
+ "indexmap",
+ "proptest",
+ "rand_xoshiro",
 ]
 
 [[package]]
 name = "engine_bench_regress"
 version = "0.1.0"
 dependencies = [
- "engine_collections",
- "engine_genid",
- "engine_random",
+ "engine",
  "gungraun",
 ]
 
@@ -609,9 +610,7 @@ name = "engine_benches"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "engine_collections",
- "engine_genid",
- "engine_random",
+ "engine",
  "fastrand",
  "foldhash",
  "indexmap",
@@ -619,49 +618,6 @@ dependencies = [
  "rand_xoshiro",
  "slotmap",
  "thunderdome",
-]
-
-[[package]]
-name = "engine_collections"
-version = "0.1.0"
-dependencies = [
- "dhat",
- "foldhash",
- "indexmap",
- "proptest",
-]
-
-[[package]]
-name = "engine_genid"
-version = "0.1.0"
-dependencies = [
- "dhat",
- "engine_genid",
- "proptest",
-]
-
-[[package]]
-name = "engine_math"
-version = "0.1.0"
-dependencies = [
- "glam",
- "proptest",
-]
-
-[[package]]
-name = "engine_random"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "rand_xoshiro",
-]
-
-[[package]]
-name = "engine_time"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "proptest",
 ]
 
 [[package]]
@@ -2631,8 +2587,7 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
- "engine_math",
- "engine_random",
+ "engine",
  "proc-macro2",
  "serde_json",
  "syn 3.0.10",

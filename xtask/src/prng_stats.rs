@@ -9,7 +9,7 @@
 
 use std::io::{self, Write};
 
-use engine_random::Prng;
+use engine::random::Prng;
 
 /// Bytes generated per `fill_bytes` call. A multiple of 8, so chunking never changes the
 /// stream: only the final chunk can end mid-word, exactly like one big `fill_bytes`.
@@ -56,7 +56,7 @@ pub(crate) fn run(seed: u64, bytes: Option<u64>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use engine_random::Prng;
+    use engine::random::Prng;
 
     #[test]
     fn writes_exactly_the_requested_bytes_matching_fill_bytes() {

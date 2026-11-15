@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `engine_genid` map and allocator hot paths, counted in instructions.
+//! `engine::genid` map and allocator hot paths, counted in instructions.
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work.
 //! Each benchmark builds its input in a `setup` function, which Gungraun does not count, and
@@ -23,8 +23,8 @@
 
 use core::hint::black_box;
 
-use engine_genid::{GenId, GenIdAllocator, GenIdMap};
-use engine_random::Prng;
+use engine::genid::{GenId, GenIdAllocator, GenIdMap};
+use engine::random::Prng;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 
 const N: usize = 1_000;

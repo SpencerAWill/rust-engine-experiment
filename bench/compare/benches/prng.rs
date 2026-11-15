@@ -6,7 +6,7 @@
     clippy::disallowed_methods,
     clippy::unwrap_used
 )]
-//! PRNG comparisons: `engine_random::Prng` vs `rand_xoshiro` (same algorithm), `rand`'s
+//! PRNG comparisons: `engine::random::Prng` vs `rand_xoshiro` (same algorithm), `rand`'s
 //! `SmallRng`, and `fastrand`.
 //!
 //! Each benchmark performs 1,000,000 draws per iteration (the shuffle benchmark shuffles 10,000
@@ -16,7 +16,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use engine_random::Prng;
+use engine::random::Prng;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use rand::{Rng, RngExt, SeedableRng};

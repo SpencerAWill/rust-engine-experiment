@@ -6,7 +6,7 @@
     clippy::disallowed_methods,
     clippy::unwrap_used
 )]
-//! `engine_random::Prng` hot paths, counted in instructions.
+//! `engine::random::Prng` hot paths, counted in instructions.
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work. The
 //! operation runs in a separate `*_work` function that is never inlined, for the reason given in
@@ -14,7 +14,7 @@
 
 use core::hint::black_box;
 
-use engine_random::Prng;
+use engine::random::Prng;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 
 const SEED: u64 = 0x5EED;

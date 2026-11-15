@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use arbitrary::Arbitrary;
-use engine_genid::{GenId, GenIdAllocator};
+use engine::genid::{GenId, GenIdAllocator};
 use libfuzzer_sys::fuzz_target;
 
 #[derive(Arbitrary, Debug)]

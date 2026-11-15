@@ -7,18 +7,18 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `GenId` map and allocator comparisons: `engine_genid` vs `slotmap` vs `thunderdome`.
+//! `GenId` map and allocator comparisons: `engine::genid` vs `slotmap` vs `thunderdome`.
 //!
 //! Every group runs over `N` in `{1_000, 100_000, 1_000_000}` and two value types
-//! (`u64` and a 64-byte `[u64; 8]`). Randomness comes from `engine_random::Prng` with fixed
+//! (`u64` and a 64-byte `[u64; 8]`). Randomness comes from `engine::random::Prng` with fixed
 //! seeds, which keeps the shuffles identical across runs and across libraries.
 
 use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use engine_genid::{GenId, GenIdAllocator, GenIdMap};
-use engine_random::Prng;
+use engine::genid::{GenId, GenIdAllocator, GenIdMap};
+use engine::random::Prng;
 use slotmap::{DefaultKey, DenseSlotMap, SlotMap};
 use thunderdome::{Arena, Index};
 

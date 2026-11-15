@@ -11,7 +11,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
-engine_genid = { path = "../libs/engine_genid", features = ["test-invariants"] }
+engine = { path = "../libs/engine", features = ["test-invariants"] }
 
 # Standalone: do not look for a parent workspace (the root `Cargo.toml` excludes this directory).
 [workspace]
