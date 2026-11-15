@@ -4,7 +4,7 @@ Status: Accepted (2026-11-14). Supersedes [ADR 0010](0010-two-handle-allocators.
 
 ## Context
 
-`engine_handle` provides a typed generational identifier, `Handle<T>`: a slot index and the slot's generation, checked on use. It also provides a dense pool of values (`HandlePool<T>`) and, after ADR 0010, two ID-only allocators: the lean `HandleAllocator<T>` and the iterable `DenseHandleAllocator<T>`.
+`engine::handle` provides a typed generational identifier, `Handle<T>`: a slot index and the slot's generation, checked on use. It also provides a dense pool of values (`HandlePool<T>`) and, after ADR 0010, two ID-only allocators: the lean `HandleAllocator<T>` and the iterable `DenseHandleAllocator<T>`.
 
 Three problems have come up since then.
 
@@ -12,7 +12,7 @@ Three problems have come up since then.
 - **The name says the wrong thing.** "Handle" suggests something that points to or owns a resource, and this type does neither. Readers coming from Bevy expect `Handle<T>` to be a reference-counted asset handle. An asset system here will likely want that kind of owning handle later, and "handle" is the natural name for it (#39).
 - **Type-erased code has no type.** Code without a compile-time `T` is coming: runtime-registered and mod-defined components (M3.6), the registry (M4), serialisation (M5) and the C ABI (M8). Today it would pass a bare `u64` from `to_bits`, which has no accessors, no readable `Debug` and no `Option` niche.
 
-The crates are `0.x`, `publish = false`, and nothing outside the repository uses them, so a breaking change costs only the repository's own edits.
+The packages are `0.x`, `publish = false`, and nothing outside the repository uses them, so a breaking change costs only the repository's own edits.
 
 ## Decision
 
@@ -21,7 +21,6 @@ The crates are `0.x`, `publish = false`, and nothing outside the repository uses
 
    | Before | After |
    |---|---|
-   | crate `engine_handle` | `engine_genid` |
    | `engine::handle` | `engine::genid` |
    | `Handle<T>` | `GenId<T>` |
    | `HandlePool<T>` | `GenIdMap<T>` |
@@ -44,4 +43,4 @@ The crates are `0.x`, `publish = false`, and nothing outside the repository uses
 - The split does not reduce monomorphisation much, despite what #39 expected. The shared slot table was already non-generic, and only the thin typed wrappers are compiled per `T`. The split is justified by the type-erased API, not by compile time.
 - Documents written before this ADR (the M0+M1 spec, the M2 and earlier M3 specs and plans, ADRs 0003, 0010 and 0011, `benchmarks.md` and `mutation-triage.md`) keep the old names. The table above maps them.
 - Rejected alternatives: keeping `Handle`; `Id<T>` (too generic, collides with `egui::Id`); `Gid<T>` (read as a Unix group ID); `RawGenId` for the untyped type ("raw" does not say what is missing); `GenIdPool`, `GenIdVec`, `GenVec`, `GenIdStore` and `GenArena` for the value container; keeping `u64` bits for type-erased code; deprecated aliases; renaming the dense allocator instead of removing it. The reasons are in the [M3.11 spec](../design/m3-ecs-storage/m3.11-genid/spec.md) §7.
-- Still open: whether M4's world needs `GenIdAllocator` at all; 32-bit or configurable layouts (#39, "Future"); whether the crate later merges into a coarser core crate (#40).
+- Still open: whether M4's world needs `GenIdAllocator` at all; 32-bit or configurable layouts (#39, "Future").
