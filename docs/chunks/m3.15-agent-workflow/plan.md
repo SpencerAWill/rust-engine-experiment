@@ -82,7 +82,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 8: The `chunk` and `grill` skills (R4, R5, R12, R15)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `.claude/skills/chunk/SKILL.md` (under 150 lines: argument dispatch for `next`, `resume`, `<stage>`; the stop points and escalations; the plugin rule), `.claude/skills/chunk/stages/{1-brainstorm,2-grill,3-plan,4-work,5-review,6-compound,7-close-out}.md`, `.claude/skills/grill/SKILL.md` (spec §4.10).
 - **Content notes:** `3-plan` dispatches `lessons-researcher` with the paths the spec names; `4-work` is the dispatch, check, tick, commit cycle with `log.md`; `5-review` runs the simplify builder first, then the reviewers in parallel, a fresh reviewer per re-review, at most two fix rounds; `7-close-out` covers the PR sections, follow-up issues, the close-out commit, and after the go-ahead the merge (`gh pr merge --squash --delete-branch` once checks pass, never `--admin`), the `pulumi` reminder and `/chunk next`. `resume` is in `SKILL.md` (spec §4.3).
 - **Test first (skill trial, the `writing-skills` method):** before writing, dispatch a general-purpose agent on this repository with the task "resume chunk M3.15 and say what you would do next" and no skill; record what it misses. After writing, repeat with the skill text; it must name the first unticked step of this plan and the uncommitted changes, if any. Do the same for `grill` against `docs/chunks/m3.15-agent-workflow/spec.md` (read-only: it reports its first round of questions and stops). Record both trials in `log.md`.

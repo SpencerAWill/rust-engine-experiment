@@ -64,7 +64,7 @@ If the session dies at any point, a new one runs `/chunk resume`: it reads the g
 - The main session MUST NOT write product or test code in stages 4 and 5; it dispatches, checks, commits and keeps the documents. It MAY edit documentation directly.
 - Stage 1 picks the next chunk as the first `Planned` row of the current milestone, in ID order, whose dependencies are `Done`; the maintainer MAY name another.
 - An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch, opening its pull request, and opening issues for follow-ups found during the chunk (labelled, and listed in the pull request's Follow-ups section) are part of stage 7 and need no further approval.
-- **After the merge go-ahead** the main session, in the same turn: squash-merges the pull request once its required checks pass (`gh pr merge --squash --delete-branch`; it MUST NOT use `--admin` or otherwise bypass a check); reminds the maintainer to run `pulumi preview` and `pulumi up` if `infra/github/` changed; and starts stage 1 for the next chunk. If a check fails after the go-ahead, it does not merge: it fixes the failure on the branch as in stage 5 and asks for the go-ahead again.
+- **After the merge go-ahead** the main session, in the same turn: squash-merges the pull request once its required checks pass (`gh pr checks <n> --required --watch` exits 0; the admin can bypass the ruleset, so this wait is what enforces them; then `gh pr merge --squash --delete-branch`; it MUST NOT use `--admin` or otherwise bypass a check); reminds the maintainer to run `pulumi preview` and `pulumi up` if `infra/github/` changed; and starts stage 1 for the next chunk. If a check fails after the go-ahead, it does not merge: it fixes the failure on the branch as in stage 5 and asks for the go-ahead again.
 - The simplify pass in stage 5 runs once over the whole chunk's diff, before any reviewer, and is committed on its own (`refactor: simplify (M<N>.<n>)`, or no commit if nothing changed) so reviewers can see what it did.
 - Compounding is not only stage 6: every agent writes candidate lessons to `log.md` as they happen (§4.3). Stage 6 promotes them.
 - **Escalations.** Outside the two stop points, an agent MUST stop and ask when: the spec is wrong or silent on something that changes what gets built (the fix is a spec amendment, grilled and approved like the spec); a change would touch an ADR, a frozen format or a CI-enforced policy that the spec does not name; a reviewer and the builder still disagree after two fix rounds; or anything outward-facing beyond what stage 7 allows (pushing another branch, merging without the go-ahead, publishing, commenting on other issues or pull requests).
@@ -83,8 +83,8 @@ Roles are Claude Code agent files in `.claude/agents/`, each with `name`, `descr
 | Conditional reviewer (public API, determinism, performance, portability; told which apply) | `review-conditional.md` | `opus` | read-only plus Bash | as above |
 | Documentation reviewer | `review-docs.md` | `sonnet` | read-only plus Bash | as above |
 | Spec conformance reviewer | `review-spec.md` | `sonnet` | read-only plus Bash | as above |
-| Lessons researcher | `lessons-researcher.md` | `haiku` | read-only | the list of paths and topics the spec touches |
-| Cold reader (grill) | `spec-reader.md` | `opus` | read-only | the spec path only |
+| Lessons researcher | `lessons-researcher.md` | `haiku` | read-only plus Bash | the list of paths and topics the spec touches (listed by the main session) |
+| Cold reader (grill) | `spec-reader.md` | `opus` | read-only plus Bash | the spec path only |
 
 - Reviewers MUST NOT edit files and MUST NOT receive the builder's or the main session's reasoning; the brief is the spec, the diff range, the checklist link and the lesson IDs.
 - A re-review after a fix MUST be a fresh reviewer agent, not a continued one.
@@ -226,7 +226,7 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 - **M3.15-R7** `docs/lessons/` MUST follow §4.4, and the planning stage MUST retrieve lessons by `applies_to`.
 - **M3.15-R8** The push guard MUST block pushes to `main` and force pushes, MUST allow other pushes, and its unit tests MUST run in `cargo xtask test` on every CI platform.
 - **M3.15-R9** The project knowledge in §4.8 MUST be in the repository, and the mutants container procedure MUST complete one run of `--module random` with a report.
-- **M3.15-R10** The CLAUDE.md audit (`claude-md-management:claude-md-improver`) MUST be run against `AGENTS.md` and `CLAUDE.md` after the rewrite, and each finding fixed or answered in the pull request.
+- **M3.15-R10** The CLAUDE.md audit (`claude-md-management:claude-md-improver`, a one-off check in this chunk, not a plugin contributors need) MUST be run against `AGENTS.md` and `CLAUDE.md` after the rewrite, and each finding fixed or answered in the pull request.
 - **M3.15-R11** This chunk's own reviews MUST be run with the new reviewer agents.
 - **M3.15-R12** The `grill` skill MUST implement §4.10, and the `chunk` skill MUST run it between brainstorm and spec approval.
 - **M3.15-R13** The roadmap MUST list M3.15 and M3.16, with M3.16's row carrying the scope of §4.12.
