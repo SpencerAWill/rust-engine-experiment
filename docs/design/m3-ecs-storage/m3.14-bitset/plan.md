@@ -1,6 +1,6 @@
 # M3.14 plan: Bitsets (`BitSet` and `BitArray`)
 
-- **Status:** Accepted (2026-11-14)
+- **Status:** Historical: executed in PR #56 (2026-11-15); the spec and the code are authoritative. Deviations are in §4.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
 
 ## 1. Approach

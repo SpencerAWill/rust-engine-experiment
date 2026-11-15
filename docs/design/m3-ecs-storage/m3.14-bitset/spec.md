@@ -1,6 +1,6 @@
 # M3.14: Bitsets (`BitSet` and `BitArray`)
 
-- **Status:** Accepted (2026-11-14). Amended the same day while writing the plan, before any code: `try_from_words` returns `TryReserveError` (a bit index on a 32-bit target may not fit in `usize`), `try_extend` is added as the fallible twin of `BitSet`'s `FromIterator`, `Extend` and `From`, `BitIndexError`'s module is stated once, and the set-algebra benchmarks use 262,144-bit sets to clear the gate's minimum (§4.1, §4.2, §4.3, §4.6, §4.8).
+- **Status:** Implemented (PR #56, 2026-11-15). Amended the same day while writing the plan, before any code: `try_from_words` returns `TryReserveError` (a bit index on a 32-bit target may not fit in `usize`), `try_extend` is added as the fallible twin of `BitSet`'s `FromIterator`, `Extend` and `From`, `BitIndexError`'s module is stated once, and the set-algebra benchmarks use 262,144-bit sets to clear the gate's minimum (§4.1, §4.2, §4.3, §4.6, §4.8). Changed during implementation: one union of two 262,144-bit sets measured 9,483 instructions, under the gate's minimum, so that benchmark does two rounds (plan §4).
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; M3.5, M4 and the hierarchical bitset build on it) · **Depends on:** none · **Decides:** no ADR
 - **Issues:** #42 (sub-issue of #38). Related: #44 (hierarchical bitset, which builds on the word layout of §4.2), #41 / M3.12 (space metrics, left out here; §2).
 - **Estimated size:** about 900 changed lines, excluding tests, lockfiles and generated files (shared word routines about 120, `BitSet` about 300, `BitArray` about 180, iterators and the error type about 80, benchmarks about 100, fuzz target about 60, documents about 60)
@@ -294,13 +294,13 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally and CI is green on all three platforms.
-- [ ] The model tests pass for both types, including under `cargo xtask wasm`.
-- [ ] The fuzz target ran for 10 minutes without a failure.
-- [ ] `cargo xtask bench-regress` passes, and the wall-clock comparison against `fixedbitset`, `BTreeSet` and `Vec<bool>` is in the pull request with its baseline and noise floor.
-- [ ] The mutation triage is recorded.
-- [ ] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, with Deviations filled in, and #42's box in #38 is ticked.
+- [ ] `cargo xtask ci` passes locally and CI is green on all three platforms. (`cargo xtask ci`, `wasm`, `no-std` and `deny` pass locally; CI on the pull request is pending when this is written.)
+- [x] The model tests pass for both types, including under `cargo xtask wasm` (`bit_set_matches_model`, `bit_array_{0,1,3}_matches_model`).
+- [x] The fuzz target ran for 10 minutes without a failure (`bit_set_ops`: 4,204,841 runs in 601 s).
+- [x] `cargo xtask bench-regress` passes (aarch64 container run: no regression, six new benchmarks of 18,743 to 172,580 instructions), and the wall-clock comparison against `fixedbitset`, `BTreeSet` and `Vec<bool>` is in the pull request with its baseline and noise floor.
+- [x] The mutation triage is recorded ([docs/mutation-triage.md](../../../mutation-triage.md)).
+- [x] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
+- [x] The spec is `Implemented` and the plan `Historical`, with Deviations filled in, and #42's box in #38 is ticked.
 
 ## 10. Open questions
 
