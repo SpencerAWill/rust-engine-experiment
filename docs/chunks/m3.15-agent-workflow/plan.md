@@ -54,7 +54,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 5: Push guard in `xtask` (R8)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `xtask/src/guard_push.rs` (new), `xtask/src/main.rs` (`Command::GuardPush`, `"guard-push"` in `parse`, exit code 2 on block), `.claude/hooks/guard-push.sh` (new).
 - **Interfaces:** `pub(crate) enum Decision { Allow, Block(String) }`; `pub(crate) fn decide(command: &str, current_branch: Option<&str>) -> Decision`; `pub(crate) fn run() -> ExitCode` (reads stdin, takes `tool_input.command` and `cwd` with `serde_json`, gets the branch with `git -C <cwd> rev-parse --abbrev-ref HEAD`, calls `decide`).
 - **Test first:** unit tests in `guard_push.rs`, written and run before `decide` exists (expected: compile error, then failures against a stub that returns `Allow`):
@@ -147,4 +147,6 @@ Inputs no step's tests cover that are most likely to bite:
 
 ## 6. Deviations
 
-<!-- Filled in during implementation. -->
+- **Step 5:** `run_reads_hook_json` tests a private `decide_hook_input` (which takes a branch-lookup closure) rather than `run`, which reads stdin. The guard covers more forms than listed (`sh -c`, env prefixes, `&` and parentheses, `-C` with no refspec blocked); see `log.md`.
+- **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
+- **Step 7:** `testing-1`'s `applies_to` is `libs/engine/src/collections/**`, narrower than the spec's example (`libs/engine/src/**/tests/**`), because the helpers are crate-private to `collections`.
