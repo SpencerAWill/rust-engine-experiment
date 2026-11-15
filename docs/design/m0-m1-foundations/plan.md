@@ -448,7 +448,7 @@ Expected: the CI ubuntu jobs go green (check with `gh run watch`).
     let h = Handle::<Particle>::new(3, NonZeroU32::new(2).unwrap());
     assert_eq!(format!("{h:?}"), "Handle<Particle>(3v2)");
 }
-// tests/auto_traits.rs
+// tests/handle_auto_traits.rs
 #[test] fn handle_is_send_sync_copy_even_for_non_send_t() {
     fn assert_traits<T: Send + Sync + Copy + Eq + Ord + core::hash::Hash>() {}
     assert_traits::<Handle<std::rc::Rc<u8>>>();
@@ -547,11 +547,11 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
 #[test] fn zero_sized_values_work() { /* HandlePool<()>: insert 3, remove middle, len 2, contains semantics hold, assert_invariants() */ }
 ```
 
-In `tests/panics.rs`, which uses a panic hook to capture `Location`:
+In `tests/handle_panics.rs`, which uses a panic hook to capture `Location`:
 ```rust
 #[test] fn index_on_stale_handle_panics_at_caller() {
     // install a hook recording location; catch_unwind(|| pool[stale]);
-    // assert location.file() ends with "tests/panics.rs"
+    // assert location.file() ends with "tests/handle_panics.rs"
     // and the message contains "stale handle" and "use get()"
 }
 #[test] fn insert_past_limit_panics_with_hint() { /* message contains "try_insert" */ }
@@ -634,7 +634,7 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
 }
 ```
 
-`tests/model.rs`: proptest over `Vec<Op>`, where `Op = Insert(u16) | Remove(usize) | Get(usize) | GetDisjoint(usize, usize) | Retain(u16 /*keep if v % k != 0*/) | Clear | Iterate`. Handle indices point into a vec of all handles ever issued, so stale handles get exercised. The reference model is a `BTreeMap<u64 /*to_bits*/, u16>`. After each op:
+`tests/handle_model.rs`: proptest over `Vec<Op>`, where `Op = Insert(u16) | Remove(usize) | Get(usize) | GetDisjoint(usize, usize) | Retain(u16 /*keep if v % k != 0*/) | Clear | Iterate`. Handle indices point into a vec of all handles ever issued, so stale handles get exercised. The reference model is a `BTreeMap<u64 /*to_bits*/, u16>`. After each op:
 - `assert_invariants()`;
 - `len` matches the model;
 - the set of `(handle bits, value)` pairs from `iter()` equals the model, and `values()` equals `iter()`'s values in the same order;
@@ -673,7 +673,7 @@ git commit -m "feat(handle): add HandlePool iteration, drain, retain, get_disjoi
 
 **Files:**
 - Create: `libs/engine/src/handle/allocator.rs`
-- Modify: `src/lib.rs`, `tests/model.rs`
+- Modify: `src/lib.rs`, `tests/handle_model.rs`
 
 **Interfaces:**
 - Produces, from spec §5.1: `HandleAllocator<T>` with `new`, `with_capacity`, `allocate`, `try_allocate`, `free`, `is_alive`, `len`, `is_empty`, `clear`, `iter` (`AllocIter`), `retain`, and `assert_invariants`.
@@ -682,7 +682,7 @@ git commit -m "feat(handle): add HandlePool iteration, drain, retain, get_disjoi
 - [ ] **Step 1: Write failing tests**
 
 - Unit tests: `free` returns `false` for a stale handle; `allocate` after `free` reuses the slot in LIFO order with generation + 1; `try_allocate` returns `None` at the slot limit (`with_slot_limit` is reachable through `pub(crate)`).
-- Model test: extend `tests/model.rs` with an allocator model: `BTreeSet<u64>`, ops `Allocate | Free(usize) | IsAlive(usize) | Retain(u8) | Clear`.
+- Model test: extend `tests/handle_model.rs` with an allocator model: `BTreeSet<u64>`, ops `Allocate | Free(usize) | IsAlive(usize) | Retain(u8) | Clear`.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -776,7 +776,7 @@ next_f64 = (next_u64() >> 11) as f64 * 2^-53; next_bool = next_u64() >> 63 == 1
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/oracle.rs` uses the dev-dependency `rand_xoshiro` (with `rand_core`) as an independent oracle. It is a dependency, not copied code.
+`tests/random_oracle.rs` uses the dev-dependency `rand_xoshiro` (with `rand_core`) as an independent oracle. It is a dependency, not copied code.
 ```rust
 #[test] fn xoshiro_matches_independent_implementation() {
     for seed in [0u64, 1, 42, u64::MAX, 0xDEAD_BEEF] {
@@ -800,7 +800,7 @@ Unit tests in `prng.rs`:
 - `next_f32`/`next_f64` lie in [0, 1);
 - `format!("{:?}", Prng::from_state([1,2,3,4]).unwrap()) == "Prng { state: [1, 2, 3, 4] }"`.
 
-`tests/golden.rs`: for seeds `{0, 1, 42, u64::MAX}`, the first 16 outputs of `next_u64`, `next_u32`, `next_f32` (as `to_bits`), `next_f64` (as `to_bits`), `next_bool`, and `stream(7).next_u64()`. Hardcode them as array literals.
+`tests/random_golden.rs`: for seeds `{0, 1, 42, u64::MAX}`, the first 16 outputs of `next_u64`, `next_u32`, `next_f32` (as `to_bits`), `next_f64` (as `to_bits`), `next_bool`, and `stream(7).next_u64()`. Hardcode them as array literals.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -816,7 +816,7 @@ Expected: FAIL.
 
 After `oracle.rs` passes:
 - Add a test, `#[ignore] fn print_goldens()`, that prints the arrays in Rust literal syntax.
-- Run `cargo test -p engine --test golden print_goldens -- --ignored --nocapture`.
+- Run `cargo test -p engine --test random_golden print_goldens -- --ignored --nocapture`.
 - Paste the output into the golden constants, then delete the printer.
 
 Run: `cargo test -p engine && cargo xtask wasm`
@@ -835,7 +835,7 @@ git commit -m "feat(random): add Prng (xoshiro256++/SplitMix64) with state, stre
 
 **Files:**
 - Create: `libs/engine/src/random/sample.rs`, `libs/engine/tests/random_edge_cases.rs`, `libs/engine/tests/random_statistics.rs`, `libs/engine/tests/random_panics.rs`
-- Modify: `src/prng.rs`, `tests/golden.rs`
+- Modify: `src/prng.rs`, `tests/random_golden.rs`
 
 **Interfaces:**
 - Produces: `Prng::range`, `try_range`, `chance`, `shuffle`, `choose`, and `fill_bytes`; `pub trait SampleRange: sealed::Sealed { type Output; }` implemented for `Range`/`RangeInclusive` over `u8 u16 u32 u64 usize i8 i16 i32 i64 isize f32 f64`.
@@ -846,7 +846,7 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/edge_cases.rs`:
+`tests/random_edge_cases.rs`:
 ```rust
 #[test] fn full_range_signed_and_unsigned() {
     let mut p = Prng::from_seed(9);
@@ -875,7 +875,7 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 }
 ```
 
-`tests/golden.rs` additions:
+`tests/random_golden.rs` additions:
 - 16 `range` outputs each for `0u8..10`, `-5i16..=5`, `0usize..1000`, `isize::MIN..=isize::MAX` (as `i64`), `0.0f32..1.0` (bits), `-1.0f64..=1.0` (bits);
 - `shuffle` of `[0..10]`;
 - `choose` over a 7-element slice ×16;
@@ -883,11 +883,11 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 
 Generate and freeze these exactly as in Task 10, Step 4. The wasm job then proves width independence.
 
-`tests/panics.rs`: `range(5..5)` panics with location in `tests/panics.rs` and a message containing `"empty range 5..5"` and `"try_range"`.
+`tests/random_panics.rs`: `range(5..5)` panics with location in `tests/random_panics.rs` and a message containing `"empty range 5..5"` and `"try_range"`.
 
 A `compile_fail` doctest on `Prng::range`: `let mut p = Prng::from_seed(0); let _ = p.range(0u128..5);` (`u128` is not a `SampleRange`).
 
-`tests/statistics.rs`, every test `#[ignore]` (run by `test --release --include-ignored`), all with fixed seeds:
+`tests/random_statistics.rs`, every test `#[ignore]` (run by `test --release --include-ignored`), all with fixed seeds:
 - chi-square over 10 buckets for `range(0..10)` and `range(0..7)` with 1_000_000 samples, threshold 27.88 (df=9, p=0.001; df=6: 22.46);
 - `next_f32`/`next_f64` over 16 buckets (df=15: 37.70);
 - `next_bool` balance within 0.5 ± 0.002 over 1e6;
@@ -975,7 +975,7 @@ git push
   - `Timestamp::saturating_duration_since` of a later timestamp from an earlier one is zero;
   - `TimeSource` works through `&clock` and `&mut clock` (a generic `fn read(t: impl TimeSource)`).
 - **SystemClock tests:** two consecutive `now()` calls are monotonic.
-- **`tests/panics.rs`:** `ManualClock::set` backwards panics at the caller with a message containing `"try_set"`; `Tick::new(u64::MAX).next()` panics with a message containing `"checked_next"`.
+- **`tests/time_panics.rs`:** `ManualClock::set` backwards panics at the caller with a message containing `"try_set"`; `Tick::new(u64::MAX).next()` panics with a message containing `"checked_next"`.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1046,7 +1046,7 @@ steps = Steps { next: tick, remaining: n }; tick = Tick(tick.0.saturating_add(n)
 #[test] fn try_new_zero_is_none() { assert!(FixedTimestep::try_new(Duration::ZERO).is_none()); }
 ```
 
-- `tests/fixed_props.rs` (proptest): for a step in 1..=50 ms and any split of a total T ≤ 2 s into ≤ 64 positive chunks, each chunk smaller than `cap * step` (so the cap is never hit), the concatenated ticks equal those from a single `accumulate(T)`, and the final `to_state()` values are equal.
+- `tests/time_fixed_props.rs` (proptest): for a step in 1..=50 ms and any split of a total T ≤ 2 s into ≤ 64 positive chunks, each chunk smaller than `cap * step` (so the cap is never hit), the concatenated ticks equal those from a single `accumulate(T)`, and the final `to_state()` values are equal.
 - Panic test: `FixedTimestep::new(Duration::ZERO)` panics at the caller with a message containing `"try_new"`.
 - Bench: `accumulate` of a 16 ms frame with a 1/60 s step, draining the `Steps`, ×1M.
 
@@ -1133,7 +1133,7 @@ git commit -m "feat(math): add glam re-exports, transcendental funnel, scalar he
 ### Task 16: `Transform` and `WorldTransform`
 
 **Files:**
-- Create: `libs/engine/src/math/transform.rs`, `src/world.rs`, `tests/transform_props.rs`, `tests/world_props.rs`
+- Create: `libs/engine/src/math/transform.rs`, `src/world.rs`, `tests/math_transform_props.rs`, `tests/math_world_props.rs`
 - Modify: `src/layout.rs`, `src/lib.rs`
 
 **Interfaces:**
@@ -1141,13 +1141,13 @@ git commit -m "feat(math): add glam re-exports, transcendental funnel, scalar he
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/transform_props.rs` (proptest; uniform scale in [0.1, 10], unit quaternions from normalized random axis+angle, translations in ±1e3):
+`tests/math_transform_props.rs` (proptest; uniform scale in [0.1, 10], unit quaternions from normalized random axis+angle, translations in ±1e3):
 - `(a * b).to_matrix() ≈ a.to_matrix() * b.to_matrix()` (eps 1e-3 relative);
 - `t * t.inverse() ≈ IDENTITY`;
 - `t.transform_point(p) ≈ t.to_matrix().transform_point3(p)`;
 - `IDENTITY * t == t`.
 
-`tests/world_props.rs`:
+`tests/math_world_props.rs`:
 ```rust
 proptest! {
   #[test] fn relative_roundtrip_within_1mm(
@@ -1193,14 +1193,14 @@ git commit -m "feat(math): add Transform and large-world WorldTransform with pin
 ### Task 17: `Transform2d`, `WorldTransform2d`, 2D/3D bridges
 
 **Files:**
-- Create: `libs/engine/src/math/transform2d.rs`, `tests/transform2d_props.rs`
+- Create: `libs/engine/src/math/transform2d.rs`, `tests/math_transform2d_props.rs`
 - Modify: `src/transform.rs` (`Transform::to_2d`), `src/world.rs` (`WorldTransform::to_2d`), `src/layout.rs`, `src/lib.rs`
 
 **Interfaces:** Produces `Transform2d` and `WorldTransform2d` exactly as in spec §5.4, plus `Transform::to_2d` and `WorldTransform::to_2d`. Twist extraction: take the quaternion's `(z, w)` components; if `hypot(z, w) < 1e-6` the twist is undefined, and rotation = 0.0 (documented); otherwise `rotation = 2 * atan2(z, w)`, wrapped into (−π, π]. Use `scalar::*` throughout.
 
 - [ ] **Step 1: Write the failing tests**
 
-- `tests/transform2d_props.rs`:
+- `tests/math_transform2d_props.rs`:
   - compose/inverse round trips (uniform scale);
   - `transform_point` agrees with `to_affine` and `to_mat3`;
   - `mul_transform` wraps the rotation into (−π, π] (e.g. 3.0 + 3.0 → 6.0 − 2π);
@@ -1243,14 +1243,14 @@ git commit -m "feat(math): add Transform2d/WorldTransform2d and 2D/3D bridges"
 ### Task 18: `axis`, `convert`, ADRs 0005–0006
 
 **Files:**
-- Create: `libs/engine/src/math/axis.rs`, `src/convert.rs`, `tests/convert.rs`, `docs/adr/0005-coordinate-system-and-units.md`, `docs/adr/0006-large-world-precision.md`
+- Create: `libs/engine/src/math/axis.rs`, `src/convert.rs`, `tests/math_convert.rs`, `docs/adr/0005-coordinate-system-and-units.md`, `docs/adr/0006-large-world-precision.md`
 - Modify: `src/lib.rs`
 
 **Interfaces:**
 - Produces: `axis` (`RIGHT LEFT UP DOWN VIEW_FORWARD ASSET_FRONT RIGHT_2D UP_2D`) and `convert` (`CoordinateSystem { x, y, z }`, `SignedAxis`, presets `ENGINE GLTF BLENDER UNITY UNREAL`, `new`, `is_right_handed`, `to_engine_matrix`, `vec3_to_engine`, `dvec3_to_engine`, `quat_to_engine`, `scale_to_engine`, `transform_to_engine` and their `*_from_engine` inverses), exactly as in spec §5.4.
 - **Preset values must be verified first.** For each tool, read its documentation and its glTF importer/exporter's axis handling. Then apply the preset rule: the source's up maps to engine +Y, the source's asset-front maps to engine +Z, and on a handedness flip the asset-right axis is negated. Record the cited source and resulting mapping per preset in ADR 0005. **Omit any preset you can't verify**, and say so in ADR 0005.
 
-- [ ] **Step 1: Write the failing tests** (`tests/convert.rs`)
+- [ ] **Step 1: Write the failing tests** (`tests/math_convert.rs`)
 
 ```rust
 #[test] fn engine_is_gltf_and_identity() {
@@ -1268,7 +1268,7 @@ git commit -m "feat(math): add Transform2d/WorldTransform2d and 2D/3D bridges"
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine --test convert`
+Run: `cargo test -p engine --test math_convert`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
