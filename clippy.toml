@@ -12,8 +12,8 @@ disallowed-types = [
   { path = "indexmap::IndexSet", reason = "with indexmap's `std` feature (enabled in the workspace by other dependencies) its default hasher is std's RandomState, which the RandomState ban does not catch through a defaulted type parameter; use engine::collections" },
   { path = "foldhash::fast::RandomState", reason = "randomly seeded; breaks same-build determinism" },
   { path = "foldhash::quality::RandomState", reason = "randomly seeded; breaks same-build determinism" },
-  { path = "foldhash::HashMap", reason = "randomly seeded; use engine::collections::IndexMap" },
-  { path = "foldhash::HashSet", reason = "randomly seeded; use engine::collections::IndexSet" },
+  { path = "foldhash::HashMap", reason = "randomly seeded; use engine::collections::IndexMap", allow-invalid = true },
+  { path = "foldhash::HashSet", reason = "randomly seeded; use engine::collections::IndexSet", allow-invalid = true },
 ]
 disallowed-methods = [
   { path = "foldhash::fast::SeedableRandomState::random", reason = "randomly seeded; breaks same-build determinism" },
