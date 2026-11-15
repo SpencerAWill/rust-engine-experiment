@@ -109,6 +109,7 @@ Without `std`, `SystemClock` is unavailable and transcendental functions (in `en
 - Each former crate's crate docs MUST become its module's docs. The first paragraph's justification for being a separate crate MUST be removed. Everything else (guarantees, choosing a container, the `GenId` glossary, examples) MUST stay.
 - Doctests MUST use `engine::<module>::` paths, and MUST NOT go through the prelude where the original did not.
 - Statements that a crate is `no_std` MUST become statements about what the module needs without `std`, if anything (for example, `time`: "`SystemClock` needs the `std` feature").
+- Every other doc comment or manifest text that says "this crate", "the crate", "the facade" or "leaf crates" about a former crate MUST say "this module" or name `engine` instead. There are 19 such places at the time of writing, for example `check_invariants`'s "a bug in this crate" (`allocator.rs:388`, `map.rs:710`), the `GenId` glossary's "The terms this crate uses", and the `engine` manifest's `description` and `std` feature comment.
 
 ### 4.4 Tests, benches, fuzz and examples
 
@@ -116,7 +117,7 @@ Without `std`, `SystemClock` is unavailable and transcendental functions (in `en
 - Test bodies MUST change only in their `use` paths. No test is weakened or deleted.
 - Files that install a global allocator (the `dhat` tests) MUST stay separate test binaries.
 - `benches/fixed_timestep.rs` MUST move to `libs/engine/benches/time_fixed_timestep.rs` with its `[[bench]]` entry.
-- `bench/compare`, `bench/regress`, `fuzz`, `xtask`, `spikes/*` and every `examples/*` package MUST depend on `engine` alone among the library crates, and use `engine::<module>::` paths. `fuzz` MUST depend on `engine` with `test-invariants`.
+- `bench/compare`, `bench/regress`, `fuzz`, `xtask`, `spikes/*` and every `examples/*` package MUST depend on `engine` alone among the library crates, and use `engine::<module>::` paths. `fuzz` MUST depend on `engine` with `test-invariants`. `fuzz/` is outside the workspace and has its own `Cargo.lock`, which MUST be regenerated and committed. The fuzz build then compiles `engine`'s dependencies (glam, indexmap, foldhash, libm), which it did not before; the pull request MUST say so.
 
 ### 4.5 Tooling
 
@@ -124,7 +125,8 @@ Without `std`, `SystemClock` is unavailable and transcendental functions (in `en
 - **`xtask mutants`:** the unit of selection is a module of `engine`. `TRIAGED` MUST list the modules `collections`, `genid` and `random`. The command MUST select their mutants by file (`libs/engine/src/<module>.rs` and `libs/engine/src/<module>/**`). Its option `-p PACKAGE` MUST be replaced by `--module NAME` (repeatable). `--in-diff` and `-j` stay.
 - **The mutants summary** MUST group rows by module for `engine`, and by package for `examples/*`.
 - **`.cargo/mutants.toml`:** every exclusion regex MUST name the new path (for example `^libs/engine/src/genid/id\.rs:`) and MUST still match its mutant.
-- **`.github/workflows/mutants.yml`:** the path filters MUST name the root file and the directory of each triaged module (`libs/engine/src/genid.rs`, `libs/engine/src/genid/**`, and so on).
+- **`.github/workflows/mutants.yml`:** the path filters MUST name the root file and the directory of each triaged module (`libs/engine/src/genid.rs`, `libs/engine/src/genid/**`, and so on). The comments in `.github/workflows/ci.yml` (line 176) and `nightly.yml` (line 61) that name the ID crate MUST name the module.
+- **`std` lints:** before this chunk, a `std::` path in the ID, collection, PRNG or time code failed to compile in every build, because those crates were `#![no_std]` without `std`. In one crate with a default `std` feature, it would fail only in `cargo xtask no-std`, which `ci --quick` does not run. To keep the early failure, `engine`'s crate root MUST carry `#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc)]` (clippy runs with warnings denied) and `#![cfg_attr(test, allow(clippy::std_instead_of_core, clippy::std_instead_of_alloc))]` for unit tests. The lints flag a `std::` path only when `core` or `alloc` provides the same item, so `SystemClock`'s `std::time::Instant` is not flagged. They are set on `engine` rather than in `[workspace.lints]`, because the non-library packages use `std` freely and Cargo does not let one package add lints to `workspace = true`.
 - **`xtask coverage` summary:** rows MUST be per module for `engine` (`engine::genid` and so on). `examples/*` rows stay per package.
 - **`xtask check-statics`:** the PRNG paths MUST become `libs/engine/src/random`.
 - **`xtask prng-stats`:** MUST use `engine::random::Prng`.
@@ -235,7 +237,7 @@ The pull request SHOULD be built as reviewable commits in this order:
 
 ### 4.11 Coordination with M3.12
 
-M3.12 (space metrics) is drafting on its own branch and plans a crate, `engine_heap`, because `HeapSize` must be implemented by both the ID and the collection code. Under ADR 0004 as rewritten, that crate meets no split criterion, and K1 keeps the trait with its implementations. M3.12's spec, not this chunk, MUST be updated to depend on M3.13 and to put `HeapSize` in a module of `engine`. M3.12 keeps ADR number 0013, since this chunk adds no ADR. This chunk MUST NOT edit M3.12's documents.
+M3.12 (space metrics) is drafting on its own branch and plans a crate, `engine_heap`, because `HeapSize` must be implemented by both the ID and the collection code. Under ADR 0004 as rewritten, that crate meets no split criterion, and K1 keeps the trait with its implementations. M3.12's spec, not this chunk, MUST be updated to depend on M3.13 and to put `HeapSize` in a module of `engine`. M3.12 keeps ADR number 0013, since this chunk adds no ADR. This chunk MUST NOT edit M3.12's documents. M3.12's branch is based on `38b952e`, before M3.11; it is rebased onto `main` after this chunk merges, and its retrofits then land in the moved files.
 
 ### 4.12 CHANGELOG entry
 
@@ -253,7 +255,7 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 - **M3.13-R8** `clippy.toml` MUST ban the wrapped `libm` functions outside `scalar` (§4.2).
 - **M3.13-R9** The tooling changes of §4.5 MUST be made. `cargo xtask mutants --module genid --list` MUST list the same mutants as `cargo xtask mutants -p engine_genid --list` did before (allowing for the path change), and every `.cargo/mutants.toml` exclusion MUST still match its mutant.
 - **M3.13-R10** The coverage and mutants summaries MUST show one row per module of `engine`.
-- **M3.13-R11** `cargo xtask fuzz-build` MUST pass with `fuzz` depending on `engine`.
+- **M3.13-R11** `cargo xtask fuzz-build` MUST pass with `fuzz` depending on `engine`, with `fuzz/Cargo.lock` updated and committed.
 - **M3.13-R12** `cargo xtask bench-regress` MUST report no benchmark above the 5% gate, with the table and the base and head commits quoted in the pull request.
 - **M3.13-R13** ADR 0004 MUST contain the rule of §4.6, ADR 0003 the text of §4.7, and both MUST carry the status line of §4.8 and be accepted.
 - **M3.13-R14** Every document in scope of §4.8 MUST describe modules of one crate, with requirement IDs and section numbers unchanged. The rules in `docs/README.md` and CONTRIBUTING about superseding ADRs and keeping records MUST be unchanged.
@@ -261,6 +263,7 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 - **M3.13-R16** `docs/benchmarks.md`'s data sections MUST be regenerated from a baseline saved in this chunk under the run protocol, with the power log checked, and its prose MUST make no claim the new run does not support.
 - **M3.13-R17** The CHANGELOG MUST have the entry of §4.12, and its earlier entries MUST name modules, not the former crates.
 - **M3.13-R18** Outside this spec and its plan, no file in the repository MUST name `engine_genid`, `engine_collections`, `engine_random`, `engine_time`, `engine_math` or `engine_handle`.
+- **M3.13-R19** `engine`'s crate root MUST enable `clippy::std_instead_of_core` and `clippy::std_instead_of_alloc` outside `#[cfg(test)]` code (§4.5), and no code in `engine` MUST trigger them.
 
 ## 6. Cross-cutting concerns
 
@@ -268,7 +271,7 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 - **`unsafe`:** none. One crate root carries `#![forbid(unsafe_code)]` instead of six, and `check-unsafe` keeps checking it. ADR 0004's S2 is how a future `unsafe` crate is created.
 - **Concurrency:** n/a, because no shared state is added. The auto-trait tests move with their modules.
 - **Heap allocation:** unchanged. The `dhat` and fixed-capacity tests move as they are.
-- **`no_std` and wasm:** stronger. All of `engine`, math included, builds without `std`.
+- **`no_std` and wasm:** stronger. All of `engine`, math included, builds without `std`. The `std` lints (§4.5) keep a stray `std::` path failing in `ci --quick`, as it did when four of the modules were `#![no_std]` crates.
 - **Frozen formats:** unchanged. The PRNG streams and `to_bits` golden tests move with their files.
 - **Public API changes:** breaking for code that names a former crate. Those paths are gone, with no aliases: no consumers exist outside the repository, everything is `0.x` and `publish = false`. `engine::` paths are unchanged. `pub(crate)` items become visible to the other modules. `xtask mutants -p` becomes `--module`. Criterion subjects are renamed, so saved baselines from before this chunk no longer compare; the fresh baseline replaces them (§4.9).
 - **FFI exposure:** n/a now. M8's `engine_ffi` will be a crate above `engine` under S1 and S2.
@@ -317,6 +320,7 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 | R16 | The saved baseline's name, the power log check and the run conditions, recorded in `benchmarks.md` and the pull request; `cargo xtask bench-doc` output matches the committed data sections |
 | R17 | Review |
 | R18 | `git grep -nwE 'engine_(genid\|collections\|random\|time\|math\|handle)'` returns only this spec and its plan |
+| R19 | `cargo xtask clippy` with a deliberate `use std::vec::Vec;` in `libs/engine/src/genid/map.rs`, run once locally and reported in the pull request; review of `libs/engine/src/lib.rs` |
 
 ## 9. Done when
 
@@ -325,6 +329,7 @@ One entry under "Changed", marked **breaking**, without naming the former crates
 - [ ] `cargo xtask bench-regress` shows every benchmark within 5%, quoted in the pull request.
 - [ ] `cargo xtask fuzz-build` passes, and `cargo xtask mutants --module genid --list` matches the saved pre-change list.
 - [ ] The coverage and mutants tables have one row per module.
+- [ ] The `std_instead_of_core` and `std_instead_of_alloc` lints are on, and a deliberate `std::` path fails clippy.
 - [ ] The `bench-doc` tally test failed before the label rename and passes after it.
 - [ ] A fresh baseline is saved under the run protocol, and `benchmarks.md` is regenerated from it.
 - [ ] ADR 0004 and ADR 0003 are rewritten in place and accepted, and every document in §4.8 describes one crate.

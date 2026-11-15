@@ -31,6 +31,8 @@ Choices the spec leaves to implementation:
 - **`extern crate std` at the root** is `#[cfg(any(feature = "std", test))]`, because the ID and collection modules' unit tests use `std` (today each crate has its own `#[cfg(test)] extern crate std;`).
 - **The `libm` backend of `math::scalar`** is a private module, `libs/engine/src/math/scalar/libm_backend.rs`. It is always compiled, with one function per scalar operation and float type (`sin_f32`, `sin_f64`, ...). The `Float` impls call it when `std` is off. With `std` on, only the agreement test calls it, so the module carries `#[cfg_attr(all(feature = "std", not(test)), allow(dead_code, reason = "the no_std backend; with std it is only exercised by the agreement test"))]`. Keeping it compiled lets a host test catch a wrong mapping, for example `ln` mapped to `log10`, which a `no_std` build alone cannot.
 - **Non-transcendental float methods that `core` lacks.** Step 5 starts with the failing `no_std` build, and its errors list exactly which methods are missing (candidates: `f32::abs` in `math` and `time`, and `f32::rem_euclid` in `transform2d.rs`). Each one is replaced with an implementation that is bit-identical to `std`'s, in a private `math::float` module (or `time`'s own private helper, if `time` needs one). For example, `rem_euclid(a, b)` is `let r = a % b; if r < 0.0 { r + abs(b) } else { r }`, and `abs` clears the sign bit (`f32::from_bits(x.to_bits() & 0x7fff_ffff)`). A test pins each against `std` on a set of inputs that includes `-0.0`, NaN and the infinities. None of these goes through `libm`, because `scalar` stays its only caller.
+- **When `libm_backend_agrees_with_std` fails on one platform.** `std`'s transcendentals come from the platform's maths library (Apple's on macOS, glibc on Linux, the wasm target's own), so the libm crate can differ from them by more than the default tolerance on one platform and not another. The fix is to widen the tolerance for that one function and type only, with a comment naming the platform and the measured difference. The check is never dropped, and the whole table's tolerance is never widened. Record it in §4.
+- **The `std` lints (R19)** go on `engine`'s crate root, not in `[workspace.lints]` (spec §4.5). Every former crate except `math` was `#![no_std]`, so their library code uses `std::` only for `SystemClock` (`std::time::Instant`, which `core` lacks, so the lints leave it alone). `math` is where the lints may fire in library code. Unit tests are exempt by the `cfg_attr`, and integration tests are separate crates the attribute does not reach.
 - **Mutant selection by module.** `cargo xtask mutants` runs `cargo mutants -p engine` with `-f libs/engine/src/<m>.rs -f 'libs/engine/src/<m>/**'` for each selected module. `-f` limits which files are examined and is separate from the configuration's `exclude_re`, so the exclusions still apply. Step 6 verifies this rather than assuming it (R9).
 - **Rewriting the historical records (Step 8)** follows this table. It applies only to the crate split; other renames stay as they were (spec §2):
 
@@ -52,6 +54,7 @@ Choices the spec leaves to implementation:
 - `engine` stays `#![no_std]` + `alloc`, `#![forbid(unsafe_code)]`, with the features `std` (default) and `test-invariants` only (R3).
 - With `std`, behaviour and output stay byte-identical: the PRNG golden tests, the `UntypedGenId::to_bits` golden values, the `fixed_step_sim` `golden_checksum`, and `math`'s layout assertions (R5 to R7).
 - `bench/regress` targets, groups and functions keep their names (spec §4.9).
+- If `bench-regress` reports a benchmark above +5%, the merge changed its code generation, and that is investigated before anything else: compare the base and head instruction counts per function with Gungraun's Callgrind output, and look for a lost inline across the old crate boundary. The `perf-regression-accepted` label is used only with that explanation in the pull request, and only with the maintainer's agreement.
 - Git history and GitHub text are not rewritten. This spec and plan are the only files that may name the former crates once the chunk is done (R18).
 - Commit messages are conventional, end with ` (M3.13)` and the session's attribution line, and stage files by explicit path.
 - Stop and ask the maintainer before the benchmark run (Step 9), before each push, before opening the pull request, and before any merge.
@@ -100,7 +103,7 @@ Everything goes to the session scratchpad (`$S` below) and is quoted in the pull
     - `description`: "The engine library: generational IDs, deterministic collections, random numbers, simulation time and math".
   - **`libs/engine/src/lib.rs`:** the root attributes and `extern crate` lines (§1), `pub mod` for the five modules, and the prelude through `crate::`.
   - **The root `Cargo.toml`:** drop the five `[workspace.dependencies]` entries.
-  - **The dependents:** `bench/compare/Cargo.toml`, `bench/regress/Cargo.toml` and `xtask/Cargo.toml` depend on `engine`; `fuzz/Cargo.toml` uses `engine = { path = "../libs/engine", features = ["test-invariants"] }`.
+  - **The dependents:** `bench/compare/Cargo.toml`, `bench/regress/Cargo.toml` and `xtask/Cargo.toml` depend on `engine`; `fuzz/Cargo.toml` uses `engine = { path = "../libs/engine", features = ["test-invariants"] }`, and `fuzz/Cargo.lock` is regenerated by the `fuzz-build` run below and committed. It gains glam, indexmap, foldhash and their dependencies; note that in the pull request.
   - **The paths** in `bench/*/benches/*.rs`, `fuzz/fuzz_targets/*.rs`, `xtask/src/prng_stats.rs` and `libs/engine/{src,tests,benches}`.
   - **`xtask/src/main.rs`:** `no_std()` becomes `-p engine`; `wasm()` tests `-p engine`.
   - **`xtask/src/check_statics.rs`:** lines 229 and 246 become `libs/engine/src/random`.
@@ -109,7 +112,7 @@ Everything goes to the session scratchpad (`$S` below) and is quoted in the pull
   - `cargo xtask ci --quick`, then `cargo xtask doc` and `cargo xtask test`.
   - `git diff -M --stat HEAD` shows the moved files as renames (`R0xx`). `git diff -M HEAD -- libs/engine/tests` touches only `use` lines and file names.
   - `cargo test -p fixed_step_sim golden_checksum` passes.
-  - `cargo xtask fuzz-build` passes.
+  - `cargo xtask fuzz-build` passes, and `git status` shows `fuzz/Cargo.lock` changed (staged with this commit).
   - `ls libs` prints `engine`.
   - `grep -c '^cc ' libs/engine/tests/math_transform_props.proptest-regressions` equals the Step 2 count.
   - Public items: rebuild the item list from `target/doc/engine/all.html`, map `engine_<m>::` to `engine::<m>::` in `$S/items-before.txt`, and `diff` the two. The only lines allowed to differ are the removed crate roots.
@@ -117,12 +120,13 @@ Everything goes to the session scratchpad (`$S` below) and is quoted in the pull
 
 ### Step 5: `math` without `std` (R4, R5, R6, R8)
 
-- **Files:** the root `Cargo.toml` (`glam` features become `["f64", "i32", "u32", "nostd-libm"]`; add `libm = { version = "0.2", default-features = false }` to `[workspace.dependencies]` (glam 0.34.3 asks for `0.2`; 0.2.16 is in the local registry)), `libs/engine/Cargo.toml` (`libm = { workspace = true }`), `libs/engine/src/math/scalar.rs`, new `libs/engine/src/math/scalar/libm_backend.rs`, a new private `libs/engine/src/math/float.rs` if needed (§1), `clippy.toml`.
+- **Files:** the root `Cargo.toml` (`glam` features become `["f64", "i32", "u32", "nostd-libm"]`; add `libm = { version = "0.2", default-features = false }` to `[workspace.dependencies]` (glam 0.34.3 asks for `0.2`; 0.2.16 is in the local registry)), `libs/engine/Cargo.toml` (`libm = { workspace = true }`), `libs/engine/src/math/scalar.rs`, new `libs/engine/src/math/scalar/libm_backend.rs`, a new private `libs/engine/src/math/float.rs` if needed (§1), `clippy.toml`, `libs/engine/src/lib.rs` (the `std` lints, R19).
 - **Test first:**
   1. `cargo xtask no-std` fails. Save the list of errors: every `std`-only method used in library code.
   2. In `scalar.rs`'s tests, `std_backend_is_the_inherent_method`: for each scalar function and both float types, over the inputs `[-2.5, -1.0, -0.5, -0.0, 0.0, 0.25, 0.5, 1.0, 2.0, 3.0]` restricted to the function's domain, `scalar::f(x).to_bits() == x.f().to_bits()`. It passes on the current code and pins R5.
   3. `libm_backend_agrees_with_std`: same inputs, `(libm_backend::f(x) - x.f()).abs() <= 4.0 * EPSILON * x.f().abs().max(1.0)` (with `f32::EPSILON` or `f64::EPSILON`). Include `log(x, base)` with base 2 and 10, and `powi` with exponents -3, 0, 1 and 5. It fails to compile until the backend exists.
   4. For each `math::float` helper, a test that it is bit-identical to `std`'s method over the inputs above plus `NaN`, `INFINITY` and `NEG_INFINITY`.
+  5. With the two lint attributes added to `libs/engine/src/lib.rs` (spec §4.5), temporarily add `use std::vec::Vec;` to `libs/engine/src/genid/map.rs`; `cargo xtask clippy` fails on `std_instead_of_alloc`. Save the output (R19), remove the line, and fix anything else the lints report in library code.
 - **Change:**
   - The `libm` backend, with the mapping of spec §4.2.
   - `cfg`-selected bodies in the `Float` impls.
@@ -138,7 +142,7 @@ Everything goes to the session scratchpad (`$S` below) and is quoted in the pull
 
 ### Step 6: tooling for one crate (R9, R10, R11)
 
-- **Files:** `xtask/src/mutants.rs`, `xtask/src/mutants/summary.rs`, `xtask/src/coverage/summary.rs`, `.cargo/mutants.toml` (the four `exclude_re` entries, two in `^libs/engine/src/genid/id\.rs`, one each in `.../genid/slots\.rs` and `.../genid/map\.rs`), `.github/workflows/mutants.yml` (path filters: `libs/engine/src/{collections,genid,random}.rs` and `libs/engine/src/{collections,genid,random}/**`), `clippy.toml` (comments and reasons: `engine::collections::IndexMap`, `engine::math::scalar::<f>`, the `engine::genid` glossary), the root `Cargo.toml` comments, `xtask/src/bench_regress.rs` fixtures (the old crate paths at lines 757 and 882).
+- **Files:** `xtask/src/mutants.rs`, `xtask/src/mutants/summary.rs`, `xtask/src/coverage/summary.rs`, `.cargo/mutants.toml` (the four `exclude_re` entries, two in `^libs/engine/src/genid/id\.rs`, one each in `.../genid/slots\.rs` and `.../genid/map\.rs`), `.github/workflows/mutants.yml` (path filters: `libs/engine/src/{collections,genid,random}.rs` and `libs/engine/src/{collections,genid,random}/**`), the comments in `.github/workflows/ci.yml:176` and `nightly.yml:61` (the ID module, not the crate), `clippy.toml` (comments and reasons: `engine::collections::IndexMap`, `engine::math::scalar::<f>`, the `engine::genid` glossary), the root `Cargo.toml` comments, `xtask/src/bench_regress.rs` fixtures (the old crate paths at lines 757 and 882).
 - **Interfaces:** `Options { modules: Vec<String>, jobs, list, in_diff }`. `parse_flags` accepts `--module NAME` (repeatable) and rejects `-p` with the message "`-p` was replaced by `--module`: the library is one crate". `const TRIAGED: &[&str] = &["collections", "genid", "random"];`. `fn file_args(modules: &[String]) -> Vec<String>` yields `-f libs/engine/src/<m>.rs -f libs/engine/src/<m>/**` for each module. `run_args` and `list_args` pass `-p engine` plus `file_args`.
 - **Test first** (each fails before the change):
   - In `mutants.rs`:
@@ -168,10 +172,10 @@ Everything goes to the session scratchpad (`$S` below) and is quoted in the pull
 - **Files:**
   - `docs/adr/0004-crate-splitting-rule.md`: the status line becomes `Accepted (2026-11-12). Rewritten in place by M3.13 (<date>); see its spec §4.8.`, with the text as drafted.
   - `docs/adr/0003-same-build-determinism.md`: the transcendental-funnel paragraph, the sanctioned-exceptions sentence and the status line, as in spec §4.7 and §4.8.
-  - The crate and module docs: `libs/engine/src/lib.rs` (module map, first paragraph, a feature table with `std` and `test-invariants`, no "facade" or "leaf"); each `libs/engine/src/<m>.rs` (first paragraph without the crate justification; `no_std` wording as in spec §4.3); the `math::scalar` module docs (the two backends, and that `default-features = false` on a `std` target selects `libm`).
+  - The crate and module docs: `libs/engine/src/lib.rs` (module map, first paragraph, a feature table with `std` and `test-invariants`, no "facade" or "leaf"); each `libs/engine/src/<m>.rs` (first paragraph without the crate justification; `no_std` wording as in spec §4.3); the 19 other "this crate", "the crate", "facade" and "leaf crates" mentions that `git grep -niE 'this crate|the crate|leaf crate|facade' -- libs` lists (spec §4.3), each reworded to "this module" or `engine`, and the manifest's `description` and feature comment; the `math::scalar` module docs (the two backends, and that `default-features = false` on a `std` target selects `libm`).
   - The live documents: `README.md` (the crate table becomes the module table; the command list says `mutants [--module NAME]...`), `CONTRIBUTING.md` (mutants commands, triaged modules, fuzz paths, coverage table, the funnel's path), `SECURITY.md`, `docs/roadmap.md` (spec §4.8: the M4 and M5 rough lists), and `AGENTS.md` and `docs/README.md` if `git grep` finds a former crate in them.
   - `CHANGELOG.md`: the entry of spec §4.12.
-- **Test first:** `git grep -nwE 'engine_(genid|collections|random|time|math|handle)' -- libs README.md CONTRIBUTING.md SECURITY.md AGENTS.md docs/README.md docs/roadmap.md docs/adr/0003-same-build-determinism.md docs/adr/0004-crate-splitting-rule.md` lists hits before the change, and none after.
+- **Test first:** `git grep -niE 'this crate|leaf crate|facade' -- libs` lists hits before the change, and after it only those that are true of `engine` as a whole. `git grep -nwE 'engine_(genid|collections|random|time|math|handle)' -- libs README.md CONTRIBUTING.md SECURITY.md AGENTS.md docs/README.md docs/roadmap.md docs/adr/0003-same-build-determinism.md docs/adr/0004-crate-splitting-rule.md` lists hits before the change, and none after.
 - **Verify:** `cargo xtask doc`; `cargo xtask test` (the doctests); `cargo xtask typos`; `cargo xtask ci`.
 - **Commit:** `docs(engine): describe one library crate in the ADRs, crate docs and live documents (M3.13)`
 
@@ -191,7 +195,7 @@ Each commit applies the §1 rewrite table to one group. Before committing, `git 
 
 ### Step 9: a fresh baseline and the regenerated `benchmarks.md` (R16)
 
-- **Before:** ask the maintainer to start the run, or to approve starting it in the background. Nothing else may build until it ends.
+- **Before:** ask the maintainer to start the run, or to approve starting it in the background. Expect roughly an hour: about 400 benchmarks at Criterion's 3 s warm-up and 5 s measurement, with the scenario groups shorter (1 s and 3 s); the actual start and end times are recorded. The machine stays on AC power, and nothing else may build until it ends.
 - **Run:**
   1. A scratchpad script waits for the 1-minute load to fall below 2.5 (up to 300 s).
   2. It writes `docs/data/bench-env.txt` with the same keys as before (`date`, `cpu`, `memory_gb`, `cores`, `os`, `rustc`, `power`, `load_before`, `git`).
@@ -212,7 +216,7 @@ Each commit applies the §1 rewrite table to one group. Before committing, `git 
 ### Step 10: final verification, reviews, pull request and close-out
 
 - `cargo xtask ci`.
-- In the devcontainer, `cargo xtask bench-regress`. Quote the table with the base and head commits (R12).
+- In the devcontainer, `cargo xtask bench-regress`. Quote the table with the base and head commits (R12). Above +5%, follow the investigation rule in the global constraints.
 - `cargo xtask fuzz-build`.
 - The clean build time after the change: `cargo build -p engine --timings --target-dir $S/tgt-after`. Put it next to Step 2's figure in the pull request.
 - The eight reviews of CONTRIBUTING ("Reviews before a pull request"). Public API, determinism, performance and portability all apply here.
