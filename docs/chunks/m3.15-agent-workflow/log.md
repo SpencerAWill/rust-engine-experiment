@@ -55,3 +55,5 @@
 - 2026-11-15 surprise The spec reviewer, read-only by tools, ran `git checkout -q main` once and switched back. Read-only agent files now forbid changing the tree, index or branch.
 - 2026-11-15 decision Follow-up for M3.16 (R7's evidence): its plan must list the lesson IDs the lessons researcher returns for its paths; check it there.
 - 2026-11-15 lesson? A spec §8 check written as "finds nothing" must name the paths it covers, or historical records that quote old text make it fail.
+- 2026-11-15 done `bench-run` trial (Sonnet, read-only walkthrough, no benchmark run): steps executable and claims match `main.rs`/`cmd.rs`, but step 3 named no way to read the run's window from `pmset -g log`; added a concrete filter, the one-hour duration and a rule against `--allow-battery`. (Load was 5.5 at the time, so a real run would not have started.)
+- 2026-11-15 done The first filter matched wake assertions as well; replaced with an awk filter on the event column, tested on last night's window (battery and sleep events found) and this morning's mutants window (none).
