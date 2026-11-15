@@ -2,8 +2,8 @@
 
 - **Date:** 2026-11-11
 - **Status:** Implemented. Approved 2026-11-12 and amended after implementation (amendments are marked "amended 2026-11-12" inline). The code and the ADRs are authoritative where they differ.
-- **Working name:** `engine` (crates `engine_*`); rename before any publishing.
-- **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real crates: generational handles, deterministic PRNG, simulation time, math (M1).
+- **Working name:** `engine` (the library crate; a later separate crate is named `engine_<name>`, ADR 0004); rename before any publishing.
+- **Scope:** First sub-project of the engine. Establishes the workspace, engineering policy, CI, test and benchmark infrastructure (M0), plus the first real modules of the `engine` crate: generational handles, deterministic PRNG, simulation time, math (M1).
 - **Milestone numbering:** this document uses the milestone numbers in force before 2026-11-12. [The roadmap](../../roadmap.md) maps them to the current ones and supersedes §11.
 
 ---
@@ -15,7 +15,7 @@
 | Why the project exists, what is settled and what is deferred | §1 |
 | The workspace layout and dependency graph | §3 |
 | The rules every change must follow (lints, `unsafe`, determinism, panics, CI, no global state) | §4 |
-| The API design of one crate | §5.1 `engine_handle`, §5.2 `engine_random`, §5.3 `engine_time`, §5.4 `engine_math`, §5.5 `engine`, §5.6 the sample |
+| The API design of one module | §5.1 `engine::handle`, §5.2 `engine::random`, §5.3 `engine::time`, §5.4 `engine::math`, §5.5 the `engine` crate root, §5.6 the sample |
 | How failures are reported | §6 |
 | How it is tested and benchmarked | §7, §8 |
 | What "done" meant for M0+M1, and what comes next | §9, §10, §11 |
@@ -46,11 +46,11 @@ Project trajectory: learning/experimentation first → foundation for the author
 | Logic style (when the ECS arrives) | Systems over queries; read/write access sets drive parallelism. No entity relationships in the first ECS milestone |
 | `unsafe` | Forbidden by default; named, audited exception crates only (see §4.3) |
 | Originality | **No code copied from Bevy or any other project.** Designs, papers, talks, and blog posts may be studied and cited; all implementation is original. Algorithms are implemented from their published specifications |
-| Crate granularity | Many fine-grained crates, layered, plus a facade crate. Split wherever a real boundary exists (§3.1) |
+| Code organisation | One library crate, `engine`, organised by modules. A separate crate only for a reason Rust or Cargo imposes (§3.1) |
 | License | Dual `MIT OR Apache-2.0` |
 | World scale | **Large worlds are possible** (planet/space/large open-world sims). World placement uses f64 translation (`WorldTransform`); local/relative data uses f32 (`Transform`); conversion is explicit, relative to an origin (§5.4, ADR 0006) |
 | Coordinate convention | **One internal convention: right-handed, +Y up, +X right, −Z forward (camera/look direction)**, matching glTF. SI units (meters, seconds, radians, kilograms). Other conventions are converted explicitly at import/export edges (§5.4, ADR 0005) |
-| Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library crates. All transcendental math goes through `engine_math::scalar`, so cross-platform determinism can be enabled later as a contained switch (§4.9) |
+| Determinism hygiene | Simulation code receives time, randomness, and input only as explicit parameters, never from ambient/global state. Nondeterministic std APIs are banned by lint in library code. All transcendental math goes through `engine::math::scalar`, so cross-platform determinism can be enabled later as a contained switch (§4.9) |
 | Instance isolation | **No global mutable state.** Every engine instance is self-contained, and many can coexist in one process (parallel tests, multi-match servers, editor + play-mode worlds, rollback worlds). The future C API takes an explicit context handle on every call (§4.10, ADR 0008) |
 | Strings | UTF-8 everywhere inside the engine. FFI layers convert at the boundary (e.g. UTF-16 for C#) |
 | Tooling & DX | A future game **editor** is a planned product, leaning **out-of-process** (it talks to a running engine over a protocol; UI technology undecided). **Tools and the editor use only public engine APIs, with no privileged backdoors** (ADR 0009). Debuggability is a first-class goal: `#[track_caller]` panics, actionable messages, readable `Debug`, invariant checks (§4.4) |
@@ -77,10 +77,10 @@ These findings shaped this spec and the roadmap. Sources are listed in §12.
 1. **ECS storage is a trade-off.** Sparse sets make component add/remove cheap but iterate slower at scale. Archetypes iterate fastest but pay on composition changes. Bevy offers per-component choice (table default, sparse opt-in). skypjack (EnTT author) argues hybrid schemes "look better than they are". → M2 spike benchmarks all three on identical workloads.
 2. **Interop forces runtime component identity.** Rust `TypeId` is not stable across compilations, so it cannot cross FFI. Bevy retrofitted runtime `ComponentId`s for scripting. Flecs is C-first with runtime components and language-agnostic reflection, and its .NET binding is blittable with no marshalling. → If C#/mods define components, the core identity model must be runtime IDs plus layout descriptors, with Rust generics as a typed layer on top.
 3. **Scheduling.** Implicit ordering of conflicting systems produces nondeterminism. Bevy requires explicit ordering and reports ambiguities. Naughty Dog's fiber job system parks waiting jobs rather than blocking threads, uses atomic counters, and had no work stealing. → M3 concern; M1's `Prng::stream` is designed so randomness does not depend on execution order.
-4. **Handles over pointers at boundaries.** Index plus generation handles are serializable, detect staleness, and are only dereferenced by the owning side, which is the right shape for FFI. → `engine_handle` in M1, with a stable 64-bit encoding.
+4. **Handles over pointers at boundaries.** Index plus generation handles are serializable, detect staleness, and are only dereferenced by the owning side, which is the right shape for FFI. → `engine::handle` in M1, with a stable 64-bit encoding.
 5. **Determinism must be chosen up front.** Rapier offers only local determinism by default. Frontier's GDC 2024 talk shows cross-platform float determinism needs "extreme care" (they chose fixed-point). → We commit to same-build determinism and own our PRNG so dependency updates cannot change output.
 6. **Benchmarking.** The classic `ecs_bench_suite` is archived. divan lacks built-in baseline save/compare. Criterion supports saved baselines (critcmp compares them). Gungraun (formerly iai-callgrind) gives CI-stable instruction-count benchmarks. → Criterion locally, Gungraun in CI (§8).
-7. **Old-engine mistakes to avoid.** Individually allocated objects, data scattered in memory, logic scattered across "a million components", and OO gameplay layers tightly coupled to data layout. → Data-oriented crates with plain data and free functions where possible, and stable handles instead of object references.
+7. **Old-engine mistakes to avoid.** Individually allocated objects, data scattered in memory, logic scattered across "a million components", and OO gameplay layers tightly coupled to data layout. → Data-oriented modules with plain data and free functions where possible, and stable handles instead of object references.
 8. **Hidden nondeterminism in std.** `std::collections::HashMap`'s default hasher is seeded from OS randomness per process (and per map), so iteration order differs between runs. Materialize bans std hash collections in deterministic code for this reason. → Lint bans (§4.9).
 9. **Large-world precision is a one-way door.** f32 gives about 1 mm precision at 8 km from the origin and about 6 cm at 1,000 km. Unreal Engine 5 retrofitted double-precision "Large World Coordinates". Its pain points included serialized struct sizes changing, codebase-wide precision audits, jitter that persisted until 5.4, and physics/shader gaps. → f64 world placement from day one, f32 elsewhere (§5.4).
 10. **Platform traps.** `std::time::Instant::now()` panics on `wasm32-unknown-unknown`. On 32-bit targets `usize` is 32 bits. → wasm32 CI checks; `SystemClock` is unavailable on that target (§4.7, §5.3).
@@ -106,11 +106,12 @@ concurrency-allowlist.toml crates permitted to implement atomics/lock-free sync 
 LICENSE-MIT                (renamed from LICENSE)
 LICENSE-APACHE
 libs/
-  engine_handle/           generational handles, HandlePool<T>, HandleAllocator<T>, DenseHandleAllocator<T>   [no_std + alloc]
-  engine_random/           deterministic PRNG                                         [no_std]
-  engine_time/             Tick, FixedTimestep, TimeSource, clocks                    [no_std, `std` feature]
-  engine_math/             glam re-exports, Transform, scalar helpers                 [std]
-  engine/                  facade: re-exports + `engine::prelude`
+  engine/                  the library crate: `#![no_std]` + `alloc`, with a default `std` feature
+    src/lib.rs             module declarations and `engine::prelude`
+    src/handle.rs          generational handles, HandlePool<T>, HandleAllocator<T>, DenseHandleAllocator<T>
+    src/random.rs          deterministic PRNG
+    src/time.rs            Tick, FixedTimestep, TimeSource, clocks (`SystemClock` needs `std`)
+    src/math.rs            glam re-exports, Transform, scalar helpers
 examples/
   fixed_step_sim/          headless deterministic sample (binary crate)
 benches/                   `engine_benches`: cross-library comparison benchmarks (publish = false)
@@ -126,63 +127,43 @@ docs/
   dependabot.yml           devcontainers + cargo + github-actions
 ```
 
-Workspace members: `libs/*`, `examples/*`, `benches`, `xtask`. `fuzz` is excluded.
+Workspace members: `libs/*` (one crate, `engine`), `examples/*`, `benches`, `xtask`. `fuzz` is excluded.
 
-All crates: `version = "0.1.0"`, `edition = "2024"`, `publish = false` (until a publishing decision), `license = "MIT OR Apache-2.0"`, `rust-version` and `repository` inherited from `[workspace.package]`.
+All packages: `version = "0.1.0"`, `edition = "2024"`, `publish = false` (until a publishing decision), `license = "MIT OR Apache-2.0"`, `rust-version` and `repository` inherited from `[workspace.package]`.
 
-### 3.1 Crate-splitting rule (ADR 0004)
+### 3.1 Code organisation and the splitting rule (ADR 0004)
 
-A crate is Rust's unit of compilation, coherence (trait impls), visibility, and versioning, so crate boundaries are decided deliberately, using a two-sided checklist.
+A crate is Rust's unit of compilation, coherence (trait impls), visibility, and permission, so crate boundaries are decided deliberately. All library code lives in one crate, `engine`, organised by modules (`engine::handle`, `engine::random`, `engine::time`, `engine::math`). A new library crate exists only when at least one of these holds, with evidence:
 
-**Split into a separate crate when at least one of these holds:**
+1. **Forced by Rust or Cargo.** Procedural macros (crate type `proc-macro`) and C ABI artifacts (`cdylib`, `staticlib`) need their own crate.
+2. **Permission boundary.** The code needs an `unsafe` or concurrency exception (§4.3, §4.11), which are granted per crate. The crate contains only the code that needs the exception.
+3. **Configurations that cannot be features.** Two variants cannot coexist as additive Cargo features.
+4. **Measured compile time.** `cargo build --timings` shows `engine` on the critical path, and a split improves the build. This requires measurement, not intuition.
 
-1. **Dependencies.** It needs a dependency others shouldn't carry, or must stay dependency-free.
-2. **Permission boundary.** It needs an `unsafe` or concurrency exception (§4.3, §4.11), or must be provably free of them.
-3. **FFI exposure.** It is exposed (or not) across the C ABI.
-4. **Optionality.** Users should be able to omit it, and it has heavy dependencies or a distinct API. Small additive extensions are Cargo features instead.
-5. **Platform.** `no_std` vs `std`, or platform-specific code.
-6. **Stability.** A small, rarely-changing interface (core traits/types) that others implement or build against is separated from fast-moving implementation, so dependents don't churn (the `rand_core`/`futures-core` pattern). The mod/plugin-facing API (M4+) is the prime candidate.
-7. **Enforced layering.** A lower layer must be provably unable to depend on a higher one. Crates make dependency cycles impossible; modules don't.
-8. **Measured compile time.** `cargo build --timings` shows the crate on the critical path and a split improves parallelism. This requires measurement, not intuition.
-9. **Forced by the language.** Procedural macros live in their own crate.
+None of these is a reason to split: topic, size or code organisation (use modules), layering (review, and ADR 0009), stability or a frozen format (golden tests), an optional dependency (a Cargo feature), or reuse by other projects.
 
-**Keep code in one crate when any of these holds** (these override the split reasons unless an ADR says otherwise):
+**Keep code together when any of these holds** (these override the split criteria):
 
-1. **Coherence.** Splitting would make needed trait impls impossible under the orphan rule, or force newtype workarounds. Corollary: foundational traits that many crates implement (e.g. M2 reflection) live at the **bottom** of the dependency graph.
+1. **Coherence.** Splitting would make needed trait impls impossible under the orphan rule, or force newtype workarounds. Corollary: foundational traits that many types implement (e.g. M2 reflection) live in `engine`, next to the types they are implemented for.
 2. **Shared internals.** The pieces need each other's private details. Splitting would force `#[doc(hidden)] pub` back doors, which also contradicts ADR 0009.
-3. **Lockstep change.** They always change together, so a split only adds release overhead.
-4. **Too small to stand alone.** No boundary from the list above, and fixed per-crate costs (metadata, build-graph nodes, maintenance) would outweigh any benefit.
+3. **No cycles.** A crate below `engine` cannot use `engine`'s types, and `engine` cannot use a crate above it.
 
-Topic alone is not a reason to split. Expect many crates over time, but no empty crates up front.
-
-**Every crate states its justification** (the split criteria it meets) in the first paragraph of its crate-level docs and in ADR 0004's crate table. M0+M1:
-
-| Crate | Justification |
-|---|---|
-| `engine_handle` | Platform (`no_std` + `alloc`), dependency-free; FFI exposure (handles cross the C ABI in M4); layering (foundation for the ECS, assets, FFI) |
-| `engine_random` | Stability (output streams frozen for all of 0.x, a different change cadence); platform (`no_std`, no `alloc`); independent reuse (optional on its own) |
-| `engine_time` | Platform (`no_std` core with a `std` feature for `SystemClock`); independent reuse; layering (no dependency on math or handles) |
-| `engine_math` | Dependencies (`glam`); platform (`std`) |
-| `engine` | Facade: the single dependency for users, re-exporting the above |
+The rule, its process and its consequences are in ADR 0004. M0+M1 has no separate library crate.
 
 **Layout and versioning:**
-- The layout stays flat (`libs/*`, `engine_` prefix), following common practice for large workspaces (matklad, "Large Rust Workspaces").
-- When publishing is decided, the expected default is **lockstep versioning**: every `engine_*` crate shares one version and is released together, with the facade as the main entry point. This gets its own ADR at publish time.
+- Any later crate is flat under `libs/` and named `engine_<name>`, following common practice for large workspaces (matklad, "Large Rust Workspaces").
+- When publishing is decided, the expected default is **lockstep versioning**: every `engine*` crate shares one version and is released together, with `engine` as the main entry point. This gets its own ADR at publish time.
 
 ### 3.2 Dependency graph (M0+M1)
 
 ```
-engine_handle   (no deps)
-engine_random   (no deps)
-engine_time     (no deps)
-engine_math  →  glam
-engine       →  engine_handle, engine_random, engine_time, engine_math
+engine         →  glam
 fixed_step_sim → engine            (dev: dhat for allocation assertions)
-engine_benches → engine_*, criterion, slotmap, thunderdome, rand, rand_xoshiro, fastrand   (dev-only; gungraun added in M2)
+engine_benches → engine, criterion, slotmap, thunderdome, rand, rand_xoshiro, fastrand   (dev-only; gungraun added in M2)
 xtask        →  (std only; minimal deps)
 ```
 
-Leaf crates do not depend on each other unless a real need appears.
+Modules of `engine` do not use each other unless a real need appears.
 
 ---
 
@@ -229,10 +210,10 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
 - **Naming:** RFC 430 casing. Conversions are `as_`/`to_`/`into_`. Constructors are `new`, `with_*`, `from_*`. No `get_` prefix on getters.
 - **Common traits:** implement `Debug` always. Implement `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash`, `PartialOrd`, `Ord`, `Default` wherever semantically meaningful. Every public type is `Send + Sync` unless there is a documented reason not to be. Static assertions in tests verify this.
 - **`#[must_use]`** on functions whose result being ignored is almost certainly a bug (e.g. `HandlePool::insert`, `Prng::stream`).
-- **Errors:** each crate defines its own error enum with hand-written `Display` + `core::error::Error`, marked `#[non_exhaustive]`. No `thiserror`/`anyhow` in libraries.
+- **Errors:** each module defines its own error types with hand-written `Display` + `core::error::Error`, marked `#[non_exhaustive]`. No `thiserror`/`anyhow` in libraries.
 - **Panics:** library code panics only on documented contract violations (e.g. an empty range passed to `Prng::range`), each with a `# Panics` doc section. Otherwise it returns `Option`/`Result`.
-- **Docs:** every public item is documented. Every public type and most public functions include a runnable example (doctest). Each crate's root docs explain purpose, guarantees (determinism, complexity), and a quick start.
-- **Prelude:** only the facade crate has a prelude. Leaf crates expose a flat, small public surface.
+- **Docs:** every public item is documented. Every public type and most public functions include a runnable example (doctest). Each module's docs explain purpose, guarantees (determinism, complexity), and a quick start.
+- **Prelude:** only the crate root has a prelude. The modules expose a flat, small public surface.
 - **Ownership-first design:**
   - Cross-object references are `Copy` handles, never Rust references stored in data. Borrows happen only at the moment of access.
   - Return values that don't need to borrow their source don't (e.g. `Steps`).
@@ -240,7 +221,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   - Builders take and return `self` by value and are `#[must_use]`.
   - Invalid states are made unrepresentable where it costs little (`NonZeroU32`, `Option`-returning constructors for state restoration).
 - **Escape hatches are explicit:** no API silently erases or converts types (e.g. no `Handle::cast`).
-- **`#[inline]` policy:** Rust only inlines non-generic functions across crate boundaries when they are marked `#[inline]` or LTO is on. Because the engine is many crates:
+- **`#[inline]` policy:** Rust only inlines non-generic functions across crate boundaries when they are marked `#[inline]` or LTO is on. Because users of `engine` (examples, benches, tools) are other crates:
   - small, hot, non-generic public functions are `#[inline]` (e.g. `Prng::next_u64`, `Handle::index`/`to_bits`, `Tick::next`, `scalar::*`);
   - generic functions (e.g. `HandlePool<T>` methods) are compiled into the caller's crate and need no annotation;
   - `#[inline(always)]` is not used without a benchmark justifying it;
@@ -280,7 +261,7 @@ Follow the [Rust API Guidelines checklist](https://rust-lang.github.io/api-guide
   ADR 0003 also covers the determinism guardrails (§4.9) and the snapshot-able state principle.
 - **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `ci:`, `chore:`).
 - **Branching:** feature branches merged to `main` via PR. CI must be green.
-- **README.md:** project purpose, status (experimental, 0.x), crate map, how to run `cargo xtask ci`, license.
+- **README.md:** project purpose, status (experimental, 0.x), module map, how to run `cargo xtask ci`, license.
 
 ### 4.7 CI (`.github/workflows/ci.yml`)
 
@@ -299,8 +280,8 @@ When the repo goes public (minutes become free), the macOS/Windows legs move to 
 | clippy | ubuntu, macOS, windows | `cargo xtask clippy` (all targets, all features) | yes |
 | test | ubuntu, macOS, windows | `cargo xtask test` (`cargo nextest run` + `cargo test --doc`); on ubuntu also `cargo xtask test --release --include-ignored` for the statistical tests (§7) | yes |
 | doc | ubuntu | `cargo xtask doc` | yes |
-| no_std | ubuntu | `cargo xtask no-std` (build `engine_handle`, `engine_random`, `engine_time` with `--no-default-features` for `thumbv7em-none-eabihf`) | yes |
-| wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run the leaf crates' and `engine_math`'s tests (including the PRNG golden tests) on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered. See the WASM test notes below | yes |
+| no_std | ubuntu | `cargo xtask no-std` (build `engine::handle`, `engine::random`, `engine::time` with `--no-default-features` for `thumbv7em-none-eabihf`) | yes |
+| wasm | ubuntu | `cargo xtask wasm`: build `engine` (default features) for `wasm32-unknown-unknown`; run `engine`'s tests (including the PRNG golden tests) on `wasm32-wasip1` under `wasmtime`. That is a 32-bit target, so 32-bit `usize` is covered. See the WASM test notes below | yes |
 | check-unsafe | ubuntu | `cargo xtask check-unsafe` | yes |
 | check-statics | ubuntu | `cargo xtask check-statics` (§4.10) | yes |
 | miri | ubuntu (pinned nightly) | `cargo xtask miri` | **from M2** |
@@ -335,8 +316,8 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 
 disallowed-types = [
-  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use BTreeMap (or engine_collections' deterministic map once it exists)" },
-  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use BTreeSet (or engine_collections' deterministic set once it exists)" },
+  { path = "std::collections::HashMap", reason = "iteration order is randomized per process; use BTreeMap (or engine::collections' deterministic map once it exists)" },
+  { path = "std::collections::HashSet", reason = "iteration order is randomized per process; use BTreeSet (or engine::collections' deterministic set once it exists)" },
   { path = "std::hash::RandomState",    reason = "OS-seeded; breaks same-build determinism" },
 ]
 disallowed-methods = [
@@ -349,10 +330,10 @@ disallowed-macros = [
 ]
 ```
 
-- **Sanctioned item-level exceptions** use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. `expect`, not `allow`, so the exception is flagged once it becomes unnecessary. M1 has exactly two: `SystemClock` in `engine_time`, and the `engine_math::scalar` funnel.
+- **Sanctioned item-level exceptions** use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. `expect`, not `allow`, so the exception is flagged once it becomes unnecessary. M1 has exactly two: `SystemClock` in `engine::time`, and the `engine::math::scalar` funnel.
 - **Crate-level opt-outs** for non-simulation crates (`xtask`, `engine_benches`) use `#![allow(...)]` with a comment, not `#![expect(...)]`. A crate-level `expect` that never fires produces an `unfulfilled_lint_expectations` warning, which fails CI under `-D warnings`.
 - **Tests** may use `unwrap`/`expect` via the `allow-*-in-tests` settings above (see §4.2).
-- **Deterministic hash collections:** M1 needs none. The `std` path bans also cover `std::collections::HashMap<K, V, S>` with a custom hasher, which is intended. Deterministic maps will be `engine_collections`' own types (expected in M2), built on a fixed-seed hasher. Whenever a hashing crate is added (e.g. hashbrown, foldhash), its randomly-seeded default types are added to this ban list in the same PR.
+- **Deterministic hash collections:** M1 needs none. The `std` path bans also cover `std::collections::HashMap<K, V, S>` with a custom hasher, which is intended. Deterministic maps will be `engine::collections`' own types (expected in M2), built on a fixed-seed hasher. Whenever a hashing crate is added (e.g. hashbrown, foldhash), its randomly-seeded default types are added to this ban list in the same PR.
   - **Note (M3.1):** the fixed-seed design above was replaced by insertion-ordered maps and sets, whose iteration order does not depend on the hasher; see the [M3.1 spec](../m3-ecs-storage/m3.1-collections/spec.md). The text above is kept as a record.
 - **Float notes for same-build determinism:**
   - Rust does not contract `a * b + c` into fused multiply-add (FMA) implicitly, and we never enable fast-math.
@@ -370,9 +351,9 @@ disallowed-macros = [
 
 **Transcendental math funnel.** Same-build determinism rules out lockstep multiplayer across different platforms (e.g. Windows x86 vs macOS ARM). Server-authoritative and same-platform rollback models are unaffected. To keep a later upgrade to cross-platform determinism cheap:
 
-- `engine_math::scalar` provides generic free functions over a sealed `Float` trait (implemented for `f32`, `f64`): `sin`, `cos`, `tan`, `sin_cos`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `exp`, `exp2`, `exp_m1`, `ln`, `ln_1p`, `log2`, `log10`, `powf`, `powi`, `cbrt`, `hypot`. Usage: `scalar::sin(x)`, with the type inferred.
+- `engine::math::scalar` provides generic free functions over a sealed `Float` trait (implemented for `f32`, `f64`): `sin`, `cos`, `tan`, `sin_cos`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `exp`, `exp2`, `exp_m1`, `ln`, `ln_1p`, `log2`, `log10`, `powf`, `powi`, `cbrt`, `hypot`. Usage: `scalar::sin(x)`, with the type inferred.
 - In M1 these delegate to `std`.
-- `clippy.toml` `disallowed-methods` bans the corresponding inherent methods (`f32::sin`, `f64::sin`, …, `f32::powi`, …) in all crates. `engine_math::scalar` carries the one sanctioned `#[expect]`. `xtask`, benches, and tests may opt out.
+- `clippy.toml` `disallowed-methods` bans the corresponding inherent methods (`f32::sin`, `f64::sin`, …, `f32::powi`, …) in all crates. `engine::math::scalar` carries the one sanctioned `#[expect]`. `xtask`, benches, and tests may opt out.
 - Correctly-rounded IEEE operations stay allowed: `+ − × ÷`, `sqrt`, `mul_add`, `abs`, `floor`/`ceil`/`round`/`trunc`, `min`/`max`, `rem_euclid`, `copysign`.
 - **Upgrade path (future ADR, not M1):** three changes together:
   1. back `scalar` with the pure-Rust `libm` crate;
@@ -382,7 +363,7 @@ disallowed-macros = [
   `scalar-math` **changes the size and alignment** of `Vec3A`/`Vec4`/`Quat`/`Mat3A`/`Mat4`, and therefore of `Transform`/`WorldTransform`. That breaks any layout C#, snapshots, or serialized data depend on (the same failure mode as Unreal's Large World Coordinates migration). The static layout assertions in §5.4 exist to make such a change loud.
 
   Because the switch changes output values and layout, it is a deliberate, versioned, engine-wide decision, not a Cargo feature (§4.4: features never change deterministic output). Golden values would be regenerated once and then become identical across all targets.
-- **Feature-unification hazard:** any crate in a downstream dependency graph can enable glam's `fast-math` or `scalar-math` features and silently change our numerics. `engine_math`'s static layout assertions catch `scalar-math`. `fast-math` cannot be detected, so the README documents it as unsupported.
+- **Feature-unification hazard:** any crate in a downstream dependency graph can enable glam's `fast-math` or `scalar-math` features and silently change our numerics. `engine::math`'s static layout assertions catch `scalar-math`. `fast-math` cannot be detected, so the README documents it as unsupported.
 - M1 code that needs trigonometry (e.g. `Transform2d::to_affine`, `to_2d`'s twist extraction) calls `scalar`, not std directly.
 
 ### 4.10 Instance isolation (ADR 0008)
@@ -390,7 +371,7 @@ disallowed-macros = [
 **Principle:** there is no global mutable state anywhere in the engine. All state lives in instances that the caller creates and passes explicitly. Any number of instances can coexist in one process and on any threads, and none can observe another.
 
 - **Lint:** `static mut` is already rejected (it requires `unsafe`).
-- **Check:** `cargo xtask check-statics` parses every library crate (using `syn`) and fails on:
+- **Check:** `cargo xtask check-statics` parses the library crate's sources (using `syn`) and fails on:
   - a `static` item whose type contains interior mutability (`Cell`, `RefCell`, `UnsafeCell`, `Mutex`, `RwLock`, `Atomic*`, `OnceCell`, `OnceLock`, `LazyLock`, `LazyCell`);
   - any `thread_local!` invocation.
 - **Exceptions** require a preceding `// engine:allow-global-state: <reason>` comment, and `check-statics` reports each one. M1 has none.
@@ -448,15 +429,14 @@ The allowlist files (`unsafe-allowlist.toml`, `concurrency-allowlist.toml`) exis
 
 Code below shows the public API surface. Private fields are indicative.
 
-### 5.1 `engine_handle`
+### 5.1 `engine::handle`
 
 > **Amended 2026-11-12, after implementation and review** (the API blocks below are updated in place and marked): the allocator is now two types, `HandleAllocator` (lean, no iteration) and `DenseHandleAllocator` (iterable), sharing one `SlotTable` with the pool ([ADR 0010](../../adr/0010-two-handle-allocators.md)); added `reserve`/`try_reserve`, `with_fixed_capacity`, `insert_with`, `allocate_many`, `From`/`TryFrom<u64>` for `Handle`, a `limit()` on `CapacityError`, and `check_invariants`; slots shrank to 8 bytes with a 2³¹−2 limit.
 
 **Purpose:** typed, generational, copyable identifiers and a pool that owns values behind them. Reused later for ECS entities (M2), assets, and FFI handles (M4).
 
 ```rust
-#![no_std]
-extern crate alloc;
+// engine::handle: needs only `core` and `alloc`.
 
 /// A typed, generational identifier. 8 bytes. `Option<Handle<T>>` is also 8 bytes.
 pub struct Handle<T> {
@@ -618,14 +598,14 @@ impl<T> DenseHandleAllocator<T> {
 - **Memory:** 8 bytes per slot ever used (a `u32` generation plus one packed `u32`: dense position, free link, or retired marker; slots never shrink; asserted by a unit test), plus 8 bytes per live value (its dense `Handle`), plus the values. `shrink_to_fit` releases dense capacity after a spike.
 - Implementation is 100% safe Rust. The slot logic (generations, LIFO free list, retirement, slot limit) lives in one private `SlotTable` shared by all three types (amended 2026-11-12), so the rules cannot drift apart. A `Slot` holds a generation and an enum `Occupied { dense: u32 } | Vacant { next_free: Option<u32> } | Retired` packed into one `u32`.
 
-### 5.2 `engine_random`
+### 5.2 `engine::random`
 
 **Purpose:** a fast, deterministic, versioned-stable PRNG for simulation. Not cryptographically secure (stated prominently in docs).
 
-**Naming:** the type is `Prng`, not `Rng`, so every call site states that the output is pseudorandom: a deterministic function of the seed, not a source of true or cryptographic randomness. Following Rust's convention for acronyms in type names (`Uuid`, `Tcp…`), it is written `Prng`. The crate keeps the broader name `engine_random`, so it can later hold related, non-generator code (distributions, noise) without a rename.
+**Naming:** the type is `Prng`, not `Rng`, so every call site states that the output is pseudorandom: a deterministic function of the seed, not a source of true or cryptographic randomness. Following Rust's convention for acronyms in type names (`Uuid`, `Tcp…`), it is written `Prng`. The module keeps the broader name `engine::random`, so it can later hold related, non-generator code (distributions, noise) without a rename.
 
 ```rust
-#![no_std]
+// engine::random: needs only `core`.
 
 /// xoshiro256++ generator; state seeded via SplitMix64.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -703,12 +683,12 @@ pub trait SampleRange: sealed::Sealed { type Output; /* sampling method is priva
   - **Not `Copy`:** an implicit copy silently duplicates the generator, which produces correlated "random" values. Duplication must be an explicit `clone()` (or `stream`).
   - **Not `Default`:** a default would hide the seed, which is the input that determines everything.
 
-### 5.3 `engine_time`
+### 5.3 `engine::time`
 
 **Purpose:** simulation time primitives that make fixed-step loops correct, testable, and deterministic.
 
 ```rust
-#![no_std]   // `std` default feature enables SystemClock
+// engine::time: needs only `core`; the default `std` feature enables SystemClock.
 
 /// Monotonic simulation step counter.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -810,7 +790,7 @@ impl ManualClock {
 - Arithmetic uses `Duration` (integer nanoseconds), so accumulation is exact. Splitting `elapsed` differently across `accumulate` calls yields the same total sequence of ticks, as long as the cap is not hit (property-tested).
 - `alpha()` is the only floating-point output and is never fed back into the simulation.
 
-### 5.4 `engine_math`
+### 5.4 `engine::math`
 
 **Purpose:** a single blessed math vocabulary for the engine.
 
@@ -819,7 +799,7 @@ impl ManualClock {
   - f64: `DVec2`, `DVec3`, `DVec4`, `DQuat`, `DMat2`, `DMat3`, `DMat4`, `DAffine2`, `DAffine3`;
   - the `IVec*`/`UVec*` families.
 
-  `glam` is re-exported as `engine_math::glam` for escape-hatch access.
+  `glam` is re-exported as `engine::math::glam` for escape-hatch access.
 - **Layout assertions:** `const` assertions pin `size_of`/`align_of` for `Transform`, `WorldTransform`, `Transform2d`, and `WorldTransform2d` on each CI target, with the expected values recorded in ADR 0006. Any change (e.g. a glam `scalar-math` feature flip via feature unification, or a glam upgrade) fails the build loudly instead of silently changing snapshot/FFI layouts.
 - glam's version is part of our public API. Bumping glam's major/minor version is a breaking change for us (acceptable at 0.x). The FFI layer (M4) defines its own `#[repr(C)]` plain-data math types and does not expose glam.
 
@@ -1013,16 +993,16 @@ pub mod convert {
 - **Tests:** `ENGINE == GLTF`; a glTF asset's +Z front stays +Z and +Y up stays +Y through `*_to_engine(_, GLTF)`; for every preset, the source's documented up and asset-front axes land on engine +Y and +Z.
 - **Why this convention:** see ADR 0005. In short, it gives zero-conversion import of glTF (the primary planned asset format), works with glam's `*_rh` helpers and the Rust graphics ecosystem, and makes right-handed math and physics formulas apply directly.
 
-### 5.5 `engine` facade
+### 5.5 The `engine` crate root
 
-- Re-exports each crate as a module: `engine::handle`, `engine::random`, `engine::time`, `engine::math`.
+- Declares the modules `engine::handle`, `engine::random`, `engine::time` and `engine::math`.
 - `engine::prelude` exports: `Handle`, `HandlePool`, `HandleAllocator`, `DenseHandleAllocator`, `Prng`, `Tick`, `FixedTimestep`, `TimeSource`, `Timestamp`, `ManualClock`, `SystemClock` (when available), `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `Vec2`, `Vec3`, `Vec4`, `DVec2`, `DVec3`, `Quat`, `Mat4`, and the `axis` module.
-- Features: `std` (default), forwarded to leaf crates.
-- The crate root docs are the engine's "start here" page: crate map, guarantees, and a short example.
+- Features: `std` (default), which enables `SystemClock`.
+- The crate root docs are the engine's "start here" page: module map, guarantees, and a short example.
 
 ### 5.6 `examples/fixed_step_sim`
 
-A headless binary demonstrating the M1 crates together:
+A headless binary demonstrating the M1 modules together:
 
 1. CLI arguments: `--seed <u64>` (default 42), `--jitter-seed <u64>` (default 7), `--ticks <u64>` (default 600), `--particles <usize>` (default 10 000).
 2. Creates a `HandlePool<Particle { position: Vec3, velocity: Vec3, ttl: u32 }>` seeded via `Prng::from_seed(seed)`.
@@ -1045,12 +1025,12 @@ The sim logic lives in the crate's `lib.rs`. `main.rs` is a thin CLI wrapper, so
 
 | Crate | Fallible operations | Mechanism |
 |---|---|---|
-| `engine_handle` | stale or invalid handles; capacity | `Option` (`get`, `remove`, `from_bits`, `get_disjoint_mut`, `try_allocate`, `try_allocate_many`, `try_insert_with`), `Result<(), TryReserveError>` (`try_reserve`), `bool` (`free`, `contains`), `Result<_, CapacityError<T>>` (`try_insert`). `insert`/`allocate` panic on capacity |
-| `engine_random` | invalid ranges | `try_range` → `Option`; `range` panics (`# Panics`, `#[track_caller]`) |
-| `engine_time` | zero step, non-monotonic `set`, tick overflow, invalid restored state | `try_new`/`from_state` → `Option`, `try_set` → `Result<(), NonMonotonicError>`, `checked_next` → `Option`; panicking twins documented |
-| `engine_math` | none | Documented NaN/non-finite behavior |
+| `engine::handle` | stale or invalid handles; capacity | `Option` (`get`, `remove`, `from_bits`, `get_disjoint_mut`, `try_allocate`, `try_allocate_many`, `try_insert_with`), `Result<(), TryReserveError>` (`try_reserve`), `bool` (`free`, `contains`), `Result<_, CapacityError<T>>` (`try_insert`). `insert`/`allocate` panic on capacity |
+| `engine::random` | invalid ranges | `try_range` → `Option`; `range` panics (`# Panics`, `#[track_caller]`) |
+| `engine::time` | zero step, non-monotonic `set`, tick overflow, invalid restored state | `try_new`/`from_state` → `Option`, `try_set` → `Result<(), NonMonotonicError>`, `checked_next` → `Option`; panicking twins documented |
+| `engine::math` | none | Documented NaN/non-finite behavior |
 
-M1 introduces these small error types: `engine_handle::CapacityError<T>`, which returns the rejected value and the pool's limit; `engine_handle::InvalidHandleBits` (amended 2026-11-12), the error of `TryFrom<u64> for Handle<T>`; `engine_handle::InvariantViolation` (test-only, from `check_invariants`); and `engine_time::NonMonotonicError`, which reports the current and requested timestamps. Both implement `Display` + `core::error::Error`. Broader `#[non_exhaustive]` error enums arrive when a crate has several failure modes (expected in M2/M4).
+M1 introduces these small error types: `engine::handle::CapacityError<T>`, which returns the rejected value and the pool's limit; `engine::handle::InvalidHandleBits` (amended 2026-11-12), the error of `TryFrom<u64> for Handle<T>`; `engine::handle::InvariantViolation` (test-only, from `check_invariants`); and `engine::time::NonMonotonicError`, which reports the current and requested timestamps. Both implement `Display` + `core::error::Error`. Broader `#[non_exhaustive]` error enums arrive when a module has several failure modes (expected in M2/M4).
 
 ---
 
@@ -1077,10 +1057,10 @@ All layers run in CI unless noted.
 | Time edge cases | unit | `alpha()` stays < 1.0 when the accumulator is `step - 1ns` (for 1/60 s and 100 ms steps). `from_hz(60)` is exactly 16_666_667 ns |
 | Layout | `const` assertions + tests | Sizes/alignments of `Handle`, `Option<Handle>`, transforms per ADR 0006 |
 | Debug output | unit | Snapshot tests of `Debug` for `Handle`, `HandlePool`, `Prng` |
-| 32-bit / WASM | CI `wasm` job | Leaf-crate tests on `wasm32-wasip1`; `engine` builds for `wasm32-unknown-unknown` |
-| Undefined behavior | Miri | From M2: all allowlisted crates (and `engine_handle` once the job exists) |
+| 32-bit / WASM | CI `wasm` job | `engine`'s tests on `wasm32-wasip1`; `engine` builds for `wasm32-unknown-unknown` |
+| Undefined behavior | Miri | From M2: all allowlisted crates (and `engine::handle` once the job exists) |
 | Fuzzing | `cargo-fuzz` (nightly workflow, from M2) | First targets in M2: `handle_pool_ops` (arbitrary op sequences checked against the model), `handle_from_bits`, plus the M2 storage code |
-| Test quality | `cargo-mutants` | Periodic from M2 (the M1 crates are included in the first run). Not a CI gate |
+| Test quality | `cargo-mutants` | Periodic from M2 (the M1 modules are included in the first run). Not a CI gate |
 
 Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz/`) live in `[workspace.dependencies]` and are dev-dependencies only.
 
@@ -1095,8 +1075,8 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 **Layout:**
 
-- Micro-benchmarks for each crate live in `libs/<crate>/benches/` (Criterion; from M2 also Gungraun targets for regression-critical paths). *Amended 2026-11-13 (M2.4): the Gungraun benchmarks live in their own package, `bench-regress/` (`engine_bench_regress`), not in `libs/<crate>/benches/`; see the [M2.4 spec](../m2-infrastructure/m2.4-gungraun-gate/spec.md) §4.1.*
-- Comparisons against other libraries live in `benches/` (`engine_benches`). Competitor crates are dev-dependencies of that crate only.
+- Micro-benchmarks live in `libs/engine/benches/` (Criterion; from M2 also Gungraun targets for regression-critical paths). *Amended 2026-11-13 (M2.4): the Gungraun benchmarks live in their own package, `bench-regress/` (`engine_bench_regress`), not in `libs/engine/benches/`; see the [M2.4 spec](../m2-infrastructure/m2.4-gungraun-gate/spec.md) §4.1.*
+- Comparisons against other libraries live in `benches/` (`engine_benches`). Competitor crates are dev-dependencies of that package only.
 
 **M1 benchmark matrix:**
 
@@ -1116,13 +1096,13 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 1. `cargo xtask ci` passes locally (macOS) and in the devcontainer (Linux). The GitHub Actions matrix is green on ubuntu, macOS, and windows.
 2. All CI jobs marked for M0+M1 in §4.7/§4.12 exist and pass.
-3. Every public item in every crate is documented. Every public type has a runnable example.
+3. Every public item in the library is documented. Every public type has a runnable example.
 4. All test layers in §7 that are scheduled for M0+M1 are implemented, and golden values are frozen.
 5. The benchmark matrix in §8 has been run locally, with results and hardware recorded in `docs/benchmarks.md`.
 6. ADRs 0001–0004 are written. README, dual license files, `deny.toml`, `unsafe-allowlist.toml` (empty), and dependabot config are in place.
 7. `examples/fixed_step_sim` runs, and its determinism test passes.
 8. (Moved to M2: Miri, fuzzing, Gungraun gate, coverage, mutation triage; §4.12.)
-9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), 0007 (host owns the loop), and 0008 (no global state) are written. The `check-statics` job is green. The transcendental-method bans are active, with only the `engine_math::scalar` exception. The devcontainer has every tool `cargo xtask ci` needs. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
+9. ADRs 0005 (coordinates/units, including 2D and screen space), 0006 (large-world precision), 0007 (host owns the loop), and 0008 (no global state) are written. The `check-statics` job is green. The transcendental-method bans are active, with only the `engine::math::scalar` exception. The devcontainer has every tool `cargo xtask ci` needs. `clippy.toml` determinism bans are active, with only the sanctioned `SystemClock` exception.
 10. The `wasm` CI job is green. The snapshot, allocation, large-world precision, and coordinate-conversion tests pass.
 11. Every documented-panic API has a fallible twin and `#[track_caller]`. The panic-contract, PRNG-normative, layout, and `Debug` tests pass. ADR 0009 is written, and `concurrency-allowlist.toml` exists (empty).
 
@@ -1148,7 +1128,7 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 
 | Milestone | Summary | Key open question it resolves |
 |---|---|---|
-| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine_collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit at the bottom of the crate graph (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout. **Infrastructure arriving with M2** (§4.12): Miri, fuzzing, Gungraun gate, coverage, mutation triage. **Dogfooding sample:** a minimal visual example (e.g. thousands of 2D agents drawn into a simple pixel-buffer window; the windowing crate is an example-only dependency, never an engine dependency). It validates ECS ergonomics with a real consumer, doubles as a realistic benchmark, and makes progress visible | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
+| **M2: ECS storage spike + decision** | Prototype sparse-set, archetype, and per-component hybrid storage behind one minimal API (spawn/despawn, insert/remove, typed query iteration, runtime-registered component). Benchmark against bevy_ecs, hecs, flecs_ecs on standard workloads (simple iteration, fragmented iteration, add/remove, heavy compute, entity churn). Produce an ADR choosing the storage model, the runtime component identity model, and the policy for foreign/mod-defined component storage (safe byte blobs vs audited type-erased columns). **Also in scope:** the type registry (reflection) designed together with component identity, because it is the backbone for serialization, editor, scripting, FFI, mods, and networking; runtime handles vs persistent IDs, with ID remapping on load; deterministic hash collections (`engine::collections`); which transform type(s) entities store, including one unified transform vs separate 2D/3D transform components, decided with a **2D-heavy benchmark workload** (e.g. 100k sprites) alongside the 3D ones. **Editor-driven requirements:** change detection and world diffing (inspector refresh, undo/redo, network deltas, incremental saves); reflection whose core traits sit in `engine`, next to the types they are implemented for (orphan rule, §3.1) and that is writable (set a field by path) and serializes to a self-describing format (an out-of-process editor can show types it wasn't compiled against); edits applied as commands (the basis for undo/redo); a stable content hasher (desync detection, persistent IDs, deterministic maps); debugger visualizers (natvis, LLDB/GDB formatters) for the storage types. **Concurrency:** storage designed for fixed-partition parallel iteration and cache-friendly layout. **Infrastructure arriving with M2** (§4.12): Miri, fuzzing, Gungraun gate, coverage, mutation triage. **Dogfooding sample:** a minimal visual example (e.g. thousands of 2D agents drawn into a simple pixel-buffer window; the windowing crate is an example-only dependency, never an engine dependency). It validates ECS ergonomics with a real consumer, doubles as a realistic benchmark, and makes progress visible | Storage model; can C#/mods define components; which `unsafe` exceptions exist; type registry shape |
 | M3: Scheduler | Systems with declared read/write access, explicit ordering, ambiguity detection, deterministic execution under same-build determinism, parallel execution. **Required:** a single-threaded execution mode (for WASM without threads, and determinism debugging). Profiling instrumentation behind one macro convention. Honors ADR 0007: the scheduler runs on threads it is given (or a pool the host creates), driven by host calls, and never takes over the caller's thread. Determinism independent of thread count (§4.9). The concurrency allowlist, loom, TSan, and stress-test tooling arrive here and apply (§4.11, §4.12). Per-worker state is cache-padded. The work-distribution strategy (work stealing vs fixed assignment) is chosen with benchmarks, and its merges must stay deterministic | Threading model (thread pool vs fibers vs work stealing) |
 | M4: C ABI + C# | `engine_ffi` crate (allowlisted `unsafe`), handle-based C API, generated header, C# binding (generator choice evaluated: Interoptopus vs cbindgen + hand-written P/Invoke vs csbindgen), C# sample. **Also:** evaluate the WebAssembly component model (WIT + `wit-bindgen`) for sandboxed, multi-language mods alongside the C ABI for embedding. Define the FFI panic policy: a panic unwinding out of `extern "C"` aborts the host, so the FFI layer validates inputs before calling APIs with documented panics | Binding generator; ownership/lifetime rules across the boundary; native vs WASM for mods |
 | M5: Diagnostics & tooling foundation | Diagnostics facade (logging/tracing; host-installed subscribers per §4.10); profiler integration; **remote inspection protocol** (localhost by default, auth token; entity/component browsing via reflection, change subscriptions, edit commands); record/replay with automatic desync detection (per-tick state checksums) | Protocol transport and encoding; the editor's main integration path |
@@ -1223,8 +1203,8 @@ Test-only dependencies (`proptest`; from M2 `arbitrary`/`libfuzzer-sys` in `fuzz
 The implementation plan ([plan.md](plan.md), kept as a historical record) split M0+M1 into separately reviewable phases. Each ends with `cargo xtask ci` green and a commit/PR. Each phase summary explains the key Rust and engine decisions made, for learning: ownership choices, why a trait is sealed, what `PhantomData` variance does, and similar. Rust basics are skipped.
 
 1. **Workspace and policy (M0):** workspace layout, toolchain, lints, `clippy.toml`, `deny.toml`, unsafe allowlist + `check-unsafe`, licenses, README, ADRs 0001–0004 and 0007–0009, `concurrency-allowlist.toml` (empty), `xtask` (including `check-unsafe` and `check-statics`), devcontainer tooling (wasmtime, cargo-nextest, cargo-deny, critcmp, the extra rustup targets; Valgrind, gungraun-runner, cargo-llvm-cov, cargo-fuzz, and the pinned nightly with Miri arrive in M2) so `cargo xtask ci` runs there unchanged, CI workflows, dependabot.
-2. **`engine_handle`:** handles, pool, allocator; unit and property tests; benchmarks.
-3. **`engine_random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
-4. **`engine_time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
-5. **`engine_math`:** re-exports, `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `axis`, `convert`; ADRs 0005–0006; precision and conversion tests.
+2. **`engine::handle`:** handles, pool, allocator; unit and property tests; benchmarks.
+3. **`engine::random`:** `Prng`; golden, statistical, and state round-trip tests; benchmarks.
+4. **`engine::time`:** `Tick`, `FixedTimestep`, clocks; split-invariance and state tests.
+5. **`engine::math`:** re-exports, `Transform`, `WorldTransform`, `Transform2d`, `WorldTransform2d`, `axis`, `convert`; ADRs 0005–0006; precision and conversion tests.
 6. **Facade, sample, docs:** `engine` prelude, `fixed_step_sim` with determinism/snapshot/allocation tests, the comparison benchmark run, `docs/benchmarks.md`.
