@@ -18,7 +18,7 @@ Each chunk goes through seven stages, then the next chunk starts. Only two of th
 
 In Claude Code, `/chunk next` starts stage 1 for the next chunk, `/chunk resume` continues wherever the chunk is, and `/chunk <stage>` runs one stage. Without Claude Code, follow the stage files in [`.claude/skills/chunk/stages/`](../.claude/skills/chunk/stages/) by hand; they are plain Markdown.
 
-- **Picking the next chunk:** the first `Planned` row of the current milestone in the roadmap, in ID order, whose dependencies are `Done`. The maintainer may name another.
+- **Picking the next chunk:** the chunk the merged spec names as **Followed by**, if it is `Planned` and its dependencies are `Done`; otherwise the first `Planned` row of the current milestone, in the roadmap table's order, whose dependencies are `Done`. The maintainer may name another.
 - **The main session does not write product or test code** in stages 4 and 5. It dispatches, checks each result against the step's file list, commits, and keeps the documents.
 - **An approved spec authorizes what it states**, public API changes included. Pushing the chunk's branch, opening its pull request, and opening labelled issues for follow-ups found along the way are part of stage 7.
 - **The simplify pass** (behaviour-preserving cleanups: reuse, simplification, efficiency; `/simplify` in Claude Code) runs once over the whole chunk's diff, before any reviewer, and is committed on its own (`refactor: simplify (M<N>.<n>)`), so reviewers can see what it changed.

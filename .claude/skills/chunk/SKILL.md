@@ -34,7 +34,7 @@ Plugin techniques (brainstorming, test-driven development, debugging, verificati
 ## next
 
 1. Check the working tree is clean and you are on `main`, up to date with `origin/main`. If not, report and stop.
-2. Read [docs/roadmap.md](../../../docs/roadmap.md). Propose the first `Planned` row of the current milestone, in ID order, whose dependencies are all `Done`. The maintainer may name another. If no row is eligible (a milestone boundary, or everything blocked), say so, name the checklist in `docs/maintainers.md` that is due, and wait; do not draft the next milestone's rows yourself.
+2. Read [docs/roadmap.md](../../../docs/roadmap.md). Pick the next chunk: if the chunk just merged has a spec whose header names a **Followed by** chunk, and that chunk is `Planned` with its dependencies `Done`, it goes next; otherwise the first `Planned` row of the current milestone, in the roadmap table's order, whose dependencies are all `Done`. The maintainer may name another. If no row is eligible (a milestone boundary, or everything blocked), say so, name the checklist in `docs/maintainers.md` that is due, and wait; do not draft the next milestone's rows yourself.
 3. Create the branch `m<N>.<n>-<slug>` and run stage 1: [stages/1-brainstorm.md](stages/1-brainstorm.md).
 
 ## resume

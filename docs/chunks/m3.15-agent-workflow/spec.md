@@ -1,6 +1,6 @@
 # M3.15: Agent workflow and lessons
 
-- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time; §8 R14, the check's scope)
+- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time; §8 R14, the check's scope; §4.1, the next-chunk rule; §4.6, the ruleset's admin bypass)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
@@ -62,7 +62,7 @@ If the session dies at any point, a new one runs `/chunk resume`: it reads the g
 | 7. Close out | main session | Opus | PR, close-out commit, follow-up issues; after the go-ahead, the merge | **Yes: merge go-ahead** |
 
 - The main session MUST NOT write product or test code in stages 4 and 5; it dispatches, checks, commits and keeps the documents. It MAY edit documentation directly.
-- Stage 1 picks the next chunk as the first `Planned` row of the current milestone, in ID order, whose dependencies are `Done`; the maintainer MAY name another.
+- Stage 1 picks the next chunk: the chunk the just-merged spec names as **Followed by**, if it is `Planned` and its dependencies are `Done`; otherwise the first `Planned` row of the current milestone, in the roadmap table's order, whose dependencies are `Done`. The maintainer MAY name another. *(Amended 2026-11-15 by the maintainer: "in ID order" picked M3.3 after this chunk and was ambiguous as text.)*
 - An approved spec authorizes everything it states, including public API changes. Pushing the chunk's own branch, opening its pull request, and opening issues for follow-ups found during the chunk (labelled, and listed in the pull request's Follow-ups section) are part of stage 7 and need no further approval.
 - **After the merge go-ahead** the main session, in the same turn: squash-merges the pull request once its required checks pass (`gh pr checks <n> --required --watch` exits 0; the admin can bypass the ruleset, so this wait is what enforces them; then `gh pr merge --squash --delete-branch`; it MUST NOT use `--admin` or otherwise bypass a check); reminds the maintainer to run `pulumi preview` and `pulumi up` if `infra/github/` changed; and starts stage 1 for the next chunk. If a check fails after the go-ahead, it does not merge: it fixes the failure on the branch as in stage 5 and asks for the go-ahead again.
 - The simplify pass in stage 5 runs once over the whole chunk's diff, before any reviewer, and is committed on its own (`refactor: simplify (M<N>.<n>)`, or no commit if nothing changed) so reviewers can see what it did.
@@ -150,6 +150,7 @@ applies_to:
   - a `PreToolUse` hook on Bash that blocks `git push` to `main` (including `HEAD:main` refspecs) and any force push (`--force`, `-f`, `--force-with-lease`, `+refspec`). The hook is a POSIX `sh` script, `.claude/hooks/guard-push.sh`, that exits 0 at once unless the input contains `push`, and otherwise hands the JSON to `cargo xtask guard-push`, which parses it with `serde_json` and decides. The decision logic is Rust with unit tests (inputs it must block and must allow), so it runs on every CI platform and needs no `jq`.
 - `README.md`: §4.5.
 - `.gitignore` gains `.claude/worktrees/`, `.claude/settings.local.json` and `.claude/agent-memory-local/`.
+- **The server-side barrier.** The `main` ruleset in `infra/github/index.ts` lets the admin role bypass it only through pull requests (`bypassMode: "pull_request"`), so neither the maintainer nor an agent using the maintainer's credentials can push or force-push to `main` directly. The push guard is then a catch for agent mistakes, not the only barrier: a guard that reads command lines cannot see git aliases or push configuration set earlier. After merging, `pulumi preview` and `pulumi up` apply it. *(Amended 2026-11-15 by the maintainer, from the security review.)*
 
 ### 4.7 (Moved to M3.16)
 
