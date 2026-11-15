@@ -40,3 +40,5 @@
 - 2026-11-15 decision (main session's call) Guard fails closed when xtask cannot run, but only for input naming `git` then `push` (trial question 1); sent to a builder.
 - 2026-11-15 decision Open for the maintainer at the PR: the next-chunk rule picks M3.3 after this merge, not M3.16 (trial question 2). Proposal: a spec's "Followed by" chunk wins when it is eligible.
 - 2026-11-15 lesson? A read-only trial run of a new skill on a real document found more gaps (in the skill and the spec) than writing it did; trial every skill before relying on it.
+- 2026-11-15 done guard-push.sh now fails closed: if cargo exits other than 0 or 2, input matching `git ... push` exits 2 with a message, else 0. Tested with a fake cargo exiting 101: `git push origin main` 2, `git commit -m "the push guard"` 2 (accepted, fail closed), `echo pushing` 0, `echo push` 0. Real cargo: five-command check 2/0/0/0/2. `sh -n` clean.
+- 2026-11-15 lesson? A hook that signals "block" only by exit 2 must treat every other failure as allow; wrap the checker so its own failure maps to 2 where the input is risky.
