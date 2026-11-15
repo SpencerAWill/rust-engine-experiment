@@ -91,13 +91,13 @@ Choices the spec leaves open, decided here:
 
 ### Step 9: The resume trial (R4, R5)
 
-- [ ] **Who:** main session dispatches a fresh `spec-reader`-style read-only agent with only: "Follow `.claude/skills/chunk/SKILL.md` `resume` for the chunk on the current branch. Do not edit anything. Report the step you would continue from and any uncommitted changes."
-- **Verify:** its answer is step 10 (the true state); recorded in `log.md` as pass or fail with its answer. On fail, fix the skill and repeat.
+- [x] **Who:** main session dispatches a fresh `spec-reader`-style read-only agent with only: "Follow `.claude/skills/chunk/SKILL.md` `resume` for the chunk on the current branch. Do not edit anything. Report the step you would continue from and any uncommitted changes."
+- **Verify:** its answer is step 9 (the first unticked step: this trial) with step 10 next; recorded in `log.md` as pass or fail with its answer. On fail, fix the skill and repeat.
 - **Commit:** with step 10.
 
 ### Step 10: `lessons-refresh` and `bench-run` skills (R9)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `.claude/skills/lessons-refresh/SKILL.md` (spec §4.4 upkeep), `.claude/skills/bench-run/SKILL.md` (the protocol of spec §4.6, citing `cargo xtask bench`'s own battery check and `pmset -g log`).
 - **Verify:** a read-only agent given `lessons-refresh` reports `testing-1` as keep with its evidence; recorded in `log.md`.
 - **Commit:** `feat(claude): add the lessons-refresh and bench-run skills (M3.15)`
@@ -150,4 +150,5 @@ Inputs no step's tests cover that are most likely to bite:
 - **Step 5:** `run_reads_hook_json` tests a private `decide_hook_input` (which takes a branch-lookup closure) rather than `run`, which reads stdin. The guard covers more forms than listed (`sh -c`, env prefixes, `&` and parentheses, `-C` with no refspec blocked); see `log.md`.
 - **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed.
 - **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
+- **Step 9:** the plan expected "step 10"; the correct answer under the skill is step 9 (this trial is the first unticked step), which is what the trial gave.
 - **Step 7:** `testing-1`'s `applies_to` is `libs/engine/src/collections/**`, narrower than the spec's example (`libs/engine/src/**/tests/**`), because the helpers are crate-private to `collections`.

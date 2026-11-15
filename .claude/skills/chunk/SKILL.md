@@ -46,7 +46,7 @@ Plugin techniques (brainstorming, test-driven development, debugging, verificati
 
 Reconstruct state from disk only; do not trust memory of earlier conversation.
 
-1. `git status --short`. If anything is uncommitted, list it and say what you think it is **before** touching anything; ask only if you cannot tell. Match each path against the plan's step file lists: changes in an unticked step's files are that step's work in progress (check them against the step, then finish, verify and commit it); changes in later steps' files are drafts, left uncommitted until their step; anything matching no step is a stray to report.
+1. `git status --short`. If anything is uncommitted, list it and say what you think it is **before** touching anything; ask only if you cannot tell. Match each path against the plan's step file lists: changes in an unticked step's files are that step's work in progress (check them against the step, then finish, verify and commit it); changes in later steps' files are drafts, left uncommitted until their step; changes in a ticked step's files are a fix to it if `log.md` says so (commit it as a `fix:`); anything else is a stray to report.
 2. Find the chunk: the branch name gives the ID; its folder is `docs/chunks/<id>-<slug>/`.
 3. Read `log.md` (all of it), the spec's status line, and the plan's checkboxes, if a plan exists. `git log --oneline main..HEAD` shows the commits.
 4. Decide the stage:
