@@ -2,29 +2,29 @@
 
 - **Status:** Implemented (PR #17, 2026-11-13). Changed during implementation: the pull request job (§4.6) and the `--in-diff` flag (§4.2); marked in the text.
 - **Milestone:** M2 (process and verification infrastructure) · **Depends on:** M2.2 · **Decides:** no ADR
-- **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (`xtask` about 330, `.cargo/mutants.toml` about 40, workflow and devcontainer about 50, docs about 100, the triage record about 130), plus at most about 400 lines of new tests in `engine_handle` and `engine_random` (§4.8)
+- **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (`xtask` about 330, `.cargo/mutants.toml` about 40, workflow and devcontainer about 50, docs about 100, the triage record about 130), plus at most about 400 lines of new tests in `engine::handle` and `engine::random` (§4.8)
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
 ## 1. Summary
 
-This chunk adds mutation testing through `cargo-mutants`: a shared `.cargo/mutants.toml`, a `cargo xtask mutants` command that checks the exclusion list, runs the tool and prints a per-crate table, and a weekly, report-only `mutants` workflow. It then does the first triage of `engine_handle` and `engine_random`: every mutant the tests miss is classified, small test gaps are closed in this pull request, larger ones become issues, and mutants no test could catch are excluded with a reason. It comes now because "first mutation triage recorded" is an M2 exit criterion, and M2.2's coverage report is in place to tell unexecuted code apart from code whose tests do not notice a change. At the end, `cargo xtask mutants` reports no missed mutant in the two crates other than those with an open issue, and `docs/mutation-triage.md` records how each one was resolved.
+This chunk adds mutation testing through `cargo-mutants`: a shared `.cargo/mutants.toml`, a `cargo xtask mutants` command that checks the exclusion list, runs the tool and prints a per-module table, and a weekly, report-only `mutants` workflow. It then does the first triage of `engine::handle` and `engine::random`: every mutant the tests miss is classified, small test gaps are closed in this pull request, larger ones become issues, and mutants no test could catch are excluded with a reason. It comes now because "first mutation triage recorded" is an M2 exit criterion, and M2.2's coverage report is in place to tell unexecuted code apart from code whose tests do not notice a change. At the end, `cargo xtask mutants` reports no missed mutant in the two crates other than those with an open issue, and `docs/mutation-triage.md` records how each one was resolved.
 
 ## 2. Goals and non-goals
 
 **Goals**
 
 - One configuration that both `cargo xtask mutants` and a plain `cargo mutants` use, so ad hoc runs (`--in-diff`, `--file`, `-F`) test the same way.
-- One local command that runs mutation testing on the triaged crates and prints a per-crate summary of outcomes and the missed mutants.
+- One local command that runs mutation testing on the triaged modules and prints a per-module summary of outcomes and the missed mutants.
 - Exclusions that cannot rot silently: each one has a written reason, and the command fails when one no longer matches any mutant.
 - A weekly CI job that shows the summary on its run page and keeps the full output for 30 days, without ever failing because of a missed mutant.
-- A recorded first triage of `engine_handle` and `engine_random`, with small test gaps closed.
+- A recorded first triage of `engine::handle` and `engine::random`, with small test gaps closed.
 
 **Non-goals**
 
 - No threshold, score target, ratchet or failing on a missed mutant (roadmap: "report-only"; decided 2026-11-12, §7). A score that gates invites tests written for the score.
-- No full mutation run on pull requests. A pull request that changes the triaged crates' sources or the mutants tooling runs only the mutants in the code it changes (`--in-diff`, §4.6). *Changed 2026-11-13, during implementation: the spec first had no pull request job beyond a tooling-only trigger.*
-- No triage, and no weekly runs, of `engine_time`, `engine_math`, `fixed_step_sim` or the `engine` facade (decided 2026-11-12, §7). Later chunks add a crate to the triaged set when they triage it (§4.2). The facade has no mutants today (`cargo mutants --list -p engine` is empty).
+- No full mutation run on pull requests. A pull request that changes the triaged modules' sources or the mutants tooling runs only the mutants in the code it changes (`--in-diff`, §4.6). *Changed 2026-11-13, during implementation: the spec first had no pull request job beyond a tooling-only trigger.*
+- No triage, and no weekly runs, of `engine::time`, `engine::math`, `fixed_step_sim` or the `engine` crate root (decided 2026-11-12, §7). Later chunks add a crate to the triaged set when they triage it (§4.2). The facade has no mutants today (`cargo mutants --list -p engine` is empty).
 - No `#[mutants::skip]` and no `mutants` dependency in any library crate (decided 2026-11-12, §7); exclusions live in `.cargo/mutants.toml`.
 - No change to non-test library code. A bug the triage finds is recorded as an issue and fixed in its own pull request, test first (§4.8).
 - No sharding, custom cargo profile or `--in-place` runs, unless the measured CI time needs them (§4.6, §7).
@@ -43,8 +43,8 @@ cargo xtask mutants --list
 To run them (the first run builds a copy of the workspace per job, so it is as slow as a clean build, then rebuilds incrementally for each mutant):
 
 ```sh
-cargo xtask mutants                   # the triaged crates: engine_handle and engine_random
-cargo xtask mutants -p engine_random  # one crate
+cargo xtask mutants                   # the triaged modules: engine::handle and engine::random
+cargo xtask mutants --module random  # one crate
 cargo xtask mutants -j 2              # two mutants at a time
 ```
 
@@ -53,17 +53,17 @@ If `cargo-mutants` is missing, the command prints `cargo install --locked cargo-
 ```text
 ## Mutation testing
 
-cargo-mutants 27.1.0; packages: engine_handle, engine_random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.
+cargo-mutants 27.1.0; packages: engine::handle, engine::random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.
 
 | Crate         | Tested | Caught | Missed | Timeout | Unviable |
 |---------------|--------|--------|--------|---------|----------|
-| engine_handle | ...    | ...    | ...    | ...     | ...      |
-| engine_random | ...    | ...    | ...    | ...     | ...      |
+| engine::handle | ...    | ...    | ...    | ...     | ...      |
+| engine::random | ...    | ...    | ...    | ...     | ...      |
 | Total         | ...    | ...    | ...    | ...     | ...      |
 
 ### Missed (2)
 
-libs/engine_handle/src/pool.rs:412:9: replace HandlePool<T>::shrink_to_fit with ()
+libs/engine/src/handle/pool.rs:412:9: replace HandlePool<T>::shrink_to_fit with ()
 ...
 ```
 
@@ -79,7 +79,7 @@ A missed mutant exits 0: the command reports, it does not judge. It exits non-ze
 Because the settings are in `.cargo/mutants.toml`, a plain `cargo mutants` tests the same way, which is useful while working on one mutant:
 
 ```sh
-cargo mutants -p engine_handle -F 'shrink_to_fit'   # only the mutants whose name matches
+cargo xtask mutants --module handle -F 'shrink_to_fit'   # only the mutants whose name matches
 git diff main > target/changes.diff
 cargo mutants --in-diff target/changes.diff         # only mutants in changed code
 ```
@@ -96,13 +96,13 @@ An exclusion is a regex in `exclude_re` in `.cargo/mutants.toml`, with the reaso
 ```toml
 exclude_re = [
     # Equivalent: `len` is never 0 here (checked two lines above), so `>` and `>=` agree.
-    '^libs/engine_handle/src/pool\.rs:.*replace > with >= in HandlePool<T>::grow',
+    '^libs/engine/src/handle/pool\.rs:.*replace > with >= in HandlePool<T>::grow',
 ]
 ```
 
 The regex is matched against the names `--list` prints, which start with the file, line and column. Never put a line or column number in an entry: it would stop matching the next time the file changes. The command rejects an entry that contains one, an entry without a comment above it, and an entry that matches no mutant.
 
-In CI, the `mutants` workflow runs every mutant every Sunday on `main` and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine_handle` or `engine_random`, or the mutants tooling, it runs only the mutants in the changed code, after checking the exclusion list. Its summary page shows the same table, and its `mutants-out` artifact holds `mutants.out/` for 30 days. It fails only when the command does; a missed mutant leaves it green. When a run shows a new missed mutant, triage it as above.
+In CI, the `mutants` workflow runs every mutant every Sunday on `main` and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine::handle` or `engine::random`, or the mutants tooling, it runs only the mutants in the changed code, after checking the exclusion list. Its summary page shows the same table, and its `mutants-out` artifact holds `mutants.out/` for 30 days. It fails only when the command does; a missed mutant leaves it green. When a run shows a new missed mutant, triage it as above.
 
 ## 4. Reference-level design
 
@@ -126,7 +126,7 @@ docs/mutation-triage.md              the triage record (§4.9)
 cargo xtask mutants [-p <package>]... [-j <n>] [--list] [--in-diff <file>]
 ```
 
-- `-p <package>` MAY be repeated. Without it, the packages are the **triaged set**, a constant in `xtask/src/mutants.rs`: `engine_handle` and `engine_random`. A later chunk that triages another crate adds it there and to §4.9's record.
+- `--module <name>` MAY be repeated. Without it, the modules are the **triaged set**, a constant in `xtask/src/mutants.rs`: `engine::handle` and `engine::random`. A later chunk that triages another module adds it there and to §4.9's record.
 - `-j <n>` is passed through as `--jobs <n>`; `n` MUST be a positive integer. Without it, `cargo-mutants`' default (one job) applies.
 - `--list` checks the exclusions and runs `cargo mutants --list` on the packages, then stops.
 - `--in-diff <file>` is passed through as `--in-diff <file>`: only mutants in code that the unified diff changes are tested. When the diff contains no mutant, `cargo-mutants` exits 0 and writes no outcome files; the command then writes and prints a summary that says nothing was run, instead of failing on the missing files.
@@ -161,7 +161,7 @@ The file MUST set:
 |---|---|---|
 | `test_tool` | `"nextest"` | The workspace's test runner. Its fail-fast stops at the first failing test, which shortens caught mutants. Doctests do not run, as in M2.2's coverage, so a mutant only a doctest catches shows as missed. |
 | `all_features` | `true` | The same features as `cargo xtask test`. The `test-invariants` feature makes the model tests call `check_invariants`. |
-| `additional_cargo_test_args` | `["--run-ignored", "all"]` | Runs the `#[ignore]`d statistical tests in `engine_random`, which are the only tests of some sampling distributions. They take about 0.02 s in a debug build (measured for M2.2). |
+| `additional_cargo_test_args` | `["--run-ignored", "all"]` | Runs the `#[ignore]`d statistical tests in `engine::random`, which are the only tests of some sampling distributions. They take about 0.02 s in a debug build (measured for M2.2). |
 | `cap_lints` | `true` | CI sets `RUSTFLAGS=-D warnings`, and the workspace denies some lints. Without this, a mutant that only causes a warning (an unused variable, say) would be counted as unviable instead of tested. |
 | `gitignore` | `true` | Keeps ignored files (`node_modules/`, `fuzz/corpus/`, build output) out of the per-job copies of the tree. |
 | `exclude_re` | the exclusion list (§4.4) | |
@@ -223,9 +223,9 @@ jobs:
         # if: always(); retention-days: 30
 ```
 
-- **Triggers.** The weekly schedule and `workflow_dispatch` run the full job (`mutants`). The `pull_request` trigger runs a second, short job (`mutants-changed`) when a pull request changes the mutants tooling files (`.cargo/mutants.toml`, the workflow, `xtask/src/mutants*`) or `libs/engine_handle/src/**` or `libs/engine_random/src/**`. That job runs `cargo xtask mutants --list` (the exclusion check) and then `cargo xtask mutants -j 2 --in-diff target/pr.diff`, where the diff is `git diff HEAD^1 HEAD` of the merge commit the pull request is checked out as, so it is exactly what the pull request changes. A pull request that changes no mutated code (tests only, or tooling only) runs nothing and says so. The trigger also lets a change to the workflow run before merge, which matters because GitHub only lets you dispatch a workflow that already exists on the default branch. A full run on every pull request was rejected as too slow for a pull request check (§7). *Changed 2026-11-13: the first version triggered the full run on tooling changes only.*
+- **Triggers.** The weekly schedule and `workflow_dispatch` run the full job (`mutants`). The `pull_request` trigger runs a second, short job (`mutants-changed`) when a pull request changes the mutants tooling files (`.cargo/mutants.toml`, the workflow, `xtask/src/mutants*`) or `libs/engine/src/handle/**` or `libs/engine/src/random/**`. That job runs `cargo xtask mutants --list` (the exclusion check) and then `cargo xtask mutants -j 2 --in-diff target/pr.diff`, where the diff is `git diff HEAD^1 HEAD` of the merge commit the pull request is checked out as, so it is exactly what the pull request changes. A pull request that changes no mutated code (tests only, or tooling only) runs nothing and says so. The trigger also lets a change to the workflow run before merge, which matters because GitHub only lets you dispatch a workflow that already exists on the default branch. A full run on every pull request was rejected as too slow for a pull request check (§7). *Changed 2026-11-13: the first version triggered the full run on tooling changes only.*
 - **The version pin.** `MUTANTS_VERSION` in `xtask/src/mutants.rs` is the one place the version is defined. The workflow's `cargo-mutants@<version>` and the devcontainer's `--version <version>` repeat it, and a unit test in `xtask` MUST fail when either differs from `MUTANTS_VERSION`. The version is pinned because 26.0 and 27.0 each changed defaults (sharding order; how command-line filters combine with the configuration), and an unpinned upgrade could change results without anyone changing the repository. `taiki-e/install-action` has a manifest for `cargo-mutants` 27.1.0 (checked 2026-11-12), so it installs a prebuilt binary.
-- **Jobs and time.** There are 458 mutants in the triaged set (353 in `engine_handle`, 105 in `engine_random`; `cargo mutants --list`, 27.1.0, 2026-11-12). The estimate before any run was 20 to 40 minutes at `-j 2` on a four-vCPU runner. Measured: 10 to 11 minutes locally, and 20 minutes for the whole job in CI (454 mutants after exclusions; 19 minutes of mutation time, 2026-11-13). `timeout-minutes` is 40 for the full job, about twice the measured time, and 30 for the pull request job. If a later run takes more than 60 minutes, change `-j` or add a sharded matrix and record why. Both figures go in the pull request (R16).
+- **Jobs and time.** There are 458 mutants in the triaged set (353 in `engine::handle`, 105 in `engine::random`; `cargo mutants --list`, 27.1.0, 2026-11-12). The estimate before any run was 20 to 40 minutes at `-j 2` on a four-vCPU runner. Measured: 10 to 11 minutes locally, and 20 minutes for the whole job in CI (454 mutants after exclusions; 19 minutes of mutation time, 2026-11-13). `timeout-minutes` is 40 for the full job, about twice the measured time, and 30 for the pull request job. If a later run takes more than 60 minutes, change `-j` or add a sharded matrix and record why. Both figures go in the pull request (R16).
 - **Report-only.** The job is not `continue-on-error`: it goes red when the command fails, which means the setup is broken (§4.2), and that should be visible. A missed mutant leaves it green. It is not added to the required checks in `infra/github`. The artifact is uploaded with `if: always()`, because the logs of a failed run (a baseline failure, say) are what explains it. The summary step runs only on success, since a failed run has no summary.
 - **Workflow rules.** The workflow keeps a top-level `permissions: contents: read`, pins every action to a commit hash already used in `ci.yml`, sets `persist-credentials: false`, and interpolates no `${{ github.* }}` expression into a `run:` step. `cargo xtask check-workflows` MUST pass.
 
@@ -283,7 +283,7 @@ The record MUST NOT be generated: the classes and reasons are judgements. Its co
 ## 5. Requirements
 
 - **M2.3-R1** `.cargo/mutants.toml` MUST set `test_tool = "nextest"`, `all_features = true`, test arguments that run ignored tests, `cap_lints = true`, `gitignore = true` and `exclude_re`, and MUST NOT set `test_workspace`, `examine_re`, `examine_globs` or `exclude_globs`.
-- **M2.3-R2** `cargo xtask mutants` MUST check the exclusions, then run `cargo mutants --output target/mutants` on the selected packages (default: `engine_handle`, `engine_random`), passing `--jobs` only when `-j` is given and no filter flag.
+- **M2.3-R2** `cargo xtask mutants` MUST check the exclusions, then run `cargo mutants --output target/mutants` on the selected packages (default: `engine::handle`, `engine::random`), passing `--jobs` only when `-j` is given and no filter flag.
 - **M2.3-R3** `cargo xtask mutants --list` MUST check the exclusions and list the selected packages' mutants without building.
 - **M2.3-R4** Flag parsing MUST reject unknown flags, `-p` or `-j` without a value, a non-positive or non-numeric `-j`, `--in-diff` without a file, and a repeated `-j` or `--in-diff`.
 - **M2.3-R5** The exclusion list MUST be parsed in the restricted form of §4.4. A line outside that form, an entry without a reason comment, an entry containing `:` followed by a digit, and an entry that matches no mutant in the workspace MUST each be an error naming the line and the reason, with all failing entries reported together.
@@ -293,7 +293,7 @@ The record MUST NOT be generated: the classes and reasons are judgements. Its co
 - **M2.3-R9** The command MUST print `cargo install --locked cargo-mutants --version <MUTANTS_VERSION>` when `cargo-mutants` is missing, and SHOULD warn when the installed version differs.
 - **M2.3-R10** The `xtask` change MUST include unit tests for flag parsing, the argument lists, the exit-code mapping, the exclusion parser and position check, the excluded count, the renderer (grouping, zeros, ordering, totals, the missed list, the error cases), and the version pin in the workflow and the devcontainer script.
 - **M2.3-R11** `mutants` MUST NOT be a step of `cargo xtask ci` or `cargo xtask ci --quick`.
-- **M2.3-R12** `.github/workflows/mutants.yml` MUST run the full `cargo xtask mutants` weekly and on `workflow_dispatch`, and on a pull request that changes the mutants tooling files or the sources of the triaged crates MUST run only `cargo xtask mutants --list` and `cargo xtask mutants --in-diff` on the pull request's own diff; MUST install `cargo-mutants` at `MUTANTS_VERSION`; and in both jobs MUST append the summary to the job summary and upload `target/mutants/mutants.out` with `if: always()` and 30-day retention.
+- **M2.3-R12** `.github/workflows/mutants.yml` MUST run the full `cargo xtask mutants` weekly and on `workflow_dispatch`, and on a pull request that changes the mutants tooling files or the sources of the triaged modules MUST run only `cargo xtask mutants --list` and `cargo xtask mutants --in-diff` on the pull request's own diff; MUST install `cargo-mutants` at `MUTANTS_VERSION`; and in both jobs MUST append the summary to the job summary and upload `target/mutants/mutants.out` with `if: always()` and 30-day retention.
 - **M2.3-R13** The workflow MUST keep `cargo xtask check-workflows` passing, MUST NOT be a required check, and MUST NOT fail on a missed mutant.
 - **M2.3-R14** Library code MUST NOT use a `mutants::` attribute, and no library `Cargo.toml` may depend on the `mutants` crate.
 - **M2.3-R15** Changes under `libs/` MUST be limited to `tests/` directories and the bodies of `#[cfg(test)]` items. No library `Cargo.toml`, public API, frozen format or `rust-toolchain.toml` may change.
@@ -313,7 +313,7 @@ The record MUST NOT be generated: the classes and reasons are judgements. Its co
 - **Frozen formats:** none touched. A new test MAY read the golden values, but MUST NOT change them. `summary.md` and the triage record are reports, not formats anyone may depend on.
 - **Public API changes:** none (R15). `xtask` gains `mutants`, a developer-tool command.
 - **FFI exposure:** n/a.
-- **Performance:** not a library concern. The cost is CI time: one job a week, measured at 20 minutes, plus a changed-code run on each pull request that changes the mutants tooling or the triaged crates' sources. The measured figures go in the pull request (R16). New tests SHOULD add under a second to `cargo xtask test`.
+- **Performance:** not a library concern. The cost is CI time: one job a week, measured at 20 minutes, plus a changed-code run on each pull request that changes the mutants tooling or the triaged modules' sources. The measured figures go in the pull request (R16). New tests SHOULD add under a second to `cargo xtask test`.
 - **Documentation:** CONTRIBUTING "Mutation testing" section, README command and tool lists, the `ci` wording in three files, `docs/mutation-triage.md` (new, with a status line), roadmap row, CHANGELOG line, `xtask` help text and doc comments.
 - **Policy changes:** three new rules, written in CONTRIBUTING.md: exclusions only in `.cargo/mutants.toml`, in the restricted form with a reason (enforced by the command, R5); no `mutants::` attributes or `mutants` dependency in library code (R14, enforced by review and a `grep`); and the triage classes, including that a bug found by mutation testing gets its own pull request (by review). The `ci` wording change (R20) adds a name to a list; it does not change what `ci` runs.
 
@@ -323,7 +323,7 @@ The record MUST NOT be generated: the classes and reasons are judgements. Its co
 - **No exclusions, equivalents only in the record.** Rejected: every weekly report would repeat them, and a new miss would be hard to spot among them.
 - **Nightly runs.** Rejected (decided 2026-11-12): the triaged code changes rarely, and a nightly run costs seven times the CI minutes for the same information.
 - **Fail on a missed mutant that is not in the record** (a ratchet). Rejected (decided 2026-11-12): the roadmap says report-only, a ratchet needs a machine-readable record kept in sync with the code, and a red job for a missed mutant would push people toward tests written for the tool.
-- **Run the whole workspace weekly.** Rejected (decided 2026-11-12): that is 962 mutants, about twice the CI time, and a report in which about 500 untriaged mutants in `engine_time`, `engine_math` and `fixed_step_sim` hide the new misses in the triaged crates.
+- **Run the whole workspace weekly.** Rejected (decided 2026-11-12): that is 962 mutants, about twice the CI time, and a report in which about 500 untriaged mutants in `engine::time`, `engine::math` and `fixed_step_sim` hide the new misses in the triaged modules.
 - **A full mutation run on every pull request.** Rejected: the full run takes about 20 minutes, where a pull request check should take a few. Pull requests get `--in-diff` instead (§4.6), which tests only the changed code. (The first version of this spec also rejected `--in-diff` on pull requests, because the roadmap scopes M2.3 to a scheduled job; reversed 2026-11-13 at the maintainer's request.)
 - **The job in `nightly.yml` behind an `if:` on `github.event.schedule`.** Rejected: dispatching `nightly.yml` by hand would run the 75-minute fuzz job and the others too. A separate file keeps the job's triggers and its version pin together.
 - **A temporary `pull_request` trigger to test the new workflow.** Rejected: a temporary commit that must be remembered and removed. The permanent trigger, limited to the tooling files, tests every later change to the setup as well.
@@ -366,7 +366,7 @@ The record MUST NOT be generated: the classes and reasons are judgements. Its co
 
 - [ ] All requirements in §5 are verified as in §8, with the evidence (command output, run links) in the pull request description.
 - [ ] `cargo xtask ci` passes locally on macOS and in CI on all legs; `cargo xtask mutants` passes locally on macOS and in the `mutants` job on the pull request.
-- [ ] `docs/mutation-triage.md` records the first triage of `engine_handle` and `engine_random`, and the M2 exit criterion "first mutation triage recorded" is met.
+- [ ] `docs/mutation-triage.md` records the first triage of `engine::handle` and `engine::random`, and the M2 exit criterion "first mutation triage recorded" is met.
 - [ ] Each deferred gap and bug has an issue, opened after the maintainer approved.
 - [ ] CONTRIBUTING.md, README.md, AGENTS.md, the roadmap row (to `Done`), CHANGELOG and this spec's status (`Implemented (PR #n, date)`) are updated.
 - [ ] The pull request title is `feat(xtask): mutation testing through cargo-mutants (M2.3)` and says an assistant was used.
@@ -377,9 +377,9 @@ None. Decided before drafting (2026-11-12):
 
 - **Triage scope:** record every missed mutant, close small gaps in this pull request, and open issues for the rest.
 - **Exclusions:** config-file regexes, with a reason and a match check; no `mutants` dependency in library code.
-- **CI:** a weekly, report-only workflow that fails only on a broken setup, running only the triaged crates.
+- **CI:** a weekly, report-only workflow that fails only on a broken setup, running only the triaged modules.
 
-Measured while drafting: the per-crate mutant counts in §4.6 (`cargo-mutants` 27.1.0, `--list` only; nothing was run).
+Measured while drafting: the per-module mutant counts in §4.6 (`cargo-mutants` 27.1.0, `--list` only; nothing was run).
 
 ## 11. Prior art and sources
 

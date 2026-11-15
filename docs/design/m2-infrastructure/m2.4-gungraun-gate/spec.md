@@ -8,7 +8,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds an instruction-count regression gate: a new benchmark crate, `engine_bench_regress`, with Gungraun benchmarks for the `engine_handle` and `engine_random` hot paths; a `cargo xtask bench-regress` command that runs them under Valgrind at a base commit and at the head in the same job, and fails when any benchmark's instruction count rises by more than 5%; and a `bench-regress` workflow that runs it on every pull request and becomes a required check. It comes now because "Gungraun gate active on pull requests" is the last open M2 exit criterion, and M3 and M4 will add the storage hot paths that the gate exists to protect. At the end, a pull request that slows `Prng::next_u64` is blocked until it carries the `perf-regression-accepted` label, and a docs-only pull request passes the check in seconds.
+This chunk adds an instruction-count regression gate: a new benchmark crate, `engine_bench_regress`, with Gungraun benchmarks for the `engine::handle` and `engine::random` hot paths; a `cargo xtask bench-regress` command that runs them under Valgrind at a base commit and at the head in the same job, and fails when any benchmark's instruction count rises by more than 5%; and a `bench-regress` workflow that runs it on every pull request and becomes a required check. It comes now because "Gungraun gate active on pull requests" is the last open M2 exit criterion, and M3 and M4 will add the storage hot paths that the gate exists to protect. At the end, a pull request that slows `Prng::next_u64` is blocked until it carries the `perf-regression-accepted` label, and a docs-only pull request passes the check in seconds.
 
 ## 2. Goals and non-goals
 
@@ -23,7 +23,7 @@ This chunk adds an instruction-count regression gate: a new benchmark crate, `en
 **Non-goals**
 
 - No gating on cache metrics. Callgrind's cache simulation is on and its estimates are reported, but only instruction counts (`ir`) have a limit (M0+M1 spec §8).
-- No benchmarks for `engine_time`, `engine_math`, `fixed_step_sim` or the `engine` facade (decided 2026-11-13, §7). Later chunks add benchmarks when they add hot paths; M4 adds the storage ones.
+- No benchmarks for `engine::time`, `engine::math`, `fixed_step_sim` or the `engine` crate root (decided 2026-11-13, §7). Later chunks add benchmarks when they add hot paths; M4 adds the storage ones.
 - No published performance numbers. Instruction counts measure change between two commits; Criterion and `docs/benchmarks.md` remain the record of performance, and the two are never compared.
 - No run on pushes to `main`, no trend history and no hosted benchmark service.
 - No native macOS or Windows support for `bench-regress`: Valgrind runs on Linux only. macOS users use the devcontainer.
@@ -225,7 +225,7 @@ The workflow MUST pass `cargo xtask check-workflows`.
 
 ## 5. Requirements
 
-- **M2.4-R1** The workspace MUST contain the `engine_bench_regress` package in `bench-regress/` as §4.1 describes: `publish = false`, a `src/lib.rs` with `#![forbid(unsafe_code)]` and crate docs, dev-dependencies limited to `gungraun` (pinned `=0.20.0` in `[workspace.dependencies]`), `engine_handle` and `engine_random`, and the `handle` and `prng` bench targets with `harness = false`.
+- **M2.4-R1** The workspace MUST contain the `engine_bench_regress` package in `bench-regress/` as §4.1 describes: `publish = false`, a `src/lib.rs` with `#![forbid(unsafe_code)]` and crate docs, dev-dependencies limited to `gungraun` (pinned `=0.20.0` in `[workspace.dependencies]`), `engine::handle` and `engine::random`, and the `handle` and `prng` bench targets with `harness = false`.
 - **M2.4-R2** The bench targets MUST contain the benchmarks of §4.2 under those IDs (or the IDs recorded in the plan's Deviations), each building its input in an unmeasured setup function from fixed seeds, passing its result through `black_box`, and measuring at least 10,000 instructions.
 - **M2.4-R3** `cargo xtask bench`, `bench-build` and `coverage` MUST exclude `engine_bench_regress`; `bench-smoke` MUST run it in Gungraun's test mode and pass without Valgrind.
 - **M2.4-R4** `cargo xtask bench-regress` MUST accept `--base <rev>` and `--report-only`, default the base to the merge-base of `HEAD` and `origin/main`, and reject unknown flags, a missing value and a repeated flag.
@@ -272,7 +272,7 @@ The workflow MUST pass `cargo xtask check-workflows`.
 - **An advisory, non-required check, or advisory first.** Rejected (2026-11-13): the exit criterion says "gate", and the label already gives an escape for intended regressions.
 - **Skipping the job on label events other than `perf-regression-accepted`.** Rejected: a skipped job satisfies a required check, so any label would clear a failed gate.
 - **Comparing with the merge-base in CI.** Rejected in favour of `HEAD^1`: the same "measured in the same job" property, and it measures the merge result against current `main` rather than an older commit.
-- **Benchmarks for `engine_time` and `engine_math`.** Deferred (2026-11-13): neither has a hot path worth gating yet, and each benchmark costs CI time twice per pull request.
+- **Benchmarks for `engine::time` and `engine::math`.** Deferred (2026-11-13): neither has a hot path worth gating yet, and each benchmark costs CI time twice per pull request.
 - **Keeping bookworm and building Valgrind from source, or no devcontainer support.** Rejected (2026-11-13): several minutes per container build and more script to maintain, or contradicting the roadmap row.
 - **Gating cache-miss estimates.** Rejected in M0+M1 spec §8: Callgrind's cache model is a simulation, useful for spotting a change, not precise enough to fail a build on.
 - **Installing a second runner when a pull request changes the `gungraun` version**, so that the comparison still runs. Rejected (2026-11-13): a slower job and more code, for a comparison across two versions of the measuring tool that is not assumed meaningful. Such pull requests pass uncompared (§4.4).

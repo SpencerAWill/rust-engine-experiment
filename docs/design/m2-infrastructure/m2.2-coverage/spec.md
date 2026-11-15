@@ -8,14 +8,14 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds line and function coverage of the workspace's library and example code: a `cargo xtask coverage` command built on `cargo-llvm-cov`, and a report-only `coverage` job in `ci.yml` that writes a per-crate table to the job summary and uploads the full report. It comes now because the M2 exit criterion "coverage report in CI" depends on it, and the M2.3 mutation triage needs it to tell code no test runs apart from code whose tests do not notice a change. At the end, `cargo xtask coverage --open` shows the HTML report locally, and every pull request shows the per-crate table on its `coverage` job.
+This chunk adds line and function coverage of the workspace's library and example code: a `cargo xtask coverage` command built on `cargo-llvm-cov`, and a report-only `coverage` job in `ci.yml` that writes a per-module table to the job summary and uploads the full report. It comes now because the M2 exit criterion "coverage report in CI" depends on it, and the M2.3 mutation triage needs it to tell code no test runs apart from code whose tests do not notice a change. At the end, `cargo xtask coverage --open` shows the HTML report locally, and every pull request shows the per-module table on its `coverage` job.
 
 ## 2. Goals and non-goals
 
 **Goals**
 
 - One local command that measures coverage with the same tests and features as CI's `test` job (minus doctests) and writes HTML, lcov and a Markdown summary.
-- A CI job on every push and pull request that shows a per-crate summary in the GitHub job summary and uploads the HTML and lcov reports as an artifact.
+- A CI job on every push and pull request that shows a per-module summary in the GitHub job summary and uploads the HTML and lcov reports as an artifact.
 - Summary numbers that count only engine code: library and example sources, not integration tests, benches, `xtask`, or the `#[cfg(test)]` unit-test items inside `src/` files (§4.5).
 - A recorded first measurement (in the pull request) that M2.3 can start from.
 
@@ -58,7 +58,7 @@ Excluded: doctests (not run); tests/, benches/ and tooling sources; 1234 instrum
 | Crate         | Lines              | Functions          |
 |---------------|--------------------|--------------------|
 | engine        | covered/total (p%) | covered/total (p%) |
-| engine_handle | covered/total (p%) | covered/total (p%) |
+| engine::handle | covered/total (p%) | covered/total (p%) |
 | ...           |                    |                    |
 | Total         | covered/total (p%) | covered/total (p%) |
 ```
@@ -111,7 +111,7 @@ The command line arguments and the regex are built by pure functions, so unit te
 
 ### 4.3 What is measured
 
-- **Tests:** every test `cargo nextest run --workspace --all-features --run-ignored all` runs, in the packages listed below. The `#[ignore]`d statistical tests in `engine_random` are included: they take about 0.02 s in a debug build (measured 2026-11-12), so excluding them would save nothing and make the coverage run differ from the `test` job for no reason.
+- **Tests:** every test `cargo nextest run --workspace --all-features --run-ignored all` runs, in the packages listed below. The `#[ignore]`d statistical tests in `engine::random` are included: they take about 0.02 s in a debug build (measured 2026-11-12), so excluding them would save nothing and make the coverage run differ from the `test` job for no reason.
 - **Packages built and tested:** every workspace member except `xtask` and `engine_benches`.
 - **Files reported:** only files under `libs/<crate>/src/` and `examples/<example>/src/`. The `--ignore-filename-regex` MUST exclude the workspace's `xtask/` and `benches/` directories and every `tests/` and `benches/` directory directly inside a `libs/<crate>/` or `examples/<example>/` directory. `cargo-llvm-cov` skips every `examples/` directory by default, so both report commands pass `--no-default-ignore-filename-regex`, and the regex then also excludes dependency and standard-library sources (`registry/src`, `git/checkouts`, `/rustc/`). The regex MUST be anchored to the workspace root's absolute path (with the root's regex metacharacters escaped), so a checkout under a directory named, say, `tests` or `benches` does not exclude everything. It is built by one function, `ignore_regex(root)`, shared by both report commands. LLVM's regex is POSIX-extended with no lookahead, so the regex lists what to exclude rather than what to keep; the summary's path check (§4.5) catches anything it misses.
 - **Library code MUST NOT use `cfg(coverage)` or `cfg(coverage_nightly)`** (which `cargo-llvm-cov` sets), so the instrumented build compiles the same code as the normal one. This is what makes it safe to leave the coverage build out of `cargo xtask ci` (§4.4).
@@ -151,8 +151,8 @@ The number of `DA` lines removed, summed over all files, MUST be reported in the
 
 **Grouping and output.** The renderer:
 
-- MUST map each `SF` path to a crate: strip the workspace root, then take the directory name after `libs/` or `examples/` when the next component is `src` (`libs/engine_handle/src/pool.rs` is `engine_handle`). Today every such directory name equals its package name. A path that does not match MUST be an error naming it, because silently dropping a file would make the totals wrong. An `lcov.info` with no counted file at all MUST be an error too: it means the ignore regex or the root is wrong, and an empty table would look like a result.
-- MUST sum lines and functions per crate, and add a `Total` row computed from the per-crate sums.
+- MUST map each `SF` path to a row: strip the workspace root, then name the row `engine::<module>` for `libs/engine/src/<module>.rs` or `libs/engine/src/<module>/...` (`libs/engine/src/handle/pool.rs` is `engine::handle`), `engine` for `libs/engine/src/lib.rs`, and the package directory name for `examples/<name>/src/...`. A path that does not match MUST be an error naming it, because silently dropping a file would make the totals wrong. An `lcov.info` with no counted file at all MUST be an error too: it means the ignore regex or the root is wrong, and an empty table would look like a result.
+- MUST sum lines and functions per crate, and add a `Total` row computed from the per-module sums.
 - MUST order rows by crate name (a `BTreeMap`), with `Total` last, so the same input always gives the same table.
 - MUST print each cell as `covered/total (p.p%)`, with the percentage rounded to one decimal using integer arithmetic (per-mille, half up), and `—` when the total is 0.
 - MUST output a GitHub-flavoured Markdown table under a `## Coverage` heading, preceded by one line naming what is excluded: doctests; `tests/`, `benches/` and tooling sources; and the number of instrumented lines in `#[cfg(test)]` items.
@@ -207,7 +207,7 @@ coverage:
 - **M2.2-R12** The chunk MUST NOT change any library crate, public API, frozen format or `rust-toolchain.toml`.
 - **M2.2-R13** The `coverage` job MUST NOT be a required check and MUST NOT have a threshold.
 - **M2.2-R14** `AGENTS.md`, `README.md` and `CONTRIBUTING.md` MUST describe `ci` as running every check CI gates on, and name the report-only jobs that run outside it.
-- **M2.2-R15** The pull request MUST record the first measured per-crate table, as the starting point for M2.3.
+- **M2.2-R15** The pull request MUST record the first measured per-module table, as the starting point for M2.3.
 - **M2.2-R16** The summary MUST exclude lines and functions inside items marked `#[test]` or with a `cfg` predicate that requires `test` (§4.5), MUST count `cfg(any(test, ...))` code, and MUST report the number of excluded lines.
 
 ## 6. Cross-cutting concerns
@@ -233,7 +233,7 @@ coverage:
 - **Show raw and filtered numbers side by side.** Rejected: needs the same filtering code and makes the table harder to read; the heading line states the size of the adjustment instead.
 - **Filter from the JSON export instead of lcov,** which would keep a Regions column. Rejected: the per-file region data in the full export is much larger and its segment format is harder to filter by line range correctly than lcov's line and function records. The HTML report still has regions.
 - **Move unit tests out of `src/` into `tests/`.** Rejected: it would lose access to private items and change the crates, which this chunk does not touch (R12).
-- **Paste `cargo llvm-cov report --summary-only` text into the job summary.** Rejected: a long per-file table with no per-crate totals, and it counts test modules.
+- **Paste `cargo llvm-cov report --summary-only` text into the job summary.** Rejected: a long per-file table with no per-module totals, and it counts test modules.
 - **A third-party action that renders Cobertura XML into Markdown.** Rejected: another pinned dependency and a second report format, to draw one table, and it would count test modules.
 - **Add `coverage` to the full `cargo xtask ci`** (lenient locally, strict under `CI`, like `fuzz-build`). Rejected: §4.4.
 - **Exclude the ignored statistical tests.** Rejected: they take about 0.02 s in debug, so excluding them saves nothing and makes the coverage test set differ from the `test` job.

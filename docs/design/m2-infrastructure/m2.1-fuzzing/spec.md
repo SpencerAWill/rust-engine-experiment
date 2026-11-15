@@ -8,7 +8,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds coverage-guided fuzzing for `engine_handle`: four `cargo-fuzz` targets, a `cargo xtask fuzz` command, a pinned nightly toolchain, and a nightly CI job that runs each target for 10 minutes. It comes now because it is the first M2 infrastructure item and the M2 exit criterion "nightly fuzzing green" depends on it. At the end, `cargo xtask fuzz handle_pool_ops --time 30` runs locally, the nightly workflow runs all four targets with a cached corpus, and a pull request that breaks `fuzz/` fails CI.
+This chunk adds coverage-guided fuzzing for `engine::handle`: four `cargo-fuzz` targets, a `cargo xtask fuzz` command, a pinned nightly toolchain, and a nightly CI job that runs each target for 10 minutes. It comes now because it is the first M2 infrastructure item and the M2 exit criterion "nightly fuzzing green" depends on it. At the end, `cargo xtask fuzz handle_pool_ops --time 30` runs locally, the nightly workflow runs all four targets with a cached corpus, and a pull request that breaks `fuzz/` fails CI.
 
 ## 2. Goals and non-goals
 
@@ -23,13 +23,13 @@ This chunk adds coverage-guided fuzzing for `engine_handle`: four `cargo-fuzz` t
 **Non-goals**
 
 - No Miri, coverage, mutation testing or Gungraun. They are M2.2 to M2.4 (Miri is deferred, see the roadmap).
-- No fuzz targets for `engine_random`, `engine_time` or `engine_math`. The roadmap names only the handle crate; other crates get targets when they gain parse-like or stateful code.
-- No shared test-support crate. The op enums and models are duplicated from `libs/engine_handle/tests/model.rs` on purpose (§7).
+- No fuzz targets for `engine::random`, `engine::time` or `engine::math`. The roadmap names only the handle module; other modules get targets when they gain parse-like or stateful code.
+- No shared test-support crate. The op enums and models are duplicated from `libs/engine/tests/handle_model.rs` on purpose (§7).
 - No committed corpus and no committed crash artifacts (§4.5).
 - No Windows support for `cargo xtask fuzz` (libFuzzer does not work with the MSVC toolchain).
 - No automated bumping of the nightly pin.
-- No coverage of generation exhaustion (slot retirement): reaching it takes about 4 billion free/allocate cycles on one slot, which fuzzing cannot do and the library offers no test hook for (adding one would be a public API change). Deterministic unit tests already cover it: `generation_exhaustion_retires_slot` in `libs/engine_handle/src/pool.rs` and `exhausted_generation_retires_the_slot` in `allocator.rs` (the dense allocator shares the same slot table). The fuzz models therefore never see a retired slot, and a bug that only retirement exposes is out of reach of this chunk.
-- No change to `engine_handle`'s public API, its frozen `Handle::to_bits` layout, or `rust-toolchain.toml`.
+- No coverage of generation exhaustion (slot retirement): reaching it takes about 4 billion free/allocate cycles on one slot, which fuzzing cannot do and the library offers no test hook for (adding one would be a public API change). Deterministic unit tests already cover it: `generation_exhaustion_retires_slot` in `libs/engine/src/handle/pool.rs` and `exhausted_generation_retires_the_slot` in `allocator.rs` (the dense allocator shares the same slot table). The fuzz models therefore never see a retired slot, and a bug that only retirement exposes is out of reach of this chunk.
+- No change to `engine::handle`'s public API, its frozen `Handle::to_bits` layout, or `rust-toolchain.toml`.
 
 ## 3. Guide-level explanation
 
@@ -54,7 +54,7 @@ rustup toolchain install nightly-2026-11-10 --profile minimal
 
 (The actual date is the constant in `xtask/src/fuzz.rs`; §4.2.)
 
-If a target finds a bug, libFuzzer writes the failing input to `fuzz/artifacts/<target>/crash-<hash>` and the command exits non-zero. Reproduce it with `cargo fuzz run <target> fuzz/artifacts/<target>/crash-<hash>` (through `cargo xtask fuzz <target> --replay <path>`). Following the test-first rule in `AGENTS.md`, turn the finding into a failing test in `libs/engine_handle` first (a unit test or a case in `tests/model.rs`), watch it fail, then fix the code. Crash files are not committed.
+If a target finds a bug, libFuzzer writes the failing input to `fuzz/artifacts/<target>/crash-<hash>` and the command exits non-zero. Reproduce it with `cargo fuzz run <target> fuzz/artifacts/<target>/crash-<hash>` (through `cargo xtask fuzz <target> --replay <path>`). Following the test-first rule in `AGENTS.md`, turn the finding into a failing test in `libs/engine/src/handle` first (a unit test or a case in `tests/model.rs`), watch it fail, then fix the code. Crash files are not committed.
 
 In CI, the nightly workflow's `fuzz` job fails when a target finds a crash and uploads `fuzz/artifacts/` as a workflow artifact. A new contributor never has to run it: pull requests only check that `fuzz/` compiles.
 
@@ -66,7 +66,7 @@ To bump the nightly, change the one constant in `xtask/src/fuzz.rs`, run `cargo 
 
 ```text
 fuzz/
-  Cargo.toml            standalone package `engine-fuzz`; depends on engine_handle (path, feature
+  Cargo.toml            standalone package `engine-fuzz`; depends on engine::handle (path, feature
                         `test-invariants`), libfuzzer-sys, arbitrary (derive)
   Cargo.lock            committed
   .gitignore            corpus/, artifacts/, target/
@@ -123,7 +123,7 @@ cargo xtask fuzz-toolchain
 ### 4.5 Corpus and findings
 
 - The corpus lives in `fuzz/corpus/<target>/`, is git-ignored and is not committed. There is no seed corpus: the targets are structure-aware (`Arbitrary`), so random bytes already decode to valid op sequences.
-- Crash inputs are not committed either. A finding becomes a unit or property test in `libs/engine_handle` before the fix (the `AGENTS.md` test-first rule); the fuzz artifact is evidence for the bug report, and is retained as a workflow artifact for 30 days.
+- Crash inputs are not committed either. A finding becomes a unit or property test in `libs/engine/src/handle` before the fix (the `AGENTS.md` test-first rule); the fuzz artifact is evidence for the bug report, and is retained as a workflow artifact for 30 days.
 
 ### 4.6 Nightly CI
 
@@ -172,7 +172,7 @@ fuzz:
 - **M2.1-R11** The nightly workflow MUST run `cargo xtask fuzz all`, MUST fail when a target finds a crash, MUST upload `fuzz/artifacts` on failure with 30-day retention, and MUST cache `fuzz/corpus` between runs, saving it even when the job fails.
 - **M2.1-R12** A pull request that makes `fuzz/` fail to compile MUST fail the `fuzz-build` job in `ci.yml`.
 - **M2.1-R13** The workflow changes MUST keep `cargo xtask check-workflows` passing (pinned action hashes, top-level `permissions`, `persist-credentials: false`).
-- **M2.1-R14** The chunk MUST NOT change any public item of `engine_handle`, the `Handle::to_bits` layout, or `rust-toolchain.toml`.
+- **M2.1-R14** The chunk MUST NOT change any public item of `engine::handle`, the `Handle::to_bits` layout, or `rust-toolchain.toml`.
 - **M2.1-R15** The `xtask` change MUST include unit tests for argument parsing and for the `TARGETS` constant matching the files in `fuzz/fuzz_targets/`.
 - **M2.1-R16** The fuzz crate root MUST carry `#![forbid(unsafe_code)]`. If the `fuzz_target!` expansion makes that impossible on the pinned nightly, the root MUST instead carry `#![deny(unsafe_code)]` with a `#[allow(unsafe_code)]` scoped to the macro invocations only and a comment saying why, and the plan's Deviations section MUST record it. Either way there is no ADR 0001 allowlist entry, because the allowlist covers workspace crates and `fuzz/` is excluded.
 - **M2.1-R17** `fuzz/` MUST NOT be added to `cargo xtask deny`; the reason (a developer tool that is never built into or shipped with an engine artifact, and `libfuzzer-sys`'s `NCSA` licence is outside ADR 0002's allow list) MUST be written in `CONTRIBUTING.md`'s Fuzzing section.
@@ -187,7 +187,7 @@ fuzz:
 - **`unsafe`:** none written. The fuzz crate root carries `#![forbid(unsafe_code)]`, with the fallback in R16 if the `fuzz_target!` expansion forbids it.
 - **Concurrency:** n/a, because the targets are single-threaded and add no shared state.
 - **Heap allocation:** n/a, because fuzz code may allocate freely and library code is unchanged.
-- **`no_std` and wasm:** n/a, because `fuzz/` is a host-only package. `engine_handle`'s `no_std` and wasm builds are unaffected since the `test-invariants` feature is enabled only from `fuzz/`.
+- **`no_std` and wasm:** n/a, because `fuzz/` is a host-only package. `engine::handle`'s `no_std` and wasm builds are unaffected since the `test-invariants` feature is enabled only from `fuzz/`.
 - **Frozen formats:** `Handle::to_bits` is unchanged. `handle_from_bits` adds a check that the layout still holds, which complements the golden tests.
 - **Public API changes:** none (R14). `xtask` gains `fuzz`, `fuzz-build` and `fuzz-toolchain`, which are developer-tool commands, not engine API.
 - **FFI exposure:** n/a.
@@ -198,7 +198,7 @@ fuzz:
 ## 7. Alternatives considered
 
 - **Share the op enums and model with `tests/model.rs` through a new test-support crate.** Rejected for this chunk: it adds a crate (ADR 0004 weighs in), couples the proptest suite to the fuzz targets' needs, and the fuzz model is small. Revisit if a third consumer of the same model appears.
-- **Add `Arbitrary` derives to `engine_handle` behind a feature.** Rejected: it puts a fuzzing dependency in the library's manifest and feature surface to save about 30 lines of duplicated enums.
+- **Add `Arbitrary` derives to `engine::handle` behind a feature.** Rejected: it puts a fuzzing dependency in the library's manifest and feature surface to save about 30 lines of duplicated enums.
 - **A single combined ops target.** Rejected: a crash would not say which type failed, and the corpus for one type would be diluted by inputs for the others.
 - **Upload artifacts but keep the nightly job green.** Rejected: a green job hides findings.
 - **Fresh corpus every night.** Rejected: each night would re-discover the shallow coverage; the cache makes depth accumulate.
@@ -249,6 +249,6 @@ None. Decided at acceptance (2026-11-12): the `unsafe` lint fallback (R16), leav
 - [The Rust Fuzz Book: cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) for the package layout and commands.
 - [`arbitrary` crate documentation](https://docs.rs/arbitrary) for structure-aware inputs.
 - [LLVM libFuzzer documentation](https://llvm.org/docs/LibFuzzer.html) for `-max_total_time` and `-max_len`.
-- [Model-based (stateful) testing, as in the existing `libs/engine_handle/tests/model.rs`](../../../../libs/engine_handle/tests/model.rs) for the op and model structure reused here.
+- [Model-based (stateful) testing, as in the existing `libs/engine/tests/handle_model.rs`](../../../../libs/engine/tests/handle_model.rs) for the op and model structure reused here.
 - [M0+M1 spec §4.7, §4.8 and §4.12](../../m0-m1-foundations/spec.md) for the original fuzzing plan; [ADR 0001](../../../adr/0001-unsafe-policy.md), [ADR 0002](../../../adr/0002-originality-and-dependency-licensing.md), [ADR 0003](../../../adr/0003-same-build-determinism.md).
 - No code copied from other projects (ADR 0002).
