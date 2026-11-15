@@ -1,0 +1,9 @@
+date: 2026-11-15T02:10:18Z
+cpu: Apple M4 Pro (Mac16,8)
+memory_gb: 24
+cores: 8 performance + 4 efficiency
+os: macOS 26.6.2 (25G83)
+rustc: rustc 1.100.0 (0ef1bc386 2026-11-09)
+power: AC Power for the whole run (21:10 to 22:10 local); the power log shows no source change and no sleep
+load_before: { 4.01 3.84 3.69 } (waited 300s; the load never fell below 2.5, and Spotify was closed about 16 minutes into the run)
+git: 8b856f2
