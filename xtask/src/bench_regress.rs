@@ -754,7 +754,7 @@ mod tests {
     #[test]
     fn relevance_table() {
         for path in [
-            "libs/engine_genid/src/map.rs",
+            "libs/engine/src/genid/map.rs",
             "bench/regress/benches/prng.rs",
             "Cargo.toml",
             "Cargo.lock",
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn any_relevant_reads_git_name_only_output() {
-        assert!(any_relevant("README.md\nlibs/engine_random/src/prng.rs\n"));
+        assert!(any_relevant("README.md\nlibs/engine/src/random/prng.rs\n"));
         assert!(!any_relevant("README.md\ndocs/benchmarks.md\n"));
         assert!(!any_relevant(""));
     }

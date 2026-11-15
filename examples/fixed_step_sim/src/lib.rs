@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! A headless, deterministic particle simulation that exercises the M1 crates together.
+//! A headless, deterministic particle simulation that exercises the M1 modules of `engine` together.
 //!
 //! Particles live in a [`GenIdMap`], are respawned from per-ID [`Prng`] streams, and are
 //! stepped by a [`FixedTimestep`] driven from a [`ManualClock`] with jittery frame times. The

@@ -9,7 +9,7 @@ The work is on branch `m2.3-mutation-testing`, which already has the spec and pl
 
 Choices the spec leaves to implementation:
 
-- **Probe before code (no commit).** `cargo-mutants` 27.1.0 is already installed locally. Write a draft `.cargo/mutants.toml` with the §4.3 keys and an empty `exclude_re = []`, then run `cargo mutants -p engine_random --output target/mutants` once by hand. This confirms what the spec took from the documentation:
+- **Probe before code (no commit).** `cargo-mutants` 27.1.0 is already installed locally. Write a draft `.cargo/mutants.toml` with the §4.3 keys and an empty `exclude_re = []`, then run `cargo xtask mutants --module random --output target/mutants` once by hand. This confirms what the spec took from the documentation:
   1. all four outcome files are written even when one is empty (spec §4.7);
   2. each line has the `--list` form `<path>:<line>:<col>: <description>`, with paths relative to the workspace root;
   3. a mutant's log in `mutants.out/log/` shows `cargo nextest run` with `--all-features` and `--run-ignored all` (if `additional_cargo_test_args` does not reach nextest, find the key that does; spec §4.3);
@@ -37,7 +37,7 @@ Choices the spec leaves to implementation:
 
 1. **An exclusion that over-matches** (an unescaped `.` or `(`, a missing anchor) hides mutants that were never triaged. The match check only catches entries that match nothing. To counter it, the `--list` mode prints how many mutants each entry matches, and Step 8 reads those counts against the record. Every entry starts with `^libs/<crate>/src/<file>\.rs:` and names the function. Check in Step 3: `entry_match_counts_are_printed`. Check in Step 8: by hand.
 2. **A wrong exit-code mapping** would make a baseline failure look green, or make a missed mutant fail the weekly job. Test in Step 3: `interpret_maps_every_documented_code`.
-3. **Ignored tests not running under mutants.** Mutants only the statistical tests catch would then show as missed and be "fixed" with redundant tests. The probe checks this (item 3), and Step 6 reads one `engine_random` sampling mutant's log again.
+3. **Ignored tests not running under mutants.** Mutants only the statistical tests catch would then show as missed and be "fixed" with redundant tests. The probe checks this (item 3), and Step 6 reads one `engine::random` sampling mutant's log again.
 4. **Lints making mutants unviable.** If `cap_lints` were not applied, the unviable count would be high and include warning-only mutants. Step 6 reads the unviable list and checks that every entry is a type or borrow error, not a lint.
 5. **Version drift** between `MUTANTS_VERSION`, the workflow and the devcontainer. Test in Step 4: `mutants_version_is_pinned_everywhere`.
 6. **Tests that overfit a mutant** (R19). Step 7 checks each new test against the spec's rule (§4.8) before committing, and the code review checks it again.
@@ -65,7 +65,7 @@ Choices the spec leaves to implementation:
 
   Run `cargo xtask test`. It fails to compile, because `parse` does not exist.
 - **Change:** a line scanner over the rules in spec §4.4. It keeps state for "inside the list" and "a comment since the last entry". A TOML literal string is `'` then any characters except `'`, then `'`. Other keys in the file are ignored, apart from a second `exclude_re`.
-- **Verify:** `cargo xtask test` passes the new tests, and `cargo xtask clippy` and `cargo xtask fmt --check` pass. `cargo mutants --list -p engine_random | wc -l` still prints 105, so the config file is accepted and excludes nothing.
+- **Verify:** `cargo xtask test` passes the new tests, and `cargo xtask clippy` and `cargo xtask fmt --check` pass. `cargo mutants --list -p engine | wc -l` still prints 105, so the config file is accepted and excludes nothing.
 - **Commit:** `feat(xtask): parse the cargo-mutants exclusion list (M2.3)`
 
 ### Step 2: the summary renderer (R7, R8, R10)
@@ -77,8 +77,8 @@ Choices the spec leaves to implementation:
   - `pub(super) fn render(header: &Header<'_>, outcomes: &Outcomes<'_>) -> Result<String, String>`;
   - private `fn parse_name(name: &str) -> Result<(String, String, u32, u32), String>` (crate, path, line, column) and `struct Row { caught: usize, missed: usize, timeout: usize, unviable: usize }`.
 - **Test first:**
-  - `rows_are_ordered_by_crate_with_total_last`: outcomes for `engine_random` given before `engine_handle` render `engine_handle`, `engine_random`, `Total`. `Tested` is the sum of the four, and `Total` is the column sums.
-  - `selected_crate_without_outcomes_shows_zeros`: packages `[engine_handle, engine_time]` with outcomes only in `engine_handle` give an `engine_time` row of zeros.
+  - `rows_are_ordered_by_crate_with_total_last`: outcomes for `engine::random` given before `engine::handle` render `engine::handle`, `engine::random`, `Total`. `Tested` is the sum of the four, and `Total` is the column sums.
+  - `selected_crate_without_outcomes_shows_zeros`: packages `[engine::handle, engine::time]` with outcomes only in `engine::handle` give an `engine::time` row of zeros.
   - `missed_list_is_in_file_and_line_order`: missed names from `b.rs:9`, `a.rs:30` and `a.rs:4` are listed `a.rs:4`, `a.rs:30`, `b.rs:9`. Line 30 comes after line 4, so the sort is numeric, not textual. The heading is `### Missed (3)`.
   - `no_missed_says_none`.
   - `heading_line_names_version_packages_and_exclusions`.
@@ -93,18 +93,18 @@ Choices the spec leaves to implementation:
   - Rows are kept in a `BTreeMap<String, Row>`, seeded with the selected packages.
   - The missed list is sorted by `(path, line, column)`.
 - **Verify:** `cargo xtask test` passes, and clippy and fmt pass. Render the probe's real outcome files through a temporary, uncommitted test, and read the result.
-- **Commit:** `feat(xtask): per-crate mutation testing summary (M2.3)`
+- **Commit:** `feat(xtask): per-module mutation testing summary (M2.3)`
 
 ### Step 3: `cargo xtask mutants` (R2, R3, R4, R5, R6, R9, R10, R11)
 
 - **Files:** `xtask/src/mutants.rs`, and `xtask/src/main.rs` (`Command::Mutants(mutants::Options)`, `parse`, `execute`, the usage text).
 - **Interfaces produced:**
-  - `pub(crate) const MUTANTS_VERSION: &str = "27.1.0"` and `const TRIAGED: &[&str] = &["engine_handle", "engine_random"]`;
+  - `pub(crate) const MUTANTS_VERSION: &str = "27.1.0"` and `const TRIAGED: &[&str] = &["engine::handle", "engine::random"]`;
   - `pub(crate) struct Options { packages: Vec<String>, jobs: Option<NonZeroU32>, list: bool }`, `pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String>` and `pub(crate) fn mutants(options: &Options) -> Result<(), String>`;
   - private pure functions: `fn packages(options: &Options) -> Vec<String>` (the default is `TRIAGED`), `fn run_args(options: &Options) -> Vec<String>`, `fn list_args(packages: &[String], use_config: bool) -> Vec<String>`, `fn match_args(regex: &str) -> Vec<String>`, `fn interpret(code: Option<i32>) -> Result<(), String>` and `fn version_matches(version_output: &str) -> bool`.
 - **Test first:**
   - `parses_packages_jobs_and_list`: `-p a -p b -j 2 --list`. Errors for `-p` at the end, `-j 0`, `-j x`, `-j 2 -j 3` and `--x`. In `main.rs`, `parse(&["mutants"])` is `Command::Mutants(_)`.
-  - `run_args_match_the_spec`: the default is `["mutants", "--output", "target/mutants", "-p", "engine_handle", "-p", "engine_random"]`. `-j 2` appends `["--jobs", "2"]`. No argument is `-F`, `-E`, `-f`, `--re`, `--exclude-re` or `--file`.
+  - `run_args_match_the_spec`: the default is `["mutants", "--output", "target/mutants", "-p", "engine::handle", "-p", "engine::random"]`. `-j 2` appends `["--jobs", "2"]`. No argument is `-F`, `-E`, `-f`, `--re`, `--exclude-re` or `--file`.
   - `list_args_with_and_without_config`: `--list` with `-p` for each package, plus `--no-config` only when asked.
   - `match_args_use_the_workspace_without_config`: `["mutants", "--list", "--no-config", "--workspace", "-F", regex]`.
   - `interpret_maps_every_documented_code` (review focus 2): `Some(0)`, `Some(2)` and `Some(3)` give `Ok`. `Some(1)`, `Some(4)`, `Some(5)`, `Some(6)`, `Some(70)`, `Some(9)` and `None` each give an error containing the code and the meaning from the spec §4.2 table (`baseline` for 4, `signal` for `None`).
@@ -126,8 +126,8 @@ Choices the spec leaves to implementation:
 - **Verify:**
   - `cargo xtask test`, clippy and fmt pass.
   - `cargo xtask mutants --list` prints 458 names and builds nothing. Check that no `target/mutants/` build directory appears.
-  - Add a dead entry, such as `# probe` then `'^libs/engine_handle/src/nope\.rs:'`, to `.cargo/mutants.toml`. `cargo xtask mutants` fails at once, naming line and reason. Revert the entry.
-  - `cargo xtask mutants -p engine_random` runs, prints the table, and writes `target/mutants/summary.md`. Record the duration.
+  - Add a dead entry, such as `# probe` then `'^libs/engine/src/handle/nope\.rs:'`, to `.cargo/mutants.toml`. `cargo xtask mutants` fails at once, naming line and reason. Revert the entry.
+  - `cargo xtask mutants --module random` runs, prints the table, and writes `target/mutants/summary.md`. Record the duration.
   - With `cargo-mutants` hidden from `PATH`, the hint is printed (R9).
 - **Commit:** `feat(xtask): add the mutants command (M2.3)`
 
@@ -167,7 +167,7 @@ Choices the spec leaves to implementation:
 - **Run:** `cargo xtask mutants -j 2` on a quiet machine, AC power, no other builds. Record the following.
   - The summary and the duration.
   - Copies of `missed.txt`, `timeout.txt` and `unviable.txt` in the scratchpad, as the triage input. Do not keep them in the repository.
-  - For one `engine_random` sampling mutant, the log, to confirm that ignored tests ran (review focus 3).
+  - For one `engine::random` sampling mutant, the log, to confirm that ignored tests ran (review focus 3).
   - The unviable list, checked for lint-only causes (review focus 4).
   - Each timeout's log (review focus 7).
 - **Classify:** go through each missed mutant and timeout, in file and line order, and give it one class from spec §4.8. Write the draft table for `docs/mutation-triage.md` as you go. For each mutant:
@@ -179,7 +179,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: close the small test gaps (R15, R19)
 
-One commit per crate: `engine_random` first (the smaller one), then `engine_handle`.
+One commit per crate: `engine::random` first (the smaller one), then `engine::handle`.
 
 - **Files:** the crate's `tests/*.rs` files, or the bodies of existing `#[cfg(test)]` modules when the behaviour is only reachable from inside the crate.
 - **Test first, for each gap:**
@@ -192,7 +192,7 @@ One commit per crate: `engine_random` first (the smaller one), then `engine_hand
 - **Verify:**
   - `cargo xtask ci --quick` passes.
   - `git diff --stat main -- libs/` lists only `tests/` files and `src/` files whose hunks are all inside `#[cfg(test)]` modules (read the hunks).
-- **Commits:** `test(engine_random): close gaps found by mutation testing (M2.3)` and `test(engine_handle): close gaps found by mutation testing (M2.3)`
+- **Commits:** `test(engine::random): close gaps found by mutation testing (M2.3)` and `test(engine::handle): close gaps found by mutation testing (M2.3)`
 
 ### Step 8: exclusions, issues and the record (R5, R17, R18)
 
@@ -211,7 +211,7 @@ One commit per crate: `engine_random` first (the smaller one), then `engine_hand
 - **Verify:**
   - `cargo xtask typos` passes.
   - Every name from the Step 6 `missed.txt` and `timeout.txt` appears in the record (check with `grep -F` from the scratchpad copies).
-- **Commit:** `docs: record the first mutation triage of engine_handle and engine_random (M2.3)`
+- **Commit:** `docs: record the first mutation triage of engine::handle and engine::random (M2.3)`
 
 ### Step 9: CI run and closing record (R12, R13, R16)
 
@@ -241,11 +241,11 @@ One commit per crate: `engine_random` first (the smaller one), then `engine_hand
 
 Everything the implementation did differently from this plan or from the spec as accepted on 2026-11-12:
 
-1. **The match check uses `-E`, not `-F`** (Step 3, spec §4.4). `cargo-mutants` 27.1 never applies a name filter (`-F`, `-E` or `exclude_re`) to its "delete field ... from struct Self expression" mutants (3 in `engine_handle`, 11 in the workspace), so `-F` listed them whatever the regex and a count could never be zero. The check counts the mutants that `-E <entry>` removes from `--list --no-config --workspace`. Such mutants can never be excluded; the one missed in `engine_handle` was closed with a test.
+1. **The match check uses `-E`, not `-F`** (Step 3, spec §4.4). `cargo-mutants` 27.1 never applies a name filter (`-F`, `-E` or `exclude_re`) to its "delete field ... from struct Self expression" mutants (3 in `engine::handle`, 11 in the workspace), so `-F` listed them whatever the regex and a count could never be zero. The check counts the mutants that `-E <entry>` removes from `--list --no-config --workspace`. Such mutants can never be excluded; the one missed in `engine::handle` was closed with a test.
 2. **Two equivalent mutants are not excluded** (Step 8, R18). `sample.rs:182` (`<` to `<=`) and `handle.rs:208:33` (`+` to `*`) have the same description as caught mutants in the same function, and an entry without a line or column cannot tell them apart. They stay in the missed list and are recorded in `docs/mutation-triage.md` as equivalent, not excluded; no issue was opened. Four entries exclude four mutants, not the six the first classification proposed.
 3. **A test-only helper in `src`** (Step 7). `#[cfg(test)] impl HandlePool<()> { corrupt_dense_length }` in `pool.rs`, so a test can break an invariant of `DenseHandleAllocator`, whose pool fields are private to another module. It is a `#[cfg(test)]` item, so R15 holds.
 4. **`DenseHandleAllocator::with_capacity`** has no observable capacity (its pool stores `()`), so its gap is closed by a no-allocation test in `fixed_capacity.rs` (dhat), not by a capacity assertion. That test measures up to three runs on fresh containers, because dhat counts every thread and the harness's main thread made the `cargo-mutants` baseline fail once on a loaded CI runner (13 blocks against 9).
-5. **The pull request job** (Step 4, spec §2, §4.2, §4.6, §7, R4, R12), changed at the maintainer's request after the CI run measured 20 minutes: pull requests that change the triaged crates' sources or the mutants tooling run the exclusion check and `cargo xtask mutants --in-diff` on the pull request's own diff (a separate `mutants-changed` job); the full run stays weekly and on dispatch. `xtask` gained `--in-diff FILE` (rejected with `--list`, resolved against the caller's directory), a summary for a diff that contains no mutant, and removal of the previous run's output before a run. `timeout-minutes` is 40 for the full job and 30 for the pull request job.
+5. **The pull request job** (Step 4, spec §2, §4.2, §4.6, §7, R4, R12), changed at the maintainer's request after the CI run measured 20 minutes: pull requests that change the triaged modules' sources or the mutants tooling run the exclusion check and `cargo xtask mutants --in-diff` on the pull request's own diff (a separate `mutants-changed` job); the full run stays weekly and on dispatch. `xtask` gained `--in-diff FILE` (rejected with `--list`, resolved against the caller's directory), a summary for a diff that contains no mutant, and removal of the previous run's output before a run. `timeout-minutes` is 40 for the full job and 30 for the pull request job.
 6. **Step 1 and 2 details.** `parse_name` returns a small struct, not a 4-tuple (clippy `type_complexity`); a temporary `#![allow(dead_code)]` in `mutants.rs` covered the commits before the command used the parsers, and was removed in Step 3.
 7. **The probe (Step 0) was cut short.** I stopped the probe run by mistake before it finished; its items were confirmed by later runs instead: all four outcome files are written, each name has the `--list` form, a mutant's log shows `cargo nextest run --all-features --run-ignored all`, `cargo mutants --version` prints `cargo-mutants 27.1.0`, and a baseline failure exits 4.
 8. **Also in this pull request, outside the plan:** the nightly `stable-toolchain` job failed with E0463 because a bare `stable` lacks the targets in `rust-toolchain.toml`; `nightly.yml` now installs them (the maintainer asked for the fix here).

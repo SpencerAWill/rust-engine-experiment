@@ -1,4 +1,4 @@
-# M3.1 plan: `engine_collections`: deterministic map and set
+# M3.1 plan: `engine::collections`: deterministic map and set
 
 - **Status:** Historical: executed in PR #26 (2026-11-13); the spec and the code are authoritative. Deviations are in §4.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both.
@@ -19,8 +19,8 @@ Choices the spec leaves to implementation:
 **Global constraints**
 
 - Every commit passes `cargo xtask ci --quick`; Steps 1 and 6 also pass `cargo xtask deny`, with `deny.toml` unchanged (R18).
-- Dependencies: `indexmap = { version = "2.14", default-features = false }` and `foldhash = { version = "0.2", default-features = false }`, declared in `[workspace.dependencies]` and used by `engine_collections` only (benchmarks may enable features in their own dev-dependencies).
-- `engine_collections` is `#![no_std]` with `extern crate alloc` and `#![forbid(unsafe_code)]`. No public signature names an `indexmap` or `foldhash` type, and there is no public hasher type parameter (R2).
+- Dependencies: `indexmap = { version = "2.14", default-features = false }` and `foldhash = { version = "0.2", default-features = false }`, declared in `[workspace.dependencies]` and used by `engine::collections` only (benchmarks may enable features in their own dev-dependencies).
+- `engine::collections` needs only `core` and `alloc`, and `engine` forbids `unsafe`. No public signature names an `indexmap` or `foldhash` type, and there is no public hasher type parameter (R2).
 - There is no `remove`, no mutable key access, and no `Index<usize>`.
 - Commit messages are conventional, end with ` (M3.1)`, and end with the session's attribution line. Stage by explicit path.
 - Stop and ask the maintainer before the first push and before opening the pull request.
@@ -37,24 +37,24 @@ Choices the spec leaves to implementation:
 
 ### Step 1: crate skeleton, hasher, error and clippy bans (R1, R13, R18)
 
-- **Files:** `Cargo.toml` (workspace dependencies `indexmap`, `foldhash`, and `engine_collections = { path = "libs/engine_collections", version = "0.1.0" }`), `libs/engine_collections/Cargo.toml` (new: description "Deterministic insertion-ordered hash map and set", keywords `["collections", "deterministic", "gamedev", "no-std"]`, categories `["data-structures", "no-std"]`, dev-dependency `proptest = { workspace = true }`, `[lints] workspace = true`), `src/lib.rs`, `src/hasher.rs`, `src/error.rs`, `src/index_map.rs` (new), `clippy.toml`, `Cargo.lock`.
+- **Files:** `Cargo.toml` (workspace dependencies `indexmap`, `foldhash`, and `engine::collections = { path = "libs/engine/src/collections", version = "0.1.0" }`), `libs/engine::collections/Cargo.toml` (new: description "Deterministic insertion-ordered hash map and set", keywords `["collections", "deterministic", "gamedev", "no-std"]`, categories `["data-structures", "no-std"]`, dev-dependency `proptest = { workspace = true }`, `[lints] workspace = true`), `src/lib.rs`, `src/hasher.rs`, `src/error.rs`, `src/index_map.rs` (new), `clippy.toml`, `Cargo.lock`.
 - **Interfaces produced:**
   - `pub(crate) type Hasher` and `pub(crate) const fn default_hasher() -> Hasher` (`FixedState::with_seed(SEED)`, or `TestHasher::Fold(..)` under `cfg(test)`); `#[cfg(test)] pub(crate) const fn constant_hasher() -> Hasher`.
   - `pub struct TryReserveError` (opaque, private unit field; derives `Clone, Debug, PartialEq, Eq`; `Display`: "memory allocation failed: the capacity overflowed or the allocator reported an error"; `core::error::Error`; `pub(crate) fn from_inner(indexmap::TryReserveError) -> Self`).
   - `pub struct IndexMap<K, V> { inner: Inner<K, V, Hasher> }` with `pub const fn new() -> Self`, `pub fn with_capacity(n: usize) -> Self`, `len`, `is_empty`, `capacity`, `reserve(&mut self, additional: usize)` (`#[track_caller]`, `# Panics` naming `try_reserve`, wording as `HandlePool::reserve`), `try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>`, `shrink_to_fit`, `clear`; `#[cfg(test)] pub(crate) fn with_test_hasher(hasher: Hasher) -> Self`.
-  - Crate docs: the ADR 0004 justification paragraph (spec §4.1); the rest of the crate docs grows in later steps.
+  - Module docs: the `core` and `alloc` note (spec §4.1); the rest of the module docs grows in later steps.
 - **Test first** (inline `#[cfg(test)]` modules):
   - `new_map_is_empty`: `len() == 0`, `is_empty()`, `capacity() == 0`.
   - `with_capacity_reserves`: `IndexMap::<u32, u32>::with_capacity(10).capacity() >= 10`; after `reserve(100)`, `capacity() >= 100`.
   - `try_reserve_overflow_is_an_error` (review focus 5): `try_reserve(usize::MAX)` is `Err(e)` with a non-empty `e.to_string()`, and afterwards `try_reserve(4)` is `Ok` and `len() == 0`.
   - `default_hasher_is_fixed`: two `default_hasher()` values give the same `hash_one(42_u64)`; `constant_hasher().hash_one("a") == constant_hasher().hash_one(7_u64) == 0`.
   - Run `cargo xtask test`: compile failure (the crate's items do not exist).
-- **Change:** implement the items above. `clippy.toml`: the std `HashMap` and `HashSet` reasons become "iteration order is randomized per process; use engine_collections::IndexMap" (and `IndexSet`), and the entries of spec §4.8 are added. Write each new path as the spec gives it first.
+- **Change:** implement the items above. `clippy.toml`: the std `HashMap` and `HashSet` reasons become "iteration order is randomized per process; use engine::collections::IndexMap" (and `IndexSet`), and the entries of spec §4.8 are added. Write each new path as the spec gives it first.
 - **Verify:**
   - `cargo xtask test` passes; `cargo xtask ci --quick` passes; `cargo xtask deny` passes with `deny.toml` unchanged.
   - Ban check: in the scratch crate described in §1, `CLIPPY_CONF_DIR=<repo root> cargo clippy` reports one `disallowed_types` or `disallowed_methods` warning per new entry (9 items). For any entry that does not fire, replace it with the definition path (for example `indexmap::map::IndexMap`, `foldhash::convenience::HashMap`) and rerun until all 9 fire. `foldhash::HashMap` and `HashSet` are type aliases; if no path makes an alias fire, record it in §4 and tell the maintainer (the `RandomState` ban inside the alias may still catch it). Keep the final output for the pull request (R13).
-  - `cargo tree -p engine_collections -e normal --depth 1` lists only `indexmap` and `foldhash`.
-- **Commit:** `feat(collections): add engine_collections skeleton and hashing bans (M3.1)`
+  - `cargo tree -p engine -e normal --depth 1` lists only `indexmap` and `foldhash`.
+- **Commit:** `feat(collections): add engine::collections skeleton and hashing bans (M3.1)`
 
 ### Step 2: map operations, the order model and the golden order (R3, R4, R5)
 
@@ -87,7 +87,7 @@ Choices the spec leaves to implementation:
 - **Test first:**
   - Unit: `from_iter_keeps_first_position_last_value` (`[(1, 'a'), (2, 'b'), (1, 'c')]` collects to `[(1, 'c'), (2, 'b')]`, and the same through `Extend` and `From`); `debug_format` (`{1: 'a', 2: 'b'}` and `{}`); `iterators_are_double_ended_and_exact` (`rev()` order and `len()` for each iterator type); `index_by_str` (review focus 2: `map["walk"]` on `IndexMap<String, f32>`, and `map["walk"] += 1.0`).
   - `tests/laws.rs` (proptest over `Vec<(u8, u16)>` inputs, hashing with `foldhash::fast::FixedState::with_seed(0).hash_one`, so `foldhash` becomes a dev-dependency): `eq_is_reflexive_and_symmetric`; `equal_maps_hash_equal`; `permutation_is_unequal_until_sorted` (a reordering of at least two distinct keys compares unequal; after `sort_keys` on both, equal and equal hashes).
-  - `tests/panics.rs` (native only, `#![cfg(not(target_os = "wasi"))]`, the `engine_handle` hook pattern): `index_missing_key_panics_at_caller` and `index_mut_missing_key_panics_at_caller`: the location ends with `tests/panics.rs`; the message contains "no entry for this key" and "use get".
+  - `tests/panics.rs` (native only, `#![cfg(not(target_os = "wasi"))]`, the `engine::handle` hook pattern): `index_missing_key_panics_at_caller` and `index_mut_missing_key_panics_at_caller`: the location ends with `tests/panics.rs`; the message contains "no entry for this key" and "use get".
   - `tests/auto_traits.rs`: `fn assert_traits<T: Send + Sync + Unpin>() {}` for `IndexMap<u32, String>` and each of `Iter`, `IterMut`, `Keys`, `Values`, `ValuesMut`, `IntoIter`, `IntoKeys`, `IntoValues`, `Entry`.
   - Run `cargo xtask test`: compile failure.
 - **Change:** implement the interfaces. Each public type gets a doctest. The type docs say equality respects order and warn about order-independent keys (spec §4.6).
@@ -109,44 +109,44 @@ Choices the spec leaves to implementation:
 - **Verify:** `cargo xtask test` passes; `cargo xtask ci --quick` passes.
 - **Commit:** `feat(collections): add IndexSet (M3.1)`
 
-### Step 5: allocation test, facade and platform builds (R9, R12, R14)
+### Step 5: allocation test, module declaration and platform builds (R9, R12, R14)
 
-- **Files:** `libs/engine_collections/Cargo.toml` (dev-dependency `dhat = "0.3"`), `libs/engine_collections/tests/allocations.rs` (new), `libs/engine/Cargo.toml` (`engine_collections = { workspace = true }`), `libs/engine/src/lib.rs` (`pub use engine_collections as collections;`, a crate-map row, a doctest using `engine::collections::IndexMap`), `xtask/src/main.rs` (`engine_collections` in `no_std()` and in `wasm()`'s test list).
+- **Files:** `libs/engine::collections/Cargo.toml` (dev-dependency `dhat = "0.3"`), `libs/engine/tests/collections_allocations.rs` (new), `libs/engine/Cargo.toml` (`engine::collections = { workspace = true }`), `libs/engine/src/lib.rs` (`pub use engine::collections as collections;`, a crate-map row, a doctest using `engine::collections::IndexMap`), `xtask/src/main.rs` (`engine::collections` in `no_std()` and in `wasm()`'s test list).
 - **Test first:**
   - `tests/allocations.rs` (dhat in testing mode, `fixed_step_sim` pattern, reading `total_blocks` outside `dhat::assert_eq!`): `map_with_capacity_never_allocates`: `IndexMap::<u64, u64>::with_capacity(1024)`; record blocks; insert 1,024 distinct keys; 1,024 `get`s; one `iter` pass; `get_mut` on every key; `swap_remove` 100 keys; `shift_remove` 100 keys; `retain` even values; `sort_keys`; `pop`; `clear`; insert 1,024 keys again; blocks unchanged. `map_reserve_never_allocates`: `new()`, `reserve(1024)`, record, insert 1,024 keys, unchanged. `set_with_capacity_never_allocates`: the same sequence for `IndexSet<u64>`.
   - The `engine` doctest fails to compile until the re-export exists.
   - Run `cargo xtask test`: the doctest fails; the allocation tests pass or fail (they test `indexmap`'s behaviour, which the change does not alter). **If an allocation test fails, stop and report it to the maintainer**: spec §4.7 is a MUST and the fix is a spec decision, not a test change.
 - **Change:** as listed. `engine::prelude` is unchanged (R12).
-- **Verify:** `cargo xtask test` passes; `cargo xtask no-std` builds `engine_collections` for `thumbv7em-none-eabihf`; `cargo xtask wasm` runs its tests under wasmtime (32-bit, so review focus 5 runs there); `cargo xtask ci --quick` passes.
-- **Commit:** `feat(collections): re-export from the facade and check allocations and no_std (M3.1)`
+- **Verify:** `cargo xtask test` passes; `cargo xtask no-std` builds `engine::collections` for `thumbv7em-none-eabihf`; `cargo xtask wasm` runs its tests under wasmtime (32-bit, so review focus 5 runs there); `cargo xtask ci --quick` passes.
+- **Commit:** `feat(collections): declare the module and check allocations and no_std (M3.1)`
 
 ### Step 6: benchmarks (R15)
 
-- **Files:** `bench-regress/Cargo.toml` (`[[bench]] name = "collections"`, dev-dependency `engine_collections.workspace = true`), `bench-regress/benches/collections.rs` (new), `benches/Cargo.toml` (`[[bench]] name = "collections"`, dev-dependencies `engine_collections.workspace = true`, `indexmap = "2.14"`, `foldhash = "0.2"`), `benches/benches/collections.rs` (new), `Cargo.lock`.
-- **Interfaces:** Gungraun, following `bench-regress/benches/handle.rs` exactly (setup functions, a `*_work` function outside each benchmark, seed `0x5EED`, keys shuffled with `Prng::shuffle`): `map_insert_1k` (insert 1,024 shuffled `u64` keys into `with_capacity(1024)`), `map_get_hit_1k`, `map_get_miss_1k` (1,024 keys not present), `map_iter_1k` (sum of values), `map_get_typeid_64` (64 `TypeId`s of a private `struct Tag<const N: usize>;`, built by a `macro_rules!` over the literals `0` to `63`; look each up once). Group `map`, added to `main!`. Criterion: groups `map_insert`, `map_get_hit`, `map_get_miss`, `map_iter` at sizes 64, 1,024 and 65,536, each with four implementations labelled `engine_collections`, `indexmap_foldhash` (`indexmap::IndexMap<u64, u64, FixedState>`), `indexmap_sip` (`indexmap::IndexMap<u64, u64, BuildHasherDefault<DefaultHasher>>`), and `btreemap`.
+- **Files:** `bench-regress/Cargo.toml` (`[[bench]] name = "collections"`, dev-dependency `engine::collections.workspace = true`), `bench-regress/benches/collections.rs` (new), `benches/Cargo.toml` (`[[bench]] name = "collections"`, dev-dependencies `engine::collections.workspace = true`, `indexmap = "2.14"`, `foldhash = "0.2"`), `benches/benches/collections.rs` (new), `Cargo.lock`.
+- **Interfaces:** Gungraun, following `bench-regress/benches/handle.rs` exactly (setup functions, a `*_work` function outside each benchmark, seed `0x5EED`, keys shuffled with `Prng::shuffle`): `map_insert_1k` (insert 1,024 shuffled `u64` keys into `with_capacity(1024)`), `map_get_hit_1k`, `map_get_miss_1k` (1,024 keys not present), `map_iter_1k` (sum of values), `map_get_typeid_64` (64 `TypeId`s of a private `struct Tag<const N: usize>;`, built by a `macro_rules!` over the literals `0` to `63`; look each up once). Group `map`, added to `main!`. Criterion: groups `map_insert`, `map_get_hit`, `map_get_miss`, `map_iter` at sizes 64, 1,024 and 65,536, each with four implementations labelled `engine::collections`, `indexmap_foldhash` (`indexmap::IndexMap<u64, u64, FixedState>`), `indexmap_sip` (`indexmap::IndexMap<u64, u64, BuildHasherDefault<DefaultHasher>>`), and `btreemap`.
 - **Test first:** `cargo xtask bench-smoke` fails before the files exist only in the sense that the new targets are missing; the check here is that it runs them once, without measurement, after the change.
 - **Change:** as listed. Both files carry the existing crate-level `#![allow(clippy::disallowed_types, ...)]` header of their neighbours.
 - **Verify:**
   - `cargo xtask bench-smoke` passes; `cargo xtask ci --quick` passes; `cargo xtask deny` passes.
   - In the devcontainer: `cargo xtask bench-regress` passes. The merge-base has no `collections` target, so the base run cannot measure it; if the command fails rather than skipping a target the base lacks, record that in §4 and report it to the maintainer before changing anything in `xtask`.
-  - Wall clock, following the benchmark protocol (AC power, `caffeinate`, no builds during the run, check the power log afterwards): `cargo xtask bench --save m3.1-collections` twice, then `cargo xtask bench-report --baseline m3.1-collections`; record the run-to-run noise floor. Expected: `engine_collections` and `indexmap_foldhash` within the noise floor of each other. Numbers go in the pull request, not in `docs/benchmarks.md` (that is M3.8's).
+  - Wall clock, following the benchmark protocol (AC power, `caffeinate`, no builds during the run, check the power log afterwards): `cargo xtask bench --save m3.1-collections` twice, then `cargo xtask bench-report --baseline m3.1-collections`; record the run-to-run noise floor. Expected: `engine::collections` and `indexmap_foldhash` within the noise floor of each other. Numbers go in the pull request, not in `docs/benchmarks.md` (that is M3.8's).
 - **Commit:** `bench(collections): add instruction-count and comparison benchmarks (M3.1)`
 
 ### Step 7: mutation testing and triage (R16)
 
-- **Files:** `xtask/src/mutants.rs` (`TRIAGED` gains `"engine_collections"`), `.github/workflows/mutants.yml` (`pull_request.paths` gains `libs/engine_collections/src/**`), `.cargo/mutants.toml` (exclusions only for mutants classed *equivalent* or *not worth a test*, each with its reason), tests in the crate for mutants classed *test gap, fixed*, `docs/mutation-triage.md` (new section).
-- **Test first:** `cargo xtask mutants -p engine_collections -j 2` before any new test. Every missed mutant and timeout is classified with the classes in CONTRIBUTING.md "Mutation testing".
+- **Files:** `xtask/src/mutants.rs` (`TRIAGED` gains `"engine::collections"`), `.github/workflows/mutants.yml` (`pull_request.paths` gains `libs/engine/src/collections/**`), `.cargo/mutants.toml` (exclusions only for mutants classed *equivalent* or *not worth a test*, each with its reason), tests in the crate for mutants classed *test gap, fixed*, `docs/mutation-triage.md` (new section).
+- **Test first:** `cargo xtask mutants --module collections -j 2` before any new test. Every missed mutant and timeout is classified with the classes in CONTRIBUTING.md "Mutation testing".
 - **Change:** a test for each *test gap, fixed*; an exclusion with a reason for each *equivalent* or *not worth a test*. Expected likely survivors: the `Hash` impl's `write_usize(len)` (a mutant that drops it is caught only if a law test distinguishes, for example, `[(1, 2)]` from `[]` plus extra writes; add such a test if missed) and `Display` of `TryReserveError`.
-- **Verify:** a second `cargo xtask mutants -p engine_collections -j 2` run; the triage section has a row for every remaining missed mutant and timeout, with both runs' summary tables, as the M2.3 section does. `cargo xtask ci --quick` passes.
-- **Commit:** `test(collections): triage mutants in engine_collections (M3.1)`
+- **Verify:** a second `cargo xtask mutants --module collections -j 2` run; the triage section has a row for every remaining missed mutant and timeout, with both runs' summary tables, as the M2.3 section does. `cargo xtask ci --quick` passes.
+- **Commit:** `test(collections): triage mutants in engine::collections (M3.1)`
 
 ### Step 8: documents (R11, R17)
 
-- **Files:** `libs/engine_collections/src/lib.rs` (crate docs completed), `docs/adr/0004-crate-splitting-rule.md` (table row: "Dependencies (`indexmap`, `foldhash`); platform (`no_std` + `alloc`); layering (foundation for the ECS, registry and persistence)"), `docs/adr/0011-heap-allocation-control.md` (the Consequences line of spec §4.8), `docs/design/m0-m1-foundations/spec.md` (§4.2 note, spec §4.8), `README.md` (crate table row; `engine_collections` added to the `no_std` and wasm lines), `CHANGELOG.md` (an "Added" entry under Unreleased: the crate, its order guarantee, the bans), `docs/roadmap.md` (M3.1 row `In progress`; M5's rough chunks gain the iteration-order note of spec §4.8), this plan's §4.
-- **Test first:** the documentation review in CONTRIBUTING.md fails before the change: ADR 0004 has no row for the crate, and the crate docs do not yet state all the consequences R11 lists.
+- **Files:** `libs/engine/src/collections.rs` (crate docs completed), `docs/adr/0011-heap-allocation-control.md` (the Consequences line of spec §4.8), `docs/design/m0-m1-foundations/spec.md` (§4.2 note, spec §4.8), `README.md` (crate table row; `engine::collections` added to the `no_std` and wasm lines), `CHANGELOG.md` (an "Added" entry under Unreleased: the crate, its order guarantee, the bans), `docs/roadmap.md` (M3.1 row `In progress`; M5's rough chunks gain the iteration-order note of spec §4.8), this plan's §4.
+- **Test first:** the documentation review in CONTRIBUTING.md fails before the change: the module docs do not yet state all the consequences R11 lists.
 - **Change:** crate docs gain sections "Guarantees" (order is a function of the operation sequence, not of key values or the hasher; positions are not stable; equality respects order), "Your part" (the caller owns a deterministic operation sequence; inserting in thread-completion order breaks it), "Choosing a collection" (`IndexMap`/`IndexSet`, `BTreeMap` for sorted order, a sorted `Vec` for small order-independent keys), and "Known limitation" (hash flooding with a fixed seed; spec §4.6 and §10). Plus the document edits listed.
 - **Verify:** `cargo xtask ci` (the full run, including `doc`, `typos`, `deny`); relative links in the changed files resolve.
-- **Commit:** `docs: record engine_collections in the ADRs, README and changelog (M3.1)`
+- **Commit:** `docs: record engine::collections in the ADRs, README and changelog (M3.1)`
 
 ## 3. Final verification
 
@@ -160,10 +160,10 @@ Choices the spec leaves to implementation:
 
 - **Model test location (planned).** Spec §8 names `tests/model.rs` for R3. The model tests are unit tests in `src/tests/map_model.rs` and `src/tests/set_model.rs`, because R4's constant hasher is only reachable from inside the crate (§1); the same tests cover R3 and R4.
 - **No `extern crate alloc` (implementation).** Spec §4.1 lists `extern crate alloc`. The crate never names an `alloc` item (the backend owns every allocation), so the declaration would be an unused crate under `rust_2018_idioms`; it is left out. The crate is still `#![no_std]` and builds for `thumbv7em-none-eabihf`.
-- **Single allocation test (Step 5).** The three planned tests are one `#[test]` with three scenarios, because `dhat` allows one profiler per process (the pattern of `engine_handle`'s `fixed_capacity.rs`).
+- **Single allocation test (Step 5).** The three planned tests are one `#[test]` with three scenarios, because `dhat` allows one profiler per process (the pattern of `engine::handle`'s `fixed_capacity.rs`).
 - **Backend alias (Step 1).** The backend is named through `type Inner<K, V> = indexmap::IndexMap<K, V, Hasher>` with the `#[expect]` on the alias, not `use indexmap::IndexMap as Inner`: with an import, every `Inner::...` call site fires the ban.
 - **Items pulled forward (Steps 2 and 3).** `Debug` and `IntoIterator for &IndexMap` are in Step 2, because clippy's `iter_without_into_iter` and the empty-map `Debug` check need them.
-- **`foldhash::HashMap` and `HashSet` bans (Step 1).** The two aliases exist only with foldhash's `std` feature. While `engine_collections` was the only user of foldhash (default features off), clippy warned that both paths "do not refer to a reachable type". Step 6 gave the `benches` crate a default-features `foldhash` dev-dependency, which turns the feature on across the workspace; the warning is gone and the bans fire. They are needed: with the two entries removed, a scratch crate using `foldhash::HashMap` and `HashSet` triggered no warning, so the `RandomState` bans do not catch the aliases. If that dev-dependency is removed, the harmless warning returns.
+- **`foldhash::HashMap` and `HashSet` bans (Step 1).** The two aliases exist only with foldhash's `std` feature. While `engine::collections` was the only user of foldhash (default features off), clippy warned that both paths "do not refer to a reachable type". Step 6 gave the `benches` crate a default-features `foldhash` dev-dependency, which turns the feature on across the workspace; the warning is gone and the bans fire. They are needed: with the two entries removed, a scratch crate using `foldhash::HashMap` and `HashSet` triggered no warning, so the `RandomState` bans do not catch the aliases. If that dev-dependency is removed, the harmless warning returns.
 - **Tests added by triage (Step 7).** `tests/contracts.rs` (8 tests) closes all 36 mutants missed in the first run.
 - **Typos (Step 8).** Two short variable names in the guide-level example were flagged by `typos`; they are `forward` and `backward` in the spec's example and the crate's doctests and tests.
 - **Not run in this session (Step 6).** `cargo xtask bench-regress` (needs Valgrind; not available on macOS) and the wall-clock comparison with its baseline and noise floor (needs the benchmark protocol on the maintainer's machine). Both are required before the pull request is ready.

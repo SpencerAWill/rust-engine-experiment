@@ -7,11 +7,11 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! Map comparisons: `engine_collections::IndexMap` vs `indexmap` with the same hasher, `indexmap`
+//! Map comparisons: `engine::collections::IndexMap` vs `indexmap` with the same hasher, `indexmap`
 //! with the std `SipHash` hasher, and `BTreeMap`.
 //!
 //! The wrapper should be within noise of raw `indexmap` with the same hasher. Keys are `u64`,
-//! shuffled with a fixed seed from `engine_random::Prng`, so every implementation sees the same
+//! shuffled with a fixed seed from `engine::random::Prng`, so every implementation sees the same
 //! order. This file reports numbers; it gates nothing.
 
 use std::collections::BTreeMap;
@@ -20,8 +20,8 @@ use std::hash::BuildHasherDefault;
 use std::hint::black_box;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use engine_collections::IndexMap as Engine;
-use engine_random::Prng;
+use engine::collections::IndexMap as Engine;
+use engine::random::Prng;
 use foldhash::fast::FixedState;
 
 const SIZES: [usize; 3] = [64, 1_024, 65_536];
@@ -35,7 +35,7 @@ trait Map {
 }
 
 impl Map for Engine<u64, u64> {
-    const NAME: &'static str = "engine_collections";
+    const NAME: &'static str = "engine::IndexMap";
     fn with_capacity(n: usize) -> Self {
         Engine::with_capacity(n)
     }

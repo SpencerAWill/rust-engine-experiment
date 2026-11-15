@@ -15,7 +15,7 @@ const ATTEMPTS: usize = 5;
 /// `dhat` counts the blocks of every thread, and on a loaded machine the test harness's main
 /// thread can allocate while `work` runs (this test failed on a macOS runner with 5 blocks it
 /// did not allocate). Code that allocates does so on every run, so one clean run is enough to
-/// show that it does not. `engine_genid`'s `fixed_capacity.rs` measures the same way.
+/// show that it does not. `engine::genid`'s `fixed_capacity.rs` measures the same way.
 fn fewest_blocks(mut work: impl FnMut()) -> u64 {
     let mut fewest = u64::MAX;
     for _ in 0..ATTEMPTS {

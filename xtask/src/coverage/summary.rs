@@ -1,4 +1,4 @@
-//! The per-crate coverage summary, computed from `lcov.info` and the source files it names.
+//! The per-module coverage summary, computed from `lcov.info` and the source files it names.
 //!
 //! Everything here is a pure function over strings, so it is tested without `cargo-llvm-cov`.
 
@@ -254,8 +254,10 @@ fn parse_lcov(text: &str) -> Result<Vec<LcovFile>, String> {
     Ok(files)
 }
 
-/// The crate directory name of a source file: `libs/<name>/src/...` or `examples/<name>/src/...`
-/// under `root`. Any other path is an error, because dropping it silently would skew the totals.
+/// The table row of a source file under `root`: `engine::<module>` for `libs/engine/src/<module>.rs`
+/// and `libs/engine/src/<module>/...`, `engine` for the crate root `libs/engine/src/lib.rs`, and
+/// the package name for `libs/<name>/src/...` or `examples/<name>/src/...`. Any other path is an
+/// error, because dropping it silently would skew the totals.
 fn crate_of(root: &Path, path: &Path) -> Result<String, String> {
     let relative = path.strip_prefix(root).map_err(|_| {
         format!(
@@ -272,6 +274,15 @@ fn crate_of(root: &Path, path: &Path) -> Result<String, String> {
         })
         .collect();
     match parts.as_slice() {
+        ["libs", "engine", "src", "lib.rs"] => Ok("engine".to_string()),
+        ["libs", "engine", "src", first, rest @ ..] => {
+            let module = if rest.is_empty() {
+                first.strip_suffix(".rs").unwrap_or(first)
+            } else {
+                first
+            };
+            Ok(format!("engine::{module}"))
+        }
         ["libs" | "examples", name, "src", _, ..] => Ok((*name).to_string()),
         _ => Err(format!(
             "{} is outside the counted patterns (libs/*/src and examples/*/src)",
@@ -330,7 +341,7 @@ fn cell(hit: u64, total: u64) -> String {
     format!("{hit}/{total} ({}.{}%)", per_mille / 10, per_mille % 10)
 }
 
-/// The Markdown table, one row per crate (in name order) and a `Total` row.
+/// The Markdown table, one row per module of `engine` or package (in name order) and a `Total` row.
 fn render(rows: &BTreeMap<String, Counts>, excluded_lines: u64) -> String {
     let row = |name: &str, c: &Counts| {
         format!(
@@ -343,7 +354,7 @@ fn render(rows: &BTreeMap<String, Counts>, excluded_lines: u64) -> String {
     let mut out = format!(
         "## Coverage\n\nExcluded: doctests (not run); tests/, benches/ and tooling sources; \
          {excluded_lines} instrumented lines in #[cfg(test)] items.\n\n\
-         | Crate | Lines | Functions |\n|---|---|---|\n"
+         | Module | Lines | Functions |\n|---|---|---|\n"
     );
     for (name, counts) in rows {
         total.add(*counts);
@@ -488,23 +499,28 @@ mod outer {
     }
 
     #[test]
-    fn rows_are_ordered_by_crate_with_total_last() {
-        let lcov = "SF:/w/libs/engine_time/src/a.rs\nDA:1,1\nDA:2,0\nend_of_record\n\
-                    SF:/w/libs/engine/src/b.rs\nDA:1,3\nend_of_record\n";
+    fn engine_rows_are_per_module() {
+        let lcov = "SF:/w/libs/engine/src/time/fixed.rs\nDA:1,1\nDA:2,0\nend_of_record\n\
+                    SF:/w/libs/engine/src/time.rs\nDA:1,1\nend_of_record\n\
+                    SF:/w/libs/engine/src/lib.rs\nDA:1,3\nend_of_record\n\
+                    SF:/w/examples/a/src/main.rs\nDA:1,1\nend_of_record\n";
         let out = run(
             lcov,
             &[
-                ("libs/engine_time/src/a.rs", "fn a() {}\n"),
-                ("libs/engine/src/b.rs", "fn b() {}\n"),
+                ("libs/engine/src/time/fixed.rs", "fn a() {}\n"),
+                ("libs/engine/src/time.rs", "fn t() {}\n"),
+                ("libs/engine/src/lib.rs", "fn b() {}\n"),
+                ("examples/a/src/main.rs", "fn m() {}\n"),
             ],
         )
         .unwrap();
         assert!(out.starts_with("## Coverage\n"), "{out}");
         let rows: Vec<&str> = out.lines().filter(|l| l.starts_with("| ")).collect();
-        assert!(rows[1].starts_with("| engine "), "{out}");
-        assert!(rows[2].starts_with("| engine_time "), "{out}");
-        assert!(rows[3].starts_with("| Total "), "{out}");
+        assert!(rows[1].starts_with("| a "), "{out}");
+        assert!(rows[2].starts_with("| engine "), "{out}");
+        assert!(rows[3].starts_with("| engine::time "), "{out}");
         assert!(rows[3].contains("2/3 (66.7%)"), "{out}");
+        assert!(rows[4].starts_with("| Total "), "{out}");
         assert!(
             out.lines()
                 .nth(2)
@@ -517,9 +533,9 @@ mod outer {
     #[test]
     fn test_ranges_remove_lines_and_functions() {
         let source = "fn a() {}\n\n#[cfg(test)]\nmod tests {\n    fn t() {}\n}\n";
-        let lcov = "SF:/w/libs/engine/src/a.rs\nFN:1,live\nFN:4,test_fn\nFNDA:1,live\nFNDA:1,test_fn\n\
+        let lcov = "SF:/w/libs/engine/src/lib.rs\nFN:1,live\nFN:4,test_fn\nFNDA:1,live\nFNDA:1,test_fn\n\
                     DA:1,1\nDA:4,1\nDA:5,1\nend_of_record\n";
-        let out = run(lcov, &[("libs/engine/src/a.rs", source)]).unwrap();
+        let out = run(lcov, &[("libs/engine/src/lib.rs", source)]).unwrap();
         let row = out.lines().find(|l| l.starts_with("| engine ")).unwrap();
         assert!(row.contains("1/1 (100.0%) | 1/1 (100.0%)"), "{out}");
         assert!(
@@ -533,35 +549,35 @@ mod outer {
 
     #[test]
     fn several_fn_records_on_one_line_are_one_function() {
-        let lcov = "SF:/w/libs/engine/src/a.rs\nFN:10,first\nFN:10,second\nFNDA:0,first\nFNDA:4,second\n\
+        let lcov = "SF:/w/libs/engine/src/lib.rs\nFN:10,first\nFN:10,second\nFNDA:0,first\nFNDA:4,second\n\
                     DA:10,4\nend_of_record\n";
-        let out = run(lcov, &[("libs/engine/src/a.rs", "fn a() {}\n")]).unwrap();
+        let out = run(lcov, &[("libs/engine/src/lib.rs", "fn a() {}\n")]).unwrap();
         let row = out.lines().find(|l| l.starts_with("| engine ")).unwrap();
         assert!(row.ends_with("| 1/1 (100.0%) |"), "{out}");
     }
 
     #[test]
     fn fn_record_accepts_an_optional_end_line() {
-        let lcov = "SF:/w/libs/engine/src/a.rs\nFN:3,9,with_end\nFN:12,without_end\n\
+        let lcov = "SF:/w/libs/engine/src/lib.rs\nFN:3,9,with_end\nFN:12,without_end\n\
                     FNDA:1,with_end\nFNDA:0,without_end\nDA:3,1\nend_of_record\n";
-        let out = run(lcov, &[("libs/engine/src/a.rs", "fn a() {}\n")]).unwrap();
+        let out = run(lcov, &[("libs/engine/src/lib.rs", "fn a() {}\n")]).unwrap();
         let row = out.lines().find(|l| l.starts_with("| engine ")).unwrap();
         assert!(row.ends_with("| 1/2 (50.0%) |"), "{out}");
     }
 
     #[test]
     fn fn_record_name_may_contain_commas() {
-        let lcov = "SF:/w/libs/engine/src/a.rs\nFN:5,<Foo<A, B> as Bar>::baz\n\
+        let lcov = "SF:/w/libs/engine/src/lib.rs\nFN:5,<Foo<A, B> as Bar>::baz\n\
                     FNDA:2,<Foo<A, B> as Bar>::baz\nDA:5,2\nend_of_record\n";
-        let out = run(lcov, &[("libs/engine/src/a.rs", "fn a() {}\n")]).unwrap();
+        let out = run(lcov, &[("libs/engine/src/lib.rs", "fn a() {}\n")]).unwrap();
         let row = out.lines().find(|l| l.starts_with("| engine ")).unwrap();
         assert!(row.ends_with("| 1/1 (100.0%) |"), "{out}");
     }
 
     #[test]
     fn other_records_are_ignored() {
-        let lcov = "VER:2\nSF:/w/libs/engine/src/a.rs\nDA:1,1\nBRDA:1,0,0,1\nLF:1\nLH:1\nFNF:0\nFNH:0\nend_of_record\n";
-        let out = run(lcov, &[("libs/engine/src/a.rs", "fn a() {}\n")]).unwrap();
+        let lcov = "VER:2\nSF:/w/libs/engine/src/lib.rs\nDA:1,1\nBRDA:1,0,0,1\nLF:1\nLH:1\nFNF:0\nFNH:0\nend_of_record\n";
+        let out = run(lcov, &[("libs/engine/src/lib.rs", "fn a() {}\n")]).unwrap();
         let row = out.lines().find(|l| l.starts_with("| engine ")).unwrap();
         assert!(row.contains("1/1 (100.0%)"), "{out}");
     }

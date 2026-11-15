@@ -226,7 +226,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("xtask-statics-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         for dir in [
-            "libs/engine_random/src",
+            "libs/engine/src",
             "spikes/ecs_storage/harness/src",
             "spikes/ecs_storage/vec/src",
         ] {
@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(
             relative,
             [
-                "libs/engine_random/src",
+                "libs/engine/src",
                 "spikes/ecs_storage/harness/src",
                 "spikes/ecs_storage/vec/src"
             ]

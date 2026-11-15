@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use engine_math::scalar;
+use engine::math::scalar;
 
 use super::load::Point;
 use super::model::{Delta, Group, NOISE_PCT, Series, Verdict};
@@ -509,9 +509,15 @@ mod tests {
 
     fn scaling_group() -> Group {
         let points = [
-            point("g", "engine_genid", Some("u64"), Some(1_000.0), 2.0),
-            point("g", "engine_genid", Some("u64"), Some(100_000.0), 3.0),
-            point("g", "engine_genid", Some("u64"), Some(1_000_000.0), 20.0),
+            point("g", "engine::GenIdMap", Some("u64"), Some(1_000.0), 2.0),
+            point("g", "engine::GenIdMap", Some("u64"), Some(100_000.0), 3.0),
+            point(
+                "g",
+                "engine::GenIdMap",
+                Some("u64"),
+                Some(1_000_000.0),
+                20.0,
+            ),
             point("g", "slotmap", Some("u64"), Some(1_000.0), 1.0),
             point("g", "slotmap", Some("u64"), Some(1_000_000.0), 9.0),
         ];
@@ -519,7 +525,7 @@ mod tests {
     }
 
     fn colors() -> Colors {
-        Colors::new(vec!["engine_genid".into(), "slotmap".into()])
+        Colors::new(vec!["engine::GenIdMap".into(), "slotmap".into()])
     }
 
     #[test]
@@ -590,7 +596,7 @@ mod tests {
     #[test]
     fn colours_are_stable_per_implementation() {
         let c = colors();
-        assert_eq!(c.class("engine_genid"), "s0");
+        assert_eq!(c.class("engine::GenIdMap"), "s0");
         assert_eq!(c.class("slotmap"), "s1");
         assert_eq!(c.class("unknown"), "s7");
     }
@@ -642,7 +648,7 @@ mod tests {
     #[test]
     fn bar_chart_has_one_bar_per_series() {
         let points = [
-            point("g", "engine_genid", None, None, 5.0),
+            point("g", "engine::GenIdMap", None, None, 5.0),
             point("g", "slotmap", None, None, 10.0),
         ];
         let svg = bar_chart(&model::group(&points).remove(0), &colors());

@@ -1,19 +1,33 @@
+#![no_std]
 #![forbid(unsafe_code)]
-//! Start here: the single dependency for using the engine.
+// A `std::` path in library code fails clippy (which runs with warnings denied) when `core` or
+// `alloc` provides the same item, so a stray one fails `ci --quick` and not only `no-std`.
+#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc)]
+#![cfg_attr(test, allow(clippy::std_instead_of_core, clippy::std_instead_of_alloc))]
+//! Start here: the engine's library crate.
 //!
-//! `engine` is a facade. It re-exports the foundation crates as modules and collects the
-//! everyday types in [`prelude`], so a project depends on one crate and writes
-//! `use engine::prelude::*;`.
+//! `engine` holds all of the engine's library code as modules, and collects the everyday types in
+//! [`prelude`], so a project depends on one crate and writes `use engine::prelude::*;`. A separate
+//! crate is made only when ADR 0004 says so.
 //!
-//! # Crate map
+//! # Module map
 //!
-//! | Module | Crate | What it is |
+//! | Module | What it is |
+//! |---|---|
+//! | [`genid`] | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
+//! | [`random`] | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
+//! | [`time`] | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
+//! | [`collections`] | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
+//! | [`math`] | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
+//!
+//! # Features
+//!
+//! The crate is `no_std` with `alloc`.
+//!
+//! | Feature | Default | Enables |
 //! |---|---|---|
-//! | [`genid`] | `engine_genid` | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
-//! | [`random`] | `engine_random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
-//! | [`time`] | `engine_time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
-//! | [`collections`] | `engine_collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
-//! | [`math`] | `engine_math` | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
+//! | `std` | yes | `time::SystemClock`, and `std` as the transcendental backend of [`math::scalar`] and of glam. Without it, `libm` is the backend (ADR 0003), also on a target that has `std`. |
+//! | `test-invariants` | no | `check_invariants` on [`GenIdMap`](genid::GenIdMap) and [`GenIdAllocator`](genid::GenIdAllocator), for integration tests and fuzz targets |
 //!
 //! # Collections
 //!
@@ -40,7 +54,7 @@
 //! - **The host owns the loop:** the engine never takes over a thread it was not given. You call
 //!   into it (for example [`FixedTimestep::accumulate`](time::FixedTimestep::accumulate)) from your
 //!   own loop. See ADR 0007.
-//! - **No `unsafe`:** every crate forbids it. See ADR 0001.
+//! - **No `unsafe`:** the crate forbids it. See ADR 0001.
 //! - **0.x:** all APIs are explicitly unstable.
 //!
 //! # Example
@@ -60,26 +74,34 @@
 //! assert!(map.contains(h) && prng.range(0..10) < 10);
 //! ```
 
-pub use engine_collections as collections;
-pub use engine_genid as genid;
-pub use engine_math as math;
-pub use engine_random as random;
-pub use engine_time as time;
+extern crate alloc;
+// Unit tests use `std` (and its `vec!` and `format!` macros) whatever the features are.
+#[cfg(test)]
+#[macro_use]
+extern crate std;
+#[cfg(all(feature = "std", not(test)))]
+extern crate std;
+
+pub mod collections;
+pub mod genid;
+pub mod math;
+pub mod random;
+pub mod time;
 
 /// The everyday types, for `use engine::prelude::*;`.
 ///
-/// Only this facade has a prelude: the leaf crates expose a small, flat public surface instead.
+/// Only the crate root has a prelude: the modules expose a small, flat public surface instead.
 pub mod prelude {
-    pub use engine_genid::{GenId, GenIdAllocator, GenIdMap};
-    pub use engine_math::{
+    pub use crate::genid::{GenId, GenIdAllocator, GenIdMap};
+    pub use crate::math::{
         DVec2, DVec3, Mat4, Quat, Transform, Transform2d, Vec2, Vec3, Vec4, WorldTransform,
         WorldTransform2d, axis,
     };
-    pub use engine_random::Prng;
+    pub use crate::random::Prng;
     #[cfg(all(
         feature = "std",
         not(all(target_arch = "wasm32", target_os = "unknown"))
     ))]
-    pub use engine_time::SystemClock;
-    pub use engine_time::{FixedTimestep, ManualClock, Tick, TimeSource, Timestamp};
+    pub use crate::time::SystemClock;
+    pub use crate::time::{FixedTimestep, ManualClock, Tick, TimeSource, Timestamp};
 }

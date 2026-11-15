@@ -223,20 +223,14 @@ fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
     )
 }
 
-/// The `no_std` leaf crates, built without default features for a bare-metal target.
+/// `engine`, built without default features for a bare-metal target.
 fn no_std() -> Result<(), String> {
     run(
         "cargo",
         &[
             "build",
             "-p",
-            "engine_collections",
-            "-p",
-            "engine_genid",
-            "-p",
-            "engine_random",
-            "-p",
-            "engine_time",
+            "engine",
             "--no-default-features",
             "--target",
             "thumbv7em-none-eabihf",
@@ -245,8 +239,8 @@ fn no_std() -> Result<(), String> {
     )
 }
 
-/// Builds the facade for `wasm32-unknown-unknown` (which also proves `SystemClock` is excluded
-/// there), then runs the leaf crates' and `engine_math`'s tests on `wasm32-wasip1` under wasmtime.
+/// Builds `engine` for `wasm32-unknown-unknown` (which also proves `SystemClock` is excluded
+/// there), then runs its tests on `wasm32-wasip1` under wasmtime.
 fn wasm() -> Result<(), String> {
     run(
         "cargo",
@@ -269,15 +263,7 @@ fn wasm() -> Result<(), String> {
             "--lib",
             "--tests",
             "-p",
-            "engine_collections",
-            "-p",
-            "engine_genid",
-            "-p",
-            "engine_random",
-            "-p",
-            "engine_time",
-            "-p",
-            "engine_math",
+            "engine",
         ],
         &[("CARGO_TARGET_WASM32_WASIP1_RUNNER", "wasmtime")],
     )
@@ -396,7 +382,7 @@ fn bench_build_args() -> Vec<String> {
 }
 
 /// The `cargo hack` command line: check every package with each of its features alone, and with
-/// none. `--no-dev-deps` keeps `engine_genid`'s self dev-dependency (which turns on
+/// none. `--no-dev-deps` keeps `engine`'s self dev-dependency (which turns on
 /// `test-invariants`) from hiding a feature-gated build break.
 fn hack_args() -> Vec<String> {
     [
@@ -701,7 +687,7 @@ mod tests {
         assert!(parse(&["hack", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::Hack));
         assert!(!ci_steps(true).contains(&Command::Hack));
-        // `--no-dev-deps` matters: engine_genid's self dev-dependency would otherwise turn on
+        // `--no-dev-deps` matters: engine's self dev-dependency would otherwise turn on
         // `test-invariants` everywhere and hide feature-gated breakage.
         assert_eq!(
             hack_args(),
@@ -761,7 +747,7 @@ mod tests {
     fn mutants_parses_and_is_not_a_ci_step() {
         assert!(matches!(parse(&["mutants"]), Ok(Command::Mutants(_))));
         assert!(matches!(
-            parse(&["mutants", "-p", "engine_random", "-j", "2", "--list"]),
+            parse(&["mutants", "--module", "random", "-j", "2", "--list"]),
             Ok(Command::Mutants(_))
         ));
         assert!(parse(&["mutants", "--x"]).is_err());

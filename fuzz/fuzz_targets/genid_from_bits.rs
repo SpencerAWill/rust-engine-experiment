@@ -4,7 +4,7 @@
 #![no_main]
 #![forbid(unsafe_code)]
 
-use engine_genid::{GenId, UntypedGenId};
+use engine::genid::{GenId, UntypedGenId};
 use libfuzzer_sys::fuzz_target;
 
 /// Checks every property that holds for a single bit pattern.

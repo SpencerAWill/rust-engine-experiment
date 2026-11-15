@@ -1,4 +1,4 @@
-# M3.1: `engine_collections`: deterministic map and set
+# M3.1: `engine::collections`: deterministic map and set
 
 - **Status:** Implemented (PR #26, 2026-11-13). Changed during implementation: the backend is named through a type alias and `extern crate alloc` is left out (§4.1); the model tests are unit tests so the constant hasher is reachable (§8); two benchmarks were renamed and enlarged to reach the gate's 10,000-instruction minimum (§4.8). See the plan's §4.
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** none · **Decides:** no ADR
@@ -8,7 +8,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds `libs/engine_collections`, a `no_std` crate with two types, `IndexMap<K, V>` and `IndexSet<T>`: hash-indexed collections whose iteration order is insertion order, so it is a pure function of the operations applied and never depends on hash values, seeds, capacity, platform or crate versions. It comes now because `clippy.toml` bans std's `HashMap` and `HashSet` (their iteration order is randomized per process, [ADR 0003](../../../adr/0003-same-build-determinism.md)), which leaves engine code only `BTreeMap`; the M3 storage prototypes need hashed lookups (`TypeId` to component id, component set to archetype, archetype edges) on the paths M3 measures, and the bevy_ecs and hecs baselines they are compared against use hashed maps there. At the end, `use engine::collections::IndexMap;` works in engine code, and the model tests show that iteration order is identical with the real hasher and with a hasher that maps every key to the same value.
+This chunk adds `libs/engine/src/collections`, a module of `engine` that needs only `core` and `alloc`, with two types, `IndexMap<K, V>` and `IndexSet<T>`: hash-indexed collections whose iteration order is insertion order, so it is a pure function of the operations applied and never depends on hash values, seeds, capacity, platform or crate versions. It comes now because `clippy.toml` bans std's `HashMap` and `HashSet` (their iteration order is randomized per process, [ADR 0003](../../../adr/0003-same-build-determinism.md)), which leaves engine code only `BTreeMap`; the M3 storage prototypes need hashed lookups (`TypeId` to component id, component set to archetype, archetype edges) on the paths M3 measures, and the bevy_ecs and hecs baselines they are compared against use hashed maps there. At the end, `use engine::collections::IndexMap;` works in engine code, and the model tests show that iteration order is identical with the real hasher and with a hasher that maps every key to the same value.
 
 ## 2. Goals and non-goals
 
@@ -36,7 +36,7 @@ This chunk adds `libs/engine_collections`, a `no_std` crate with two types, `Ind
 A map remembers the order keys were first inserted in, and iterates in that order:
 
 ```rust
-use engine_collections::IndexMap;
+use engine::collections::IndexMap;
 
 let mut speeds = IndexMap::new();
 speeds.insert("walk", 1.4);
@@ -52,7 +52,7 @@ assert_eq!(speeds.get_index_of("run"), Some(1));
 There is no `remove`. Each removal says what it does to the order:
 
 ```rust
-use engine_collections::IndexMap;
+use engine::collections::IndexMap;
 
 let mut m: IndexMap<char, u32> = ('a'..='e').zip(0..).collect();
 
@@ -66,7 +66,7 @@ assert_eq!(m.keys().collect::<String>(), "ecd");
 Two collections are equal only if they hold the same entries **in the same order**, because order changes what a simulation does with them:
 
 ```rust
-use engine_collections::IndexSet;
+use engine::collections::IndexSet;
 
 let forward: IndexSet<u32> = [1, 2].into();
 let backward: IndexSet<u32> = [2, 1].into();
@@ -86,16 +86,16 @@ The order is deterministic only if the sequence of operations is. Inserting from
 
 ### 4.1 Crate
 
-`libs/engine_collections` is a workspace member with `#![no_std]`, `extern crate alloc`, and `#![forbid(unsafe_code)]`. Its dependencies are:
+`engine::collections` is a module of the `engine` crate, which is `#![no_std]` with `extern crate alloc` and `#![forbid(unsafe_code)]`. Its dependencies, added to `engine`, are:
 
 | Crate | Version | Features | Licence |
 |---|---|---|---|
 | `indexmap` | 2 (2.14.2 is already in the lockfile, through `winit`) | `default-features = false` | MIT OR Apache-2.0 |
 | `foldhash` | 0.2 | `default-features = false` | Zlib |
 
-Its crate documentation MUST open with its [ADR 0004](../../../adr/0004-crate-splitting-rule.md) justification: dependencies (`indexmap` and `foldhash`, which other crates should not carry), platform (`no_std` with `alloc`), and layering (a foundation for the ECS, the registry and persistence). The same justification MUST be added to ADR 0004's table.
+Its module documentation MUST say that it needs only `core` and `alloc`, and that it is the foundation for the ECS, the registry and persistence.
 
-The `engine` facade MUST re-export the crate as `engine::collections`. `IndexMap` and `IndexSet` MUST NOT be in `engine::prelude`: a prelude `IndexMap` would clash with the `indexmap` crate's name in code that uses both.
+`engine` MUST declare the module `engine::collections`. `IndexMap` and `IndexSet` MUST NOT be in `engine::prelude`: a prelude `IndexMap` would clash with the `indexmap` crate's name in code that uses both.
 
 Layout: `IndexMap` and its iterator and entry types live in the public module `index_map`; `IndexSet` and its iterators in `index_set`; `TryReserveError` at the root. `IndexMap` and `IndexSet` are re-exported at the crate root. This mirrors `std::collections::hash_map`.
 
@@ -188,35 +188,35 @@ Iterator types live in `index_set`: `Iter` (also `Clone`) and `IntoIter`, with t
 
 ### 4.8 Lints, tooling and documents
 
-**`clippy.toml`.** The two std ban messages change to "iteration order is randomized per process; use `engine_collections::IndexMap`" (and `IndexSet`). The following are added; `engine_collections` uses item-level `#[expect(clippy::disallowed_types, reason = "...")]` where it names them:
+**`clippy.toml`.** The two std ban messages change to "iteration order is randomized per process; use `engine::collections::IndexMap`" (and `IndexSet`). The following are added; `engine::collections` uses item-level `#[expect(clippy::disallowed_types, reason = "...")]` where it names them:
 
 | Kind | Path | Reason |
 |---|---|---|
-| type | `indexmap::IndexMap`, `indexmap::IndexSet` | with `indexmap`'s `std` feature (enabled in the workspace by other dependencies), their default hasher is std's `RandomState`, which the `RandomState` ban does not catch through a defaulted type parameter; use `engine_collections` |
+| type | `indexmap::IndexMap`, `indexmap::IndexSet` | with `indexmap`'s `std` feature (enabled in the workspace by other dependencies), their default hasher is std's `RandomState`, which the `RandomState` ban does not catch through a defaulted type parameter; use `engine::collections` |
 | type | `foldhash::fast::RandomState`, `foldhash::quality::RandomState`, `foldhash::HashMap`, `foldhash::HashSet` | randomly seeded |
 | method | `foldhash::fast::SeedableRandomState::random`, `foldhash::quality::SeedableRandomState::random`, `foldhash::SharedSeed::global_random` | randomly seeded |
 
 Clippy matches resolved definition paths, so a path written through a re-export may be silently inert. Each entry MUST be checked to fire by triggering it once in a scratch crate; where the re-export path does not fire, the definition path (for example `indexmap::map::IndexMap`) is used instead.
 
-**xtask.** `engine_collections` is added to the `no_std` leaf list, to the `wasm32-wasip1` test list, and to `TRIAGED` in `xtask/src/mutants.rs`.
+**xtask.** `engine::collections` is covered by the `no_std` and `wasm32-wasip1` builds of `engine`, and is added to `TRIAGED` in `xtask/src/mutants.rs`.
 
 **Benchmarks.**
 
 - `bench-regress/benches/collections.rs` (Gungraun, gated at 5% like the existing benchmarks): inserting 1,024 `u64` keys into a map made `with_capacity(1024)`, hit and miss lookups in that map, iterating it, and hit lookups with `TypeId` keys in a map of 64 entries.
-- `benches/benches/collections.rs` (wall clock, report only): the same operations on `engine_collections::IndexMap`, raw `indexmap::IndexMap` with the same hasher, `indexmap::IndexMap` with `BuildHasherDefault<DefaultHasher>`, and `BTreeMap`. It is for the numbers in the pull request, not a gate.
+- `benches/benches/collections.rs` (wall clock, report only): the same operations on `engine::collections::IndexMap`, raw `indexmap::IndexMap` with the same hasher, `indexmap::IndexMap` with `BuildHasherDefault<DefaultHasher>`, and `BTreeMap`. It is for the numbers in the pull request, not a gate.
 
 **Documents.**
 
-- ADR 0004: a table row for `engine_collections`.
-- ADR 0011: the Consequences line "Other crates do not allocate, so they need none of this" is replaced by one saying that `engine_collections` also allocates and follows the same capacity controls, without a fixed-capacity mode.
+- ADR 0004: a table row for `engine::collections`.
+- ADR 0011: the Consequences line "Other crates do not allocate, so they need none of this" is replaced by one saying that `engine::collections` also allocates and follows the same capacity controls, without a fixed-capacity mode.
 - M0+M1 spec §4.2, "Deterministic hash collections": a note that the fixed-seed design was replaced by insertion order in M3.1, linking this spec. The text above the note stays as a record.
-- `docs/mutation-triage.md`: a section for `engine_collections`.
+- `docs/mutation-triage.md`: a section for `engine::collections`.
 - `docs/roadmap.md`: the M3.1 row, and on M5's rough-chunk list, "maps and sets are saved in iteration order and loaded by inserting in that order (order is state)".
-- `README.md` lists the crate; `CHANGELOG.md` records it.
+- `README.md` lists the module; `CHANGELOG.md` records it.
 
 ## 5. Requirements
 
-- **M3.1-R1** `libs/engine_collections` MUST exist as in §4.1: a workspace member with `#![no_std]` and `#![forbid(unsafe_code)]`, depending only on `indexmap` and `foldhash` with default features off.
+- **M3.1-R1** `libs/engine/src/collections` MUST exist as in §4.1: a workspace member with `#![no_std]` and `#![forbid(unsafe_code)]`, depending only on `indexmap` and `foldhash` with default features off.
 - **M3.1-R2** The public API MUST provide the items of §4.4 and §4.5 with the stated signatures and trait impls, and no public signature may name an `indexmap` or `foldhash` type or a hasher type parameter.
 - **M3.1-R3** Both types MUST follow the order rules 1 to 9 of §4.3.
 - **M3.1-R4** No observable behaviour may depend on the hasher: every test of R3 MUST also pass with a hasher that returns the same value for every key.
@@ -226,12 +226,12 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 - **M3.1-R8** Both types MUST be `Send`, `Sync` and `Unpin` whenever their element types are.
 - **M3.1-R9** Heap allocation MUST follow §4.7.
 - **M3.1-R10** `Index` and `IndexMut` MUST panic on a missing key at the caller's location with the message of §4.7; `reserve` MUST document its panic and name `try_reserve`; no other public item may panic, apart from allocation failure during growth (§4.7).
-- **M3.1-R11** Every public item MUST be documented, every public type MUST have a runnable doctest, and the crate documentation MUST state the ADR 0004 justification and the consequences listed in §4.3 and §4.6 (order is a function of the operation sequence and not of key values, positions are not stable, the caller owns the operation sequence, equality respects order, the hasher is not part of the contract, and the hash-flooding limitation).
-- **M3.1-R12** `engine::collections` MUST re-export the crate, and `engine::prelude` MUST NOT contain `IndexMap` or `IndexSet`.
+- **M3.1-R11** Every public item MUST be documented, every public type MUST have a runnable doctest, and the module documentation MUST state the consequences listed in §4.3 and §4.6 (order is a function of the operation sequence and not of key values, positions are not stable, the caller owns the operation sequence, equality respects order, the hasher is not part of the contract, and the hash-flooding limitation).
+- **M3.1-R12** `engine::collections` MUST exist as a module, and `engine::prelude` MUST NOT contain `IndexMap` or `IndexSet`.
 - **M3.1-R13** `clippy.toml` MUST contain the changes of §4.8, and each new ban MUST be shown to fire.
 - **M3.1-R14** The crate MUST build in `cargo xtask no-std`, and its tests MUST pass in `cargo xtask wasm`.
 - **M3.1-R15** The two benchmark files of §4.8 MUST exist, and `cargo xtask bench-regress` MUST pass.
-- **M3.1-R16** `cargo xtask mutants -p engine_collections` MUST have been run and every missed mutant and timeout triaged in `docs/mutation-triage.md`.
+- **M3.1-R16** `cargo xtask mutants --module collections` MUST have been run and every missed mutant and timeout triaged in `docs/mutation-triage.md`.
 - **M3.1-R17** The document changes of §4.8 MUST be made.
 - **M3.1-R18** `cargo xtask deny` MUST pass without changes to `deny.toml`, and `cargo xtask ci` MUST pass.
 
@@ -243,7 +243,7 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 - **Heap allocation:** §4.7. Checked with `dhat` (R9), and ADR 0011's Consequences are updated (§4.8).
 - **`no_std` and wasm:** `no_std` with `alloc`; both dependencies support it with default features off (R14). `foldhash` produces different hash values on 32-bit and 64-bit targets, which is unobservable (R4).
 - **Frozen formats:** none. The seed and hash algorithm are explicitly not part of the contract; the golden order test pins behaviour, not a format.
-- **Public API changes:** a new crate and a new `engine::collections` module; no existing item changes.
+- **Public API changes:** a new `engine::collections` module; no existing item changes.
 - **FFI exposure:** n/a, because the collections are internal building blocks; nothing crosses the C ABI in M3.
 - **Performance:** `cargo xtask bench-regress` gates the new Gungraun benchmarks; the wall-clock comparison in `benches` reports the wrapper's cost against raw `indexmap` (expected to be within noise), the hasher choice against `DefaultHasher`, and the gap to `BTreeMap`, with a saved baseline and the noise floor in the pull request (`cargo xtask bench-report`).
 - **Documentation:** item docs and doctests (R11), the crate's ADR 0004 justification, this spec and its plan, and the document changes of §4.8.
@@ -264,13 +264,13 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 - **Both `sort_keys` and `sort_unstable_keys`.** Rejected: keys are unique, so both give the same order; one method using the non-allocating unstable sort is enough.
 - **`IndexMap` in `engine::prelude`.** Rejected: it would clash with `indexmap::IndexMap` in code that imports both.
 - **A fuzz target.** Rejected: the crate is a thin wrapper, and the proptest model (R3, R4) already drives random operation sequences against a reference.
-- **A `check_invariants` feature** like `engine_handle`'s. Rejected: the internal invariants belong to `indexmap`; the model test checks everything visible through this API.
+- **A `check_invariants` feature** like `engine::handle`'s. Rejected: the internal invariants belong to `indexmap`; the model test checks everything visible through this API.
 
 ## 8. Verification
 
 | Requirement | Verified by |
 |---|---|
-| R1 | `Cargo.toml` of the crate; `cargo xtask check-unsafe`; `cargo tree -p engine_collections -e normal --depth 1` |
+| R1 | `Cargo.toml` of the crate; `cargo xtask check-unsafe`; `cargo tree -p engine -e normal --depth 1` |
 | R2 | doctests and unit tests exercising every item; review that `cargo doc` shows no `indexmap` or `foldhash` type in any public signature |
 | R3 | `tests/model.rs`: proptest of random operation sequences (insert of new and existing keys, every entry method, the four removals, `pop`, `retain`, `clear`, `reserve`, `shrink_to_fit`, `sort_keys`/`sort`) against a model `Vec<(K, V)>` searched linearly; after every operation, the iteration order, `len`, every key's lookup and `get_index_of`, and `first`/`last` must match the model. Same for `IndexSet`. Unit tests for `FromIterator`, `Extend` and `From` with repeated keys |
 | R4 | the same model tests instantiated with a private constant hasher (every key hashes to 0), in a unit-test module inside the crate |
@@ -285,7 +285,7 @@ Clippy matches resolved definition paths, so a path written through a re-export 
 | R13 | `clippy.toml` diff; each new ban triggered once in a scratch crate, with the clippy output pasted in the pull request |
 | R14 | `cargo xtask no-std`; `cargo xtask wasm` |
 | R15 | `cargo xtask bench-regress` in the devcontainer; `cargo xtask bench-report` output with a saved baseline and the noise floor in the pull request |
-| R16 | `docs/mutation-triage.md` section; the `cargo xtask mutants -p engine_collections` summary in the pull request |
+| R16 | `docs/mutation-triage.md` section; the `cargo xtask mutants --module collections` summary in the pull request |
 | R17 | documentation review; relative links resolve |
 | R18 | `cargo xtask deny`; `cargo xtask ci` locally; the pull request's CI run |
 

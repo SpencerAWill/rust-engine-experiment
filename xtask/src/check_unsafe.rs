@@ -218,7 +218,7 @@ mod tests {
         let checked = workspace(root).unwrap().members;
         // One member of each kind the root `Cargo.toml` lists: a glob member and plain members.
         for member in [
-            "libs/engine_genid",
+            "libs/engine",
             "examples/agents_2d",
             "bench/compare",
             "bench/regress",

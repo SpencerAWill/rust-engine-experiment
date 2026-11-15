@@ -270,8 +270,8 @@ mod tests {
 
     fn sample() -> Vec<Point> {
         vec![
-            point("get_random", "engine_genid", Some(1_000.0), 500.0),
-            point("get_random", "engine_genid", Some(100_000.0), 900.0),
+            point("get_random", "engine::GenIdMap", Some(1_000.0), 500.0),
+            point("get_random", "engine::GenIdMap", Some(100_000.0), 900.0),
             point("get_random", "slotmap", Some(1_000.0), 400.0),
             point("prng/next_u64", "fastrand", None, 10.0),
             point("prng/next_u64", "rand_xoshiro", None, 20.0),
@@ -313,7 +313,7 @@ mod tests {
     fn legend_names_each_implementation_with_its_colour_class() {
         let html = page(&sample());
         assert!(html.contains("class=\"swatch s0\"") || html.contains("class=\"swatch s1\""));
-        assert!(html.contains(">engine_genid<") && html.contains(">slotmap<"));
+        assert!(html.contains(">engine::GenIdMap<") && html.contains(">slotmap<"));
     }
 
     #[test]
@@ -343,13 +343,13 @@ mod tests {
     #[test]
     fn a_comparison_adds_a_summary_and_a_delta_chart_for_changed_groups() {
         let old = vec![
-            point("get_random", "engine_genid", Some(1_000.0), 1000.0),
+            point("get_random", "engine::GenIdMap", Some(1_000.0), 1000.0),
             point("get_random", "slotmap", Some(1_000.0), 400.0),
             point("gone", "x", None, 1.0),
         ];
         let new = vec![
-            point("get_random", "engine_genid", Some(1_000.0), 500.0), // 50% faster
-            point("get_random", "slotmap", Some(1_000.0), 401.0),      // noise
+            point("get_random", "engine::GenIdMap", Some(1_000.0), 500.0), // 50% faster
+            point("get_random", "slotmap", Some(1_000.0), 401.0),          // noise
             point("added", "y", None, 1.0),
         ];
         let comparison = model::compare(&old, &new);

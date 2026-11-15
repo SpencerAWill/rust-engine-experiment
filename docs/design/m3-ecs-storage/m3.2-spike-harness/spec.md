@@ -238,7 +238,7 @@ Sizes 1,000, 10,000 and 100,000.
 
 Size 100,000.
 
-- **Components.** `Transform2d` (from `engine_math`), `Velocity2d(Vec2)`, `Sprite { color: u32, half_extent: f32 }`, and the tag `Hidden`, which carries no data.
+- **Components.** `Transform2d` (from `engine::math`), `Velocity2d(Vec2)`, `Sprite { color: u32, half_extent: f32 }`, and the tag `Hidden`, which carries no data.
 - **Spawn.** Translation: x in `0.0_f32..320.0`, then y in `0.0_f32..180.0`; rotation and scale stay at `Transform2d::IDENTITY`'s. Velocity: x, then y, each in `-20.0_f32..20.0`. Color: `r.next_u32() & 0x00FF_FFFF`. Half extent: one draw in `0.25_f32..2.0`. Hidden: `r.chance(0.1)`. Whether an entity is hidden never changes.
 - **Step.** First, for every entity (hidden or not): `t = t + v * DT` on the translation (x then y, as `Vec2` operations), then wrap each axis with bound `B` (320 for x, 180 for y): if `p < 0.0`, `p = p + B`; else if `p >= B`, `p = p - B`. Then clear the draw list and push one `DrawItem { position, half_extent, color }` for every entity without `Hidden`. The draw list is a `Vec<DrawItem>` the workload owns; `setup` reserves `count` items in it. `DrawItem` is defined in the harness.
 - **Hash.** Per entity: `vec2(translation)`, `vec2(velocity)`, `u32(color)`, `f32(half_extent)`, `u8(hidden as u8)`. Per draw item: `vec2(position)`, `f32(half_extent)`, `u32(color)`. The checksum is the wrapping sum of both.

@@ -50,8 +50,9 @@ cargo xtask ci --quick      # fmt check, clippy, and tests only
 
 These are policy, not preferences. A pull request that breaks one will not be merged:
 
+- **One library crate.** New library code goes in a module of `engine`. A separate crate needs one of the criteria in [ADR 0004](docs/adr/0004-crate-splitting-rule.md), named with its evidence in the spec of the chunk that needs it.
 - **No `unsafe`.** Every crate root has `#![forbid(unsafe_code)]` (`check-unsafe`). An exception needs an ADR and an entry in `unsafe-allowlist.toml`.
-- **Determinism.** No `std` `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code (see `clippy.toml`; transcendentals go through `engine_math::scalar`). Simulation state must be snapshot-able plain data.
+- **Determinism.** No `std` `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code (see `clippy.toml`; transcendentals go through `engine::math::scalar`). Simulation state must be snapshot-able plain data.
 - **No global mutable state** (`check-statics`, [ADR 0008](docs/adr/0008-no-global-state.md)).
 - **Frozen formats.** The PRNG output streams and `UntypedGenId::to_bits` (and `GenId::to_bits`, which forwards to it) are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
 - **Documentation.** Every public item is documented and every public type has a runnable doctest.
@@ -92,7 +93,7 @@ cargo xtask bench-regress --report-only   # report a regression without failing
 
 ## Fuzzing
 
-Coverage-guided fuzz targets for `engine_genid` live in `fuzz/` (outside the workspace). Two drive `GenIdMap` and `GenIdAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `GenId::from_bits`, `UntypedGenId::from_bits` and `to_bits`.
+Coverage-guided fuzz targets for the `genid` module live in `fuzz/` (outside the workspace). Two drive `GenIdMap` and `GenIdAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `GenId::from_bits`, `UntypedGenId::from_bits` and `to_bits`.
 
 ```sh
 cargo xtask fuzz genid_map_ops --time 60      # one target for 60 s (the default)
@@ -103,20 +104,20 @@ cargo xtask fuzz-build                          # compile only; CI does this on 
 
 You need `cargo-fuzz` and the pinned nightly; the command prints the install lines when either is missing. Fuzzing does not work on Windows (libFuzzer needs a non-MSVC toolchain): use the devcontainer or WSL. `cargo xtask ci` skips `fuzz-build` with a loud note when the tools are missing, but fails when `CI` is set.
 
-- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `tests/model.rs`) in `libs/engine_genid`, watch it fail, then fix the code. Do not commit crash files or the corpus.
+- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `libs/engine/tests/genid_model.rs`), watch it fail, then fix the code. Do not commit crash files or the corpus.
 - **Bumping the nightly.** Change `FUZZ_NIGHTLY` in `xtask/src/fuzz.rs` (the only place the date is written; CI and the devcontainer read it through `cargo xtask fuzz-toolchain`), run `cargo xtask fuzz-build`, and mention the bump in the pull request.
 - **Why `fuzz/` is outside `cargo xtask deny`.** It is a developer tool that is never built into or shipped with an engine artifact, and `libfuzzer-sys` is licensed `NCSA` (in addition to MIT or Apache-2.0), which is outside the allow list of [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md). Dependabot watches `fuzz/Cargo.lock` instead, so advisories on its dependencies still surface.
 
 ## Coverage
 
 ```sh
-cargo xtask coverage          # measure, print the per-crate table, write the reports
+cargo xtask coverage          # measure, print the per-module table, write the reports
 cargo xtask coverage --open   # the same, then open the HTML report
 ```
 
 You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the command prints the line for whichever is missing. It runs the workspace tests under instrumentation (the same tests and features as `cargo xtask test --include-ignored`, minus doctests, `xtask`, `engine_benches`, `engine_bench_regress` and the spike packages) in a separate build under `target/llvm-cov-target/`, so the first run is as slow as a clean build. It writes `target/llvm-cov/html/index.html` (annotated source, for triage), `target/llvm-cov/lcov.info` (for editor gutters) and `target/llvm-cov/summary.md` (the table).
 
-- **What the table counts.** Lines and functions in `libs/*/src/` and `examples/*/src/`. It leaves out doctests (not measured: `cargo-llvm-cov` supports them only on nightly, so code that only a doctest runs shows as uncovered), `tests/`, `benches/`, `bench/`, `spikes/` and `xtask/`, and every item marked `#[test]` or `#[cfg(test)]` (including `cfg(all(test, ...))`); the heading says how many instrumented lines that removed. Code under `#[cfg(any(test, feature = "test-invariants"))]` is counted. The HTML and lcov reports are unfiltered apart from the directories, so their percentages are higher.
+- **What the table counts.** Lines and functions in `libs/*/src/` and `examples/*/src/`, with one row per module of `engine` (`engine::genid` and so on, and `engine` for the crate root) and one per example. It leaves out doctests (not measured: `cargo-llvm-cov` supports them only on nightly, so code that only a doctest runs shows as uncovered), `tests/`, `benches/`, `bench/`, `spikes/` and `xtask/`, and every item marked `#[test]` or `#[cfg(test)]` (including `cfg(all(test, ...))`); the heading says how many instrumented lines that removed. Code under `#[cfg(any(test, feature = "test-invariants"))]` is counted. The HTML and lcov reports are unfiltered apart from the directories, so their percentages are higher.
 - **No threshold.** CI's `coverage` job writes the same table to the job summary and uploads the reports for 30 days. It fails only when a test fails, and it is not a required check. Use the report to find behaviour no test exercises, not to raise the number.
 - **Two rules.** Library code does not use `cfg(coverage)`, `cfg(coverage_nightly)` or `#[coverage(...)]`, so the instrumented build compiles the same code as the normal one. Unit tests stay in inline `#[cfg(test)]` modules: an out-of-line `#[cfg(test)] mod name;` fails the command, and tests generated by a macro outside any `#[cfg(test)]` item (a top-level `proptest! { ... }` in a `src` file) would be counted as library code.
 - **Platforms.** CI measures on Ubuntu only. The command is verified on macOS and Linux, not on Windows.
@@ -125,8 +126,8 @@ You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the com
 
 ```sh
 cargo xtask mutants --list            # check the exclusions and list the mutants; builds nothing
-cargo xtask mutants                   # test the triaged crates (engine_genid and engine_random)
-cargo xtask mutants -p engine_random  # one crate
+cargo xtask mutants                   # test the triaged modules (collections, genid and random)
+cargo xtask mutants --module random   # one module (repeatable)
 cargo xtask mutants -j 2              # two mutants at a time
 cargo xtask mutants --in-diff FILE    # only mutants in code that a unified diff changes
 ```
@@ -134,11 +135,11 @@ cargo xtask mutants --in-diff FILE    # only mutants in code that a unified diff
 You need `cargo-mutants` at the pinned version; the command prints the install line when it is missing and warns when the version differs, because results from another version are not comparable. The command checks the exclusion list, runs `cargo mutants` with the settings in `.cargo/mutants.toml` (nextest, all features, ignored tests included, `cap_lints`), writes the output to `target/mutants/mutants.out/` and the table to `target/mutants/summary.md`, and prints it. The first run builds a copy of the workspace per job, so it is as slow as a clean build.
 
 - **What the outcomes mean.** *Caught*: a test failed with the mutant in place, which is what should happen. *Missed*: every test passed with it, so a test is missing or the mutant changes nothing observable. *Timeout*: the tests did not finish in time, usually an endless loop; this detects the mutant. *Unviable*: the mutant does not compile and says nothing about the tests. Doctests do not run (as in coverage), so a mutant only a doctest catches shows as missed.
-- **Report only.** A missed mutant never fails anything and there is no target score: a score to hit invites tests written for the score. The command fails only when it could not produce a report. CI's `mutants` workflow runs every mutant on Sundays (on `main`) and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine_genid` or `engine_random`, or the mutants tooling, it runs only the mutants in the changed code (`cargo xtask mutants --in-diff FILE`) after checking the exclusion list, which takes a few minutes. Both write the table to the job summary and upload `mutants.out/` for 30 days. Neither is a required check.
-- **Ad hoc runs.** A plain `cargo mutants` uses the same settings. For one mutant: `cargo mutants -p engine_genid -F 'shrink_to_fit'`. For changed code: `git diff main > target/changes.diff`, then `cargo mutants --in-diff target/changes.diff`. Read a missed mutant's diff in `target/mutants/mutants.out/diff/`.
+- **Report only.** A missed mutant never fails anything and there is no target score: a score to hit invites tests written for the score. The command fails only when it could not produce a report. CI's `mutants` workflow runs every mutant on Sundays (on `main`) and on manual dispatch (about 20 minutes). On a pull request that changes the sources of a triaged module, or the mutants tooling, it runs only the mutants in the changed code (`cargo xtask mutants --in-diff FILE`) after checking the exclusion list, which takes a few minutes. Both write the table to the job summary and upload `mutants.out/` for 30 days. Neither is a required check.
+- **Ad hoc runs.** A plain `cargo mutants` uses the same settings. For one mutant: `cargo mutants -p engine -f 'libs/engine/src/genid/**' -F 'shrink_to_fit'`. For changed code: `git diff main > target/changes.diff`, then `cargo mutants --in-diff target/changes.diff`. Read a missed mutant's diff in `target/mutants/mutants.out/diff/`.
 - **Triage.** Give each missed mutant exactly one class: *test gap, fixed* (a test at the public-API level that fails with the mutant and passes without it; never one that only pins the mutant's diff), *test gap, deferred* (an issue; the mutant stays missed), *bug* (an issue, fixed in its own pull request, test first), *equivalent* (no input tells it from the original; exclude it) or *not worth a test* (real behaviour no caller depends on, such as a speed-only fast path; exclude it and say why). A readable `Debug` impl is behaviour, not a candidate for exclusion. The record is [docs/mutation-triage.md](docs/mutation-triage.md); it is written by hand.
 - **Exclusions.** Only in `exclude_re` in `.cargo/mutants.toml`, never as a `#[mutants::skip]` attribute: library code has no `mutants::` attributes and no `mutants` dependency. The list is written in a restricted form (`exclude_re = [`, one `'single-quoted'` regex per line followed by `,`, `]`), with a comment directly above each entry giving the reason. The command rejects an entry without a reason, an entry that contains a line or column number (a `:` followed by a digit; it would stop matching when the file changes), and an entry that matches no mutant. `cargo xtask mutants --list` prints how many mutants each entry removes; check that against what you meant. `cargo-mutants` never applies a name filter to its "delete field" mutants, so those cannot be excluded.
-- **The triaged set** is a constant in `xtask/src/mutants.rs` and grows by chunk: a chunk that triages another crate adds it there and to the record.
+- **The triaged set** is a constant in `xtask/src/mutants.rs` and grows by chunk: a chunk that triages another module adds it there and to the record.
 
 ## Spike crates
 
@@ -174,7 +175,7 @@ Before opening a pull request, review the change from each perspective below, wh
 | **Public API** | a public item is added, changed or removed | Is the change deliberate and recorded? Does each panic have `#[track_caller]`, a `# Panics` section, an actionable message and a `try_` twin? Is the type future-proof (`#[non_exhaustive]`, sealed traits)? |
 | **Determinism** | library code changes, especially iteration, floats, hashing or anything `usize`-dependent | The lints catch banned names, not unordered iteration, platform-width differences, float reduction order or ambient state. Does it give identical results on aarch64, x86_64, wasm and 32-bit? |
 | **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor (see "Benchmarks")? When `perf-regression-accepted` is used: does the description name the benchmarks it covers, and do they match the final run's "Accepted by label" list (see "Instruction-count gate")? |
-| **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere the facade promises? |
+| **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere `engine` promises? |
 
 Triage every finding: fix it, or write in the pull request why you did not. The pull request description has a Reviews section that lists all eight reviews with a one-line result each, or `n/a: <reason>` for a triggered review that does not apply.
 

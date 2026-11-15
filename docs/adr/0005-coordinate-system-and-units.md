@@ -16,7 +16,7 @@ errors in math and physics that are expensive to find later.
 +X right, +Y up. Units are meters, seconds, radians, and kilograms. Matrices follow glam:
 column-major storage, column vectors, `M * v`.
 
-**Two meanings of "forward", both named and never conflated** (`engine_math::axis`):
+**Two meanings of "forward", both named and never conflated** (`engine::math::axis`):
 
 - **View forward = -Z.** The direction a default camera looks, with +X to the viewer's right and
   +Y up (glam's `look_to_rh`).
@@ -38,7 +38,7 @@ meters), and rotation is an angle about +Z, counter-clockwise.
 only through explicit conversion, which needs camera and viewport data, so those functions ship
 with the camera in the rendering milestone and not in M1.
 
-**Conversion at the edges only.** `engine_math::convert` converts vectors, rotations, scales, and
+**Conversion at the edges only.** `engine::math::convert` converts vectors, rotations, scales, and
 transforms from another convention into engine space (and back). Rotations convert as `M * R * Mᵀ`,
 a proper rotation even when handedness flips. Converting positions and rotations is not enough for
 a left-handed source: the importer must also reverse triangle winding.

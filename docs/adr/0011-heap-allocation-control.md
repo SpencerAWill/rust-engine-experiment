@@ -4,7 +4,7 @@ Status: Accepted (2026-11-12)
 
 ## Context
 
-`engine_handle` is the only crate that allocates on purpose: `HandlePool` and the allocators keep
+`engine::handle` is the only module that allocates on purpose: `HandlePool` and the allocators keep
 `Vec`s (slots, and for the pool and `DenseHandleAllocator` the dense handles and values). Callers
 of a real-time engine sometimes need to know exactly when the heap is touched, for example a frame
 budget with no allocation, an embedded target, or a benchmark that must not measure `malloc`. The
@@ -35,4 +35,4 @@ question was whether callers should be able to supply their own allocator.
 - Retrofitting `A = Global` later is mostly source-compatible, so deferring costs little.
 - Revisit when a concrete need appears (a per-world arena, for example) or when `allocator_api`
   stabilises.
-- `engine_collections` also allocates and follows the same capacity controls (`with_capacity`, `reserve`, `try_reserve`: reserved room is used without further allocation), without a fixed-capacity mode. Other crates do not allocate, so they need none of this.
+- `engine::collections` also allocates and follows the same capacity controls (`with_capacity`, `reserve`, `try_reserve`: reserved room is used without further allocation), without a fixed-capacity mode. Other modules do not allocate, so they need none of this.

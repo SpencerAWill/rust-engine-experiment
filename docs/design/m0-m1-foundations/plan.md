@@ -6,11 +6,11 @@
 > became two types, see ADR 0010). It was removed when PR #3 merged and restored by M2.0, when
 > plans became permanent records.
 
-**Goal:** Build the engine's engineering foundation (workspace, policy, xtask, CI, ADRs) and the first four core crates: `engine_handle`, `engine_random`, `engine_time`, and `engine_math`. Add the `engine` facade, a deterministic headless sample, and comparison benchmarks.
+**Goal:** Build the engine's engineering foundation (workspace, policy, xtask, CI, ADRs) and the first four core modules of the `engine` crate: `engine::handle`, `engine::random`, `engine::time`, and `engine::math`. Add the `engine` crate root and prelude, a deterministic headless sample, and comparison benchmarks.
 
 **Architecture:**
 - A flat Cargo workspace (`libs/*`, `examples/*`, `benches`, `xtask`).
-- Small dependency-free `no_std` leaf crates, a glam-based math crate, and a facade with a prelude.
+- One `no_std` library crate, `engine`, whose modules are `handle`, `random`, `time` (all dependency-free) and a glam-based `math`, with a prelude at the crate root.
 - Policies (no `unsafe`, determinism bans, no global state) are enforced mechanically through lints, `clippy.toml`, and `xtask` checks.
 - `cargo xtask` is the single entry point that CI and humans both run.
 
@@ -21,14 +21,14 @@
 ## Global Constraints
 
 - Toolchain pinned to `1.97.0`. `edition = "2024"`, `resolver = "3"`. `rust-version = "1.97"`.
-- Every crate: `version = "0.1.0"`, `publish = false`, `license = "MIT OR Apache-2.0"`, `[lints] workspace = true`.
+- Every package: `version = "0.1.0"`, `publish = false`, `license = "MIT OR Apache-2.0"`, `[lints] workspace = true`.
 - Every crate root (`src/lib.rs` / `src/main.rs`) starts with `#![forbid(unsafe_code)]`. `unsafe-allowlist.toml` and `concurrency-allowlist.toml` stay empty.
 - **No code is copied from other projects.** Algorithms are implemented from their published descriptions. Competitor crates appear only as dev-dependencies (benchmarks, test oracles).
-- No `std::collections::HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code. The only exceptions: `SystemClock` and `engine_math::scalar`, each with an item-level `#[expect(..., reason = "...")]`.
+- No `std::collections::HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code. The only exceptions: `SystemClock` and `engine::math::scalar`, each with an item-level `#[expect(..., reason = "...")]`.
 - No `static` with interior mutability and no `thread_local!` (ADR 0008).
 - Every API with a documented panic has `#[track_caller]`, a `# Panics` doc section, an actionable message, and a fallible twin (`try_*` / `checked_*`).
 - Every public item is documented. Every public type has a runnable doctest example.
-- Leaf crates `engine_handle` (`no_std` + `alloc`), `engine_random` (`no_std`), and `engine_time` (`no_std`, default `std` feature) must build for `thumbv7em-none-eabihf` with `--no-default-features`.
+- The modules `engine::handle` (`core` + `alloc`), `engine::random` (`core`), and `engine::time` (`core`, default `std` feature for `SystemClock`) must build for `thumbv7em-none-eabihf` with `--no-default-features`.
 - All integer PRNG sampling uses the 64-bit path on every target (spec §5.2). Results never depend on pointer width.
 - Every `proptest!` block uses a config with `failure_persistence: None` when `cfg(target_os = "wasi")`, because there is no writable directory under wasmtime. Define it once per test file as a `fn config() -> ProptestConfig`.
 - Conventional commits; every commit message ends with the `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` trailer. **Commit by explicit path, never `git commit -a`.**
@@ -65,22 +65,22 @@ xtask/src/cmd.rs                  run-a-cargo/tool-command helpers, install hint
 xtask/src/check_unsafe.rs         crate-root forbid check + allowlist parsing
 xtask/src/check_statics.rs        syn-based global-state scan
 xtask/src/prng_stats.rs           PRNG byte stream to stdout
-libs/engine_handle/src/{lib.rs, handle.rs, pool.rs, pool/iter.rs, allocator.rs, error.rs}
-libs/engine_handle/tests/{model.rs, auto_traits.rs, panics.rs}
-libs/engine_random/src/{lib.rs, prng.rs, splitmix.rs, sample.rs}
-libs/engine_random/tests/{oracle.rs, golden.rs, edge_cases.rs, statistics.rs, panics.rs}
-libs/engine_time/src/{lib.rs, tick.rs, timestamp.rs, clock.rs, fixed.rs, error.rs}
-libs/engine_time/tests/{fixed_props.rs, panics.rs}  libs/engine_time/benches/fixed_timestep.rs
-libs/engine_math/src/{lib.rs, scalar.rs, helpers.rs, transform.rs, world.rs, transform2d.rs, axis.rs, convert.rs, layout.rs}
-libs/engine_math/tests/{transform_props.rs, world_props.rs, transform2d_props.rs, convert.rs}
-libs/engine/src/lib.rs
+libs/engine/Cargo.toml  libs/engine/src/lib.rs
+libs/engine/src/handle.rs  libs/engine/src/handle/{handle.rs, pool.rs, pool/iter.rs, allocator.rs, error.rs}
+libs/engine/tests/handle_{model.rs, auto_traits.rs, panics.rs}
+libs/engine/src/random.rs  libs/engine/src/random/{prng.rs, splitmix.rs, sample.rs}
+libs/engine/tests/random_{oracle.rs, golden.rs, edge_cases.rs, statistics.rs, panics.rs}
+libs/engine/src/time.rs  libs/engine/src/time/{tick.rs, timestamp.rs, clock.rs, fixed.rs, error.rs}
+libs/engine/tests/time_{fixed_props.rs, panics.rs}  libs/engine/benches/time_fixed_timestep.rs
+libs/engine/src/math.rs  libs/engine/src/math/{scalar.rs, helpers.rs, transform.rs, world.rs, transform2d.rs, axis.rs, convert.rs, layout.rs}
+libs/engine/tests/math_{transform_props.rs, world_props.rs, transform2d_props.rs, convert.rs}
 examples/fixed_step_sim/src/{lib.rs, main.rs}
 examples/fixed_step_sim/tests/{determinism.rs, snapshot.rs, allocations.rs}
 examples/fixed_step_sim/benches/sim.rs
 benches/Cargo.toml  benches/benches/{handles.rs, prng.rs}
 ```
 
-Each `lib.rs` holds only crate docs, the attributes, `mod` declarations, and re-exports.
+`lib.rs` holds only the crate docs, the attributes, the `pub mod` declarations, and the prelude; each module root (`handle.rs` and so on) holds the module docs, `mod` declarations, and re-exports.
 
 ---
 
@@ -142,7 +142,7 @@ rust_2018_idioms = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"   # engine_handle::HandlePool etc. read better with the prefix
+module_name_repetitions = "allow"   # engine::handle::HandlePool etc. read better with the prefix
 must_use_candidate = "allow"        # #[must_use] is applied deliberately (spec §4.4)
 undocumented_unsafe_blocks = "deny"
 unwrap_used = "warn"
@@ -164,7 +164,7 @@ codegen-units = 1
 debug = true
 ```
 
-`clippy.toml`: copy spec §4.9 verbatim. Append to `disallowed-methods` one entry per inherent method below, for **both** `f32` and `f64`, each with `reason = "transcendental: use engine_math::scalar::<name> (spec §4.9)"`: `sin cos tan sin_cos asin acos atan atan2 sinh cosh tanh asinh acosh atanh exp exp2 exp_m1 ln ln_1p log log2 log10 powf powi cbrt hypot`. (`asinh`/`acosh`/`atanh`/`log` go beyond the spec's list, in keeping with its "all transcendental math" rule. Task 15 adds them to the funnel too.)
+`clippy.toml`: copy spec §4.9 verbatim. Append to `disallowed-methods` one entry per inherent method below, for **both** `f32` and `f64`, each with `reason = "transcendental: use engine::math::scalar::<name> (spec §4.9)"`: `sin cos tan sin_cos asin acos atan atan2 sinh cosh tanh asinh acosh atanh exp exp2 exp_m1 ln ln_1p log log2 log10 powf powi cbrt hypot`. (`asinh`/`acosh`/`atanh`/`log` go beyond the spec's list, in keeping with its "all transcendental math" rule. Task 15 adds them to the funnel too.)
 
 `deny.toml`:
 ```toml
@@ -299,11 +299,11 @@ Expected: FAIL (functions not defined).
   - flag any `ItemMacro` / `Macro` whose path ends in `thread_local`.
 - **`check-unsafe`:** for each workspace crate (`libs/*`, `examples/*`, `benches`, `xtask`), check `src/lib.rs` and `src/main.rs` where they exist. Fail with `"<path>: missing #![forbid(unsafe_code)] (add it, or list the crate in unsafe-allowlist.toml with an ADR)"`.
 - **`check-statics`:** scan `libs/*/src/**/*.rs`. Fail on unallowed findings, and print the allowed ones.
-- **`no-std`:** `cargo build -p engine_handle -p engine_random -p engine_time --no-default-features --target thumbv7em-none-eabihf`. Skip with a notice for crates that don't exist yet; this skip is removed in Task 19.
+- **`no-std`:** `cargo build -p engine --no-default-features --target thumbv7em-none-eabihf`. Skip with a notice until `engine` exists; this skip is removed in Task 19.
 - **`wasm`:**
   - `cargo build -p engine --target wasm32-unknown-unknown`;
-  - then `cargo test --target wasm32-wasip1 --lib --tests -p engine_handle -p engine_random -p engine_time -p engine_math` with env `CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime`;
-  - skip crates that don't exist yet (same rule as `no-std`).
+  - then `cargo test --target wasm32-wasip1 --lib --tests -p engine` with env `CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime`;
+  - skip with a notice until `engine` exists (same rule as `no-std`).
 - **`bench-build`:** `cargo bench --workspace --no-run`.
 - **`bench`:** with `--save`, runs `cargo bench --workspace -- --save-baseline <name>`; with `--compare a b`, runs `critcmp a b` (`require_tool("critcmp", …)`). Extend the `parses_known_commands` test with `parse(&["bench", "--compare", "a", "b"]) == Ok(Command::Bench { save: None, compare: Some(("a".into(), "b".into())) })`.
 - **`ci`:** fmt-check, clippy, test, doc, no-std, wasm, check-unsafe, check-statics, deny, bench-build, in that order, stopping at the first failure.
@@ -384,7 +384,7 @@ Each ADR has `Status: Accepted (2026-11-12)`, plus Context, Decision, and Conseq
 | 0001 | §4.3 |
 | 0002 | §4.5 |
 | 0003 | §4.9, including thread-count independence, handle allocation order, the math funnel, the upgrade path, and the snapshot-able state principle |
-| 0004 | §3.1, including the crate justification table |
+| 0004 | §3.1, the splitting criteria and keep-together rules |
 | 0007 | Loop ownership row of §1 |
 | 0008 | §4.10 |
 | 0009 | §4.4, tooling bullet |
@@ -396,7 +396,7 @@ Each ADR cites the sources listed for it in spec §12.
 Sections:
 - purpose;
 - status (experimental, 0.x);
-- crate map (with the justification table);
+- module map;
 - quick start (`cargo xtask ci`, `cargo xtask ci --quick`);
 - "Using the engine in your project": the dev-profile snippet (`[profile.dev] opt-level = 1`, `[profile.dev.package."*"] opt-level = 3`) and "glam's `fast-math`/`scalar-math` features are unsupported";
 - "Platform support", which holds the WASM test notes from spec §4.7;
@@ -419,13 +419,13 @@ Expected: the CI ubuntu jobs go green (check with `gh run watch`).
 
 ---
 
-# Phase 2: `engine_handle`
+# Phase 2: `engine::handle`
 
 ### Task 5: `Handle<T>`
 
 **Files:**
-- Create: `libs/engine_handle/Cargo.toml`, `src/lib.rs`, `src/handle.rs`, `tests/auto_traits.rs`
-- Modify: root `Cargo.toml` (`[workspace.dependencies] engine_handle = { path = "libs/engine_handle", version = "0.1.0" }`)
+- Create: `libs/engine/Cargo.toml`, `libs/engine/src/lib.rs` (`pub mod handle;`), `libs/engine/src/handle.rs`, `libs/engine/src/handle/handle.rs`, `libs/engine/tests/handle_auto_traits.rs`
+- Modify: root `Cargo.toml` (`[workspace.dependencies] engine = { path = "libs/engine", version = "0.1.0" }`)
 
 **Interfaces:**
 - Produces: `Handle<T>` exactly as in spec §5.1.
@@ -448,7 +448,7 @@ Expected: the CI ubuntu jobs go green (check with `gh run watch`).
     let h = Handle::<Particle>::new(3, NonZeroU32::new(2).unwrap());
     assert_eq!(format!("{h:?}"), "Handle<Particle>(3v2)");
 }
-// tests/auto_traits.rs
+// tests/handle_auto_traits.rs
 #[test] fn handle_is_send_sync_copy_even_for_non_send_t() {
     fn assert_traits<T: Send + Sync + Copy + Eq + Ord + core::hash::Hash>() {}
     assert_traits::<Handle<std::rc::Rc<u8>>>();
@@ -461,26 +461,26 @@ Plus a `compile_fail` doctest on `Handle`: `fn takes_b(_: Handle<B>) {} takes_b(
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_handle`
-Expected: FAIL (crate/type missing).
+Run: `cargo test -p engine`
+Expected: FAIL (module/type missing).
 
 - [ ] **Step 3: Implement `handle.rs`**
 
 - Manual impls of `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` (by `(index, generation)`), `Hash`, and `Debug`, with no bounds on `T`.
 - **Short type name:** `core::any::type_name::<T>()`, with every `seg::` path prefix removed while writing. For example, `fixed_step_sim::Particle` → `Particle` and `alloc::vec::Vec<a::B>` → `Vec<B>`. Write directly to the formatter, with no allocation.
 - `#[inline]` on `index`, `generation`, `to_bits`, `from_bits`.
-- **Crate root:** `#![no_std]`, `extern crate alloc;`, `#![forbid(unsafe_code)]`. The crate docs' first paragraph states its justification (spec §3.1 table) and the documented cross-pool limitation.
+- **Crate root and module root:** `lib.rs` has `#![no_std]`, `extern crate alloc;`, `#![forbid(unsafe_code)]` and `pub mod handle;`. The module docs state the documented cross-pool limitation.
 - **Cargo.toml:** no dependencies; dev-dependency `proptest = { workspace = true }`.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_handle && cargo xtask clippy`
+Run: `cargo test -p engine && cargo xtask clippy`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_handle Cargo.toml Cargo.lock
+git add libs/engine/src/handle Cargo.toml Cargo.lock
 git commit -m "feat(handle): add typed generational Handle<T> with stable bit encoding"
 ```
 
@@ -489,7 +489,7 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
 ### Task 6: `HandlePool<T>` core operations
 
 **Files:**
-- Create: `libs/engine_handle/src/pool.rs`, `src/error.rs`, `tests/panics.rs`
+- Create: `libs/engine/src/handle/pool.rs`, `libs/engine/src/handle/error.rs`, `libs/engine/tests/handle_panics.rs`
 - Modify: `src/lib.rs`
 
 **Interfaces:**
@@ -547,20 +547,20 @@ git commit -m "feat(handle): add typed generational Handle<T> with stable bit en
 #[test] fn zero_sized_values_work() { /* HandlePool<()>: insert 3, remove middle, len 2, contains semantics hold, assert_invariants() */ }
 ```
 
-In `tests/panics.rs`, which uses a panic hook to capture `Location`:
+In `tests/handle_panics.rs`, which uses a panic hook to capture `Location`:
 ```rust
 #[test] fn index_on_stale_handle_panics_at_caller() {
     // install a hook recording location; catch_unwind(|| pool[stale]);
-    // assert location.file() ends with "tests/panics.rs"
+    // assert location.file() ends with "tests/handle_panics.rs"
     // and the message contains "stale handle" and "use get()"
 }
 #[test] fn insert_past_limit_panics_with_hint() { /* message contains "try_insert" */ }
 ```
-(`with_slot_limit` is `pub(crate)`, so cover the insert-limit case with a unit test in `pool.rs` using `#[should_panic(expected = "try_insert")]`; the `tests/panics.rs` file covers `Index`.)
+(`with_slot_limit` is `pub(crate)`, so cover the insert-limit case with a unit test in `pool.rs` using `#[should_panic(expected = "try_insert")]`; the `tests/handle_panics.rs` file covers `Index`.)
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_handle`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
@@ -586,13 +586,13 @@ Expected: FAIL.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_handle --all-features`
+Run: `cargo test -p engine --all-features`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_handle
+git add libs/engine/src/handle
 git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fallible insert"
 ```
 
@@ -601,7 +601,7 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
 ### Task 7: `HandlePool` iteration, bulk operations, model test
 
 **Files:**
-- Create: `libs/engine_handle/src/pool/iter.rs`, `tests/model.rs`
+- Create: `libs/engine/src/handle/pool/iter.rs`, `libs/engine/tests/handle_model.rs`
 - Modify: `src/pool.rs`
 
 **Interfaces:**
@@ -634,7 +634,7 @@ git commit -m "feat(handle): add HandlePool core with LIFO reuse, retirement, fa
 }
 ```
 
-`tests/model.rs`: proptest over `Vec<Op>`, where `Op = Insert(u16) | Remove(usize) | Get(usize) | GetDisjoint(usize, usize) | Retain(u16 /*keep if v % k != 0*/) | Clear | Iterate`. Handle indices point into a vec of all handles ever issued, so stale handles get exercised. The reference model is a `BTreeMap<u64 /*to_bits*/, u16>`. After each op:
+`tests/handle_model.rs`: proptest over `Vec<Op>`, where `Op = Insert(u16) | Remove(usize) | Get(usize) | GetDisjoint(usize, usize) | Retain(u16 /*keep if v % k != 0*/) | Clear | Iterate`. Handle indices point into a vec of all handles ever issued, so stale handles get exercised. The reference model is a `BTreeMap<u64 /*to_bits*/, u16>`. After each op:
 - `assert_invariants()`;
 - `len` matches the model;
 - the set of `(handle bits, value)` pairs from `iter()` equals the model, and `values()` equals `iter()`'s values in the same order;
@@ -644,7 +644,7 @@ Additionally, replaying the same op sequence twice yields identical handle bits 
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_handle --all-features`
+Run: `cargo test -p engine --all-features`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
@@ -657,13 +657,13 @@ Expected: FAIL.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_handle --all-features`
+Run: `cargo test -p engine --all-features`
 Expected: PASS (proptest default of 256 cases).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_handle
+git add libs/engine/src/handle
 git commit -m "feat(handle): add HandlePool iteration, drain, retain, get_disjoint_mut, model tests"
 ```
 
@@ -672,8 +672,8 @@ git commit -m "feat(handle): add HandlePool iteration, drain, retain, get_disjoi
 ### Task 8: `HandleAllocator<T>`
 
 **Files:**
-- Create: `libs/engine_handle/src/allocator.rs`
-- Modify: `src/lib.rs`, `tests/model.rs`
+- Create: `libs/engine/src/handle/allocator.rs`
+- Modify: `src/lib.rs`, `tests/handle_model.rs`
 
 **Interfaces:**
 - Produces, from spec §5.1: `HandleAllocator<T>` with `new`, `with_capacity`, `allocate`, `try_allocate`, `free`, `is_alive`, `len`, `is_empty`, `clear`, `iter` (`AllocIter`), `retain`, and `assert_invariants`.
@@ -682,11 +682,11 @@ git commit -m "feat(handle): add HandlePool iteration, drain, retain, get_disjoi
 - [ ] **Step 1: Write failing tests**
 
 - Unit tests: `free` returns `false` for a stale handle; `allocate` after `free` reuses the slot in LIFO order with generation + 1; `try_allocate` returns `None` at the slot limit (`with_slot_limit` is reachable through `pub(crate)`).
-- Model test: extend `tests/model.rs` with an allocator model: `BTreeSet<u64>`, ops `Allocate | Free(usize) | IsAlive(usize) | Retain(u8) | Clear`.
+- Model test: extend `tests/handle_model.rs` with an allocator model: `BTreeSet<u64>`, ops `Allocate | Free(usize) | IsAlive(usize) | Retain(u8) | Clear`.
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_handle --all-features`
+Run: `cargo test -p engine --all-features`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement as described in Interfaces**
@@ -695,13 +695,13 @@ Expected: FAIL.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_handle --all-features && cargo xtask no-std`
-Expected: PASS; `engine_handle` builds for thumbv7em.
+Run: `cargo test -p engine --all-features && cargo xtask no-std`
+Expected: PASS; `engine::handle` builds for thumbv7em.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_handle
+git add libs/engine/src/handle
 git commit -m "feat(handle): add HandleAllocator sharing HandlePool semantics"
 ```
 
@@ -717,7 +717,7 @@ git commit -m "feat(handle): add HandleAllocator sharing HandlePool semantics"
 
 - [ ] **Step 1: Set up the crate and write the benchmarks**
 
-- **Dev-dependencies** (latest versions via `cargo add`): `criterion`, `slotmap`, `thunderdome`, and `engine_handle` from the workspace.
+- **Dev-dependencies** (latest versions via `cargo add`): `criterion`, `slotmap`, `thunderdome`, and `engine::handle` from the workspace.
 - `[[bench]] name = "handles" harness = false`.
 - The crate root has `#![allow(clippy::disallowed_types, clippy::disallowed_methods, clippy::unwrap_used)]` with the comment `// benchmark harness, not simulation code`.
 - **Groups**, each parameterized over N ∈ {1_000, 100_000, 1_000_000} and both `T = u64` and `T = [u64; 8]` (64 bytes):
@@ -728,8 +728,8 @@ git commit -m "feat(handle): add HandleAllocator sharing HandlePool semantics"
   - `iterate`;
   - `churn_then_get` (remove a seeded-random 50%, reinsert, then get all);
   - for `HandleAllocator`: `allocate`, `free_realloc_churn`, `is_alive`.
-- Each group benchmarks `engine_handle`, `slotmap::SlotMap`, `slotmap::DenseSlotMap`, and `thunderdome::Arena` side by side, plus `values()`-slice iteration for ours. `slotmap` with `()` values is the allocator comparison.
-- Use a seeded `engine_random::Prng` once it exists. Until then, shuffle with a small inline xorshift64 in the bench file, documented as bench-only.
+- Each group benchmarks `engine::handle`, `slotmap::SlotMap`, `slotmap::DenseSlotMap`, and `thunderdome::Arena` side by side, plus `values()`-slice iteration for ours. `slotmap` with `()` values is the allocator comparison.
+- Use a seeded `engine::random::Prng` once it exists. Until then, shuffle with a small inline xorshift64 in the bench file, documented as bench-only.
 
 - [ ] **Step 2: Verify**
 
@@ -747,13 +747,13 @@ Expected: the CI ubuntu jobs go green.
 
 ---
 
-# Phase 3: `engine_random`
+# Phase 3: `engine::random`
 
 ### Task 10: `Prng` core: SplitMix64, xoshiro256++, state, streams
 
 **Files:**
-- Create: `libs/engine_random/Cargo.toml`, `src/lib.rs`, `src/splitmix.rs`, `src/prng.rs`, `tests/oracle.rs`, `tests/golden.rs`
-- Modify: root `Cargo.toml` (`[workspace.dependencies] engine_random = { path = "libs/engine_random", version = "0.1.0" }`)
+- Create: `libs/engine/src/random.rs`, `libs/engine/src/random/splitmix.rs`, `libs/engine/src/random/prng.rs`, `libs/engine/tests/random_oracle.rs`, `libs/engine/tests/random_golden.rs`
+- Modify: `libs/engine/src/lib.rs` (`pub mod random;`)
 
 **Interfaces:**
 - Produces: `Prng` with `from_seed`, `next_u32`, `next_u64`, `next_f32`, `next_f64`, `next_bool`, `stream`, `to_state`, and `from_state` (spec §5.2).
@@ -776,7 +776,7 @@ next_f64 = (next_u64() >> 11) as f64 * 2^-53; next_bool = next_u64() >> 63 == 1
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/oracle.rs` uses the dev-dependency `rand_xoshiro` (with `rand_core`) as an independent oracle. It is a dependency, not copied code.
+`tests/random_oracle.rs` uses the dev-dependency `rand_xoshiro` (with `rand_core`) as an independent oracle. It is a dependency, not copied code.
 ```rust
 #[test] fn xoshiro_matches_independent_implementation() {
     for seed in [0u64, 1, 42, u64::MAX, 0xDEAD_BEEF] {
@@ -800,32 +800,32 @@ Unit tests in `prng.rs`:
 - `next_f32`/`next_f64` lie in [0, 1);
 - `format!("{:?}", Prng::from_state([1,2,3,4]).unwrap()) == "Prng { state: [1, 2, 3, 4] }"`.
 
-`tests/golden.rs`: for seeds `{0, 1, 42, u64::MAX}`, the first 16 outputs of `next_u64`, `next_u32`, `next_f32` (as `to_bits`), `next_f64` (as `to_bits`), `next_bool`, and `stream(7).next_u64()`. Hardcode them as array literals.
+`tests/random_golden.rs`: for seeds `{0, 1, 42, u64::MAX}`, the first 16 outputs of `next_u64`, `next_u32`, `next_f32` (as `to_bits`), `next_f64` (as `to_bits`), `next_bool`, and `stream(7).next_u64()`. Hardcode them as array literals.
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_random`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** the algorithms exactly as above.
 
 - `#![no_std]`, no dependencies, `#[inline]` on all `next_*`.
-- The crate docs cover: the justification (spec §3.1), "not cryptographically secure", the stream stability guarantee, the deliberate non-impls (no `Copy`, no `Default`, with reasons), and citations: Blackman & Vigna, "Scrambled Linear Pseudorandom Number Generators" (2018); Steele, Lea & Flood, "Fast Splittable Pseudorandom Number Generators" (2014).
+- The module docs cover: "not cryptographically secure", the stream stability guarantee, the deliberate non-impls (no `Copy`, no `Default`, with reasons), and citations: Blackman & Vigna, "Scrambled Linear Pseudorandom Number Generators" (2018); Steele, Lea & Flood, "Fast Splittable Pseudorandom Number Generators" (2014).
 
 - [ ] **Step 4: Generate and freeze the golden values**
 
 After `oracle.rs` passes:
 - Add a test, `#[ignore] fn print_goldens()`, that prints the arrays in Rust literal syntax.
-- Run `cargo test -p engine_random --test golden print_goldens -- --ignored --nocapture`.
+- Run `cargo test -p engine --test random_golden print_goldens -- --ignored --nocapture`.
 - Paste the output into the golden constants, then delete the printer.
 
-Run: `cargo test -p engine_random && cargo xtask wasm`
+Run: `cargo test -p engine && cargo xtask wasm`
 Expected: PASS, including the goldens on `wasm32-wasip1`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_random Cargo.toml Cargo.lock
+git add libs/engine/src/random Cargo.toml Cargo.lock
 git commit -m "feat(random): add Prng (xoshiro256++/SplitMix64) with state, streams, frozen goldens"
 ```
 
@@ -834,8 +834,8 @@ git commit -m "feat(random): add Prng (xoshiro256++/SplitMix64) with state, stre
 ### Task 11: Sampling: ranges, `chance`, `shuffle`, `choose`, `fill_bytes`
 
 **Files:**
-- Create: `libs/engine_random/src/sample.rs`, `tests/edge_cases.rs`, `tests/statistics.rs`, `tests/panics.rs`
-- Modify: `src/prng.rs`, `tests/golden.rs`
+- Create: `libs/engine/src/random/sample.rs`, `libs/engine/tests/random_edge_cases.rs`, `libs/engine/tests/random_statistics.rs`, `libs/engine/tests/random_panics.rs`
+- Modify: `src/prng.rs`, `tests/random_golden.rs`
 
 **Interfaces:**
 - Produces: `Prng::range`, `try_range`, `chance`, `shuffle`, `choose`, and `fill_bytes`; `pub trait SampleRange: sealed::Sealed { type Output; }` implemented for `Range`/`RangeInclusive` over `u8 u16 u32 u64 usize i8 i16 i32 i64 isize f32 f64`.
@@ -846,7 +846,7 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/edge_cases.rs`:
+`tests/random_edge_cases.rs`:
 ```rust
 #[test] fn full_range_signed_and_unsigned() {
     let mut p = Prng::from_seed(9);
@@ -875,7 +875,7 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 }
 ```
 
-`tests/golden.rs` additions:
+`tests/random_golden.rs` additions:
 - 16 `range` outputs each for `0u8..10`, `-5i16..=5`, `0usize..1000`, `isize::MIN..=isize::MAX` (as `i64`), `0.0f32..1.0` (bits), `-1.0f64..=1.0` (bits);
 - `shuffle` of `[0..10]`;
 - `choose` over a 7-element slice ×16;
@@ -883,11 +883,11 @@ Every algorithm follows spec §5.2's "Normative algorithms" exactly. Implement t
 
 Generate and freeze these exactly as in Task 10, Step 4. The wasm job then proves width independence.
 
-`tests/panics.rs`: `range(5..5)` panics with location in `tests/panics.rs` and a message containing `"empty range 5..5"` and `"try_range"`.
+`tests/random_panics.rs`: `range(5..5)` panics with location in `tests/random_panics.rs` and a message containing `"empty range 5..5"` and `"try_range"`.
 
 A `compile_fail` doctest on `Prng::range`: `let mut p = Prng::from_seed(0); let _ = p.range(0u128..5);` (`u128` is not a `SampleRange`).
 
-`tests/statistics.rs`, every test `#[ignore]` (run by `test --release --include-ignored`), all with fixed seeds:
+`tests/random_statistics.rs`, every test `#[ignore]` (run by `test --release --include-ignored`), all with fixed seeds:
 - chi-square over 10 buckets for `range(0..10)` and `range(0..7)` with 1_000_000 samples, threshold 27.88 (df=9, p=0.001; df=6: 22.46);
 - `next_f32`/`next_f64` over 16 buckets (df=15: 37.70);
 - `next_bool` balance within 0.5 ± 0.002 over 1e6;
@@ -895,20 +895,20 @@ A `compile_fail` doctest on `Prng::range`: `let mut p = Prng::from_seed(0); let 
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_random`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** per spec §5.2, with `#[track_caller]` on `range` and an actionable message naming the bounds.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_random && cargo nextest run -p engine_random --release --run-ignored all && cargo xtask wasm && cargo xtask no-std`
+Run: `cargo test -p engine && cargo nextest run -p engine --release --run-ignored all && cargo xtask wasm && cargo xtask no-std`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_random
+git add libs/engine/src/random
 git commit -m "feat(random): add normative range/chance/shuffle/choose/fill_bytes with goldens and stats"
 ```
 
@@ -951,18 +951,18 @@ git push
 
 ---
 
-# Phase 4: `engine_time`
+# Phase 4: `engine::time`
 
 ### Task 13: `Tick`, `Timestamp`, `TimeSource`, clocks
 
 **Files:**
-- Create: `libs/engine_time/Cargo.toml`, `src/lib.rs`, `src/tick.rs`, `src/timestamp.rs`, `src/clock.rs`, `src/error.rs`, `tests/panics.rs`
-- Modify: root `Cargo.toml` (workspace dep `engine_time = { path = "libs/engine_time", version = "0.1.0", default-features = false }`)
+- Create: `libs/engine/src/time.rs`, `libs/engine/src/time/tick.rs`, `libs/engine/src/time/timestamp.rs`, `libs/engine/src/time/clock.rs`, `libs/engine/src/time/error.rs`, `libs/engine/tests/time_panics.rs`
+- Modify: `libs/engine/src/lib.rs` (`pub mod time;`), `libs/engine/Cargo.toml` (`[features] default = ["std"]`, `std = []`)
 
 **Interfaces:**
 - Produces: `Tick` (`ZERO`, `new`, `next`, `checked_next`, `get`), `Timestamp`, `TimeSource` with the blanket impls for `&T`/`&mut T`, `ManualClock` (`new`, `starting_at`, `advance`, `set`, `try_set`), `SystemClock` (`new`, `Default`), and `NonMonotonicError { current: Timestamp, requested: Timestamp }`, all as in spec §5.3.
 - `Cargo.toml`: `[features] default = ["std"]`, `std = []`.
-- Crate root: `#![no_std]`, then `#[cfg(feature = "std")] extern crate std;`.
+- Crate root: `#[cfg(feature = "std")] extern crate std;`.
 - Decision beyond the spec: **`ManualClock::advance` saturates** at the maximum `Duration` rather than panicking (documented).
 
 - [ ] **Step 1: Write the failing tests**
@@ -975,11 +975,11 @@ git push
   - `Timestamp::saturating_duration_since` of a later timestamp from an earlier one is zero;
   - `TimeSource` works through `&clock` and `&mut clock` (a generic `fn read(t: impl TimeSource)`).
 - **SystemClock tests:** two consecutive `now()` calls are monotonic.
-- **`tests/panics.rs`:** `ManualClock::set` backwards panics at the caller with a message containing `"try_set"`; `Tick::new(u64::MAX).next()` panics with a message containing `"checked_next"`.
+- **`tests/time_panics.rs`:** `ManualClock::set` backwards panics at the caller with a message containing `"try_set"`; `Tick::new(u64::MAX).next()` panics with a message containing `"checked_next"`.
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_time`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
@@ -989,13 +989,13 @@ Expected: FAIL.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_time && cargo xtask no-std && cargo xtask clippy`
+Run: `cargo test -p engine && cargo xtask no-std && cargo xtask clippy`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_time Cargo.toml Cargo.lock
+git add libs/engine/src/time Cargo.toml Cargo.lock
 git commit -m "feat(time): add Tick, Timestamp, TimeSource, ManualClock, SystemClock"
 ```
 
@@ -1004,7 +1004,7 @@ git commit -m "feat(time): add Tick, Timestamp, TimeSource, ManualClock, SystemC
 ### Task 14: `FixedTimestep`
 
 **Files:**
-- Create: `libs/engine_time/src/fixed.rs`, `tests/fixed_props.rs`, `benches/fixed_timestep.rs`
+- Create: `libs/engine/src/time/fixed.rs`, `libs/engine/tests/time_fixed_props.rs`, `libs/engine/benches/time_fixed_timestep.rs`
 - Modify: `src/lib.rs`, `Cargo.toml` (dev-deps `proptest`, `criterion`; `[[bench]] name = "fixed_timestep" harness = false`)
 
 **Interfaces:**
@@ -1046,45 +1046,45 @@ steps = Steps { next: tick, remaining: n }; tick = Tick(tick.0.saturating_add(n)
 #[test] fn try_new_zero_is_none() { assert!(FixedTimestep::try_new(Duration::ZERO).is_none()); }
 ```
 
-- `tests/fixed_props.rs` (proptest): for a step in 1..=50 ms and any split of a total T ≤ 2 s into ≤ 64 positive chunks, each chunk smaller than `cap * step` (so the cap is never hit), the concatenated ticks equal those from a single `accumulate(T)`, and the final `to_state()` values are equal.
+- `tests/time_fixed_props.rs` (proptest): for a step in 1..=50 ms and any split of a total T ≤ 2 s into ≤ 64 positive chunks, each chunk smaller than `cap * step` (so the cap is never hit), the concatenated ticks equal those from a single `accumulate(T)`, and the final `to_state()` values are equal.
 - Panic test: `FixedTimestep::new(Duration::ZERO)` panics at the caller with a message containing `"try_new"`.
 - Bench: `accumulate` of a 16 ms frame with a 1/60 s step, draining the `Steps`, ×1M.
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_time`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** per spec §5.3 and the block above. `alpha` follows the spec formula, clamped to `1.0_f32.next_down()`.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_time && cargo bench -p engine_time -- --quick && cargo xtask wasm`
+Run: `cargo test -p engine && cargo bench -p engine -- --quick && cargo xtask wasm`
 Expected: PASS.
 
 - [ ] **Step 5: Commit, then push the phase**
 
 ```bash
-git add libs/engine_time Cargo.lock
+git add libs/engine/src/time Cargo.lock
 git commit -m "feat(time): add FixedTimestep with capped accumulation, from_hz, state snapshots"
 git push
 ```
 
 ---
 
-# Phase 5: `engine_math`
+# Phase 5: `engine::math`
 
 ### Task 15: Crate setup, re-exports, scalar funnel, helpers, layout assertions
 
 **Files:**
-- Create: `libs/engine_math/Cargo.toml`, `src/lib.rs`, `src/scalar.rs`, `src/helpers.rs`, `src/layout.rs`
-- Modify: root `Cargo.toml` (workspace dep `engine_math`)
+- Create: `libs/engine/src/math.rs`, `libs/engine/src/math/scalar.rs`, `libs/engine/src/math/helpers.rs`, `libs/engine/src/math/layout.rs`
+- Modify: `libs/engine/src/lib.rs` (`pub mod math;`), `libs/engine/Cargo.toml` (`glam`)
 
 **Interfaces:**
 - Produces:
   - re-exports per spec §5.4, plus `pub use glam;`;
   - `scalar::{Float, sin, cos, tan, sin_cos, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, exp, exp2, exp_m1, ln, ln_1p, log, log2, log10, powf, powi, cbrt, hypot}`, generic over the sealed `Float` (for `f32`, `f64`);
-  - `lerp`, `inverse_lerp`, `remap`, `approx_eq`, re-exported at the crate root.
+  - `lerp`, `inverse_lerp`, `remap`, `approx_eq`, re-exported at the module root.
 - `Cargo.toml`: `glam = { workspace = true, features = ["std"] }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1107,24 +1107,24 @@ git push
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_math`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-- **`scalar.rs`:** each function is `#[inline]` and delegates to the std inherent method, under one module-level `#![expect(clippy::disallowed_methods, reason = "engine_math::scalar is the sanctioned transcendental funnel (ADR 0003)")]`. The `Float` trait carries one private method per function.
+- **`scalar.rs`:** each function is `#[inline]` and delegates to the std inherent method, under one module-level `#![expect(clippy::disallowed_methods, reason = "engine::math::scalar is the sanctioned transcendental funnel (ADR 0003)")]`. The `Float` trait carries one private method per function.
 - **`layout.rs`:** holds the `const` size/align assertions. Transforms come in Tasks 16–17; their assertions are added there.
 - **Crate docs:** the justification, the feature-unification warning (glam `fast-math`/`scalar-math`), and a pointer to ADR 0005/0006.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_math && cargo xtask clippy`
+Run: `cargo test -p engine && cargo xtask clippy`
 Expected: PASS. Clippy must also flag a deliberate `1.0f32.sin()` added temporarily to `helpers.rs`; remove it after seeing the warning.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_math Cargo.toml Cargo.lock
+git add libs/engine/src/math Cargo.toml Cargo.lock
 git commit -m "feat(math): add glam re-exports, transcendental funnel, scalar helpers"
 ```
 
@@ -1133,7 +1133,7 @@ git commit -m "feat(math): add glam re-exports, transcendental funnel, scalar he
 ### Task 16: `Transform` and `WorldTransform`
 
 **Files:**
-- Create: `libs/engine_math/src/transform.rs`, `src/world.rs`, `tests/transform_props.rs`, `tests/world_props.rs`
+- Create: `libs/engine/src/math/transform.rs`, `src/world.rs`, `tests/math_transform_props.rs`, `tests/math_world_props.rs`
 - Modify: `src/layout.rs`, `src/lib.rs`
 
 **Interfaces:**
@@ -1141,13 +1141,13 @@ git commit -m "feat(math): add glam re-exports, transcendental funnel, scalar he
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/transform_props.rs` (proptest; uniform scale in [0.1, 10], unit quaternions from normalized random axis+angle, translations in ±1e3):
+`tests/math_transform_props.rs` (proptest; uniform scale in [0.1, 10], unit quaternions from normalized random axis+angle, translations in ±1e3):
 - `(a * b).to_matrix() ≈ a.to_matrix() * b.to_matrix()` (eps 1e-3 relative);
 - `t * t.inverse() ≈ IDENTITY`;
 - `t.transform_point(p) ≈ t.to_matrix().transform_point3(p)`;
 - `IDENTITY * t == t`.
 
-`tests/world_props.rs`:
+`tests/math_world_props.rs`:
 ```rust
 proptest! {
   #[test] fn relative_roundtrip_within_1mm(
@@ -1165,7 +1165,7 @@ Layout tests in `layout.rs` `#[cfg(test)]` print the `size_of`/`align_of` of all
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_math`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** per spec §5.4. `relative_to` narrows via `(self.translation - origin).as_vec3()`.
@@ -1178,13 +1178,13 @@ Add `const` assertions in `layout.rs`:
 
 Record all values in ADR 0006 (Task 18).
 
-Run: `cargo test -p engine_math && cargo xtask wasm`
+Run: `cargo test -p engine && cargo xtask wasm`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_math
+git add libs/engine/src/math
 git commit -m "feat(math): add Transform and large-world WorldTransform with pinned layouts"
 ```
 
@@ -1193,14 +1193,14 @@ git commit -m "feat(math): add Transform and large-world WorldTransform with pin
 ### Task 17: `Transform2d`, `WorldTransform2d`, 2D/3D bridges
 
 **Files:**
-- Create: `libs/engine_math/src/transform2d.rs`, `tests/transform2d_props.rs`
+- Create: `libs/engine/src/math/transform2d.rs`, `tests/math_transform2d_props.rs`
 - Modify: `src/transform.rs` (`Transform::to_2d`), `src/world.rs` (`WorldTransform::to_2d`), `src/layout.rs`, `src/lib.rs`
 
 **Interfaces:** Produces `Transform2d` and `WorldTransform2d` exactly as in spec §5.4, plus `Transform::to_2d` and `WorldTransform::to_2d`. Twist extraction: take the quaternion's `(z, w)` components; if `hypot(z, w) < 1e-6` the twist is undefined, and rotation = 0.0 (documented); otherwise `rotation = 2 * atan2(z, w)`, wrapped into (−π, π]. Use `scalar::*` throughout.
 
 - [ ] **Step 1: Write the failing tests**
 
-- `tests/transform2d_props.rs`:
+- `tests/math_transform2d_props.rs`:
   - compose/inverse round trips (uniform scale);
   - `transform_point` agrees with `to_affine` and `to_mat3`;
   - `mul_transform` wraps the rotation into (−π, π] (e.g. 3.0 + 3.0 → 6.0 − 2π);
@@ -1221,20 +1221,20 @@ git commit -m "feat(math): add Transform and large-world WorldTransform with pin
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_math`
+Run: `cargo test -p engine`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** per spec §5.4 and the twist rule above. Add the swing–twist explanation to the `to_2d` docs.
 
 - [ ] **Step 4: Verify**
 
-Run: `cargo test -p engine_math && cargo xtask wasm`
+Run: `cargo test -p engine && cargo xtask wasm`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add libs/engine_math
+git add libs/engine/src/math
 git commit -m "feat(math): add Transform2d/WorldTransform2d and 2D/3D bridges"
 ```
 
@@ -1243,14 +1243,14 @@ git commit -m "feat(math): add Transform2d/WorldTransform2d and 2D/3D bridges"
 ### Task 18: `axis`, `convert`, ADRs 0005–0006
 
 **Files:**
-- Create: `libs/engine_math/src/axis.rs`, `src/convert.rs`, `tests/convert.rs`, `docs/adr/0005-coordinate-system-and-units.md`, `docs/adr/0006-large-world-precision.md`
+- Create: `libs/engine/src/math/axis.rs`, `src/convert.rs`, `tests/math_convert.rs`, `docs/adr/0005-coordinate-system-and-units.md`, `docs/adr/0006-large-world-precision.md`
 - Modify: `src/lib.rs`
 
 **Interfaces:**
 - Produces: `axis` (`RIGHT LEFT UP DOWN VIEW_FORWARD ASSET_FRONT RIGHT_2D UP_2D`) and `convert` (`CoordinateSystem { x, y, z }`, `SignedAxis`, presets `ENGINE GLTF BLENDER UNITY UNREAL`, `new`, `is_right_handed`, `to_engine_matrix`, `vec3_to_engine`, `dvec3_to_engine`, `quat_to_engine`, `scale_to_engine`, `transform_to_engine` and their `*_from_engine` inverses), exactly as in spec §5.4.
 - **Preset values must be verified first.** For each tool, read its documentation and its glTF importer/exporter's axis handling. Then apply the preset rule: the source's up maps to engine +Y, the source's asset-front maps to engine +Z, and on a handedness flip the asset-right axis is negated. Record the cited source and resulting mapping per preset in ADR 0005. **Omit any preset you can't verify**, and say so in ADR 0005.
 
-- [ ] **Step 1: Write the failing tests** (`tests/convert.rs`)
+- [ ] **Step 1: Write the failing tests** (`tests/math_convert.rs`)
 
 ```rust
 #[test] fn engine_is_gltf_and_identity() {
@@ -1268,7 +1268,7 @@ git commit -m "feat(math): add Transform2d/WorldTransform2d and 2D/3D bridges"
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p engine_math --test convert`
+Run: `cargo test -p engine --test math_convert`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement**
@@ -1293,11 +1293,11 @@ Expected: FAIL.
 
 - [ ] **Step 5: Verify, commit, then push the phase**
 
-Run: `cargo test -p engine_math && cargo xtask ci`
+Run: `cargo test -p engine && cargo xtask ci`
 Expected: PASS.
 
 ```bash
-git add libs/engine_math docs/adr/0005-coordinate-system-and-units.md docs/adr/0006-large-world-precision.md
+git add libs/engine/src/math docs/adr/0005-coordinate-system-and-units.md docs/adr/0006-large-world-precision.md
 git commit -m "feat(math): add axis constants and coordinate conversion; docs: ADRs 0005-0006"
 git push
 ```
@@ -1306,16 +1306,14 @@ git push
 
 # Phase 6: Facade, sample, benchmarks, docs
 
-### Task 19: `engine` facade and prelude
+### Task 19: The `engine` crate root and prelude
 
 **Files:**
-- Create: `libs/engine/Cargo.toml`, `libs/engine/src/lib.rs`
-- Modify: `xtask/src/main.rs` (remove the "skip missing crates" notices from `no-std`/`wasm`, since all crates now exist)
+- Modify: `libs/engine/src/lib.rs` (the crate docs and `pub mod prelude`), `xtask/src/main.rs` (remove the "skip until `engine` exists" notices from `no-std`/`wasm`)
 
 **Interfaces:**
-- Produces: the module re-exports `engine::{handle, random, time, math}` and the `engine::prelude` list exactly as in spec §5.5.
-- `[features] default = ["std"]`, `std = ["engine_time/std"]`.
-- Workspace deps for the leaf crates are `default-features = false`, so the facade enables `std` explicitly.
+- Produces: the module declarations `engine::{handle, random, time, math}` and the `engine::prelude` list exactly as in spec §5.5.
+- `[features] default = ["std"]`, `std = []`.
 
 - [ ] **Step 1: Write the failing doctest**
 
@@ -1337,11 +1335,11 @@ Also create `libs/engine/tests/auto_traits.rs`, which asserts `Send + Sync` (and
 - [ ] **Step 2: Run to verify failure**
 
 Run: `cargo test -p engine --doc`
-Expected: FAIL (crate missing).
+Expected: FAIL (prelude missing).
 
 - [ ] **Step 3: Implement**
 
-`lib.rs` contains crate docs (crate map, guarantees: determinism, no global state, host owns the loop), `#![forbid(unsafe_code)]`, the re-exports, and `pub mod prelude`.
+`lib.rs` contains crate docs (module map, guarantees: determinism, no global state, host owns the loop), `#![forbid(unsafe_code)]`, the `pub mod` declarations, and `pub mod prelude`.
 
 - [ ] **Step 4: Verify**
 
@@ -1352,7 +1350,7 @@ Expected: PASS; `engine` builds for `wasm32-unknown-unknown`, which also proves 
 
 ```bash
 git add libs/engine Cargo.toml Cargo.lock xtask
-git commit -m "feat(engine): add facade crate and prelude"
+git commit -m "feat(engine): add the crate root docs and prelude"
 ```
 
 ---
@@ -1448,7 +1446,7 @@ git commit -m "feat(example): add deterministic fixed_step_sim with snapshot and
 
 **Files:**
 - Create: `docs/benchmarks.md`
-- Modify: `README.md` (finalize the crate map, link to `docs/benchmarks.md`)
+- Modify: `README.md` (finalize the module map, link to `docs/benchmarks.md`)
 
 - [ ] **Step 1: Run the comparison benchmarks**
 
