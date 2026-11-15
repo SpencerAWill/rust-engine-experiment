@@ -71,3 +71,4 @@
 - 2026-11-15 lesson? A hook that runs `cargo` shares the default target dir lock with the user's builds; give it its own CARGO_TARGET_DIR.
 - 2026-11-15 done Ruleset bypass actor now `bypassMode: "pull_request"` (infra/github/index.ts); README Admin bypass bullet and docs/maintainers.md branch-protection item updated; CONTRIBUTING.md had no wording to fix. Not applied: maintainer runs `pulumi up` after merge.
 - 2026-11-15 surprise `@pulumi/github` documents `bypassMode` values as `pullRequest` (camel-cased by its doc generator); the Terraform provider beneath it and GitHub's API use `pull_request`, which is what the code uses. `pulumi preview` validates it before `up`; check its diff.
+- 2026-11-15 decision Maintainer: do not continue to the next chunk automatically; it starts in a new session. Applied as the general rule (stage 7 names the next chunk and stops), spec §4.1 amended.
