@@ -23,40 +23,103 @@ const UNTERMINATED: &str = "the command has an unterminated quote";
 /// Why any force push is blocked.
 const FORCE: &str = "force pushes are not allowed";
 
+/// Why a bare push or a `HEAD` refspec is blocked when the branch is not known.
+const UNKNOWN_BRANCH: &str = "cannot tell which branch `HEAD`/a bare push sends";
+
+/// Marks a segment that stands for the body of a heredoc that feeds a shell.
+const BODY_MARK: char = '\u{1}';
+
 /// Decides whether `command` may run. `current_branch` is the checked-out branch of the hook's
 /// working directory, when known; a push with no explicit refspec pushes it.
 pub(crate) fn decide(command: &str, current_branch: Option<&str>) -> Decision {
-    let (stripped, shell_bodies) = strip_heredocs(command);
-    // A heredoc that feeds a shell is a script: decide on it as a nested command.
-    for body in &shell_bodies {
-        if let Decision::Block(reason) = decide(body, current_branch) {
-            return Decision::Block(reason);
-        }
+    match check_script(command, current_branch) {
+        Ok(()) => Decision::Allow,
+        Err(reason) => Decision::Block(blocked(&reason)),
     }
+}
+
+/// Checks a script, segment by segment, tracking the branch as it changes; `Err` is the reason
+/// (without the "blocked" prefix, so nested scripts do not wrap it twice).
+fn check_script(command: &str, current_branch: Option<&str>) -> Result<(), String> {
+    let (stripped, shell_bodies) = strip_heredocs(command);
     let segments = match split_segments(&stripped) {
         Ok(segments) => segments,
         // Fail closed only when the text looks like a push; a command whose quoting the simple
         // parser cannot follow, and that never says `git ... push`, is not the guard's business.
-        Err(why) if mentions_git_push(&stripped) => return Decision::Block(blocked(&why)),
-        Err(_) => return Decision::Allow,
+        Err(why) if mentions_git_push(&stripped) => return Err(why),
+        Err(_) => return Ok(()),
     };
-    // Command substitutions are nested commands.
-    for inner in substitutions(&stripped) {
-        if let Decision::Block(reason) = decide(&inner, current_branch) {
-            return Decision::Block(reason);
-        }
-    }
     let mut branch = current_branch;
-    for words in &segments {
-        if let Some(reason) = check_segment(words, branch) {
-            return Decision::Block(blocked(&reason));
+    for segment in &segments {
+        let words = &segment.words;
+        // A heredoc that feeds a shell is a script: decide on it where it runs.
+        if let [word] = words.as_slice()
+            && let Some(index) = word.strip_prefix(BODY_MARK)
+        {
+            if let Some(body) = index
+                .parse::<usize>()
+                .ok()
+                .and_then(|n| shell_bodies.get(n))
+            {
+                check_script(body, branch)?;
+            }
+            continue;
         }
-        // After a `cd` the checked-out branch is no longer known.
-        if locate(words).is_some_and(|k| matches!(basename(&words[k]), "cd" | "pushd")) {
+        // Command substitutions are nested commands.
+        for inner in substitutions(&segment.raw) {
+            check_script(&inner, branch)?;
+        }
+        let command_at = locate(words);
+        let git_env = words[..command_at.unwrap_or(words.len())]
+            .iter()
+            .any(|w| is_git_env(w));
+        let here = if git_env { None } else { branch };
+        if let Some(reason) = check_segment(words, &segment.here_strings, here) {
+            return Err(reason);
+        }
+        if git_env || changes_branch(words, command_at) {
             branch = None;
         }
     }
-    Decision::Allow
+    Ok(())
+}
+
+/// True for an assignment that points git at another repository.
+fn is_git_env(word: &str) -> bool {
+    word.starts_with("GIT_DIR=") || word.starts_with("GIT_WORK_TREE=")
+}
+
+/// True when the segment may change the checked-out branch or repository for what follows.
+fn changes_branch(words: &[String], command_at: Option<usize>) -> bool {
+    let Some(k) = command_at else {
+        return false;
+    };
+    let rest = &words[k..];
+    match basename(&rest[0]) {
+        "cd" | "pushd" | "popd" => true,
+        "export" | "declare" | "typeset" => rest.iter().any(|w| is_git_env(w)),
+        "git" => matches!(
+            git_subcommand(rest),
+            Some("checkout" | "switch" | "worktree" | "rebase")
+        ),
+        _ => false,
+    }
+}
+
+/// The subcommand of a `git ...` command (`rest[0]` is the program), after global options.
+fn git_subcommand(rest: &[String]) -> Option<&str> {
+    let mut j = 1;
+    while let Some(w) = rest.get(j).filter(|w| w.starts_with('-')) {
+        j += if matches!(
+            w.as_str(),
+            "-c" | "-C" | "--git-dir" | "--work-tree" | "--namespace"
+        ) {
+            2
+        } else {
+            1
+        };
+    }
+    rest.get(j).map(String::as_str)
 }
 
 /// Decides from the raw hook JSON; `branch_of` maps the hook's `cwd` to its checked-out branch.
@@ -94,19 +157,18 @@ fn basename(word: &str) -> &str {
     word.rsplit('/').next().unwrap_or(word)
 }
 
-/// True when the first command word of `segment` is a shell (`bash`, `sh -s`, ...).
-fn segment_is_shell(segment: &str) -> bool {
-    let mut words = segment.split_whitespace().filter(|w| {
-        (!w.contains('=') || w.starts_with('-'))
-            && !matches!(*w, "env" | "command" | "exec" | "sudo" | "nohup")
-    });
-    words.next().is_some_and(|w| SHELLS.contains(&basename(w)))
+/// True when some command on `line` runs a shell (found the way [`locate`] finds commands), so a
+/// heredoc on that line may feed it (`bash <<EOF`, `cat <<EOF | sh`, `timeout 9 bash <<EOF`).
+fn line_runs_shell(line: &str) -> bool {
+    line.split([';', '|', '&', '(', '`']).any(|segment| {
+        let words: Vec<String> = segment.split_whitespace().map(str::to_string).collect();
+        locate(&words).is_some_and(|k| SHELLS.contains(&basename(&words[k])))
+    })
 }
 
-/// True when some command on `line` runs a shell, so a heredoc on that line may feed it
-/// (`bash <<EOF`, `cat <<EOF | sh`).
-fn line_runs_shell(line: &str) -> bool {
-    line.split([';', '|', '&', '(', '`']).any(segment_is_shell)
+/// True when the `#` at `i` starts a comment: it is at the start of a word.
+fn comment_starts(chars: &[char], i: usize) -> bool {
+    i == 0 || chars[i - 1].is_whitespace() || ";&|()".contains(chars[i - 1])
 }
 
 /// Parses a heredoc delimiter starting at `j`; returns it and the index after it.
@@ -134,10 +196,12 @@ fn heredoc_word(chars: &[char], mut j: usize) -> (String, usize) {
     (word, j)
 }
 
-/// Removes heredoc operators and bodies (`<<WORD`, `<<'WORD'`, `<<"WORD"`, `<<-WORD`) from
-/// `command`; they are data. Returns the rest, and the bodies of heredocs on a line that runs a
-/// shell, which are commands. Quotes are tracked so a `<<` inside a string is not an operator;
+/// Removes heredoc operators and bodies (`<<WORD`, `<<'WORD'`, `<<"WORD"`, `<<-WORD`) and comments
+/// from `command`; they are data. Returns the rest, and the bodies of heredocs on a line that runs
+/// a shell, which are commands; the rest holds a [`BODY_MARK`] line where each such body ran.
+/// Quotes are tracked so a `<<` inside a string is not an operator;
 /// a here-string (`<<<`) is not a heredoc.
+#[allow(clippy::too_many_lines)] // one scanner with quote, comment, arithmetic and heredoc states
 fn strip_heredocs(command: &str) -> (String, Vec<String>) {
     let chars: Vec<char> = command.chars().collect();
     let mut out = String::new();
@@ -145,6 +209,8 @@ fn strip_heredocs(command: &str) -> (String, Vec<String>) {
     // Heredocs opened on the current line: (delimiter, tabs allowed).
     let mut pending: Vec<(String, bool)> = Vec::new();
     let mut quote: Option<char> = None;
+    // Parenthesis depth inside `((...))` or `$((...))`, where `<<` is a shift, not a heredoc.
+    let mut arith = 0_usize;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -161,6 +227,12 @@ fn strip_heredocs(command: &str) -> (String, Vec<String>) {
                 }
             }
             None => match c {
+                '#' if comment_starts(&chars, i) => {
+                    while i < chars.len() && chars[i] != '\n' {
+                        i += 1;
+                    }
+                    continue;
+                }
                 '\'' | '"' => quote = Some(c),
                 '\\' => {
                     out.push(c);
@@ -168,7 +240,15 @@ fn strip_heredocs(command: &str) -> (String, Vec<String>) {
                     i += 2;
                     continue;
                 }
-                '<' if chars.get(i + 1) == Some(&'<') => {
+                '(' if arith > 0 => arith += 1,
+                '(' if chars.get(i + 1) == Some(&'(') => {
+                    arith = 2;
+                    out.push_str("((");
+                    i += 2;
+                    continue;
+                }
+                ')' if arith > 0 => arith -= 1,
+                '<' if arith == 0 && chars.get(i + 1) == Some(&'<') => {
                     if chars.get(i + 2) == Some(&'<') {
                         out.push_str("<<<");
                         i += 3;
@@ -212,6 +292,9 @@ fn strip_heredocs(command: &str) -> (String, Vec<String>) {
                             body.push('\n');
                         }
                         if shell {
+                            out.push(BODY_MARK);
+                            out.push_str(&shell_bodies.len().to_string());
+                            out.push('\n');
                             shell_bodies.push(body);
                         }
                     }
@@ -241,6 +324,12 @@ fn substitutions(text: &str) -> Vec<String> {
             continue;
         }
         match c {
+            '#' if !double && comment_starts(&chars, i) => {
+                while i < chars.len() && chars[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
             '\\' => {
                 i += 2;
                 continue;
@@ -283,15 +372,31 @@ fn substitutions(text: &str) -> Vec<String> {
     found
 }
 
+/// One simple command of a script, as [`split_segments`] cuts it.
+#[derive(Debug, Default)]
+struct Segment {
+    /// The words, unquoted, without redirections.
+    words: Vec<String>,
+    /// The source text of the segment, quotes included, to look for substitutions in.
+    raw: String,
+    /// The words of here-strings (`<<< word`): standard input, which a shell runs as a script.
+    here_strings: Vec<String>,
+}
+
 /// Accumulates the words and segments of [`split_segments`].
 #[derive(Default)]
 struct Splitter {
-    segments: Vec<Vec<String>>,
+    segments: Vec<Segment>,
     words: Vec<String>,
+    here_strings: Vec<String>,
     word: String,
     in_word: bool,
     /// Set by a redirection operator: the next word is its target and is not an argument.
     drop_next: bool,
+    /// Set with `drop_next` by `<<<`: the target is kept as a here-string.
+    here_next: bool,
+    /// Index in the source where the current segment starts.
+    start: usize,
 }
 
 impl Splitter {
@@ -299,56 +404,88 @@ impl Splitter {
         if self.in_word {
             let word = std::mem::take(&mut self.word);
             self.in_word = false;
+            let here = std::mem::take(&mut self.here_next);
             if !std::mem::take(&mut self.drop_next) {
                 self.words.push(word);
+            } else if here {
+                self.here_strings.push(word);
             }
         }
     }
 
-    fn end_segment(&mut self) {
+    /// Ends the segment whose source is `chars[start..at]`.
+    fn end_segment(&mut self, chars: &[char], at: usize) {
         self.end_word();
         self.drop_next = false;
-        if !self.words.is_empty() {
-            self.segments.push(std::mem::take(&mut self.words));
+        self.here_next = false;
+        let raw: String = chars
+            .get(self.start..at)
+            .unwrap_or_default()
+            .iter()
+            .collect();
+        if !self.words.is_empty() || !self.here_strings.is_empty() || !raw.trim().is_empty() {
+            self.segments.push(Segment {
+                words: std::mem::take(&mut self.words),
+                raw,
+                here_strings: std::mem::take(&mut self.here_strings),
+            });
         }
+        self.start = at + 1;
     }
 }
 
 /// Splits a shell command into segments (on `&&`, `||`, `;`, `|`, `&`, newlines and parentheses
 /// outside quotes) and each segment into words, with single and double quotes and backslash
-/// escapes respected. Redirections (`2>&1`, `> f`, `>> f`, `< f`, `&> f`, `<<< s`) and their
-/// target words are dropped: they are not arguments. An unterminated quote is an error.
-fn split_segments(command: &str) -> Result<Vec<Vec<String>>, String> {
+/// escapes respected, and comments (`#` at the start of a word, to the end of the line) dropped.
+/// Redirections (`2>&1`, `> f`, `>> f`, `< f`, `&> f`) and their target words are dropped: they
+/// are not arguments; the target of `<<<` is kept apart. An unterminated quote is an error.
+fn split_segments(command: &str) -> Result<Vec<Segment>, String> {
     let mut s = Splitter::default();
-    let mut chars = command.chars().peekable();
-    while let Some(c) = chars.next() {
+    let chars: Vec<char> = command.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        i += 1;
         match c {
+            '#' if !s.in_word => {
+                while i < chars.len() && chars[i] != '\n' {
+                    i += 1;
+                }
+            }
             '\'' => {
                 s.in_word = true;
                 loop {
-                    match chars.next() {
+                    match chars.get(i) {
                         Some('\'') => break,
-                        Some(q) => s.word.push(q),
+                        Some(&q) => s.word.push(q),
                         None => return Err(UNTERMINATED.to_string()),
                     }
+                    i += 1;
                 }
+                i += 1;
             }
             '"' => {
                 s.in_word = true;
                 loop {
-                    match chars.next() {
+                    match chars.get(i) {
                         Some('"') => break,
-                        Some('\\') => s.word.extend(chars.next()),
-                        Some(q) => s.word.push(q),
+                        Some('\\') => {
+                            i += 1;
+                            s.word.extend(chars.get(i));
+                        }
+                        Some(&q) => s.word.push(q),
                         None => return Err(UNTERMINATED.to_string()),
                     }
+                    i += 1;
                 }
+                i += 1;
             }
             '\\' => {
                 s.in_word = true;
-                s.word.extend(chars.next());
+                s.word.extend(chars.get(i));
+                i += 1;
             }
-            '>' | '<' | '&' if c != '&' || chars.peek() == Some(&'>') => {
+            '>' | '<' | '&' if c != '&' || chars.get(i) == Some(&'>') => {
                 // A bare number before the operator is its file descriptor.
                 if s.in_word && !s.word.is_empty() && s.word.chars().all(|d| d.is_ascii_digit()) {
                     s.word.clear();
@@ -356,16 +493,17 @@ fn split_segments(command: &str) -> Result<Vec<Vec<String>>, String> {
                 } else {
                     s.end_word();
                 }
-                if chars.peek() == Some(&'(') {
+                if chars.get(i) == Some(&'(') {
                     continue; // process substitution: the parenthesis splits
                 }
-                while chars
-                    .next_if(|n| matches!(n, '<' | '>' | '&' | '|'))
-                    .is_some()
-                {}
+                let operators = i;
+                while matches!(chars.get(i), Some('<' | '>' | '&' | '|')) {
+                    i += 1;
+                }
                 s.drop_next = true;
+                s.here_next = c == '<' && chars[operators..i] == ['<', '<'];
             }
-            ';' | '|' | '&' | '\n' | '(' | ')' => s.end_segment(),
+            ';' | '|' | '&' | '\n' | '(' | ')' => s.end_segment(&chars, i - 1),
             c if c.is_whitespace() => s.end_word(),
             c => {
                 s.in_word = true;
@@ -373,7 +511,7 @@ fn split_segments(command: &str) -> Result<Vec<Vec<String>>, String> {
             }
         }
     }
-    s.end_segment();
+    s.end_segment(&chars, chars.len());
     Ok(s.segments)
 }
 
@@ -391,7 +529,9 @@ fn wrapper_flags(program: &str) -> Option<&'static [&'static str]> {
         "ionice" => &["-c", "-n", "-p"],
         "timeout" => &["-s", "-k", "--signal", "--kill-after"],
         "xargs" => &["-n", "-I", "-P", "-L", "-s", "-E", "-d", "-a", "-J"],
-        "command" | "exec" | "nohup" | "time" | "setsid" | "stdbuf" => &[],
+        "caffeinate" => &["-t", "-w"],
+        "watch" => &["-n", "--interval"],
+        "command" | "exec" | "nohup" | "time" | "setsid" | "stdbuf" | "builtin" => &[],
         _ => return None,
     })
 }
@@ -426,34 +566,98 @@ fn locate(words: &[String]) -> Option<usize> {
 
 /// Decides a nested script; returns the reason when it is blocked.
 fn nested(script: &str, current_branch: Option<&str>) -> Option<String> {
-    match decide(script, current_branch) {
-        Decision::Block(reason) => Some(reason),
-        Decision::Allow => None,
-    }
+    check_script(script, current_branch).err()
 }
 
+/// Why `gh` may not merge past the required checks.
+const GH_MERGE: &str = "merging without the required checks is not allowed for agents";
+
+/// Why a push through `xargs` is blocked.
+const XARGS: &str = "a push through `xargs`: arguments are not known until the command runs";
+
 /// Returns why a segment must be blocked, or `None` when it is not a risky push.
-fn check_segment(words: &[String], current_branch: Option<&str>) -> Option<String> {
-    let rest = words.get(locate(words)?..)?;
+fn check_segment(
+    words: &[String],
+    here_strings: &[String],
+    current_branch: Option<&str>,
+) -> Option<String> {
+    let at = locate(words)?;
+    let rest = &words[at..];
     match basename(rest.first()?) {
         // `bash -lc "git push origin main"`: look inside the script.
         shell if SHELLS.contains(&shell) => {
-            let at = rest
+            // `bash <<< 'git push origin main'`: the here-string is the script.
+            for script in here_strings {
+                if let Some(reason) = nested(script, current_branch) {
+                    return Some(reason);
+                }
+            }
+            let flag = rest
                 .iter()
                 .position(|w| w.starts_with('-') && !w.starts_with("--") && w.contains('c'))?;
-            nested(rest.get(at + 1)?, current_branch)
+            // The script is the first word after the `-c` cluster that is not an option.
+            let script = rest[flag + 1..].iter().find(|w| !w.starts_with('-'))?;
+            nested(script, current_branch)
         }
         "eval" => nested(&rest[1..].join(" "), current_branch),
-        "git" => check_git(rest, current_branch),
+        "git" => {
+            let via_xargs = words[..at].iter().any(|w| basename(w) == "xargs");
+            check_git(rest, via_xargs, current_branch)
+        }
+        "gh" => check_gh(rest),
         _ => None,
     }
+}
+
+/// Checks a `gh ...` command: no `gh pr merge --admin`, and no write call to a `.../merge` path.
+fn check_gh(rest: &[String]) -> Option<String> {
+    let positionals: Vec<&str> = rest[1..]
+        .iter()
+        .map(String::as_str)
+        .filter(|w| !w.starts_with('-'))
+        .collect();
+    if positionals.contains(&"pr") && positionals.contains(&"merge") {
+        let admin = rest
+            .iter()
+            .any(|w| w == "--admin" || w.starts_with("--admin="));
+        return admin.then(|| GH_MERGE.to_string());
+    }
+    if positionals.first() != Some(&"api") {
+        return None;
+    }
+    let merges = positionals.iter().any(|p| {
+        p.split('?')
+            .next()
+            .is_some_and(|path| path.ends_with("/merge"))
+    });
+    let mut writes = false;
+    let mut args = rest.iter().map(String::as_str);
+    while let Some(arg) = args.next() {
+        match arg {
+            "-X" | "--method" => {
+                writes |= args.next().is_some_and(|m| !m.eq_ignore_ascii_case("GET"));
+            }
+            // Fields and input make `gh api` post.
+            "-f" | "-F" | "--field" | "--raw-field" | "--input" => {
+                writes = true;
+                args.next();
+            }
+            other => {
+                let value = other
+                    .strip_prefix("--method=")
+                    .or_else(|| other.strip_prefix("-X"));
+                writes |= value.is_some_and(|m| !m.eq_ignore_ascii_case("GET"));
+            }
+        }
+    }
+    (merges && writes).then(|| GH_MERGE.to_string())
 }
 
 /// Keys of `git -c` that can reroute a push.
 const REROUTING_PREFIXES: [&str; 4] = ["remote.", "alias.", "push.", "url."];
 
 /// Checks a `git ...` command (`rest[0]` is the program): global options, then `push` or `config`.
-fn check_git(rest: &[String], current_branch: Option<&str>) -> Option<String> {
+fn check_git(rest: &[String], via_xargs: bool, current_branch: Option<&str>) -> Option<String> {
     let mut j = 1;
     let mut redirected = false;
     while let Some(w) = rest.get(j) {
@@ -480,6 +684,7 @@ fn check_git(rest: &[String], current_branch: Option<&str>) -> Option<String> {
         }
     }
     match rest.get(j).map(String::as_str) {
+        Some("push") if via_xargs => Some(XARGS.to_string()),
         Some("push") => check_push(
             &rest[j + 1..],
             if redirected { None } else { current_branch },
@@ -492,8 +697,13 @@ fn check_git(rest: &[String], current_branch: Option<&str>) -> Option<String> {
 /// Checks the arguments after `git config`: a write that could reroute pushes is blocked.
 fn check_config(args: &[String]) -> Option<String> {
     let mut positionals: Vec<&str> = Vec::new();
+    let mut skip_next = false;
     for arg in args {
+        if std::mem::take(&mut skip_next) {
+            continue;
+        }
         match arg.as_str() {
+            "-f" | "--file" | "--blob" | "--type" | "--default" | "--comment" => skip_next = true,
             "--get" | "--get-all" | "--get-regexp" | "--get-urlmatch" | "--list" | "-l"
             | "--unset" | "--unset-all" => return None,
             flag if flag.starts_with('-') => {}
@@ -557,7 +767,7 @@ fn check_push(args: &[String], current_branch: Option<&str>) -> Option<String> {
         return match current_branch {
             Some("main") => Some("this pushes `main`".to_string()),
             Some(_) => None,
-            None => Some("cannot tell which branch this pushes".to_string()),
+            None => Some(UNKNOWN_BRANCH.to_string()),
         };
     }
     for spec in refspecs {
@@ -576,7 +786,10 @@ fn check_push(args: &[String], current_branch: Option<&str>) -> Option<String> {
             None => (destination, false),
         };
         let destination = if matches!(destination, "HEAD" | "@") {
-            current_branch.unwrap_or("main")
+            match current_branch {
+                Some(branch) => branch,
+                None => return Some(UNKNOWN_BRANCH.to_string()),
+            }
         } else {
             destination
         };
@@ -816,6 +1029,126 @@ mod tests {
                 "should allow: {command} (branch {branch:?})"
             );
         }
+    }
+
+    /// Final hardening round: branch changes, git environment, arithmetic, here-strings, xargs,
+    /// config flags, comments, wrappers, `-c` options, per-segment nesting and `gh` merges.
+    #[test]
+    fn final_round_blocks() {
+        let cases: &[(&str, Option<&str>)] = &[
+            ("git checkout main && git push", FEATURE),
+            ("git switch main; git push origin", FEATURE),
+            (
+                "git checkout main && git merge feature && git push",
+                FEATURE,
+            ),
+            ("git switch -c main && git push -u origin HEAD", FEATURE),
+            ("git rebase main && git push", FEATURE),
+            ("git worktree add ../w main && git push", FEATURE),
+            ("GIT_DIR=../o/.git git push", FEATURE),
+            ("export GIT_DIR=/x/.git; git push", FEATURE),
+            ("export GIT_WORK_TREE=/x; git push origin HEAD", FEATURE),
+            ("echo $((1<<2))\ngit push origin main", FEATURE),
+            ("((x = 1<<2))\ngit push origin main", None),
+            ("bash <<< 'git push origin main'", FEATURE),
+            ("echo main | xargs git push origin", FEATURE),
+            ("echo main | xargs -I{} git push origin {}", FEATURE),
+            ("git config --file .git/config alias.p push", FEATURE),
+            (
+                "git config -f .git/config remote.origin.push feature:main",
+                FEATURE,
+            ),
+            ("git config --blob b alias.p push", FEATURE),
+            (
+                "# Let's push the branch\ngit push origin main\n# that's it",
+                FEATURE,
+            ),
+            (
+                "timeout 60 bash <<'EOF'\ngit push origin main\nEOF",
+                FEATURE,
+            ),
+            ("sudo -u x bash <<EOF\ngit push origin main\nEOF", FEATURE),
+            ("env -i bash <<EOF\ngit push origin main\nEOF", FEATURE),
+            ("sh -c -- 'git push origin main'", FEATURE),
+            ("bash -c -x 'git push origin main'", FEATURE),
+            ("caffeinate -t 5 git push origin main", FEATURE),
+            ("caffeinate -w 12 git push origin main", FEATURE),
+            ("watch -n 5 git push origin main", FEATURE),
+            ("builtin cd /x && git push", FEATURE),
+            ("cd /x && echo \"$(git push)\"", FEATURE),
+            ("cd /x && bash -c 'git push'", FEATURE),
+            ("cd /x && bash <<EOF\ngit push\nEOF", FEATURE),
+            ("gh pr merge 5 --squash --admin", FEATURE),
+            ("gh pr merge --admin 5", FEATURE),
+            ("gh api -X PUT repos/o/r/pulls/5/merge", FEATURE),
+            ("gh api --method PUT repos/o/r/pulls/5/merge", FEATURE),
+            ("gh api --method=PUT repos/o/r/pulls/5/merge", FEATURE),
+        ];
+        for (command, branch) in cases {
+            assert!(
+                is_block(command, *branch),
+                "should block: {command} (branch {branch:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn final_round_allows() {
+        let cases: &[(&str, Option<&str>)] = &[
+            (
+                "git checkout -b feature2 && git push -u origin feature2",
+                FEATURE,
+            ),
+            ("cd /repo && git push -u origin feature", FEATURE),
+            (
+                "gh pr merge 5 --squash --delete-branch --match-head-commit abc123",
+                FEATURE,
+            ),
+            ("gh api repos/o/r/pulls/5/merge", FEATURE),
+            ("echo $((1<<2))", FEATURE),
+            ("# comment with git push in it", FEATURE),
+            ("echo $#\ngit status", FEATURE),
+            ("git config --file .git/config user.name x", FEATURE),
+            ("timeout 60 bash <<'EOF'\ngit status\nEOF", FEATURE),
+            ("bash -c -x 'cargo test'", FEATURE),
+        ];
+        for (command, branch) in cases {
+            assert_eq!(
+                decide(command, *branch),
+                Decision::Allow,
+                "should allow: {command} (branch {branch:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn final_round_messages() {
+        let reason = |command: &str, branch| match decide(command, branch) {
+            Decision::Block(reason) => reason,
+            Decision::Allow => panic!("should block: {command}"),
+        };
+        let nested = reason("bash -c 'git push origin main'", FEATURE);
+        assert_eq!(
+            nested.matches("guard-push blocked this command:").count(),
+            1,
+            "{nested}"
+        );
+        let unknown = reason("git checkout main && git push -u origin HEAD", FEATURE);
+        assert!(
+            unknown.contains("cannot tell which branch `HEAD`/a bare push sends"),
+            "{unknown}"
+        );
+        assert!(!unknown.contains("pushes to `main`"), "{unknown}");
+        let xargs = reason("echo main | xargs git push origin", FEATURE);
+        assert!(
+            xargs.contains("arguments are not known until the command runs"),
+            "{xargs}"
+        );
+        let admin = reason("gh pr merge 5 --admin", FEATURE);
+        assert!(
+            admin.contains("merging without the required checks is not allowed for agents"),
+            "{admin}"
+        );
     }
 
     #[test]
