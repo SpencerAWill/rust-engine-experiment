@@ -15,11 +15,13 @@ Coverage, the nightly fuzz run and the weekly mutants run are report-only and ou
 
 ## Rules that fail CI (do not work around them)
 
+- One library crate: new library code is a module of `engine` (a new crate needs a criterion from [ADR 0004](docs/adr/0004-crate-splitting-rule.md)).
 - No `unsafe` (`#![forbid(unsafe_code)]` in every crate root).
 - Determinism: no `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code. No global mutable state.
 - Frozen formats: the PRNG output streams and `UntypedGenId::to_bits` (which `GenId::to_bits` forwards to) do not change without an ADR and updated golden tests.
 - Every public item is documented and public types have runnable doctests. A documented panic has `#[track_caller]`, a `# Panics` section, an actionable message, and a fallible `try_` twin.
 - No code copied from other projects ([ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md)).
+- The rest (fmt, clippy with warnings denied, docs, `no_std` and wasm builds, workflow rules) is in [CONTRIBUTING.md](CONTRIBUTING.md#what-ci-enforces), "What CI enforces".
 
 ## The loop
 
@@ -27,7 +29,12 @@ Work is done in chunks from the roadmap, each through seven stages: brainstorm, 
 
 - **Wait for the maintainer only twice:** spec approval (at the end of the grill) and the merge go-ahead. Between them, move to the next stage without asking.
 - **Roles.** The main session writes documents, dispatches agents (`.claude/agents/`) and commits. A `builder` (Sonnet) writes product and test code; independent reviewers check it and never see the builder's reasoning.
-- **Stop and ask** when the spec is wrong or silent on something that changes what gets built; when a change would touch an ADR, a frozen format or a CI-enforced policy the spec does not name; when a reviewer and the builder disagree after two fix rounds; and before anything outward-facing beyond the chunk's branch, pull request and follow-up issues.
+- **Stop and ask** when:
+  - the spec is wrong or silent on something that changes what gets built;
+  - a change would touch an ADR, a frozen format or a CI-enforced policy the spec does not name;
+  - a reviewer and the builder still disagree after two fix rounds;
+  - an action is outward-facing beyond the chunk's branch, pull request and follow-up issues.
+- **Pushes to `main` and force pushes are blocked** for agents by a hook (`.claude/hooks/guard-push.sh`). Do not work around it; the maintainer runs such a push themselves.
 - **Write it down as it happens** in the chunk's `log.md` (decisions, surprises, `lesson?` candidates). Agents get killed; what is not on disk is lost.
 - **Lessons** in [docs/lessons/](docs/lessons/) are retrieved by path when planning. Follow them by default; say why when you deviate.
 - **Plugins** may be used inside any stage, but this workflow decides where files go: specs, plans and logs live in `docs/chunks/<id>-<slug>/`, never in a plugin's own folder.

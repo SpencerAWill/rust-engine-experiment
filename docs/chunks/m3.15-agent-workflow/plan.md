@@ -119,7 +119,7 @@ Choices the spec leaves open, decided here:
 
 ### Step 13: CLAUDE.md audit (R10)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Change:** run `claude-md-management:claude-md-improver` on `AGENTS.md` and `CLAUDE.md`; apply findings that keep `AGENTS.md` under 80 lines and within spec §4.5; list every finding and its answer in `log.md` for the pull request.
 - **Commit:** `docs: apply the CLAUDE.md audit (M3.15)`, or none if nothing changed.
 
