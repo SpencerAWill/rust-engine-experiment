@@ -34,6 +34,7 @@
 
 pub mod axis;
 pub mod convert;
+mod float;
 mod helpers;
 mod layout;
 pub mod scalar;

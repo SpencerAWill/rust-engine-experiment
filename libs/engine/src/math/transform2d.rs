@@ -21,7 +21,7 @@ fn wrap_angle(angle: f32) -> f32 {
     if angle > -PI && angle <= PI {
         return angle;
     }
-    let wrapped = (angle + PI).rem_euclid(TAU) - PI;
+    let wrapped = super::float::rem_euclid(angle + PI, TAU) - PI;
     if wrapped <= -PI { PI } else { wrapped }
 }
 

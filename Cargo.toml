@@ -14,7 +14,8 @@ publish = false
 [workspace.dependencies]
 # internal crates (path + version)
 engine = { path = "libs/engine", version = "0.1.0" }
-glam = { version = "0.34", default-features = false, features = ["f64", "i32", "u32"] }  # glam 0.33+ makes non-f32 types opt-in: keep the DVec*/IVec*/UVec* types we re-export
+glam = { version = "0.34", default-features = false, features = ["f64", "i32", "u32", "nostd-libm"] }  # glam 0.33+ makes non-f32 types opt-in: keep the DVec*/IVec*/UVec* types we re-export
+libm = { version = "0.2", default-features = false }  # the no_std backend of engine::math::scalar only (ADR 0003)
 indexmap = { version = "2.14", default-features = false }  # the backend of engine_collections only (M3.1 spec §4.1)
 foldhash = { version = "0.2", default-features = false }  # fixed-seed hasher of engine_collections only
 proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)

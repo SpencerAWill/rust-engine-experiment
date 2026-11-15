@@ -21,6 +21,7 @@ test-invariants = []
 indexmap = { workspace = true }
 foldhash = { workspace = true }
 glam = { workspace = true }
+libm = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

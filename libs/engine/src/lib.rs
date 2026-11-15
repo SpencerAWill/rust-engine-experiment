@@ -1,5 +1,9 @@
 #![no_std]
 #![forbid(unsafe_code)]
+// A `std::` path in library code fails clippy (which runs with warnings denied) when `core` or
+// `alloc` provides the same item, so a stray one fails `ci --quick` and not only `no-std`.
+#![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc)]
+#![cfg_attr(test, allow(clippy::std_instead_of_core, clippy::std_instead_of_alloc))]
 //! Start here: the single dependency for using the engine.
 //!
 //! `engine` is a facade. It re-exports the foundation crates as modules and collects the

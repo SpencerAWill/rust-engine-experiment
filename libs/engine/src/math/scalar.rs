@@ -18,6 +18,8 @@
     reason = "engine::math::scalar is the sanctioned transcendental funnel (ADR 0003)"
 )]
 
+mod libm_backend;
+
 mod sealed {
     /// Prevents implementations outside this crate.
     pub trait Sealed {}
@@ -129,107 +131,289 @@ impl sealed::Sealed for f32 {}
 impl Float for f32 {
     #[inline]
     fn sin(self, _: Token) -> Self {
-        f32::sin(self)
+        #[cfg(feature = "std")]
+        {
+            f32::sin(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::sin(self)
+        }
     }
     #[inline]
     fn cos(self, _: Token) -> Self {
-        f32::cos(self)
+        #[cfg(feature = "std")]
+        {
+            f32::cos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::cos(self)
+        }
     }
     #[inline]
     fn tan(self, _: Token) -> Self {
-        f32::tan(self)
+        #[cfg(feature = "std")]
+        {
+            f32::tan(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::tan(self)
+        }
     }
     #[inline]
     fn asin(self, _: Token) -> Self {
-        f32::asin(self)
+        #[cfg(feature = "std")]
+        {
+            f32::asin(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::asin(self)
+        }
     }
     #[inline]
     fn acos(self, _: Token) -> Self {
-        f32::acos(self)
+        #[cfg(feature = "std")]
+        {
+            f32::acos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::acos(self)
+        }
     }
     #[inline]
     fn atan(self, _: Token) -> Self {
-        f32::atan(self)
+        #[cfg(feature = "std")]
+        {
+            f32::atan(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::atan(self)
+        }
     }
     #[inline]
     fn sinh(self, _: Token) -> Self {
-        f32::sinh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::sinh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::sinh(self)
+        }
     }
     #[inline]
     fn cosh(self, _: Token) -> Self {
-        f32::cosh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::cosh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::cosh(self)
+        }
     }
     #[inline]
     fn tanh(self, _: Token) -> Self {
-        f32::tanh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::tanh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::tanh(self)
+        }
     }
     #[inline]
     fn asinh(self, _: Token) -> Self {
-        f32::asinh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::asinh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::asinh(self)
+        }
     }
     #[inline]
     fn acosh(self, _: Token) -> Self {
-        f32::acosh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::acosh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::acosh(self)
+        }
     }
     #[inline]
     fn atanh(self, _: Token) -> Self {
-        f32::atanh(self)
+        #[cfg(feature = "std")]
+        {
+            f32::atanh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::atanh(self)
+        }
     }
     #[inline]
     fn exp(self, _: Token) -> Self {
-        f32::exp(self)
+        #[cfg(feature = "std")]
+        {
+            f32::exp(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::exp(self)
+        }
     }
     #[inline]
     fn exp2(self, _: Token) -> Self {
-        f32::exp2(self)
+        #[cfg(feature = "std")]
+        {
+            f32::exp2(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::exp2(self)
+        }
     }
     #[inline]
     fn exp_m1(self, _: Token) -> Self {
-        f32::exp_m1(self)
+        #[cfg(feature = "std")]
+        {
+            f32::exp_m1(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::exp_m1(self)
+        }
     }
     #[inline]
     fn ln(self, _: Token) -> Self {
-        f32::ln(self)
+        #[cfg(feature = "std")]
+        {
+            f32::ln(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::ln(self)
+        }
     }
     #[inline]
     fn ln_1p(self, _: Token) -> Self {
-        f32::ln_1p(self)
+        #[cfg(feature = "std")]
+        {
+            f32::ln_1p(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::ln_1p(self)
+        }
     }
     #[inline]
     fn log2(self, _: Token) -> Self {
-        f32::log2(self)
+        #[cfg(feature = "std")]
+        {
+            f32::log2(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::log2(self)
+        }
     }
     #[inline]
     fn log10(self, _: Token) -> Self {
-        f32::log10(self)
+        #[cfg(feature = "std")]
+        {
+            f32::log10(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::log10(self)
+        }
     }
     #[inline]
     fn cbrt(self, _: Token) -> Self {
-        f32::cbrt(self)
+        #[cfg(feature = "std")]
+        {
+            f32::cbrt(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::cbrt(self)
+        }
     }
     #[inline]
     fn sin_cos(self, _: Token) -> (Self, Self) {
-        f32::sin_cos(self)
+        #[cfg(feature = "std")]
+        {
+            f32::sin_cos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::sin_cos(self)
+        }
     }
     #[inline]
     fn atan2(self, other: Self, _: Token) -> Self {
-        f32::atan2(self, other)
+        #[cfg(feature = "std")]
+        {
+            f32::atan2(self, other)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::atan2(self, other)
+        }
     }
     #[inline]
     fn hypot(self, other: Self, _: Token) -> Self {
-        f32::hypot(self, other)
+        #[cfg(feature = "std")]
+        {
+            f32::hypot(self, other)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::hypot(self, other)
+        }
     }
     #[inline]
     fn powf(self, exponent: Self, _: Token) -> Self {
-        f32::powf(self, exponent)
+        #[cfg(feature = "std")]
+        {
+            f32::powf(self, exponent)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::powf(self, exponent)
+        }
     }
     #[inline]
     fn powi(self, exponent: i32, _: Token) -> Self {
-        f32::powi(self, exponent)
+        #[cfg(feature = "std")]
+        {
+            f32::powi(self, exponent)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::powi(self, exponent)
+        }
     }
     #[inline]
     fn log(self, base: Self, _: Token) -> Self {
-        f32::log(self, base)
+        #[cfg(feature = "std")]
+        {
+            f32::log(self, base)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::single::log(self, base)
+        }
     }
 }
 
@@ -238,261 +422,495 @@ impl sealed::Sealed for f64 {}
 impl Float for f64 {
     #[inline]
     fn sin(self, _: Token) -> Self {
-        f64::sin(self)
+        #[cfg(feature = "std")]
+        {
+            f64::sin(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::sin(self)
+        }
     }
     #[inline]
     fn cos(self, _: Token) -> Self {
-        f64::cos(self)
+        #[cfg(feature = "std")]
+        {
+            f64::cos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::cos(self)
+        }
     }
     #[inline]
     fn tan(self, _: Token) -> Self {
-        f64::tan(self)
+        #[cfg(feature = "std")]
+        {
+            f64::tan(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::tan(self)
+        }
     }
     #[inline]
     fn asin(self, _: Token) -> Self {
-        f64::asin(self)
+        #[cfg(feature = "std")]
+        {
+            f64::asin(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::asin(self)
+        }
     }
     #[inline]
     fn acos(self, _: Token) -> Self {
-        f64::acos(self)
+        #[cfg(feature = "std")]
+        {
+            f64::acos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::acos(self)
+        }
     }
     #[inline]
     fn atan(self, _: Token) -> Self {
-        f64::atan(self)
+        #[cfg(feature = "std")]
+        {
+            f64::atan(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::atan(self)
+        }
     }
     #[inline]
     fn sinh(self, _: Token) -> Self {
-        f64::sinh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::sinh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::sinh(self)
+        }
     }
     #[inline]
     fn cosh(self, _: Token) -> Self {
-        f64::cosh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::cosh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::cosh(self)
+        }
     }
     #[inline]
     fn tanh(self, _: Token) -> Self {
-        f64::tanh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::tanh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::tanh(self)
+        }
     }
     #[inline]
     fn asinh(self, _: Token) -> Self {
-        f64::asinh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::asinh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::asinh(self)
+        }
     }
     #[inline]
     fn acosh(self, _: Token) -> Self {
-        f64::acosh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::acosh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::acosh(self)
+        }
     }
     #[inline]
     fn atanh(self, _: Token) -> Self {
-        f64::atanh(self)
+        #[cfg(feature = "std")]
+        {
+            f64::atanh(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::atanh(self)
+        }
     }
     #[inline]
     fn exp(self, _: Token) -> Self {
-        f64::exp(self)
+        #[cfg(feature = "std")]
+        {
+            f64::exp(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::exp(self)
+        }
     }
     #[inline]
     fn exp2(self, _: Token) -> Self {
-        f64::exp2(self)
+        #[cfg(feature = "std")]
+        {
+            f64::exp2(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::exp2(self)
+        }
     }
     #[inline]
     fn exp_m1(self, _: Token) -> Self {
-        f64::exp_m1(self)
+        #[cfg(feature = "std")]
+        {
+            f64::exp_m1(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::exp_m1(self)
+        }
     }
     #[inline]
     fn ln(self, _: Token) -> Self {
-        f64::ln(self)
+        #[cfg(feature = "std")]
+        {
+            f64::ln(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::ln(self)
+        }
     }
     #[inline]
     fn ln_1p(self, _: Token) -> Self {
-        f64::ln_1p(self)
+        #[cfg(feature = "std")]
+        {
+            f64::ln_1p(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::ln_1p(self)
+        }
     }
     #[inline]
     fn log2(self, _: Token) -> Self {
-        f64::log2(self)
+        #[cfg(feature = "std")]
+        {
+            f64::log2(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::log2(self)
+        }
     }
     #[inline]
     fn log10(self, _: Token) -> Self {
-        f64::log10(self)
+        #[cfg(feature = "std")]
+        {
+            f64::log10(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::log10(self)
+        }
     }
     #[inline]
     fn cbrt(self, _: Token) -> Self {
-        f64::cbrt(self)
+        #[cfg(feature = "std")]
+        {
+            f64::cbrt(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::cbrt(self)
+        }
     }
     #[inline]
     fn sin_cos(self, _: Token) -> (Self, Self) {
-        f64::sin_cos(self)
+        #[cfg(feature = "std")]
+        {
+            f64::sin_cos(self)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::sin_cos(self)
+        }
     }
     #[inline]
     fn atan2(self, other: Self, _: Token) -> Self {
-        f64::atan2(self, other)
+        #[cfg(feature = "std")]
+        {
+            f64::atan2(self, other)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::atan2(self, other)
+        }
     }
     #[inline]
     fn hypot(self, other: Self, _: Token) -> Self {
-        f64::hypot(self, other)
+        #[cfg(feature = "std")]
+        {
+            f64::hypot(self, other)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::hypot(self, other)
+        }
     }
     #[inline]
     fn powf(self, exponent: Self, _: Token) -> Self {
-        f64::powf(self, exponent)
+        #[cfg(feature = "std")]
+        {
+            f64::powf(self, exponent)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::powf(self, exponent)
+        }
     }
     #[inline]
     fn powi(self, exponent: i32, _: Token) -> Self {
-        f64::powi(self, exponent)
+        #[cfg(feature = "std")]
+        {
+            f64::powi(self, exponent)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::powi(self, exponent)
+        }
     }
     #[inline]
     fn log(self, base: Self, _: Token) -> Self {
-        f64::log(self, base)
+        #[cfg(feature = "std")]
+        {
+            f64::log(self, base)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm_backend::double::log(self, base)
+        }
     }
 }
 
 /// The sine of `x`.
+///
+/// Without `std`: `libm::sinf` / `libm::sin`.
 #[inline]
 pub fn sin<T: Float>(x: T) -> T {
     x.sin(Token(()))
 }
 
 /// The cosine of `x`.
+///
+/// Without `std`: `libm::cosf` / `libm::cos`.
 #[inline]
 pub fn cos<T: Float>(x: T) -> T {
     x.cos(Token(()))
 }
 
 /// The tangent of `x`.
+///
+/// Without `std`: `libm::tanf` / `libm::tan`.
 #[inline]
 pub fn tan<T: Float>(x: T) -> T {
     x.tan(Token(()))
 }
 
 /// The arcsine of `x`.
+///
+/// Without `std`: `libm::asinf` / `libm::asin`.
 #[inline]
 pub fn asin<T: Float>(x: T) -> T {
     x.asin(Token(()))
 }
 
 /// The arccosine of `x`.
+///
+/// Without `std`: `libm::acosf` / `libm::acos`.
 #[inline]
 pub fn acos<T: Float>(x: T) -> T {
     x.acos(Token(()))
 }
 
 /// The arctangent of `x`.
+///
+/// Without `std`: `libm::atanf` / `libm::atan`.
 #[inline]
 pub fn atan<T: Float>(x: T) -> T {
     x.atan(Token(()))
 }
 
 /// The hyperbolic sine of `x`.
+///
+/// Without `std`: `libm::sinhf` / `libm::sinh`.
 #[inline]
 pub fn sinh<T: Float>(x: T) -> T {
     x.sinh(Token(()))
 }
 
 /// The hyperbolic cosine of `x`.
+///
+/// Without `std`: `libm::coshf` / `libm::cosh`.
 #[inline]
 pub fn cosh<T: Float>(x: T) -> T {
     x.cosh(Token(()))
 }
 
 /// The hyperbolic tangent of `x`.
+///
+/// Without `std`: `libm::tanhf` / `libm::tanh`.
 #[inline]
 pub fn tanh<T: Float>(x: T) -> T {
     x.tanh(Token(()))
 }
 
 /// The inverse hyperbolic sine of `x`.
+///
+/// Without `std`: `libm::asinhf` / `libm::asinh`.
 #[inline]
 pub fn asinh<T: Float>(x: T) -> T {
     x.asinh(Token(()))
 }
 
 /// The inverse hyperbolic cosine of `x`.
+///
+/// Without `std`: `libm::acoshf` / `libm::acosh`.
 #[inline]
 pub fn acosh<T: Float>(x: T) -> T {
     x.acosh(Token(()))
 }
 
 /// The inverse hyperbolic tangent of `x`.
+///
+/// Without `std`: `libm::atanhf` / `libm::atanh`.
 #[inline]
 pub fn atanh<T: Float>(x: T) -> T {
     x.atanh(Token(()))
 }
 
 /// The `e^x` of `x`.
+///
+/// Without `std`: `libm::expf` / `libm::exp`.
 #[inline]
 pub fn exp<T: Float>(x: T) -> T {
     x.exp(Token(()))
 }
 
 /// The `2^x` of `x`.
+///
+/// Without `std`: `libm::exp2f` / `libm::exp2`.
 #[inline]
 pub fn exp2<T: Float>(x: T) -> T {
     x.exp2(Token(()))
 }
 
 /// The `e^x - 1`, accurate near zero of `x`.
+///
+/// Without `std`: `libm::expm1f` / `libm::expm1`.
 #[inline]
 pub fn exp_m1<T: Float>(x: T) -> T {
     x.exp_m1(Token(()))
 }
 
 /// The natural logarithm of `x`.
+///
+/// Without `std`: `libm::logf` / `libm::log`.
 #[inline]
 pub fn ln<T: Float>(x: T) -> T {
     x.ln(Token(()))
 }
 
 /// The `ln(1 + x)`, accurate near zero of `x`.
+///
+/// Without `std`: `libm::log1pf` / `libm::log1p`.
 #[inline]
 pub fn ln_1p<T: Float>(x: T) -> T {
     x.ln_1p(Token(()))
 }
 
 /// The base-2 logarithm of `x`.
+///
+/// Without `std`: `libm::log2f` / `libm::log2`.
 #[inline]
 pub fn log2<T: Float>(x: T) -> T {
     x.log2(Token(()))
 }
 
 /// The base-10 logarithm of `x`.
+///
+/// Without `std`: `libm::log10f` / `libm::log10`.
 #[inline]
 pub fn log10<T: Float>(x: T) -> T {
     x.log10(Token(()))
 }
 
 /// The cube root of `x`.
+///
+/// Without `std`: `libm::cbrtf` / `libm::cbrt`.
 #[inline]
 pub fn cbrt<T: Float>(x: T) -> T {
     x.cbrt(Token(()))
 }
 
 /// Sine and cosine of `x`, as `(sin x, cos x)`.
+///
+/// Without `std`: `libm::sincosf` / `libm::sincos`.
 #[inline]
 pub fn sin_cos<T: Float>(x: T) -> (T, T) {
     x.sin_cos(Token(()))
 }
 
 /// The four-quadrant arctangent of `y / x` (radians, in `(-pi, pi]`).
+///
+/// Without `std`: `libm::atan2f` / `libm::atan2`.
 #[inline]
 pub fn atan2<T: Float>(y: T, x: T) -> T {
     y.atan2(x, Token(()))
 }
 
 /// The length of the hypotenuse, `sqrt(x^2 + y^2)`, without intermediate overflow.
+///
+/// Without `std`: `libm::hypotf` / `libm::hypot`.
 #[inline]
 pub fn hypot<T: Float>(x: T, y: T) -> T {
     x.hypot(y, Token(()))
 }
 
 /// `x` raised to the floating-point power `y`.
+///
+/// Without `std`: `libm::powf` / `libm::pow`.
 #[inline]
 pub fn powf<T: Float>(x: T, y: T) -> T {
     x.powf(y, Token(()))
 }
 
 /// `x` raised to the integer power `n`.
+///
+/// Without `std`: `libm::powf` / `libm::pow`, with `n` converted to the float type (`libm` has no `powi`).
 #[inline]
 pub fn powi<T: Float>(x: T, n: i32) -> T {
     x.powi(n, Token(()))
 }
 
 /// The logarithm of `x` in the given `base`.
+///
+/// Without `std`: `ln(x) / ln(base)`, with `ln` as above.
 #[inline]
 pub fn log<T: Float>(x: T, base: T) -> T {
     x.log(base, Token(()))
@@ -544,6 +962,221 @@ mod tests {
             assert!((atanh(tanh(x)) - x).abs() < 1e-12);
             assert!((ln_1p(exp_m1(x)) - x).abs() < 1e-12);
             assert!((tan(atan(x)) - x).abs() < 1e-12);
+        }
+    }
+
+    /// Inputs spread over the signs, zero, and the unit interval, in both float widths.
+    const INPUTS: [f64; 10] = [-2.5, -1.0, -0.5, -0.0, 0.0, 0.25, 0.5, 1.0, 2.0, 3.0];
+    const EXPONENTS: [i32; 4] = [-3, 0, 1, 5];
+
+    /// One unary function: the funnel's, `std`'s, `libm`'s, and the inputs it is defined on.
+    type Unary<T> = (
+        &'static str,
+        fn(T) -> T,
+        fn(T) -> T,
+        fn(T) -> T,
+        fn(T) -> bool,
+    );
+
+    macro_rules! unary_cases {
+        ($t:ident, $backend:ident, [$(($name:ident, $domain:expr)),* $(,)?]) => {
+            [$((
+                stringify!($name),
+                $name::<$t> as fn($t) -> $t,
+                (|x: $t| x.$name()) as fn($t) -> $t,
+                libm_backend::$backend::$name as fn($t) -> $t,
+                $domain as fn($t) -> bool,
+            )),*]
+        };
+    }
+
+    macro_rules! all_unary {
+        ($t:ident, $backend:ident) => {
+            unary_cases!(
+                $t,
+                $backend,
+                [
+                    (sin, |_| true),
+                    (cos, |_| true),
+                    (tan, |_| true),
+                    (asin, |x| x.abs() <= 1.0),
+                    (acos, |x| x.abs() <= 1.0),
+                    (atan, |_| true),
+                    (sinh, |_| true),
+                    (cosh, |_| true),
+                    (tanh, |_| true),
+                    (asinh, |_| true),
+                    (acosh, |x| x >= 1.0),
+                    (atanh, |x| x.abs() < 1.0),
+                    (exp, |_| true),
+                    (exp2, |_| true),
+                    (exp_m1, |_| true),
+                    (ln, |x| x > 0.0),
+                    (ln_1p, |x| x > -1.0),
+                    (log2, |x| x > 0.0),
+                    (log10, |x| x > 0.0),
+                    (cbrt, |_| true),
+                ]
+            )
+        };
+    }
+
+    /// The unary functions of both widths, as `(name, funnel, std, libm, domain)`.
+    fn unary_f32() -> [Unary<f32>; 20] {
+        all_unary!(f32, single)
+    }
+    fn unary_f64() -> [Unary<f64>; 20] {
+        all_unary!(f64, double)
+    }
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the inputs are exact in f32"
+    )]
+    fn inputs_f32() -> impl Iterator<Item = f32> {
+        INPUTS.into_iter().map(|x| x as f32)
+    }
+
+    /// `|a - b|` is within four ulps of one, scaled by the larger of `|b|` and one.
+    fn close_f32(a: f32, b: f32) -> bool {
+        (a - b).abs() <= 4.0 * f32::EPSILON * b.abs().max(1.0)
+    }
+    fn close_f64(a: f64, b: f64) -> bool {
+        (a - b).abs() <= 4.0 * f64::EPSILON * b.abs().max(1.0)
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "tests compare against the std methods the funnel wraps"
+    )]
+    fn std_backend_is_the_inherent_method() {
+        for (name, funnel, std, _, domain) in unary_f32() {
+            for x in inputs_f32().filter(|&x| domain(x)) {
+                assert_eq!(funnel(x).to_bits(), std(x).to_bits(), "{name}({x})");
+            }
+        }
+        for (name, funnel, std, _, domain) in unary_f64() {
+            for x in INPUTS.into_iter().filter(|&x| domain(x)) {
+                assert_eq!(funnel(x).to_bits(), std(x).to_bits(), "{name}({x})");
+            }
+        }
+        for x in INPUTS {
+            for y in INPUTS {
+                assert_eq!(atan2(y, x).to_bits(), y.atan2(x).to_bits());
+                assert_eq!(hypot(x, y).to_bits(), x.hypot(y).to_bits());
+                if x > 0.0 {
+                    assert_eq!(powf(x, y).to_bits(), x.powf(y).to_bits());
+                }
+            }
+            if x > 0.0 {
+                for base in [2.0, 10.0] {
+                    assert_eq!(log(x, base).to_bits(), x.log(base).to_bits());
+                }
+            }
+            for n in EXPONENTS.into_iter().filter(|&n| n >= 0 || x != 0.0) {
+                assert_eq!(powi(x, n).to_bits(), x.powi(n).to_bits(), "powi({x}, {n})");
+            }
+            let (s, c) = sin_cos(x);
+            assert_eq!(
+                (s.to_bits(), c.to_bits()),
+                (x.sin().to_bits(), x.cos().to_bits())
+            );
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        clippy::cast_possible_truncation,
+        reason = "tests compare the libm backend against the std methods"
+    )]
+    fn libm_backend_agrees_with_std() {
+        for (name, _, std, libm, domain) in unary_f32() {
+            for x in inputs_f32().filter(|&x| domain(x)) {
+                assert!(
+                    close_f32(libm(x), std(x)),
+                    "{name}({x}): libm {} std {}",
+                    libm(x),
+                    std(x)
+                );
+            }
+        }
+        for (name, _, std, libm, domain) in unary_f64() {
+            for x in INPUTS.into_iter().filter(|&x| domain(x)) {
+                assert!(
+                    close_f64(libm(x), std(x)),
+                    "{name}({x}): libm {} std {}",
+                    libm(x),
+                    std(x)
+                );
+            }
+        }
+        for x in INPUTS {
+            let xs = x as f32;
+            for y in INPUTS {
+                let ys = y as f32;
+                assert!(
+                    close_f64(libm_backend::double::atan2(y, x), y.atan2(x)),
+                    "atan2 f64"
+                );
+                assert!(
+                    close_f32(libm_backend::single::atan2(ys, xs), ys.atan2(xs)),
+                    "atan2 f32"
+                );
+                assert!(
+                    close_f64(libm_backend::double::hypot(x, y), x.hypot(y)),
+                    "hypot f64"
+                );
+                assert!(
+                    close_f32(libm_backend::single::hypot(xs, ys), xs.hypot(ys)),
+                    "hypot f32"
+                );
+                if x > 0.0 {
+                    assert!(
+                        close_f64(libm_backend::double::powf(x, y), x.powf(y)),
+                        "powf f64"
+                    );
+                    assert!(
+                        close_f32(libm_backend::single::powf(xs, ys), xs.powf(ys)),
+                        "powf f32"
+                    );
+                }
+            }
+            if x > 0.0 {
+                for base in [2.0, 10.0] {
+                    assert!(
+                        close_f64(libm_backend::double::log(x, base), x.log(base)),
+                        "log f64"
+                    );
+                    let (xs, bs) = (xs, base as f32);
+                    assert!(
+                        close_f32(libm_backend::single::log(xs, bs), xs.log(bs)),
+                        "log f32"
+                    );
+                }
+            }
+            for n in EXPONENTS.into_iter().filter(|&n| n >= 0 || x != 0.0) {
+                assert!(
+                    close_f64(libm_backend::double::powi(x, n), x.powi(n)),
+                    "powi({x}, {n}) f64"
+                );
+                assert!(
+                    close_f32(libm_backend::single::powi(xs, n), xs.powi(n)),
+                    "powi({xs}, {n}) f32"
+                );
+            }
+            let (s, c) = libm_backend::double::sin_cos(x);
+            assert!(
+                close_f64(s, x.sin()) && close_f64(c, x.cos()),
+                "sin_cos f64"
+            );
+            let (s, c) = libm_backend::single::sin_cos(xs);
+            assert!(
+                close_f32(s, xs.sin()) && close_f32(c, xs.cos()),
+                "sin_cos f32"
+            );
         }
     }
 }
