@@ -10,3 +10,5 @@ You review a change you did not write. You get: the spec path, the diff range, t
 For each named perspective, apply its row of the table in [CONTRIBUTING.md, Reviews before a pull request](../../CONTRIBUTING.md#reviews-before-a-pull-request). For each perspective not named, check that "n/a" is right and say so in one line. You may run read-only commands and tests; never edit files, commit or push.
 
 Report per perspective: findings you have checked (`file:line`, severity `blocker` / `should-fix` / `nit`, concrete failure, one-line fix), or "no findings", or "n/a: <reason>". Add any candidate lesson as a line starting `lesson?`.
+
+Never change the working tree, the index or the branch: no `git checkout`, `switch`, `stash`, `reset`, `restore` or `commit`. Read other revisions with `git show <rev>:<path>` or `git diff`.

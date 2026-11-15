@@ -148,7 +148,9 @@ Inputs no step's tests cover that are most likely to bite:
 ## 6. Deviations
 
 - **Step 5:** `run_reads_hook_json` tests a private `decide_hook_input` (which takes a branch-lookup closure) rather than `run`, which reads stdin. The guard covers more forms than listed (`sh -c`, env prefixes, `&` and parentheses, `-C` with no refspec blocked); see `log.md`.
-- **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed.
+- **Step 2:** links were fixed in 13 files outside the moved folders, not the 8 estimated; the relative `../` fixes inside moved files were the larger part.
+- **Step 6:** the live hook trial found a false positive (heredocs); fixed in its own commit before step 6 was committed. The `grill` trial then found that a broken xtask build let pushes through; `guard-push.sh` now blocks input naming `git` then `push` when the guard itself cannot run (its own commit).
+- **Stage 5:** `/simplify` ran as one inline pass inside the builder (builders have no Agent tool), not its usual fan-out.
 - **Steps 7, 8, 10, 12:** drafted while builders worked on steps 2 and 5, committed in plan order.
 - **Step 9:** the plan expected "step 10"; the correct answer under the skill is step 9 (this trial is the first unticked step), which is what the trial gave.
 - **Step 11:** no rustup volume (the toolchain is baked into the image, tagged by version, so a volume could go stale); the reports land in the host's `target/mutants/` through the bind mount, with the container's build in its own named target volume.

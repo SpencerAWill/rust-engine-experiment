@@ -18,9 +18,9 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 
 - [ ] `cargo xtask ci` passes and the GitHub run is green, including the macOS and Windows jobs.
 - [ ] The pull request title ends with the chunk ID, for example `(M2.1)`.
-- [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the roadmap row is `Done (PR #n)`.
+- [ ] The spec's status is `Implemented (PR #n, date)`; the plan's is `Historical: executed in PR #n (date)`, with its Deviations section filled in (or "None"); the log's is `Historical: PR #n (date)`; the roadmap row is `Done (PR #n)`.
 - [ ] `CHANGELOG.md` is updated.
-- [ ] Merge only on the maintainer's explicit go-ahead. In the chunk loop the main session does the squash-merge after the go-ahead, once the required checks pass, never with `--admin`.
+- [ ] Merge only on the maintainer's explicit go-ahead (in the chunk loop the main session squash-merges, never with `--admin`).
 - [ ] After merging any pull request (chunk or not) that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check, label or setting (such as Discussions) does not exist in the repository.
 
 ## When a milestone completes

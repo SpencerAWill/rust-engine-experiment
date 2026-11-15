@@ -1,6 +1,6 @@
 # M3.15: Agent workflow and lessons
 
-- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time)
+- **Status:** Accepted (2026-11-15); amended 2026-11-15 (§4.10, questions one at a time; §8 R14, the check's scope)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.14 (merged in PR #56; the seed lesson of §4.8 cites its test helpers) · **Decides:** no ADR (process conventions, recorded in `AGENTS.md`, `CONTRIBUTING.md`, `docs/workflow.md` and `docs/README.md`)
 - **Estimated size:** about 800 changed lines of Markdown, about 250 lines of Rust in `xtask` plus tests, and the chunk folders moved by `git mv` (§4.14)
 - **Followed by:** M3.16, the documentation layout (§4.12)
@@ -274,7 +274,7 @@ This chunk follows the new loop from its spec approval on: no plan stop. Its bra
 | R11 | the Reviews section names the agent file used for each review |
 | R12 | this spec's grill, recorded in `log.md`; spec conformance review reads the skill against §4.10 |
 | R13 | the roadmap diff |
-| R14 | `git grep 'design/m[0-9]'` finds nothing; a link check over every Markdown file in the repository (a one-off script in the plan) reports no broken relative link |
+| R14 | `git grep 'design/m[0-9]'` finds only prose in historical chunk documents and this chunk's own spec and plan (they quote the old paths on purpose), no link; a link check over every Markdown file (a one-off script in the plan) reports no broken relative link except those broken before the move |
 | R15 | spec conformance review reads the skill against §4.1; this chunk's own merge, done by the main session after the go-ahead, recorded in `log.md` |
 
 ## 9. Done when

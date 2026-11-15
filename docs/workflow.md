@@ -26,12 +26,7 @@ In Claude Code, `/chunk next` starts stage 1 for the next chunk, `/chunk resume`
 
 ### When to stop and ask
 
-Outside the two waits, stop and ask the maintainer when:
-
-- the spec is wrong or silent on something that changes what gets built (the fix is a spec amendment, grilled and approved like the spec);
-- a change would touch an ADR, a frozen format or a CI-enforced policy that the spec does not name;
-- a reviewer and the builder still disagree after two fix rounds;
-- an action is outward-facing beyond what stage 7 allows: pushing another branch, merging without the go-ahead, publishing, commenting on other issues or pull requests.
+Outside the two waits, an agent stops and asks only for the escalations listed in [AGENTS.md](../AGENTS.md#the-loop) ("Stop and ask"), which is the single copy of that list. A wrong or silent spec is fixed by an amendment, grilled and approved like the spec.
 
 Long jobs that run mutated or untrusted code run only through `/mutants-run`, and the agent says when it starts one.
 

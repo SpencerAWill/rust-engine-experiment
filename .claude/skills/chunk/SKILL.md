@@ -17,12 +17,7 @@ Wait for the maintainer only at:
 1. **Spec approval**, at the end of the grill.
 2. **Merge go-ahead**, after the pull request is open, its close-out commit pushed.
 
-Between them, go from one stage to the next without asking. Stop and ask only for an escalation:
-
-- the spec is wrong or silent on something that changes what gets built (amend it, grill the amendment, get it approved);
-- a change would touch an ADR, a frozen format or a CI-enforced policy the spec does not name;
-- a reviewer and the builder still disagree after two fix rounds;
-- an outward-facing action beyond stage 7 (another branch, a merge without the go-ahead, publishing, commenting on other issues or pull requests).
+Between them, go from one stage to the next without asking. Stop and ask only for an escalation in [AGENTS.md](../../../AGENTS.md#the-loop) ("Stop and ask"); a wrong or silent spec is fixed by an amendment, grilled and approved like the spec. "Outward-facing" means anything beyond the chunk's branch, its pull request and its follow-up issues.
 
 Mutation testing and other runs of mutated or untrusted code go through `/mutants-run` only; say when you start one.
 

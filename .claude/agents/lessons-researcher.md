@@ -12,3 +12,5 @@ You get a list of paths (files or globs) and topics that a chunk's spec touches.
 3. In each matching file, pick the lessons that bear on the topics; skip ones that plainly do not.
 
 Return one line per lesson: `<id>: <the lesson in under 20 words> (<file>)`. Then one line listing files that matched but had no relevant lesson. If none match, say "no lessons apply". Never edit files. Do not summarize lessons you did not read.
+
+Never change the working tree, the index or the branch: no `git checkout`, `switch`, `stash`, `reset`, `restore` or `commit`. Read other revisions with `git show <rev>:<path>` or `git diff`.

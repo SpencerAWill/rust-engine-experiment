@@ -9,7 +9,7 @@ Claude Code configuration shared by everyone who works on this repository: the a
 
 ## Contents
 
-- `agents/`: one file per role, each pinning its model (builder on Sonnet; reviewers on Opus or Sonnet; lessons researcher on Haiku; the grill's cold reader on Opus). The table is in [docs/workflow.md](../docs/workflow.md#roles).
+- `agents/`: one file per role, each pinning its model; the table is in [docs/workflow.md](../docs/workflow.md#roles).
 - `skills/chunk/`: the loop. `SKILL.md` dispatches `next`, `resume` and single stages; `stages/` holds one file per stage, so only the current one is read.
 - `skills/grill/`: the grill stage, usable on any design document.
 - `skills/lessons-refresh/`: the milestone pass over [docs/lessons/](../docs/lessons/).
