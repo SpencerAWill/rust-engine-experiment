@@ -3,7 +3,7 @@ name = "engine-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
-description = "cargo-fuzz targets for engine_genid (a developer tool, outside the workspace)"
+description = "cargo-fuzz targets for the genid module of engine (a developer tool, outside the workspace)"
 
 [package.metadata]
 cargo-fuzz = true

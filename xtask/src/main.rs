@@ -747,7 +747,7 @@ mod tests {
     fn mutants_parses_and_is_not_a_ci_step() {
         assert!(matches!(parse(&["mutants"]), Ok(Command::Mutants(_))));
         assert!(matches!(
-            parse(&["mutants", "-p", "engine_random", "-j", "2", "--list"]),
+            parse(&["mutants", "--module", "random", "-j", "2", "--list"]),
             Ok(Command::Mutants(_))
         ));
         assert!(parse(&["mutants", "--x"]).is_err());
