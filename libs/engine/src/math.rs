@@ -1,8 +1,9 @@
 //! The engine's math vocabulary: one blessed set of vector, matrix, and transform types.
 //!
-//! `engine::math` is a separate crate because it carries the `glam` dependency and is `std`-only
-//! (ADR 0004). It re-exports the [`glam`] types the engine uses (the whole crate is also
-//! available as [`engine::math::glam`](glam) for escape-hatch access), and adds:
+//! It builds with and without `std`: [`scalar`] uses `std`'s transcendental functions with the
+//! `std` feature and `libm` without it (ADR 0003). It re-exports the [`glam`] types the engine
+//! uses (the whole crate is also available as [`engine::math::glam`](glam) for escape-hatch
+//! access), and adds:
 //!
 //! - [`scalar`]: the funnel through which all transcendental math flows (ADR 0003);
 //! - small `f32` helpers: [`lerp`], [`inverse_lerp`], [`remap`], [`approx_eq`].
@@ -15,10 +16,10 @@
 //!
 //! # Feature-unification warning
 //!
-//! glam's version is part of this crate's public API. Any crate in a dependency graph can enable
+//! glam's version is part of this module's public API. Any crate in a dependency graph can enable
 //! glam's `fast-math` or `scalar-math` features through Cargo feature unification, silently
 //! changing numerics. `scalar-math` changes type sizes and alignments, which the layout
-//! assertions in this crate catch. `fast-math` cannot be detected, so it is **unsupported**.
+//! assertions in this module catch. `fast-math` cannot be detected, so it is **unsupported**.
 //!
 //! # Quick start
 //!

@@ -4,21 +4,30 @@
 // `alloc` provides the same item, so a stray one fails `ci --quick` and not only `no-std`.
 #![warn(clippy::std_instead_of_core, clippy::std_instead_of_alloc)]
 #![cfg_attr(test, allow(clippy::std_instead_of_core, clippy::std_instead_of_alloc))]
-//! Start here: the single dependency for using the engine.
+//! Start here: the engine's library crate.
 //!
-//! `engine` is a facade. It re-exports the foundation crates as modules and collects the
-//! everyday types in [`prelude`], so a project depends on one crate and writes
-//! `use engine::prelude::*;`.
+//! `engine` holds all of the engine's library code as modules, and collects the everyday types in
+//! [`prelude`], so a project depends on one crate and writes `use engine::prelude::*;`. A separate
+//! crate is made only when ADR 0004 says so.
 //!
-//! # Crate map
+//! # Module map
 //!
-//! | Module | Crate | What it is |
+//! | Module | What it is |
+//! |---|---|
+//! | [`genid`] | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
+//! | [`random`] | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
+//! | [`time`] | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
+//! | [`collections`] | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
+//! | [`math`] | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
+//!
+//! # Features
+//!
+//! The crate is `no_std` with `alloc`.
+//!
+//! | Feature | Default | Enables |
 //! |---|---|---|
-//! | [`genid`] | `engine::genid` | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
-//! | [`random`] | `engine::random` | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
-//! | [`time`] | `engine::time` | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
-//! | [`collections`] | `engine::collections` | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet) |
-//! | [`math`] | `engine::math` | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
+//! | `std` | yes | `time::SystemClock`, and `std` as the transcendental backend of [`math::scalar`] and of glam. Without it, `libm` is the backend (ADR 0003), also on a target that has `std`. |
+//! | `test-invariants` | no | `check_invariants` on [`GenIdMap`](genid::GenIdMap) and [`GenIdAllocator`](genid::GenIdAllocator), for integration tests and fuzz targets |
 //!
 //! # Collections
 //!
@@ -45,7 +54,7 @@
 //! - **The host owns the loop:** the engine never takes over a thread it was not given. You call
 //!   into it (for example [`FixedTimestep::accumulate`](time::FixedTimestep::accumulate)) from your
 //!   own loop. See ADR 0007.
-//! - **No `unsafe`:** every crate forbids it. See ADR 0001.
+//! - **No `unsafe`:** the crate forbids it. See ADR 0001.
 //! - **0.x:** all APIs are explicitly unstable.
 //!
 //! # Example

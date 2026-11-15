@@ -1,9 +1,8 @@
 //! Generational IDs: typed, copyable identifiers that go stale when their value is removed, and
 //! the containers that hand them out.
 //!
-//! `engine::genid` is a separate crate because it is `no_std` + `alloc` and
-//! dependency-free, because IDs cross the C ABI in a later milestone, and
-//! because it is the foundation layer for the ECS, assets, and FFI (ADR 0004).
+//! It needs only `core` and `alloc`. IDs cross the C ABI in a later milestone, and they are the
+//! foundation for the ECS, assets, and FFI.
 //!
 //! # Guarantees
 //!
@@ -26,7 +25,7 @@
 //!
 //! # Glossary
 //!
-//! The terms this crate uses, in alphabetical order.
+//! The terms this module uses, in alphabetical order.
 //!
 //! | Term | Meaning |
 //! | --- | --- |

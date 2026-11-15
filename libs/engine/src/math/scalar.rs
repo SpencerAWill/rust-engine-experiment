@@ -1,18 +1,32 @@
 //! The transcendental-math funnel.
 //!
 //! All transcendental math in the engine goes through these functions instead of the inherent
-//! `f32`/`f64` methods, which `clippy.toml` bans (ADR 0003). In M1 they delegate to `std`, so
-//! results are deterministic for a given build but may differ *across* platforms. Because every
-//! call site already goes through here, moving to cross-platform determinism later is a
-//! contained change: back this module with the pure-Rust `libm` crate (and enable glam's `libm`
-//! and `scalar-math` features, as one deliberate, versioned switch; see ADR 0006).
+//! `f32`/`f64` methods, which `clippy.toml` bans (ADR 0003). The functions have two backends,
+//! chosen by the `std` feature:
+//!
+//! - **With `std` (the default),** each function calls the inherent method, so results are
+//!   bit-identical to `std`'s. Inside glam, `std` is the backend too.
+//! - **Without `std`,** each function calls the [`libm`](https://docs.rs/libm) function of the
+//!   same name (the mapping is on each function), and glam uses `libm` through its `nostd-libm`
+//!   feature. No other backend exists there.
+//!
+//! Within one build the backend is fixed, so results are deterministic for that build. A `std`
+//! build and a `no_std` build may differ in the last bits, and so may two platforms, because
+//! `std` takes its functions from each platform's maths library. Moving to results that are
+//! identical across platforms is a contained change, because every call site goes through here:
+//! use `libm` everywhere and enable glam's `scalar-math`, as one deliberate engine-wide switch
+//! (never a Cargo feature; see ADR 0003).
+//!
+//! **`default-features = false` on a target that has `std`** selects the `libm` backend, as it
+//! does on a bare-metal target: the `std` feature chooses the backend, it does not detect the
+//! target.
 //!
 //! The functions are generic over the sealed [`Float`] trait (`f32` and `f64`), so the type is
 //! inferred: `scalar::sin(x)`.
 //!
 //! Correctly-rounded IEEE operations (`+ - * /`, `sqrt`, `mul_add`, `abs`, `floor`, `ceil`,
-//! `round`, `trunc`, `min`, `max`, `rem_euclid`, `copysign`) are not transcendental and stay
-//! available as ordinary methods.
+//! `round`, `trunc`, `min`, `max`, `copysign`) are not transcendental and stay available as
+//! ordinary methods.
 #![expect(
     clippy::disallowed_methods,
     reason = "engine::math::scalar is the sanctioned transcendental funnel (ADR 0003)"
@@ -21,10 +35,10 @@
 mod libm_backend;
 
 mod sealed {
-    /// Prevents implementations outside this crate.
+    /// Prevents implementations outside this module.
     pub trait Sealed {}
 
-    /// An argument no code outside this crate can construct, so the trait's methods cannot be
+    /// An argument no code outside this module can construct, so the trait's methods cannot be
     /// called from outside; use the free functions in [`scalar`](super).
     #[derive(Debug)]
     pub struct Token(pub(super) ());

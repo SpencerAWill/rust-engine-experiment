@@ -5,7 +5,7 @@
     clippy::disallowed_methods,
     clippy::unwrap_used
 )]
-//! Cross-library comparison benchmarks for the engine's foundation crates.
+//! Cross-library comparison benchmarks for the `engine` library.
 //!
 //! This crate has no library code. The benchmarks live in `benches/` and compare
 //! the engine's types against well-known alternatives (`slotmap`, `thunderdome`).

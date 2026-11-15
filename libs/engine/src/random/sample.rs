@@ -9,10 +9,10 @@ use core::ops::{Range, RangeInclusive};
 use crate::random::prng::Prng;
 
 mod sealed {
-    /// Prevents implementations outside this crate.
+    /// Prevents implementations outside this module.
     pub trait Sealed {}
 
-    /// An argument no code outside this crate can construct, so the sampling method of
+    /// An argument no code outside this module can construct, so the sampling method of
     /// [`SampleRange`](super::SampleRange) cannot be called (or implemented) from outside.
     #[derive(Debug)]
     pub struct Token(pub(super) ());
@@ -22,7 +22,7 @@ mod sealed {
 ///
 /// Implemented for [`Range`] and [`RangeInclusive`] over `u8`, `u16`, `u32`, `u64`, `usize`,
 /// `i8`, `i16`, `i32`, `i64`, `isize`, `f32`, and `f64`. The trait is sealed: it cannot be
-/// implemented outside this crate, and it has no public methods.
+/// implemented outside this module, and it has no public methods.
 ///
 /// # Examples
 ///

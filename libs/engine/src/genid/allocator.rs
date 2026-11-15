@@ -385,7 +385,7 @@ impl<T> GenIdAllocator<T> {
     /// # Errors
     ///
     /// Returns an [`InvariantViolation`](crate::genid::InvariantViolation) if any invariant does not
-    /// hold, which would be a bug in this crate.
+    /// hold, which would be a bug in this module.
     #[cfg(any(test, feature = "test-invariants"))]
     pub fn check_invariants(&self) -> Result<(), crate::genid::InvariantViolation> {
         let occupied = self.slots.check_invariants()?;

@@ -1,8 +1,7 @@
 //! A fast, deterministic, versioned-stable pseudorandom number generator for simulation.
 //!
-//! `engine::random` is a separate crate because its output streams are frozen for all of
-//! 0.x (a different change cadence from the rest of the engine), because it is `no_std`
-//! with no allocation, and because it is useful on its own (ADR 0004).
+//! It needs only `core`, and allocates nothing. Its output streams are frozen for all of 0.x,
+//! which golden tests enforce.
 //!
 //! # Guarantees
 //!

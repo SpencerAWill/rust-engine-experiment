@@ -1,6 +1,6 @@
 # ADR 0004: Crate-splitting rule
 
-Status: Draft rewrite in place (2026-11-14), by [M3.13](../design/m3-ecs-storage/m3.13-one-engine-crate/spec.md); see its spec §4.8. Originally accepted 2026-11-12. On acceptance this line becomes `Accepted (2026-11-12). Rewritten in place by M3.13 (<date>); see its spec §4.8.`
+Status: Accepted (2026-11-12). Rewritten in place by M3.13 (2026-11-14); see its [spec §4.8](../design/m3-ecs-storage/m3.13-one-engine-crate/spec.md).
 
 ## Context
 

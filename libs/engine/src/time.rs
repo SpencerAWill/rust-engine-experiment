@@ -1,8 +1,6 @@
 //! Simulation time primitives that make fixed-step loops correct, testable, and deterministic.
 //!
-//! `engine::time` is a separate crate because it is `no_std` at its core (with a default `std`
-//! feature that adds `SystemClock`), because it is useful on its own, and because it depends on
-//! neither math nor IDs, which keeps the layering honest (ADR 0004).
+//! It needs only `core`, except `SystemClock`, which needs the `std` feature.
 //!
 //! # Guarantees
 //!

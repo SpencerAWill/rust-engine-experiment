@@ -1,9 +1,7 @@
 //! Deterministic insertion-ordered hash map and set.
 //!
-//! `engine::collections` is a separate crate for the reasons in ADR 0004: its
-//! dependencies (`indexmap` and `foldhash`) should not be carried by other
-//! crates; it is `no_std` with `alloc`; and it is a foundation layer for the
-//! ECS, the registry and persistence.
+//! It needs only `core` and `alloc`, and is the foundation for the ECS, the registry and
+//! persistence.
 //!
 //! [`IndexMap`] and [`IndexSet`] iterate in insertion order, so iteration
 //! order is a pure function of the operations applied. The hashing algorithm
