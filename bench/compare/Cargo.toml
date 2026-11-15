@@ -27,6 +27,7 @@ workspace = true
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 engine.workspace = true
 fastrand = "2.5.0"
+fixedbitset = "0.5.9"
 foldhash = "0.2"
 indexmap = "2.14"
 rand = "0.10.3"
