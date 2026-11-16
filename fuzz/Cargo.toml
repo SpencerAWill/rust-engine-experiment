@@ -43,3 +43,10 @@ path = "fuzz_targets/bit_set_ops.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "hierarchical_bit_set_ops"
+path = "fuzz_targets/hierarchical_bit_set_ops.rs"
+test = false
+doc = false
+bench = false

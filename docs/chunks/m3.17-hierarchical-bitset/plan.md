@@ -115,7 +115,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: fuzz target (R12)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `fuzz/fuzz_targets/hierarchical_bit_set_ops.rs` (new), `fuzz/Cargo.toml` (a `[[bin]]` entry), `xtask/src/fuzz.rs` (`TARGETS` gains `"hierarchical_bit_set_ops"` last).
 - **Interfaces:** `#[derive(Arbitrary, Debug)] enum Op` over three sets (`which: u8 % 3`): `Insert(which, u32)`, `Remove(which, u32)`, `Clear(which)`, `EnsureCapacity(which, u32)`, `ShrinkToFit(which)`, `UnionWith(which, which)`, `IntersectWith(which, which)`, `DifferenceWith(which, which)`, `Tests(which, which)`, `Join(required: Vec<u8>, excluded: Vec<u8>)`, `RoundTripBitSet(which)`. Every `u32` index is taken `% 1_048_576`. After each op: members, `len`, `first`, `last` against three `BTreeSet<usize>` models, and `check_invariants()`; a `Join` with an empty required list checks `try_new` is `Err`.
 - **Test first:** the xtask unit test that checks `TARGETS` against `fuzz/fuzz_targets/*.rs` fails once the file exists and `TARGETS` is not updated.
@@ -186,3 +186,4 @@ Choices the spec leaves to implementation:
 - **Step 2: `first_word` and `last_word`** were not written: nothing uses them (the set's `first` and `last` descend on their own), and an unused `pub(super)` function fails clippy's `dead_code`. `LAYERS` moved to `descent.rs`.
 - **Step 3: exclusions** are applied as one `word & !excluded` per excluded set at layer 0, not through an OR of the excluded words first (same result). `Join`'s `Debug` prints only the number of required and excluded sets.
 - **Step 4: no `clear_word_upwards`.** `intersect_with` and `difference_with` reuse `clear_parents`. The cursor takes its source per call and keeps copies of the upper words not yet visited, so `intersect_with` advances it over `&*self` and then writes; `difference_with` rebuilds the two-set `JoinSource` each iteration. Nothing is buffered. `JoinSource` is `pub(super)`.
+- **Step 6: fuzz target extras.** The `Tests` op also checks `is_superset` and `==`, `Remove` checks `contains` afterwards, `RoundTripBitSet` checks the flat set's members, and `Join` lists are capped at 8 sets. `fuzz/README.md` lists the target.
