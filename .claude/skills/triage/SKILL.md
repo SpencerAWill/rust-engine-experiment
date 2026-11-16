@@ -12,13 +12,13 @@ Issues: `$ARGUMENTS` (default: every open issue whose Project Status is Inbox or
 
 ## The rule: machine-light
 
-This skill runs while a long job may be running, so it must not disturb it. Never run `cargo`, `rustc`, `valgrind`, `docker`, `pulumi`, `pnpm`, an `xtask` command or anything else that builds, tests, measures or starts a container. Allowed: `gh issue`, `gh project`, `gh label list`, `gh api` only with `--method GET` written out, and reading files. The writes of step 4 go through `gh issue` and `gh project`; never `gh label create`, `edit` or `delete` (labels are declared in `infra/github/index.ts`, and a hand edit is reverted by the next `pulumi up`), and never a `gh api` call without an explicit `--method GET` (it silently becomes a POST as soon as `-f` or `-F` is given), nor `gh api graphql`. Edit no file in the repository; this skill changes GitHub only, because a chunk branch may be in flight. An issue that cannot be defined without a run gets the `needs-measurement` label and the measurement as its first step; do not do the measurement.
+This skill runs while a long job may be running, so it must not disturb it. Never run `cargo`, `rustc`, `valgrind`, `docker`, `pulumi`, `pnpm`, an `xtask` command or anything else that builds, tests, measures or starts a container. Allowed: `gh issue`, `gh project`, `gh label list`, `gh api` only with `--method GET` written out, and reading files (`cat`, `grep`, `sed -n`, `ls` and `head` count). The writes of step 4 go through `gh issue` and `gh project`; never `gh label create`, `edit` or `delete` (labels are declared in `infra/github/index.ts`, and a hand edit is reverted by the next `pulumi up`), and never a `gh api` call without an explicit `--method GET` (it silently becomes a POST as soon as `-f` or `-F` is given), nor `gh api graphql`. Edit no file in the repository; this skill changes GitHub only, because a chunk branch may be in flight. An issue that cannot be defined without a run gets the `needs-measurement` label and the measurement as its first step; do not do the measurement.
 
 Pass `--limit 1000` to every `gh issue list`, `gh project item-list` and `gh search` you use to decide that something is missing: the default is 30, and "not found" past that is a silent skip.
 
 ## 1. Check the Project
 
-Read the "Issue tracking" section of `docs/maintainers.md` for the Project's name, fields and options. Compare them with the live Project (`gh project field-list`). If a field or an option is missing or renamed, stop and say which one differs and what the document expects. Do not guess, and do not edit the Project.
+Read the "Issue tracking" section of `docs/maintainers.md` for the Project's name, number, fields and options. Check the title with `gh project view <number> --owner <owner>` and compare the fields with `gh project field-list <number> --owner <owner> --format json`: Status, Priority and Size must exist as single-select fields with exactly the documented option names (order does not matter; ignore GitHub's built-in fields). If a field or an option is missing or renamed, stop and say which one differs and what the document expects. Do not guess, and do not edit the Project.
 
 ## 2. Read
 
@@ -48,7 +48,7 @@ Only what the maintainer confirmed, and only these writes:
 - post a comment;
 - close an issue as `duplicate`, only when the maintainer confirmed that issue by number.
 
-Then say what was written, issue by issue. Set Status to Scheduled never: that happens when a chunk row is added (chunk stage 1).
+Then say what was written, issue by issue. Never set Status to Scheduled yourself: chunk stage 1 sets it when a chunk row is added.
 
 ## Boundaries
 

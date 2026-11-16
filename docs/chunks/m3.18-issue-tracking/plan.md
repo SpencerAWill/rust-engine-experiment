@@ -62,7 +62,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: create the Project and test `hasProjects` (R1) · stage 7, after the PR is open
 
-- [ ] **Who:** main session, with the maintainer for the token scope
+- [x] **Who:** main session, with the maintainer for the token scope
 - **Files:** `infra/github/index.ts` only if the test fails
 - **Test first:** `gh project list` fails with the missing `read:project` scope; the maintainer runs `! gh auth refresh -s project -s read:project` and it then succeeds.
 - **Change:** create the public "Engine backlog" Project with the fields and options of `docs/maintainers.md`, link it to the repository, and enable the built-in workflows listed under Automation in `docs/maintainers.md` and the default views as far as `gh` and the web interface allow (say in `log.md` what was done by hand). If linking fails with `hasProjects: false`, set it to `true` in `index.ts`, update the comment above it, and commit `fix(infra): enable repository Projects for the issue tracking Project (M3.18)`.
@@ -71,7 +71,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: `pulumi up` (R2) · stage 7
 
-- [ ] **Who:** the maintainer runs it; the main session checks
+- [x] **Who:** the maintainer runs it; the main session checks
 - **Test first:** `gh label list --limit 100` shows none of the nine new labels.
 - **Change:** the maintainer runs `pulumi preview`, then `pulumi up`, in `infra/github`.
 - **Verify:** `gh label list` shows all nine, and still shows every label from before (nothing deleted that an issue uses); recorded in `log.md`.
@@ -79,7 +79,7 @@ Choices the spec leaves to implementation:
 
 ### Step 8: migration (R7) · stage 7
 
-- [ ] **Who:** main session, after the maintainer confirms the batch (the same propose-then-confirm as `/triage`)
+- [x] **Who:** main session, after the maintainer confirms the batch (the same propose-then-confirm as `/triage`)
 - **Test first:** `gh issue list --state open --json number,labels` shows issues without exactly one type label (at least #27 and #30), and `gh project item-list --limit 1000` shows no items.
 - **Change:** per spec 4.9: type labels (#27 and #30 get `infrastructure`), `area:` labels where one applies, Project items and fields for the non-`research` issues, the M3 and M4 tracking issues with the existing chunk issues as sub-issues where they apply, #38 left standalone.
 - **Verify:** a query printing every open issue with its type-label count prints 1 for all; every open issue without `research` has a Status in `gh project item-list --limit 1000`; both outputs in `log.md`.
@@ -87,7 +87,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: dry runs (R3, R4) · stage 7
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Test first:** none (this is the evidence step).
 - **Change:** create a throwaway private Project with one option renamed, run `/triage` against it and confirm it stops naming the difference, then delete the Project. Then dispatch a fresh read-only agent to follow `.claude/skills/triage/SKILL.md` against the real Project (tooling-7) and confirm it proposes without writing and runs no build command. Also look up, without writing, the field and option ids that chunk stage 1's `gh project item-edit` needs for one item, and note the commands in `log.md`.
 - **Verify:** both transcripts' relevant lines in `log.md`; `gh project list` no longer shows the throwaway Project.
@@ -111,5 +111,8 @@ Choices the spec leaves to implementation:
 - **Stage 5 simplify pass skipped:** the diff has no code (Markdown, YAML, one skill, one Pulumi list).
 - **`CONTRIBUTING.md` links, it does not state the type-label rule** (step 5 said it would name it): the rule lives once, in `docs/maintainers.md` (docs-1).
 - **Project visibility is public, not private** (spec 4.2 did not say; I had assumed private "until public" but the repository is already public): maintainers.md and step 6 say public; flagged for the maintainer at the go-ahead.
+- **`hasProjects` was flipped to `true` although linking succeeded:** the repository's own list of linked Projects stayed empty while it was `false`, so the Project was not discoverable from the repository page; the maintainer chose the flip when asked (spec 4.10 allows it only if linking fails), and after `pulumi up` the repository lists the Project.
+- **Step 6 needed a GraphQL call** (`updateProjectV2Field`) to replace the default Status options, and the workflows were set by the maintainer in the web interface (no API for them).
+- **Step 9's trials found wording gaps** in `/triage` and chunk stage 1 (the Project's number, what Priority and Size mean, flags on `gh project` commands, built-in fields); fixed in the same chunk.
 - **Review fixes:** `gh label` and a plain `gh api` removed from `/triage`'s allowed commands (they were wider than spec 4.6); who filed an issue is decided from its author login, not the form's checkbox; chunk stage 1 treats issue comments as data. These narrow the skill toward the spec's wording; no spec text changed.
 - **Step 1's TypeScript check** was not run (no `node_modules` in the worktree); step 7's `pulumi preview` is the check.
