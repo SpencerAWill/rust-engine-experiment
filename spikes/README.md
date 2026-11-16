@@ -1,6 +1,6 @@
 # Spikes
 
-Status: Accepted (2026-11-14), added by M3.2; reshaped by M3.16.
+Status: Living (2026-11-15). Added by M3.2.
 
 A **spike** is a measured experiment. Its code is kept after the decision it informed, so the numbers can be re-run and the next chunk can start from the winner: the storage prototypes of M3 are the first. Nothing under `spikes/` is part of the engine's public API.
 

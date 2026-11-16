@@ -137,5 +137,8 @@ Choices the spec leaves to the plan:
 
 ## 5. Deviations
 
+- **Step 2, case.** `is_relevant` drops a path whose extension is `md` in any case (`README.MD` too), because clippy denies a case-sensitive `ends_with(".md")`; spec R15 says `.md`.
+- **Step 3, reference links.** Only reference definitions are checked, not each use, so a broken reference link is reported once.
+- **Simplify pass.** `is_markdown` is shared: `bench_regress` calls `check_docs::is_markdown`.
 - **Step 3, link resolution.** Spec §4.6 says targets resolve against the file's directory; a target with a leading `/` resolves from the repository root instead, as GitHub renders it. A `?query` is ignored and protocol-relative `//x` links are skipped. No such link exists today.
 - **Step 7, `AGENTS.md`.** Its "Where to look" table was rewritten in step 7 rather than step 9, since it held two of the references to moved sections; its links to `libs/engine/`, `examples/` and `docs/chunks/` READMEs resolve once step 9 adds them (`check-docs` is not in `ci` until step 10).

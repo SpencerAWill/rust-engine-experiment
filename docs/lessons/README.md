@@ -34,6 +34,6 @@ applies_to:
 
 - IDs are never reused. A retired lesson is deleted; git history is the archive.
 - **Capture gate:** write a lesson only if it is non-obvious from the code, likely to recur, and costly to miss. If a test, lint or `xtask` check can enforce it, write that instead.
-- **Checked:** `cargo xtask check-docs` checks the frontmatter (only `applies_to`, one quoted glob per line, `*`, `?` and `**` only, each matching a tracked file), the heading and status line, and that each lesson has a unique `<file>-<n>` ID, *Why:*, *From:* and *Confirmed:*.
+- **Checked:** `cargo xtask check-docs` enforces this format; its globs use `*`, `?` and `**` only.
 - **Edit one bullet at a time.** Search for an existing lesson on the same point and edit it rather than adding a second. Never regenerate a file.
 - **Upkeep:** `/lessons-refresh` at each milestone boundary keeps, edits, merges or deletes each lesson against the code.

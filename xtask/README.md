@@ -10,7 +10,7 @@ Status: Living (2026-11-15). The task runner: `cargo xtask <command>` is the sin
 ## Contents
 
 - `Cargo.toml`: the `xtask` package (not published).
-- `src/`: one module per command that needs more than a few lines (`check_docs`, `check_workflows`, `bench_regress`, `coverage`, `mutants`, `fuzz`, ...); `main.rs` parses the command line and holds the `ci` steps.
+- `src/`: one module per command that needs more than a few lines; `main.rs` parses the command line and holds the `ci` steps.
 
 ## Commands
 
@@ -57,7 +57,7 @@ You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the com
 
 ## Mutation testing
 
-Run mutated code only in a memory-capped container: in Claude Code through `/mutants-run`, never bare on the host.
+How runs of mutated code are contained: [AGENTS.md](../AGENTS.md#always) and `/mutants-run`.
 
 ```sh
 cargo xtask mutants --list            # check the exclusions and list the mutants; builds nothing

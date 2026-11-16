@@ -75,7 +75,7 @@ How to run each tool, what its output means and its rules live next to it:
 | Tool | Manual |
 | --- | --- |
 | Every `cargo xtask` command | [xtask/README.md](xtask/README.md) |
-| Wall-clock benchmarks (performance claims need a saved baseline and the noise floor) | [bench/README.md](bench/README.md#wall-clock-benchmarks) |
+| Wall-clock benchmarks | [bench/README.md](bench/README.md#wall-clock-benchmarks) |
 | The instruction-count gate (`bench-regress`, the `perf-regression-accepted` label) | [bench/README.md](bench/README.md#instruction-count-gate) |
 | Fuzzing | [fuzz/README.md](fuzz/README.md) |
 | Coverage | [xtask/README.md](xtask/README.md#coverage) |

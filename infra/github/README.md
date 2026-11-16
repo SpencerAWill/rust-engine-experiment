@@ -1,6 +1,6 @@
 # GitHub configuration (Pulumi)
 
-Status: Active (2026-11-12)
+Status: Living (2026-11-15)
 
 This Pulumi project declares the GitHub settings for `SpencerAWill/rust-engine-experiment`:
 repository settings, the ruleset on `main`, labels, Actions permissions, Actions variables
