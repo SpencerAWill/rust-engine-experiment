@@ -82,7 +82,7 @@ mod tests {
         assert!(!matches("docs/*.md", "docs/x/a.md"));
         assert!(matches("a*c", "abbbc"));
         assert!(matches("a*c", "ac"));
-        assert!(!matches("a*c", "abd"));
+        assert!(!matches("a*c", "abx"));
     }
 
     #[test]
