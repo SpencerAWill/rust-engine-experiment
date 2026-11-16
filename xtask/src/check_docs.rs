@@ -9,6 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 mod frontmatter;
@@ -132,8 +133,9 @@ pub(crate) fn is_markdown(path: &str) -> bool {
 
 /// The tracked files: `git ls-files --cached --others --exclude-standard`, without paths that
 /// are not on disk (`--cached` still lists a deleted file).
-fn tracked_files() -> Result<BTreeSet<String>, String> {
+fn tracked_files(root: &Path) -> Result<BTreeSet<String>, String> {
     let output = Command::new("git")
+        .current_dir(root)
         .args([
             "ls-files",
             "-z",
@@ -149,18 +151,46 @@ fn tracked_files() -> Result<BTreeSet<String>, String> {
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
+    Ok(existing_files(
+        root,
+        &String::from_utf8_lossy(&output.stdout),
+    ))
+}
+
+/// The repository root, from `git rev-parse --show-toplevel`, so the check gives the same
+/// answer from any subdirectory.
+fn repository_root() -> Result<std::path::PathBuf, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`git rev-parse --show-toplevel` failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(std::path::PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim_end(),
+    ))
+}
+
+/// The paths of the NUL-separated `listing` that are regular files under `root`. A symlink is
+/// dropped (not followed), and so is a path that is not on disk.
+fn existing_files(root: &Path, listing: &str) -> BTreeSet<String> {
+    listing
         .split('\0')
-        .filter(|p| !p.is_empty() && fs::symlink_metadata(p).is_ok())
+        .filter(|p| !p.is_empty() && fs::symlink_metadata(root.join(p)).is_ok_and(|m| m.is_file()))
         .map(ToString::to_string)
-        .collect())
+        .collect()
 }
 
 /// `cargo xtask check-docs`: prints each problem and a count line, and fails if there is any.
 pub(crate) fn run() -> Result<(), String> {
-    let files = tracked_files()?;
+    let root = repository_root()?;
+    let files = tracked_files(&root)?;
     let problems = check(&files, &|path| {
-        fs::read_to_string(path).map_err(|e| e.to_string())
+        fs::read_to_string(root.join(path)).map_err(|e| e.to_string())
     });
     for problem in &problems {
         println!("{problem}");
@@ -287,5 +317,37 @@ mod tests {
             .collect();
         assert_eq!(problems.len(), 1, "{problems:#?}");
         assert!(problems[0].starts_with("a.md: "), "{}", problems[0]);
+    }
+
+    /// A fresh empty directory under the system temp directory.
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("check-docs-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn listed_paths_are_read_relative_to_the_root_not_the_current_directory() {
+        let dir = temp_dir("root");
+        fs::write(dir.join("only-here.md"), "x\n").unwrap();
+        let files = existing_files(&dir, "only-here.md\0gone.md\0");
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(files, BTreeSet::from(["only-here.md".to_string()]));
+    }
+
+    #[test]
+    fn a_tracked_symlink_is_not_a_file() {
+        let dir = temp_dir("symlink");
+        fs::write(dir.join("real.md"), "x\n").unwrap();
+        #[cfg(unix)]
+        let linked = std::os::unix::fs::symlink(dir.join("real.md"), dir.join("link.md")).is_ok();
+        #[cfg(not(unix))]
+        let linked = false;
+        if linked {
+            let files = existing_files(&dir, "real.md\0link.md\0");
+            assert_eq!(files, BTreeSet::from(["real.md".to_string()]));
+        }
+        let _ = fs::remove_dir_all(&dir);
     }
 }

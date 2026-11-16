@@ -20,6 +20,13 @@ pub(super) fn validate(glob: &str) -> Result<(), String> {
     if glob.split('/').any(|s| s != "**" && s.contains("**")) {
         return Err("`**` must be a whole path segment, as in `docs/**`".to_string());
     }
+    if glob
+        .split('/')
+        .zip(glob.split('/').skip(1))
+        .any(|(a, b)| a == "**" && b == "**")
+    {
+        return Err("consecutive `**` segments are not supported; use one `**`".to_string());
+    }
     Ok(())
 }
 
@@ -133,5 +140,13 @@ mod tests {
             assert!(validate(glob).is_err(), "{glob}");
         }
         assert!(validate("").is_err());
+    }
+
+    #[test]
+    fn consecutive_double_stars_are_rejected() {
+        for glob in ["**/**", "a/**/**/b", "**/**/x"] {
+            let error = validate(glob).unwrap_err();
+            assert!(error.contains("one `**`"), "{glob}: {error}");
+        }
     }
 }

@@ -155,6 +155,12 @@ fn check_frontmatter(
             if under == Under::Expected {
                 globs += 1;
                 check_glob(path, number, item, files, problems);
+            } else if under == Under::Nothing {
+                problems.push(Problem::new(
+                    path,
+                    Some(number),
+                    &format!("glob line before `{key}:`; put it under the key"),
+                ));
             }
         } else {
             other_key = true;
@@ -385,6 +391,15 @@ mod tests {
         expect(
             &rule(&text),
             &[(".claude/rules/docs.md:2", "only `paths:`")],
+        );
+    }
+
+    #[test]
+    fn a_glob_line_before_any_key_is_a_problem() {
+        let text = "---\n  - \"**\"\npaths:\n  - \"docs/**\"\n---\nx\n";
+        expect(
+            &rule(text),
+            &[(".claude/rules/docs.md:2", "before `paths:`")],
         );
     }
 
