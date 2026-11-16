@@ -137,7 +137,7 @@ Choices the spec leaves to implementation:
 
 ### Step 8: space report (R14)
 
-- [ ] **Who:** builder writes it; the main session runs it.
+- [x] **Who:** builder writes it; the main session runs it.
 - **Files:** `bench/compare/examples/space_report.rs` (new), `bench/compare/Cargo.toml` (`dhat = "0.3"`), `bench/README.md` (how to run it; main session).
 - **Interfaces:** `cargo run -p engine_benches --release --example space_report` prints a Markdown table: structure, case (occupancy and spread of Step 7, plus `one member at 1,000,000`), members, heap bytes after building, peak heap bytes, bytes after `shrink_to_fit` (ours and `BitSet`; `—` otherwise), bytes per member. It installs `dhat::Alloc` as the global allocator. With no arguments it runs each case by spawning itself (`std::env::current_exe()`) with `--case <structure> <case>`, because `dhat`'s peak is per process; a child builds the structure by inserting the members one at a time in a seeded random order (`engine::random`, seed `0x5EED`), reads `dhat::HeapStats`, and prints one tab-separated row. No `dhat-heap.json` is left behind (testing mode, or a file under `target/`).
 - **Test first:** `cargo xtask ci --quick` builds examples; a `#[test]` in the example (`cargo test -p engine_benches --example space_report`) checks that a child row for `engine::HierarchicalBitSet` at `one member at 1,000,000` reports at least 125,000 bytes after building (layer 0 alone is 15,625 words), which fails until the build path is right.
@@ -187,3 +187,5 @@ Choices the spec leaves to implementation:
 - **Step 3: exclusions** are applied as one `word & !excluded` per excluded set at layer 0, not through an OR of the excluded words first (same result). `Join`'s `Debug` prints only the number of required and excluded sets.
 - **Step 4: no `clear_word_upwards`.** `intersect_with` and `difference_with` reuse `clear_parents`. The cursor takes its source per call and keeps copies of the upper words not yet visited, so `intersect_with` advances it over `&*self` and then writes; `difference_with` rebuilds the two-set `JoinSource` each iteration. Nothing is buffered. `JoinSource` is `pub(super)`.
 - **Step 6: fuzz target extras.** The `Tests` op also checks `is_superset` and `==`, `Remove` checks `contains` afterwards, `RoundTripBitSet` checks the flat set's members, and `Join` lists are capped at 8 sets. `fuzz/README.md` lists the target.
+- **Step 8: space report test** runs `run_case` in process under a testing-mode profiler (libtest rejects `--case`); the child path is what `cargo run` exercises. Members are an exactly sized `Vec<u32>` whose size is subtracted from every figure; uniform members come from rejection sampling. Case definitions are mirrored from the benchmark file, not shared.
+- **Step 8: peak column.** `dhat` counts a `realloc` as a size change, so the peak omits the moment both buffers exist; documented in `bench/README.md`.

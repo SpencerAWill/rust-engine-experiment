@@ -9,7 +9,7 @@ Status: Living (2026-11-15). The benchmark packages: wall-clock comparisons and 
 
 ## Contents
 
-- `compare/`: package `engine_benches`, Criterion wall-clock benchmarks of the engine against `slotmap`, `thunderdome`, `rand`, `rand_xoshiro` and `fastrand`. Results and methodology are in [docs/benchmarks.md](../docs/benchmarks.md).
+- `compare/`: package `engine_benches`, Criterion wall-clock benchmarks of the engine against `slotmap`, `thunderdome`, `rand`, `rand_xoshiro`, `fastrand`, `fixedbitset`, `hibitset` and `hi_sparse_bitset`. Results and methodology are in [docs/benchmarks.md](../docs/benchmarks.md). Its example `space_report` prints the heap bytes of the bitsets under `dhat`, one process per case (`cargo run -p engine_benches --release --example space_report`); the peak column misses the moment a `realloc` holds both buffers, because `dhat` counts a `realloc` as a change of size.
 - `regress/`: package `engine_bench_regress`, the Gungraun benchmarks that the instruction-count gate counts.
 
 ## Wall-clock benchmarks

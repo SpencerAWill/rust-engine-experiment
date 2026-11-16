@@ -28,3 +28,48 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-16 done Step 4 (builder): union, intersection, difference, subset, superset, disjoint; model ops and laws. Main session checked the mutate-while-descending argument (the cursor holds copies of unvisited upper bits; `clear_parents` touches only the consumed path) and re-ran `ci --quick` (722 passed, 6 skipped) and `wasm` (engine lib 191 passed).
 - 2026-11-16 done Step 5 (builder): allocation checks for spec §4.6, all 0 blocks with no library change. Removing `ensure_capacity` from a setup made the check fail (`left: 9, right: 0`), so it can detect an allocation. Main session re-ran `ci --quick` (722 passed, 6 skipped) and `no-std`.
 - 2026-11-16 done Step 6 (builder): fuzz target `hierarchical_bit_set_ops`. The xtask `targets_match_the_files_on_disk` test failed before `TARGETS` was updated. 600 s run (builder): `Done 1038875 runs in 601 second(s)`, final `cov: 870 ft: 5573 corp: 1436/319Kb`, no crash; main session checked `fuzz/artifacts/hierarchical_bit_set_ops/` is empty and re-ran `fuzz-build` and `ci --quick` (722 passed, 6 skipped).
+- 2026-11-16 done Step 7 (builder): Gungraun group `hierarchical_bit_set` and 128 Criterion benchmarks; `bench-smoke` runs all 128; `deny` passes with `deny.toml` unchanged. `bench-regress` (main session, throwaway `debian:trixie` container on the M4 Pro host, aarch64, Valgrind 3.24.0, `--security-opt seccomp=unconfined`, branch at 49585db against base 873152b): "no regression"; new: `hierarchical_contains_4k` 45,750, `hierarchical_insert_4k` 153,531, `hierarchical_iter_sparse_256k` 71,534, `hierarchical_join_3x1_64k` 82,464 instructions, all above the 10,000 minimum.
+- 2026-11-16 surprise Step 7's join inputs use independent seeds, so at 0.1% and 1% occupancy the joins are nearly empty and measure skipping, not yielding; recorded for the pull request.
+- 2026-11-16 done Step 8 (builder): `bench/compare/examples/space_report.rs`. Main session re-ran its test and `ci --quick`. Table (builder's run, `cargo run -p engine_benches --release --example space_report`, arm64 Apple M4 Pro, at the Step 8 working tree on 49585db; bytes after building and peak exclude the member list; inserted one at a time in seeded random order, no presizing):
+
+  | structure | case | members | after building | peak | after shrink_to_fit | bytes/member |
+  |---|---|---:|---:|---:|---:|---:|
+  | HierarchicalBitSet | one at 1,000,000 | 1 | 127,064 | 127,064 | 127,016 | 127,064 |
+  | HierarchicalBitSet | 0.1% uniform | 1,048 | 148,512 | 148,512 | 133,144 | 141.71 |
+  | HierarchicalBitSet | 1% uniform | 10,485 | 148,512 | 148,512 | 133,168 | 14.16 |
+  | HierarchicalBitSet | 50% uniform | 524,288 | 148,512 | 148,512 | 133,168 | 0.28 |
+  | HierarchicalBitSet | 99% uniform | 1,038,090 | 148,512 | 148,512 | 133,168 | 0.14 |
+  | HierarchicalBitSet | 0.1% clustered | 1,024 | 198,392 | 198,392 | 99,992 | 193.74 |
+  | HierarchicalBitSet | 1% clustered | 10,496 | 177,504 | 177,504 | 122,704 | 16.91 |
+  | HierarchicalBitSet | 50% clustered | 524,288 | 242,704 | 242,704 | 133,072 | 0.46 |
+  | HierarchicalBitSet | 99% clustered | 1,038,080 | 175,392 | 175,392 | 133,168 | 0.17 |
+  | BitSet | one at 1,000,000 | 1 | 125,008 | 125,008 | 125,008 | 125,008 |
+  | BitSet | 0.1% uniform | 1,048 | 146,128 | 146,128 | 131,048 | 139.44 |
+  | BitSet | 1% uniform | 10,485 | 146,128 | 146,128 | 131,072 | 13.94 |
+  | BitSet | 50% uniform | 524,288 | 146,128 | 146,128 | 131,072 | 0.28 |
+  | BitSet | 99% uniform | 1,038,090 | 146,128 | 146,128 | 131,072 | 0.14 |
+  | BitSet | 0.1% clustered | 1,024 | 196,752 | 196,752 | 98,400 | 192.14 |
+  | BitSet | 1% clustered | 10,496 | 174,672 | 174,672 | 120,768 | 16.64 |
+  | BitSet | 50% clustered | 524,288 | 238,864 | 238,864 | 130,976 | 0.46 |
+  | BitSet | 99% clustered | 1,038,080 | 172,592 | 172,592 | 131,072 | 0.17 |
+  | hibitset | one at 1,000,000 | 1 | 127,000 | 127,000 | — | 127,000 |
+  | hibitset | 0.1% uniform | 1,048 | 148,448 | 148,448 | — | 141.65 |
+  | hibitset | 1% uniform | 10,485 | 148,448 | 148,448 | — | 14.16 |
+  | hibitset | 50% uniform | 524,288 | 148,448 | 148,448 | — | 0.28 |
+  | hibitset | 99% uniform | 1,038,090 | 148,448 | 148,448 | — | 0.14 |
+  | hibitset | 0.1% clustered | 1,024 | 198,328 | 198,328 | — | 193.68 |
+  | hibitset | 1% clustered | 10,496 | 177,440 | 177,440 | — | 16.91 |
+  | hibitset | 50% clustered | 524,288 | 242,640 | 242,640 | — | 0.46 |
+  | hibitset | 99% clustered | 1,038,080 | 175,328 | 175,328 | — | 0.17 |
+  | hi_sparse_bitset `_128bit` | one at 1,000,000 | 1 | 1,152 | 1,152 | — | 1,152 |
+  | hi_sparse_bitset `_128bit` | 0.1% uniform | 1,048 | 51,200 | 132,000 | — | 48.85 |
+  | hi_sparse_bitset `_128bit` | 1% uniform | 10,485 | 165,888 | 165,888 | — | 15.82 |
+  | hi_sparse_bitset `_128bit` | 50% uniform | 524,288 | 296,960 | 296,960 | — | 0.57 |
+  | hi_sparse_bitset `_128bit` | 99% uniform | 1,038,090 | 296,960 | 296,960 | — | 0.29 |
+  | hi_sparse_bitset `_128bit` | 0.1% clustered | 1,024 | 2,432 | 17,408 | — | 2.38 |
+  | hi_sparse_bitset `_128bit` | 1% clustered | 10,496 | 10,752 | 16,384 | — | 1.02 |
+  | hi_sparse_bitset `_128bit` | 50% clustered | 524,288 | 165,888 | 165,888 | — | 0.32 |
+  | hi_sparse_bitset `_128bit` | 99% clustered | 1,038,080 | 165,888 | 165,888 | — | 0.16 |
+
+- 2026-11-16 surprise `dhat` counts a `realloc` as a change of size (`Delta::new(old_size, new_size)` in dhat 0.3's `realloc`), so peak misses the moment both buffers exist during growth; that is why peak equals "after building" for the dense sets. Noted in `bench/README.md`.
+- 2026-11-16 lesson? clippy's pedantic `cast_precision_loss` fires on `u64 as f64` in bench examples; allow it in the file header (builder report).

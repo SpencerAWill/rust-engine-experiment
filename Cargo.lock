@@ -611,6 +611,7 @@ name = "engine_benches"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "dhat",
  "engine",
  "fastrand",
  "fixedbitset",

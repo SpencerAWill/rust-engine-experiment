@@ -25,6 +25,7 @@ workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+dhat = "0.3"
 engine.workspace = true
 fastrand = "2.5.0"
 fixedbitset = "0.5.9"
