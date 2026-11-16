@@ -1,5 +1,5 @@
 # Shared cargo-mutants settings, used by `cargo xtask mutants` and by a plain `cargo mutants`.
-# See CONTRIBUTING.md "Mutation testing" and docs/mutation-triage.md for how exclusions are made.
+# See xtask/README.md "Mutation testing" and docs/mutation-triage.md for how exclusions are made.
 test_tool = "nextest"
 all_features = true
 additional_cargo_test_args = ["--run-ignored", "all"]

@@ -77,7 +77,7 @@ Choices the spec leaves to the plan:
 
 ### Step 7: Move the manuals and repoint references (R11)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `CONTRIBUTING.md` (manuals out; a "Tools" section linking each), `bench/README.md`, `fuzz/README.md`, `xtask/README.md` (commands table from the root `README.md`, Coverage, Mutation testing), `spikes/README.md` (Spike crates merged), `README.md` (command paragraph replaced by a link), and the references of spec §4.9: `AGENTS.md`, `.claude/agents/*.md` only where they cite a moved section, `.claude/skills/bench-run/SKILL.md`, `.claude/skills/mutants-run/SKILL.md`, `.cargo/mutants.toml`, `.github/ISSUE_TEMPLATE/performance_report.yml`, `docs/benchmarks.md`, `docs/mutation-triage.md`, `spikes/ecs_storage/README.md`.
 - **Test first:** the §8 R11 grep lists the current references.
 - **Change:** each manual in the §4.2 shape, with "How to" holding the commands. "Setting up" keeps the install line that `xtask/src/mutants.rs` tests.
@@ -138,3 +138,4 @@ Choices the spec leaves to the plan:
 ## 5. Deviations
 
 - **Step 3, link resolution.** Spec §4.6 says targets resolve against the file's directory; a target with a leading `/` resolves from the repository root instead, as GitHub renders it. A `?query` is ignored and protocol-relative `//x` links are skipped. No such link exists today.
+- **Step 7, `AGENTS.md`.** Its "Where to look" table was rewritten in step 7 rather than step 9, since it held two of the references to moved sections; its links to `libs/engine/`, `examples/` and `docs/chunks/` READMEs resolve once step 9 adds them (`check-docs` is not in `ci` until step 10).

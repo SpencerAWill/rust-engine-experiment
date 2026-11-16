@@ -240,7 +240,7 @@ in steady state.
 
 ## Instruction counts
 
-The `bench-regress` gate (see CONTRIBUTING.md, "Instruction-count gate") counts CPU instructions under Valgrind, which does not depend on the machine's load, but only on the code that ran. Those counts decide whether one commit changed the cost of an operation relative to another. They are never compared with the Criterion figures in this document, which are wall-clock times on one machine, and counts from different architectures (the aarch64 devcontainer, the x86_64 CI runner) are never compared with each other.
+The `bench-regress` gate (see [bench/README.md](../bench/README.md#instruction-count-gate)) counts CPU instructions under Valgrind, which does not depend on the machine's load, but only on the code that ran. Those counts decide whether one commit changed the cost of an operation relative to another. They are never compared with the Criterion figures in this document, which are wall-clock times on one machine, and counts from different architectures (the aarch64 devcontainer, the x86_64 CI runner) are never compared with each other.
 
 ### Instruction counts across milestones
 

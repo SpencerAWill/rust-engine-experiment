@@ -8,7 +8,7 @@ argument-hint: "[cargo xtask mutants flags, e.g. --module random | --in-diff FIL
 
 A mutant can make an iterator endless, and a test that collects or formats it then grows memory without bound. On 2026-11-14 a bare `cargo xtask mutants -j 2` on the Mac did exactly that, until the editor had to be force-quit. So mutants never run on the host.
 
-What the outcomes mean and how to triage them: CONTRIBUTING.md, "Mutation testing", and [docs/mutation-triage.md](../../../docs/mutation-triage.md). Tests that walk iterators of code under test follow lesson `testing-1` in [docs/lessons/testing.md](../../../docs/lessons/testing.md).
+What the outcomes mean and how to triage them: [xtask/README.md](../../../xtask/README.md#mutation-testing) and [docs/mutation-triage.md](../../../docs/mutation-triage.md). Tests that walk iterators of code under test follow lesson `testing-1` in [docs/lessons/testing.md](../../../docs/lessons/testing.md).
 
 ## Run
 
@@ -20,4 +20,4 @@ What the outcomes mean and how to triage them: CONTRIBUTING.md, "Mutation testin
 
 ## Afterwards
 
-Triage missed mutants into `docs/mutation-triage.md` as CONTRIBUTING.md describes. A test that hung or grew memory is a `lesson?` for the chunk's `log.md`: the fix is usually `bounded` / `debug_bounded`.
+Triage missed mutants into `docs/mutation-triage.md` as xtask/README.md describes. A test that hung or grew memory is a `lesson?` for the chunk's `log.md`: the fix is usually `bounded` / `debug_bounded`.

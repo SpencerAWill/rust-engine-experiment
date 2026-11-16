@@ -8,10 +8,10 @@ Read this first. The rules are in [CONTRIBUTING.md](CONTRIBUTING.md), the workfl
 cargo xtask ci          # every check CI gates on; run it before saying work is done
 cargo xtask ci --quick  # fmt check, clippy, and tests only
 cargo xtask test        # nextest plus doctests
-cargo xtask bench-regress  # the instruction-count gate (Valgrind: devcontainer); run it when you change libs/ or a benchmark
+cargo xtask bench-regress  # the instruction-count gate (Valgrind: devcontainer); run it when you change libs/ code or a benchmark
 ```
 
-Coverage, the nightly fuzz run and the weekly mutants run are report-only and outside `ci`. The other commands are in the README.
+Coverage, the nightly fuzz run and the weekly mutants run are report-only and outside `ci`. The other commands are in [xtask/README.md](xtask/README.md).
 
 ## Rules that fail CI (do not work around them)
 
@@ -50,11 +50,16 @@ Work is done in chunks from the roadmap, each through seven stages: brainstorm, 
 
 ## Where to look
 
+In Claude Code, `.claude/rules/` loads the pointer for a path when you touch it.
+
 | Working on | Read |
 |---|---|
-| `libs/engine/` | CONTRIBUTING.md "What CI enforces" and "Tests"; the module's lessons |
-| benchmarks, `bench/` | CONTRIBUTING.md "Benchmarks" and "Instruction-count gate" |
-| fuzzing, coverage, mutants | CONTRIBUTING.md, the section of that name |
+| `libs/engine/` | [libs/engine/README.md](libs/engine/README.md); CONTRIBUTING.md "What CI enforces" and "Tests" |
+| benchmarks, `bench/` | [bench/README.md](bench/README.md) |
+| `fuzz/` | [fuzz/README.md](fuzz/README.md) |
+| `xtask/`, coverage, mutants | [xtask/README.md](xtask/README.md) |
 | `spikes/` | [spikes/README.md](spikes/README.md) |
+| `examples/` | [examples/README.md](examples/README.md) |
 | CI, workflows, `infra/` | CONTRIBUTING.md "What CI enforces" (workflows); [infra/github/README.md](infra/github/README.md) |
-| a chunk's documents | [docs/chunks/](docs/chunks/), templates in [docs/chunks/_template/](docs/chunks/_template/) |
+| docs, a chunk's documents | [docs/README.md](docs/README.md) (conventions); [docs/chunks/README.md](docs/chunks/README.md) |
+| `.claude/` | [.claude/README.md](.claude/README.md) |

@@ -5,7 +5,7 @@ description: Run wall-clock benchmarks on the maintainer's Mac so the numbers ca
 
 # Benchmark run
 
-Wall-clock numbers are noisy (about 5% between runs on a quiet machine). A run is only usable if the machine stayed on AC power, awake and otherwise idle for all of it. The rules for comparing and quoting results are in CONTRIBUTING.md, "Benchmarks".
+Wall-clock numbers are noisy (about 5% between runs on a quiet machine). A run is only usable if the machine stayed on AC power, awake and otherwise idle for all of it. The rules for comparing and quoting results are in [bench/README.md](../../../bench/README.md#wall-clock-benchmarks).
 
 1. **Before.** Tell the maintainer the run is starting and how long it takes (a full `cargo xtask bench` is about an hour); ask them to keep the laptop plugged in and leave it alone. Check `pmset -g batt` says AC power, and the load average (`uptime`) is below about 2.5. Close nothing yourself.
 2. **Run.** `cargo xtask bench --save <name>` (or `spike-bench <topic> --save <name>`). It refuses to start on battery and runs under `caffeinate -i` (macOS only). Never pass `--allow-battery` without the maintainer asking for it. Note the start and end times. Run no builds, tests or other heavy commands until it finishes.
