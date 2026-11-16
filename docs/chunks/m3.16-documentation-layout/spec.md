@@ -1,6 +1,6 @@
 # M3.16: Documentation layout
 
-- **Status:** Draft (2026-11-15)
+- **Status:** Accepted (2026-11-15)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.15 (merged in PR #59; its spec §4.12 hands this scope on) · **Decides:** no ADR (documentation conventions, recorded in `docs/README.md` and enforced by `cargo xtask check-docs`)
 - **Estimated size:** about 620 lines of Rust in `xtask` plus about 400 lines of tests; about 900 changed lines of Markdown, most of them moved
 - **Closes:** #58
