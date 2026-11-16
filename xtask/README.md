@@ -27,7 +27,7 @@ Every command rejects flags it does not know, and prints an install hint when a 
 | `typos` | Spell-check |
 | `check-unsafe`, `check-statics` | `#![forbid(unsafe_code)]` in every crate root; no global mutable state |
 | `check-workflows` | Every GitHub Action pinned to a commit hash, read-only token permissions (a `write` scope only for a job in `WRITE_ALLOWLIST`), no persisted checkout credentials, no `pull_request_target` |
-| `check-docs` | Required READMEs and their Contents, relative links and anchors, lesson and rule files, the length of `AGENTS.md` (the conventions are in [docs/README.md](../docs/README.md#conventions)) |
+| `check-docs` | Part of `ci`. Required READMEs and their Contents, relative links and anchors, lesson and rule files, the length of `AGENTS.md` (the conventions are in [docs/README.md](../docs/README.md#conventions)) |
 | `bench [--save NAME] [--compare A B] [--allow-battery]` | Criterion wall-clock benchmarks; on macOS it refuses battery power and keeps the machine awake ([bench/README.md](../bench/README.md)) |
 | `bench-report [--baseline NAME] [--against NAME] [--notes FILE] [--out FILE]` | One self-contained HTML page of saved Criterion results, and with `--against` a noise-aware before/after view (`target/bench-report/index.html`) |
 | `bench-doc [--baseline NAME] [--env FILE]... [--doc FILE]` | Regenerates the data sections of `docs/benchmarks.md` from a saved baseline |

@@ -103,7 +103,7 @@ Choices the spec leaves to the plan:
 
 ### Step 10: The gate (R9)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `xtask/src/main.rs` (`Command::CheckDocs` in `ci_steps` after `CheckWorkflows`, with the test of `ci_steps` updated if there is one), `.github/workflows/ci.yml` (a `check-docs` job copied from `check-workflows`), `infra/github/index.ts` (`"check-docs"` in `requiredChecks`, after `"check-workflows"`).
 - **Test first:** if `main.rs` has a test over `ci_steps`, extend it first and see it fail; otherwise n/a.
 - **Verify:** `cargo xtask check-workflows` passes; `cargo xtask check-docs` passes; `cd infra/github && npx tsc --noEmit` passes if the toolchain is installed (else say so in the report).

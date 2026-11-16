@@ -435,6 +435,7 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::CheckUnsafe,
             Command::CheckStatics,
             Command::CheckWorkflows,
+            Command::CheckDocs,
             Command::Hack,
             Command::Typos,
             Command::Deny,
@@ -635,9 +636,11 @@ mod tests {
     }
 
     #[test]
-    fn check_docs_parses_and_is_not_yet_a_ci_step() {
+    fn check_docs_parses_and_runs_in_the_full_ci_only() {
         assert_eq!(parse(&["check-docs"]), Ok(Command::CheckDocs));
         assert!(parse(&["check-docs", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::CheckDocs));
+        assert!(!ci_steps(true).contains(&Command::CheckDocs));
     }
 
     #[test]

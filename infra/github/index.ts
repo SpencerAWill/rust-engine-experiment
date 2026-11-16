@@ -97,6 +97,7 @@ const requiredChecks = [
     "check-unsafe",
     "check-statics",
     "check-workflows",
+    "check-docs",
     "hack",
     "typos",
     "deny",
