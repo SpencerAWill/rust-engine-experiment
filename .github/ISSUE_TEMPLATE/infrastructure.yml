@@ -1,0 +1,70 @@
+name: Infrastructure or chore
+description: CI, xtask and other tooling, repository layout, GitHub settings, or the contributor process
+labels: ["infrastructure"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Engine features and API or design changes go in a **Feature request**. Titles use a conventional prefix such as `ci:`, `chore:` or `docs:`.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong or missing, and what it costs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected
+    attributes:
+      label: Files and settings affected
+      description: For example `.github/workflows/`, `xtask/`, `infra/github/`.
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Does it add, rename or remove a required check, change a workflow's permissions or secrets, or change a rule in CONTRIBUTING? Required checks and labels are declared in `infra/github/index.ts`.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Done when
+      description: The outcome that would count as done, as a checklist.
+      value: "- [ ] "
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: How it is verified
+      description: A command or a named check. If it needs a measurement first, say so.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Depends on
+      description: Issues or roadmap chunks (for example `#40`, `M3.8`) that must land first.
+
+  - type: checkboxes
+    id: assistant
+    attributes:
+      label: Drafting
+      options:
+        - label: An assistant drafted this issue.

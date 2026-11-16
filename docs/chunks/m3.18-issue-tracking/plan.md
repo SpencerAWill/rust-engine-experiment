@@ -26,9 +26,9 @@ Choices the spec leaves to implementation:
 
 ### Step 2: issue forms (R5)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml`, `infrastructure.yml` (new); `bug_report.md`, `feature_request.md`, `infrastructure.md` (deleted)
-- **Test first:** `ls .github/ISSUE_TEMPLATE/*.yml` lists only the two existing forms; a check that every file in the folder other than `config.yml` is a `.yml` form with a `name`, `description`, `labels` and `body` fails on the three `.md` files.
+- **Test first:** `ls .github/ISSUE_TEMPLATE/*.yml` lists only the two existing forms; a check that every file in the folder other than `config.yml` is a `.yml` form with a `name`, `description`, `labels` and `body` fails on the three `.md` files. (Ruby's `yaml` instead of Python's, which is not installed; the script is in the session scratchpad, not the repository.)
 - **Change:** each form keeps its current label and its current prompts as fields. `feature_request.yml` and `infrastructure.yml` gain required fields for the problem, the outcome that would count as done, the verification (a command or a named check) and dependencies (optional); `bug_report.yml` keeps its reproduction as the verification. Each ends with an optional checkbox "An assistant drafted this issue". The `labels` are unchanged: `bug`, `enhancement`, `infrastructure`.
 - **Verify:** `python3 -c` loading every form with `yaml.safe_load` and asserting the keys of the check above exits 0; the chooser (`config.yml`, unchanged) still lists blank issues off.
 - **Commit:** `feat(github): turn the bug, feature and infrastructure templates into issue forms (M3.18)`
