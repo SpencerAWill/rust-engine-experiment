@@ -194,6 +194,21 @@ const labels: { name: string; color: string; description: string }[] = [
         color: "c5def5",
         description: "External research or survey; not a decision or scheduled work",
     },
+    // Applied by /triage (.claude/skills/triage/); see docs/workflow.md, "From issue to chunk".
+    // `area:` is for code only; CI, docs and process issues use `infrastructure` and `documentation`.
+    { name: "area:collections", color: "ededed", description: "engine::collections" },
+    { name: "area:genid", color: "ededed", description: "engine::genid" },
+    { name: "area:random", color: "ededed", description: "engine::random" },
+    { name: "area:time", color: "ededed", description: "engine::time" },
+    { name: "area:math", color: "ededed", description: "engine::math" },
+    { name: "area:bench", color: "ededed", description: "Benchmarks and the instruction-count gate (bench/)" },
+    { name: "area:xtask", color: "ededed", description: "The xtask command-line tool (xtask/)" },
+    {
+        name: "needs-measurement",
+        color: "fef2c0",
+        description: "Cannot be defined or scheduled until something is measured; the measurement is the first step",
+    },
+    { name: "ai-assisted", color: "d4c5f9", description: "An assistant drafted this issue" },
 ];
 
 new github.IssueLabels("labels", { repository: repo.name, labels });

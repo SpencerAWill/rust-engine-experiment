@@ -17,7 +17,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: declare the new labels (R2)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `infra/github/index.ts`
 - **Test first:** `git grep -c 'area:collections' infra/github/index.ts` prints nothing and exits 1 (no such label yet).
 - **Change:** add `area:collections`, `area:genid`, `area:random`, `area:time`, `area:math`, `area:bench`, `area:xtask`, `needs-measurement` and `ai-assisted`, each with a colour and description, in the style of the existing entries; the `area:` ones under one comment. Update the "Applied by hand" comment to say `area:`, `needs-measurement` and `ai-assisted` are applied by `/triage`.
