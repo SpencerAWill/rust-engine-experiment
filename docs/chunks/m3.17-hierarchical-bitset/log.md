@@ -127,3 +127,42 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 
   Re-ran `ci --quick` (722 passed, 6 skipped, including the allocation checks), `wasm` (engine lib 191 passed) and `no-std`.
 - 2026-11-16 lesson? `#[inline]` on a method does not make it inlined: a cold or rare path inlined into it (here the parent climb, and the panic formatting) can push it past LLVM's budget, so every call pays a full prologue. Keep hot paths tiny and put rare work in `#[inline(never)]` functions; check with `--emit=asm`, not by reading the source.
+- 2026-11-16 done `bench-regress` after the insert fix (same container setup, 5f1ebca against 873152b): no regression; `hierarchical_insert_4k` 88,374 instructions (153,531 before the fix), the other three new benchmarks unchanged.
+- 2026-11-16 done Opened #62 (maintainer asked): move long verification (wall-clock, mutants, fuzzing) out of the local chunk loop, with the research behind it. For this chunk, mutation testing comes from the pull request's `mutants` job (`--in-diff`) instead of a local `--module collections` run; recorded as a deviation from R15 at close-out.
+- 2026-11-16 done Wall-clock run 2 (`cargo xtask bench --save m3.17-hierarchical-b`, 5f1ebca with the insert fix, M4 Pro, AC power, 15:45:22 to 17:15:00, `pmset -g log` clean). Noise floor from the 644 benchmarks whose code did not change between runs 1 and 2: median |change| 0.7%, 90th percentile 6.1%, 95th 10.4%; the large movers (up to 59%) are the 100,000 to 1,000,000-element handle and B-tree benchmarks, and one sub-microsecond join (`hierarchical_join/engine::HierarchicalBitSet/uniform_0.1pct`, +30%). Insert moved run 1 to run 2 by −14% (clustered) to −64% (uniform 1%). Run 2 ratios, our median over each baseline's (the `BitSet` join is clone plus `intersect_with` plus `difference_with`):
+
+  | group | case | ours | /BitSet | /hibitset | /hi_sparse |
+  |---|---|---:|---:|---:|---:|
+  | contains | clustered_0.1pct | 1.2 µs | 1.01 | 0.97 | 0.43 |
+  | contains | clustered_1pct | 1.2 µs | 1.00 | 0.96 | 0.37 |
+  | contains | clustered_50pct | 1.3 µs | 1.00 | 1.06 | 0.40 |
+  | contains | clustered_99pct | 1.3 µs | 1.00 | 1.05 | 0.32 |
+  | contains | uniform_0.1pct | 1.3 µs | 1.00 | 1.05 | 0.39 |
+  | contains | uniform_1pct | 1.3 µs | 1.00 | 1.05 | 0.36 |
+  | contains | uniform_50pct | 1.3 µs | 1.00 | 1.05 | 0.32 |
+  | contains | uniform_99pct | 1.3 µs | 1.00 | 1.05 | 0.32 |
+  | insert | clustered_0.1pct | 2.1 µs | 1.08 | 1.27 | 1.02 |
+  | insert | clustered_1pct | 18.0 µs | 1.03 | 1.06 | 0.92 |
+  | insert | clustered_50pct | 871.4 µs | 1.03 | 1.02 | 0.91 |
+  | insert | clustered_99pct | 1,717.3 µs | 1.03 | 1.02 | 0.91 |
+  | insert | uniform_0.1pct | 2.5 µs | 1.42 | 1.41 | 0.74 |
+  | insert | uniform_1pct | 13.2 µs | 1.74 | 0.90 | 0.68 |
+  | insert | uniform_50pct | 304.7 µs | 1.07 | 0.97 | 0.39 |
+  | insert | uniform_99pct | 573.9 µs | 1.02 | 0.97 | 0.37 |
+  | iter | clustered_0.1pct | 524 ns | 0.11 | 0.34 | 0.67 |
+  | iter | clustered_1pct | 5.2 µs | 0.46 | 0.33 | 0.63 |
+  | iter | clustered_50pct | 248.5 µs | 0.77 | 0.32 | 0.61 |
+  | iter | clustered_99pct | 492.2 µs | 0.79 | 0.32 | 0.68 |
+  | iter | uniform_0.1pct | 1.5 µs | 0.26 | 0.65 | 1.25 |
+  | iter | uniform_1pct | 15.0 µs | 1.06 | 0.60 | 1.36 |
+  | iter | uniform_50pct | 376.8 µs | 1.09 | 0.53 | 1.01 |
+  | iter | uniform_99pct | 564.2 µs | 0.91 | 0.39 | 0.77 |
+  | join | clustered_0.1pct | 6 ns | 0.00 | 4.89 | 1.58 |
+  | join | clustered_1pct | 11 ns | 0.00 | 1.68 | 1.46 |
+  | join | clustered_50pct | 45.7 µs | 0.70 | 0.38 | 0.65 |
+  | join | clustered_99pct | 34.1 µs | 1.30 | 0.56 | 1.23 |
+  | join | uniform_0.1pct | 720 ns | 0.04 | 0.96 | 7.68 |
+  | join | uniform_1pct | 3.2 µs | 0.18 | 0.59 | 0.42 |
+  | join | uniform_50pct | 57.4 µs | 0.67 | 0.41 | 0.79 |
+  | join | uniform_99pct | 34.0 µs | 1.20 | 0.64 | 1.17 |
+- 2026-11-16 done Step 10 (main session): `lib.rs` module map, README row, research catalog entry, CHANGELOG entry. Full `cargo xtask ci` passes (nextest 722 passed, 6 skipped; 728 passed in the second test pass), `doc` and `check-docs` clean.

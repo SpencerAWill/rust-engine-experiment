@@ -17,7 +17,7 @@
 //! | [`genid`] | Typed generational IDs ([`GenId`](genid::GenId), with the untyped core [`UntypedGenId`](genid::UntypedGenId)), a dense [`GenIdMap`](genid::GenIdMap), and the lean [`GenIdAllocator`](genid::GenIdAllocator) |
 //! | [`random`] | A deterministic, versioned-stable PRNG ([`Prng`](random::Prng)) |
 //! | [`time`] | [`Tick`](time::Tick), [`FixedTimestep`](time::FixedTimestep), and [`TimeSource`](time::TimeSource) clocks |
-//! | [`collections`] | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet), and the bitsets [`BitSet`](collections::BitSet) and [`BitArray`](collections::BitArray) |
+//! | [`collections`] | Deterministic insertion-ordered [`IndexMap`](collections::IndexMap) and [`IndexSet`](collections::IndexSet), the bitsets [`BitSet`](collections::BitSet) and [`BitArray`](collections::BitArray), and [`HierarchicalBitSet`](collections::HierarchicalBitSet) with [`Join`](collections::Join) for iterating and joining sparse index sets |
 //! | [`math`] | glam re-exports, [`Transform`](math::Transform) and its large-world and 2D variants, coordinate conversion |
 //!
 //! # Features

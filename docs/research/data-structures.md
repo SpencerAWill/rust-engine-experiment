@@ -689,10 +689,10 @@ These patterns recur across many entries. They are not tracked items; each entry
 - **Uses:** ECS joins; iterating sparse sets of indices quickly.
 - **Notes:** each upper layer records which ranges below it are non-empty, so union, intersection and iteration skip empty ranges. `hibitset` (from specs) also iterates in parallel with rayon. Its layer sizes depend on pointer width.
 - **Variants:** a fixed number of layers; parallel iteration.
-- **Repo fit:** `safe`.
+- **Repo fit:** `safe`; `in repo` (`engine::collections::HierarchicalBitSet` and `Join`, M3.17: six fixed layers of `u64` words, dense).
 - **Determinism:** layer sizes must not depend on pointer width (this repo's rule against `usize`-dependent behaviour).
 - **Builds on:** [Bitset](#bitset).
-- **Sources:** [hibitset](https://docs.rs/hibitset).
+- **Sources:** [M3.17 spec §11](../chunks/m3.17-hierarchical-bitset/spec.md#11-prior-art-and-sources) lists them: the `hibitset` 0.6.4 and `hi_sparse_bitset` 0.10.0 source, read for the design; the trailing-zero iteration is M3.14's, from Lemire's [Iterating over set bits quickly](https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/) (read for M3.14). Warren's *Hacker's Delight* (chapters 2 and 5) is cited for the bit techniques, not read.
 
 #### Sparse hierarchical bitset
 

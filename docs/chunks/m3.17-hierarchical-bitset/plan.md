@@ -125,7 +125,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: benchmarks (R13)
 
-- [ ] **Who:** builder writes them; the main session runs the measurements.
+- [x] **Who:** builder writes them; the main session runs the measurements.
 - **Files:** `bench/regress/benches/collections.rs`, `bench/compare/Cargo.toml`, `bench/compare/benches/collections.rs`, `Cargo.lock`.
 - **Interfaces:**
   - Gungraun, in the file's existing pattern (setup, a never-inlined `*_work`, seed `0x5EED`, `Prng::shuffle`), a group `hierarchical_bit_set` in `main!`: `hierarchical_insert_4k`, `hierarchical_contains_4k` (50% occupancy), `hierarchical_iter_sparse_256k` (1% of a 262,144-index range), `hierarchical_join_3x1_64k` (three required, one excluded, 65,536-index range, 50% occupancy).
@@ -156,7 +156,7 @@ Choices the spec leaves to implementation:
 
 ### Step 10: documents (R10, R16)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `libs/engine/src/lib.rs` (module map `collections` row), `README.md` (same row), `libs/engine/README.md` if it lists collection types, `docs/research/data-structures.md` (Hierarchical bitset entry: **Repo fit** gains `in repo`, **Sources** lists spec §11), `CHANGELOG.md` (an M3.17 entry under Unreleased).
 - **Test first:** the documentation review checklist against these files finds the rows missing; `cargo xtask check-docs` and `cargo xtask doc` run.
 - **Change:** as listed. Read Lemire's post and *Hacker's Delight* chapters 2 and 5 before citing them as read, or list them as cited, not read.
@@ -190,3 +190,6 @@ Choices the spec leaves to implementation:
 - **Step 8: space report test** runs `run_case` in process under a testing-mode profiler (libtest rejects `--case`); the child path is what `cargo run` exercises. Members are an exactly sized `Vec<u32>` whose size is subtracted from every figure; uniform members come from rejection sampling. Case definitions are mirrored from the benchmark file, not shared.
 - **Step 8: peak column.** `dhat` counts a `realloc` as a size change, so the peak omits the moment both buffers exist; documented in `bench/README.md`.
 - **After Step 8: insert fix.** Wall-clock run 1 showed insert at 1.2 to 2.4 times `hibitset`'s time. `try_insert` was not inlined (asm); its hit path is now a `get_mut` load, OR and store, with growth (`insert_growing`) and the parent climb (`set_parents`) out of line. Insert is now level with `hibitset` (uniform 1%: 13.3 µs against 14.8 to 16.1). Two other restructurings were measured and dropped (log.md).
+- **Step 7: measurements.** `bench-regress` ran in a throwaway `debian:trixie` container (no devcontainer running), twice: after Step 7 and after the insert fix. Wall clock ran twice under `/bench-run`; run 2 was restarted after the insert fix, so the noise floor comes from the benchmarks whose code did not change between the runs, not from two runs of identical code throughout.
+- **Step 9: mutation testing moves to the pull request's CI job** (`mutants.yml`, `--in-diff`, which covers every new line here) instead of a local `/mutants-run --module collections`, at the maintainer's request to keep hour-long runs off the local loop (#62). Triage is done from that job's report before the merge.
+- **Step 10: the catalog's Lemire citation** says it was read for M3.14, whose iteration this set reuses; it was not re-read for this chunk.
