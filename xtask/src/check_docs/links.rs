@@ -67,7 +67,7 @@ fn check_link(
 }
 
 /// Whether `target` starts with a URL scheme such as `https:` or `mailto:`.
-fn has_scheme(target: &str) -> bool {
+pub(super) fn has_scheme(target: &str) -> bool {
     let Some((scheme, _)) = target.split_once(':') else {
         return false;
     };

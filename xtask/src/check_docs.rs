@@ -3,8 +3,8 @@
 //!
 //! [`check`] is the testable core: it takes the set of tracked paths and a reader, so tests build
 //! fixture trees from string literals. [`run`] lists the files with git, reads them from disk and
-//! prints the sorted problems. The README shape and Contents checks (spec §4.1, §4.2) join
-//! [`check`] in a `readme` submodule.
+//! prints the sorted problems. The required READMEs and their Contents (spec §4.1, §4.2) are
+//! checked in the `readme` submodule.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -15,12 +15,30 @@ mod frontmatter;
 mod glob;
 mod links;
 mod markdown;
+mod readme;
 
 /// Where lesson files live (every `*.md` directly inside, except `README.md`).
 const LESSON_DIR: &str = "docs/lessons/";
 
 /// Where rule files live (every `*.md` directly inside).
 const RULE_DIR: &str = ".claude/rules/";
+
+/// Directories that must have a `README.md` (spec §4.1), besides every `spikes/<topic>/` that
+/// holds tracked files.
+const REQUIRED_READMES: [&str; 12] = [
+    "docs",
+    "docs/adr",
+    "docs/chunks",
+    "docs/lessons",
+    ".claude",
+    "infra/github",
+    "libs/engine",
+    "bench",
+    "fuzz",
+    "xtask",
+    "spikes",
+    "examples",
+];
 
 /// `AGENTS.md` must have fewer lines than this.
 const AGENTS_MAX_LINES: usize = 80;
@@ -93,6 +111,7 @@ pub(crate) fn check(
             ));
         }
     }
+    problems.extend(readme::check(files, &texts));
     problems.extend(links::check(files, &texts));
     problems.sort();
     problems
@@ -179,9 +198,11 @@ mod tests {
                 .cloned()
                 .ok_or_else(|| format!("{path}: not found"))
         };
+        // These fixtures hold no READMEs; the README checks have tests of their own.
         check(&files, &read)
             .iter()
             .map(ToString::to_string)
+            .filter(|p| !p.contains("README.md"))
             .collect()
     }
 
@@ -261,6 +282,7 @@ mod tests {
         let problems: Vec<String> = check(&files, &read)
             .iter()
             .map(ToString::to_string)
+            .filter(|p| !p.contains("README.md"))
             .collect();
         assert_eq!(problems.len(), 1, "{problems:#?}");
         assert!(problems[0].starts_with("a.md: "), "{}", problems[0]);

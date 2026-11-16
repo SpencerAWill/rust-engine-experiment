@@ -27,8 +27,16 @@ pub(super) struct Item {
     pub(super) source: String,
 }
 
+/// A Contents candidate: a top-level bullet or a table body row, its line, and its name: the
+/// first inline code span or link in it (a link's name is its target), if any.
+pub(super) struct Entry {
+    pub(super) line: usize,
+    pub(super) name: Option<String>,
+}
+
 /// What `check-docs` needs from one Markdown file.
 pub(super) struct Doc {
+    pub(super) entries: Vec<Entry>,
     pub(super) headings: Vec<Heading>,
     pub(super) links: Vec<Link>,
     pub(super) items: Vec<Item>,
@@ -67,11 +75,13 @@ pub(super) fn parse(text: &str) -> Doc {
     let options = Options::ENABLE_TABLES | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS;
     let mut parser = Parser::new_ext(text, options).into_offset_iter();
     let mut doc = Doc {
+        entries: Vec::new(),
         headings: Vec::new(),
         links: Vec::new(),
         items: Vec::new(),
     };
     let mut heading: Option<Heading> = None;
+    let mut entry: Option<Entry> = None;
     let (mut list_depth, mut quote_depth) = (0_usize, 0_usize);
     for (event, range) in &mut parser {
         match event {
@@ -83,16 +93,38 @@ pub(super) fn parse(text: &str) -> Doc {
                 });
             }
             Event::End(TagEnd::Heading(_)) => doc.headings.extend(heading.take()),
-            Event::Text(t) | Event::Code(t) => {
+            Event::Text(t) => {
                 if let Some(h) = heading.as_mut() {
                     h.text.push_str(&t);
                 }
+            }
+            Event::Code(t) => {
+                if let Some(h) = heading.as_mut() {
+                    h.text.push_str(&t);
+                }
+                if let Some(e) = entry.as_mut().filter(|e| e.name.is_none()) {
+                    e.name = Some(t.to_string());
+                }
+            }
+            Event::Start(Tag::TableRow) if entry.is_none() && list_depth == 0 => {
+                entry = Some(Entry {
+                    line: line_of(range.start),
+                    name: None,
+                });
+            }
+            Event::End(TagEnd::TableRow) => doc.entries.extend(entry.take()),
+            Event::End(TagEnd::Item) if list_depth == 1 && quote_depth == 0 => {
+                doc.entries.extend(entry.take());
             }
             Event::Start(Tag::List(_)) => list_depth += 1,
             Event::End(TagEnd::List(_)) => list_depth -= 1,
             Event::Start(Tag::BlockQuote(_)) => quote_depth += 1,
             Event::End(TagEnd::BlockQuote(_)) => quote_depth -= 1,
             Event::Start(Tag::Item) if list_depth == 1 && quote_depth == 0 => {
+                entry = Some(Entry {
+                    line: line_of(range.start),
+                    name: None,
+                });
                 doc.items.push(Item {
                     line: line_of(range.start),
                     source: strip_marker(text[range.clone()].trim_end()).to_string(),
@@ -110,10 +142,15 @@ pub(super) fn parse(text: &str) -> Doc {
                     dest_url,
                     ..
                 },
-            ) => doc.links.push(Link {
-                target: dest_url.to_string(),
-                line: line_of(range.start),
-            }),
+            ) => {
+                if let Some(e) = entry.as_mut().filter(|e| e.name.is_none()) {
+                    e.name = Some(dest_url.to_string());
+                }
+                doc.links.push(Link {
+                    target: dest_url.to_string(),
+                    line: line_of(range.start),
+                });
+            }
             _ => {}
         }
     }
@@ -213,6 +250,28 @@ mod tests {
             .map(|l| (l.target.as_str(), l.line))
             .collect();
         assert_eq!(targets, [("img.png", 1), ("target.md", 5)]);
+    }
+
+    #[test]
+    fn entries_are_top_level_bullets_and_table_body_rows_named_by_their_first_span_or_link() {
+        let text = "- `a` and `b`\n- [`l`](l.md) x\n- prose\n  - `nested`\n- see [t](t.md) then `c`\n\n| H | I |\n|---|---|\n| `r` | `s` |\n| [`q`](q/) | x |\n";
+        let doc = parse(text);
+        let got: Vec<(Option<&str>, usize)> = doc
+            .entries
+            .iter()
+            .map(|e| (e.name.as_deref(), e.line))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (Some("a"), 1),
+                (Some("l.md"), 2),
+                (Some("nested"), 3),
+                (Some("t.md"), 5),
+                (Some("r"), 9),
+                (Some("q/"), 10),
+            ]
+        );
     }
 
     #[test]

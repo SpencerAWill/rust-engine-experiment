@@ -50,7 +50,7 @@ Choices the spec leaves to the plan:
 
 ### Step 4: `check-docs`: required READMEs and Contents (R1 to R3)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `xtask/src/check_docs.rs` (`REQUIRED_READMES`, the spikes topics), `xtask/src/check_docs/readme.rs`.
 - **Test first:** fixture-tree tests, seen failing: a missing required README; a missing `spikes/<topic>/README.md`; no status line; `Contents` before `When this applies`; a missing `Contents`; an uncovered child; an entry naming nothing; a wildcard matching nothing; `m*/` covering three folders; a table-form Contents whose first cell is a link wrapping a code span; a multi-segment entry (`skills/chunk/`) covering `skills`; `../x.md` and `https:` entries ignored; a prose bullet ignored; extra sections after Contents allowed; the root `README.md` not checked for shape.
 - **Change:** `REQUIRED_READMES = ["docs", "docs/adr", "docs/chunks", "docs/lessons", ".claude", "infra/github", "libs/engine", "bench", "fuzz", "xtask", "spikes", "examples"]`, plus every directory directly under `spikes/` holding tracked files.
