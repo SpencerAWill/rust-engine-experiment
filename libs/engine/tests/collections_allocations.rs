@@ -7,7 +7,7 @@
 
 use std::hint::black_box;
 
-use engine::collections::{BitArray, BitSet, IndexMap, IndexSet};
+use engine::collections::{BitArray, BitSet, HierarchicalBitSet, IndexMap, IndexSet, Join};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -132,6 +132,112 @@ fn work_on_bit_set((set, argument): &mut BitState) {
     black_box(hits);
 }
 
+/// The set under test, two more required sets, an excluded one, and the argument of the
+/// set-algebra calls (built with capacity 65,536 but holding only indices below `BITS`).
+struct HierarchicalState {
+    set: HierarchicalBitSet,
+    other_required: [HierarchicalBitSet; 2],
+    excluded: HierarchicalBitSet,
+    argument: HierarchicalBitSet,
+}
+
+fn hierarchical_state(set: HierarchicalBitSet) -> HierarchicalState {
+    let make = |step: usize| {
+        let mut other = HierarchicalBitSet::with_capacity(BITS);
+        for i in (0..BITS).step_by(step) {
+            other.insert(i);
+        }
+        other
+    };
+    let mut argument = HierarchicalBitSet::with_capacity(65_536);
+    argument.insert(0);
+    argument.insert(100);
+    argument.insert(BITS - 1);
+    HierarchicalState {
+        set,
+        other_required: [make(2), make(3)],
+        excluded: make(7),
+        argument,
+    }
+}
+
+/// Every `HierarchicalBitSet` and `Join` operation that spec §4.6 promises not to allocate,
+/// within `BITS` bits.
+fn work_on_hierarchical_bit_set(state: &mut HierarchicalState) {
+    let HierarchicalState {
+        set,
+        other_required,
+        excluded,
+        argument,
+    } = state;
+    for i in (0..BITS).step_by(2) {
+        set.insert(i);
+    }
+    let mut hits = 0;
+    for i in 0..BITS {
+        hits += usize::from(set.contains(i));
+    }
+    hits += set.first().unwrap_or(0) + set.last().unwrap_or(0) + set.len();
+    hits += set.iter().sum::<usize>();
+    let [second, third] = &*other_required;
+    let required = [&*set, second, third];
+    let excluded_sets = [&*excluded];
+    hits += Join::new(&required, &excluded_sets).sum::<usize>();
+    hits += Join::try_new(&required, &excluded_sets).map_or(0, Iterator::count);
+    set.intersect_with(argument);
+    set.difference_with(argument);
+    for i in (0..BITS).step_by(2) {
+        set.insert(i);
+    }
+    set.union_with(argument);
+    hits += usize::from(set.is_subset(argument))
+        + usize::from(set.is_superset(argument))
+        + usize::from(set.is_disjoint(argument));
+    for i in (0..BITS).step_by(4) {
+        set.remove(i);
+    }
+    set.clear();
+    for i in (0..BITS).step_by(2) {
+        set.insert(i);
+    }
+    black_box(hits);
+}
+
+/// The hierarchical bitset checks of spec §4.6.
+fn check_hierarchical_bitsets_never_allocate() {
+    let with_capacity = fewest_blocks(
+        || hierarchical_state(HierarchicalBitSet::with_capacity(BITS)),
+        work_on_hierarchical_bit_set,
+    );
+    let ensure_capacity = fewest_blocks(
+        || {
+            let mut set = HierarchicalBitSet::new();
+            set.ensure_capacity(BITS);
+            hierarchical_state(set)
+        },
+        work_on_hierarchical_bit_set,
+    );
+    let limit = fewest_blocks(HierarchicalBitSet::new, |set| {
+        black_box(set.try_insert(HierarchicalBitSet::MAX_BITS).is_err());
+        black_box(set.try_insert(usize::MAX).is_err());
+    });
+    let join = fewest_blocks(
+        || hierarchical_state(HierarchicalBitSet::new()),
+        |state| {
+            let required = [&state.set, &state.excluded];
+            let excluded = [&state.argument];
+            black_box(Join::new(&required, &excluded).next());
+            black_box(Join::try_new(&required, &excluded).is_ok());
+            black_box(Join::try_new(&[], &[]).is_err());
+        },
+    );
+
+    dhat::assert_eq!(with_capacity, 0, "HierarchicalBitSet::with_capacity");
+    dhat::assert_eq!(ensure_capacity, 0, "HierarchicalBitSet::ensure_capacity");
+    dhat::assert_eq!(limit, 0, "HierarchicalBitSet try_insert at the limit");
+    dhat::assert_eq!(join, 0, "Join::new and try_new");
+}
+
 /// Every `BitArray<4>` operation.
 fn work_on_bit_array(array: &mut BitArray<4>) {
     let other = BitArray::<4>::from_words([1, 2, 3, 4]);
@@ -227,4 +333,5 @@ fn collections_never_allocate_within_their_reserved_capacity() {
     dhat::assert_eq!(set_with_capacity, 0);
 
     check_bitsets_never_allocate();
+    check_hierarchical_bitsets_never_allocate();
 }

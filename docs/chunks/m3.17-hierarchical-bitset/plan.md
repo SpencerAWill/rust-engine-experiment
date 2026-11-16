@@ -106,7 +106,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: allocation checks and platform builds (R9, R11)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `libs/engine/tests/collections_allocations.rs`.
 - **Test first:** in the file's single `dhat` test (`dhat` allows one profiler per process; M3.14 deviation, Step 4), labelled assertions with the `fewest_blocks` helper: `HierarchicalBitSet::with_capacity(4_096)` and, separately, `new()` then `ensure_capacity(4_096)`, then every operation of spec §4.6 (2,048 inserts below 4,096, `contains`, `first`, `last`, `len`, iteration, a `Join` of three sets with one exclusion, `intersect_with`, `difference_with`, `union_with` with an argument below 4,096 that was built with capacity 65,536, the three tests, `remove`, `clear`, inserts again): 0 blocks; `try_insert(MAX_BITS)` on `new()`: 0 blocks; `Join::new` and `try_new`: 0 blocks. These may pass at once, since Steps 1 to 4 implement the behaviour. Break one setup on purpose (`new()` without `ensure_capacity`) and see that check fail before restoring it.
 - **Change:** whatever a failing check shows; expected none.
