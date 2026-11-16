@@ -2,7 +2,7 @@
 
 - **Status:** Draft (2026-11-15)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.15 (merged in PR #59; its spec §4.12 hands this scope on) · **Decides:** no ADR (documentation conventions, recorded in `docs/README.md` and enforced by `cargo xtask check-docs`)
-- **Estimated size:** about 600 lines of Rust in `xtask` plus about 400 lines of tests; about 900 changed lines of Markdown, most of them moved
+- **Estimated size:** about 620 lines of Rust in `xtask` plus about 400 lines of tests; about 900 changed lines of Markdown, most of them moved
 - **Closes:** #58
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
@@ -22,7 +22,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 **Non-goals**
 
-- No change to the engine library, its API, frozen formats or CI-enforced code rules, and no change to what any moved rule requires (moves may shorten wording, never meaning).
+- No change to the engine library, its API, frozen formats or CI-enforced code rules, and no change to what any moved rule requires (moves may shorten wording, never meaning). The one change to a gate is §4.11.
 - No check of external (`http`, `https`) links: it needs the network and fails at random.
 - No status-line check for documents other than READMEs and lesson files.
 - No README in `.github/`, `.devcontainer/`, `.cargo/`, `docs/research/`, `docs/data/` or any source subdirectory; the root `README.md` keeps its own shape (§4.1).
@@ -107,6 +107,8 @@ Every `docs/lessons/*.md` other than `README.md` MUST have the format in `docs/l
 | `claude.md` | `.claude/**` | `.claude/README.md` |
 | `ci.md` | `.github/**`, `infra/github/**` | `CONTRIBUTING.md` "What CI enforces" (workflows), `infra/github/README.md` |
 
+**The load trial (R14).** In the work stage the main session runs a headless `claude -p` session limited to read-only tools and a few turns, which reads a file under `libs/engine/src/` and reports whether `.claude/rules/engine.md` is in its context (decided with the maintainer). If it is not, that is a spec amendment (most likely to the frontmatter form, which would change §4.3 to §4.5 with it): the main session stops and asks; the builder does not improvise another form.
+
 ### 4.5 Globs
 
 The globs in `applies_to:` and `paths:` use a subset that Claude Code's matcher and `check-docs` agree on: `*` (any characters except `/`), `?` (one character except `/`) and `**` as a whole path segment (zero or more segments). `check-docs` MUST reject braces, brackets and a leading `!`, and MUST report a glob that matches no tracked file. The matcher is our own code in `xtask`, with unit tests (my call: no dependency for some 40 lines, and the subset is what the check promises).
@@ -143,6 +145,7 @@ Markdown is parsed with `pulldown-cmark`, default features off (my call: code sp
 | Spike crates | `spikes/README.md` |
 | (root `README.md`) the `cargo xtask` command paragraph | `xtask/README.md`, as a table |
 
+- Rules in a moved section that bind code outside the tool's directory move into `CONTRIBUTING.md` "What CI enforces" or "Tests", whichever fits, and the manual links to them (decided with the maintainer): at least Coverage's two rules (no `cfg(coverage)`, `cfg(coverage_nightly)` or `#[coverage(...)]` in library code; unit tests in inline `#[cfg(test)]` modules), Mutation testing's "no `mutants::` attributes and no `mutants` dependency in library code", and Fuzzing's "a crash becomes a failing test first". The manuals keep what is particular to the tool: commands, flags, outcomes, triage classes, the label.
 - Every rule in a moved section MUST exist in its destination, once; text MAY be shortened. A plan step records, in `log.md`, each rule of each moved section and where it now is (lesson specs-2).
 - `CONTRIBUTING.md` keeps "How work is organized", "Issues", "Licence and originality", "Setting up" (its install line is read by a test in `xtask/src/mutants.rs`), "What CI enforces", "Tests", "Commits and pull requests", "Reviews before a pull request" and "Security", and gains a short "Tools" section linking each manual.
 - Every reference to a moved section by name or anchor MUST be repointed: in `AGENTS.md`, `README.md`, `.claude/`, `.cargo/mutants.toml`, `.github/`, `docs/` outside `docs/chunks/`, `spikes/` and `xtask/src/` (an error message in `bench_regress.rs`). The absolute link in `.github/ISSUE_TEMPLATE/performance_report.yml` is not checked by §4.6 and is repointed by hand.
@@ -151,7 +154,11 @@ Markdown is parsed with `pulldown-cmark`, default features off (my call: code sp
 
 The eight links in `docs/chunks/m2.0-roadmap-and-process/plan.md` quote text meant for other files; each is put in a code span, the only edit to that historical plan. The link to `libs/engine/tests/handle_model.rs` in `docs/chunks/m2.1-fuzzing/spec.md` §11 points at `genid_model.rs`, with "(renamed in M3.11)". Any other link the new check finds broken in historical records is fixed the same way and listed in `log.md`.
 
-### 4.11 The first chunk on the M3.15 loop
+### 4.11 Markdown and the instruction-count gate
+
+`is_relevant` in `xtask/src/bench_regress.rs` MUST return false for a path ending in `.md`, so a README or other Markdown under `libs/` no longer triggers the Valgrind comparison; everything else in `RELEVANT` is unchanged (decided with the maintainer). The change is made test first, and the gate's "When it runs" rule in `bench/README.md` says so. This chunk still triggers the gate, through `.cargo/mutants.toml` and `xtask/src/bench_regress.rs`; CI runs it as usual.
+
+### 4.12 The first chunk on the M3.15 loop
 
 Friction with the loop, its roles or its skills is logged as `lesson?` when it happens and handled in stage 6 like any other candidate.
 
@@ -170,7 +177,8 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 - **M3.16-R11** The manuals MUST be moved as in §4.9, with every rule present once in its destination, and every reference to a moved section repointed.
 - **M3.16-R12** `AGENTS.md`'s "Where to look" table MUST point at the READMEs (§4.7).
 - **M3.16-R13** The links of #58 MUST be fixed as in §4.10.
-- **M3.16-R14** A rule file MUST be shown to load: a fresh Claude Code session that reads a file under `libs/engine/src/` has `engine.md` in its context (lesson tooling-7).
+- **M3.16-R14** A rule file MUST be shown to load: a fresh Claude Code session that reads a file under `libs/engine/src/` has `engine.md` in its context (lesson tooling-7; §4.4).
+- **M3.16-R15** `is_relevant` MUST return false for `.md` paths and be unchanged for every other path (§4.11).
 
 ## 6. Cross-cutting concerns
 
@@ -184,7 +192,7 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 - **FFI exposure:** n/a.
 - **Performance:** not measured. `check-docs` reads every tracked `.md` file once; it is expected to take well under a second.
 - **Documentation:** the subject of the chunk. `CHANGELOG.md` gets an entry under Unreleased, Changed.
-- **Policy changes:** a new required check (`check-docs`) and the README shape as a CI-enforced convention. One new `xtask` dependency, `pulldown-cmark` (MIT), which `cargo xtask deny` must pass.
+- **Policy changes:** a new required check (`check-docs`) and the README shape as a CI-enforced convention. One new `xtask` dependency, `pulldown-cmark` (MIT), which `cargo xtask deny` must pass. The instruction-count gate stops treating `.md` paths as relevant (§4.11). Library-facing rules from the manuals move into `CONTRIBUTING.md`'s policy sections (§4.9), unchanged in meaning.
 
 ## 7. Alternatives considered
 
@@ -210,7 +218,8 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 | R11 | the rule map in `log.md` (§4.9), checked by `review-spec`; `git grep -n -E '"(Benchmarks\|Instruction-count gate\|Fuzzing\|Coverage\|Mutation testing\|Spike crates)"' -- AGENTS.md README.md .claude .cargo .github docs ':!docs/chunks' spikes xtask/src` finding no reference to `CONTRIBUTING.md` |
 | R12 | `AGENTS.md`; `review-docs` |
 | R13 | `check-docs` passing over `docs/chunks/`; the PR body closes #58 |
-| R14 | a `log.md` entry from the trial, quoting what the session reported |
+| R14 | a `log.md` entry from the trial (§4.4), quoting what the session reported |
+| R15 | a unit test in `xtask/src/bench_regress.rs`, written first and seen failing: `libs/engine/README.md` and `bench/regress/README.md` are not relevant, `libs/engine/src/lib.rs` and `.cargo/mutants.toml` still are |
 
 ## 9. Done when
 
@@ -221,6 +230,7 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 - [ ] The nine rule files exist and one was shown to load.
 - [ ] `AGENTS.md` is under 80 lines and its table points at the READMEs.
 - [ ] #58's links are fixed.
+- [ ] Markdown paths no longer trigger the instruction-count gate.
 - [ ] `cargo xtask ci` passes.
 - [ ] After the merge, the maintainer has run `pulumi up` in `infra/github`.
 
