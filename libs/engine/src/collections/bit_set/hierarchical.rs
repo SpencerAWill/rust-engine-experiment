@@ -236,14 +236,14 @@ impl HierarchicalBitSet {
     #[cold]
     #[inline(never)]
     fn grow_to_hold(&mut self, index: usize) -> Result<(), TryReserveError> {
-        for (k, layer) in self.layers.iter_mut().enumerate() {
-            let needed = (index >> shift(k)) + 1;
+        // The one place the per-layer word count is computed.
+        let needed: [usize; VECTOR_LAYERS] = core::array::from_fn(|k| (index >> shift(k)) + 1);
+        for (layer, &needed) in self.layers.iter_mut().zip(&needed) {
             layer
                 .try_reserve(needed.saturating_sub(layer.len()))
                 .map_err(TryReserveError::from_alloc)?;
         }
-        for (k, layer) in self.layers.iter_mut().enumerate() {
-            let needed = (index >> shift(k)) + 1;
+        for (layer, &needed) in self.layers.iter_mut().zip(&needed) {
             if needed > layer.len() {
                 layer.resize(needed, 0);
             }
