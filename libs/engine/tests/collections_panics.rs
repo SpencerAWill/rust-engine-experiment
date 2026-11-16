@@ -198,6 +198,20 @@ fn hierarchical_with_capacity_past_max_bits_panics_at_caller() {
     }
 }
 
+#[test]
+fn join_new_with_no_required_sets_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = engine::collections::Join::new(&[], &[]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["no required sets", "pass the set of live indices"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
 /// Runs `f`, which must panic, and returns where it panicked and what it said.
 fn panic_info(f: impl FnOnce()) -> (String, String) {
     let _serial = HOOK_LOCK

@@ -47,6 +47,12 @@
 //! - **Heap use follows ADR 0011.** After `with_capacity(n)` or `ensure_capacity(n)`, nothing
 //!   for indices below `n` allocates.
 //!
+//! [`HierarchicalBitSet`] is a [`BitSet`] with five summary layers over it, so iteration skips
+//! empty ranges 64, 4,096, 262,144 indices at a time and costs about one step per member, not
+//! per word of range. It pays for that with a dense layer 0 (a member at index `i` costs about
+//! `i / 8` bytes). [`Join`] iterates the indices in every one of several such sets and in none of
+//! some others, for example the entities with component A and B but not C, without allocating.
+//!
 //! # Your part
 //!
 //!
@@ -62,6 +68,7 @@
 //! | Iteration in sorted key order | `BTreeMap`, `BTreeSet` |
 //! | A few order-independent keys | a sorted `Vec` |
 //! | A set of small indices that grows | [`BitSet`] |
+//! | A set of small indices to iterate sparsely, or to join with others | [`HierarchicalBitSet`], [`Join`] |
 //! | A set of small indices whose size is known at compile time, with no heap use | [`BitArray`] |
 //!
 //! std's `HashMap` and `HashSet` are banned in engine code (`clippy.toml`):
@@ -100,8 +107,8 @@ mod hasher;
 pub mod index_map;
 pub mod index_set;
 
-pub use bit_set::{BitArray, BitSet, HierarchicalBitSet};
-pub use error::{BitIndexError, BitSetInvariantError, TryReserveError};
+pub use bit_set::{BitArray, BitSet, HierarchicalBitSet, Join};
+pub use error::{BitIndexError, BitSetInvariantError, EmptyJoinError, TryReserveError};
 pub use index_map::IndexMap;
 pub use index_set::IndexSet;
 

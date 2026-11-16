@@ -35,6 +35,7 @@ mod array;
 mod descent;
 mod hierarchical;
 mod iter;
+mod join;
 mod words;
 
 use alloc::vec::Vec;
@@ -44,6 +45,7 @@ use core::hash::{Hash, Hasher};
 pub use array::BitArray;
 pub use hierarchical::{HierarchicalBitSet, HierarchicalIter};
 pub use iter::{IntoIter, Iter};
+pub use join::Join;
 
 use crate::collections::error::TryReserveError;
 use words::{bits_for_words, words_for_bits};

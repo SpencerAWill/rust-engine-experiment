@@ -77,7 +77,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: `Join` (R5)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `bit_set/join.rs` (new), `bit_set.rs`, `collections.rs`, `collections/error.rs` (`EmptyJoinError`), `collections/tests/join_model.rs` (new), `collections_panics.rs`, `collections_auto_traits.rs`; `collections.rs` module docs gain the paragraph and "Choosing a collection" row of spec §4.8.
 - **Interfaces produced:** `pub struct Join<'a>` with `new` and `try_new` as spec §4.4 states; `Iterator<Item = usize>`, `FusedIterator`, `Clone`, `Debug`; `EmptyJoinError`.
 - **Test first:**
@@ -184,3 +184,4 @@ Choices the spec leaves to implementation:
 - **Step 1: top-of-range members.** Layer 4's word index is `i >> 30`, so `2^30`, `2^31`, `3 × 2^30` and `MAX_BITS - 1` set only `top`'s bits 1 to 3; the test adds member 0 for bit 0. Spec §4.8's parenthesis said the three powers set bits 0 to 3; corrected there.
 - **Step 1: `MAX_BITS`, `bits_for_words` and `words_for_bits`** moved to `words.rs`; `BitSet::MAX_BITS` now refers to `words::MAX_BITS` (same value).
 - **Step 2: `first_word` and `last_word`** were not written: nothing uses them (the set's `first` and `last` descend on their own), and an unused `pub(super)` function fails clippy's `dead_code`. `LAYERS` moved to `descent.rs`.
+- **Step 3: exclusions** are applied as one `word & !excluded` per excluded set at layer 0, not through an OR of the excluded words first (same result). `Join`'s `Debug` prints only the number of required and excluded sets.

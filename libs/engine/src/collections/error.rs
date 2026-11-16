@@ -163,3 +163,36 @@ impl fmt::Display for BitSetInvariantError {
 }
 
 impl Error for BitSetInvariantError {}
+
+/// Returned by `Join::try_new` when no required set is given.
+///
+/// A join of no required sets would be every index not excluded, which has no end.
+///
+/// # Examples
+///
+/// ```
+/// use engine::collections::Join;
+///
+/// let error = Join::try_new(&[], &[]).unwrap_err();
+/// assert!(error.to_string().contains("no required sets"));
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EmptyJoinError(());
+
+impl EmptyJoinError {
+    pub(crate) const fn new() -> Self {
+        Self(())
+    }
+}
+
+impl fmt::Display for EmptyJoinError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(
+            "no required sets were given; a join needs at least one set to draw indices from \
+             (to iterate everything not excluded, pass the set of live indices)",
+        )
+    }
+}
+
+impl Error for EmptyJoinError {}
