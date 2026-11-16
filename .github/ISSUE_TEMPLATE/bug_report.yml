@@ -1,0 +1,53 @@
+name: Bug report
+description: Something does not behave as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the same build on the same platform gave different results for the same inputs, use the **Determinism bug** form instead. For a security problem, do **not** open an issue; see [SECURITY.md](https://github.com/SpencerAWill/rust-engine-experiment/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Cite the doc comment, spec section or ADR if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: A short program or failing test is ideal. It is also how this issue is verified as fixed.
+      render: rust
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "`rustc --version`; OS and target (for example `aarch64-apple-darwin`, `wasm32-wasip1`); commit or version."
+    validations:
+      required: true
+
+  - type: textarea
+    id: frozen-format
+    attributes:
+      label: Does this touch a frozen format?
+      description: PRNG output streams, `UntypedGenId::to_bits`, golden values. These must be identical on every platform and in every build, so a difference between platforms or builds in them belongs here. If yes, say how.
+
+  - type: checkboxes
+    id: assistant
+    attributes:
+      label: Drafting
+      options:
+        - label: An assistant drafted this issue.
