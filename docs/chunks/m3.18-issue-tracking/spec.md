@@ -95,6 +95,15 @@ Ready issues that are small and safe MAY carry `good first issue` or `help wante
 
 A one-time pass: give every open issue a type label (#27 and #30 get `infrastructure`), add `area:` labels where one applies, set Project fields on the non-`research` issues, and add the two milestone tracking issues (M3, M4). #38 stays standalone. Planned roadmap rows without an issue get none, and existing specs are not edited; a spec links its tracking issue when its chunk starts. Closed or merged chunks without issues are not backfilled *(main session's call)*.
 
+### 4.10 Rollout order
+
+All in stage 7, before the merge go-ahead, so the pull request can claim every requirement:
+
+1. Create the Project and test whether it can be linked to the repository while `hasProjects` is `false`. If not, set it to `true` in `infra/github/index.ts` and say so in the pull request.
+2. The maintainer runs `pulumi preview`, then `pulumi up`, in `infra/github`.
+3. Record the Project's fields (`gh project field-list`) in `log.md`; run the migration of 4.9; test R4 with a throwaway Project.
+4. Ask for the merge go-ahead. If review later changes `index.ts`, the maintainer runs `pulumi up` again.
+
 ## 5. Requirements
 
 - **M3.18-R1** The Project MUST exist with the fields and options of 4.2, and `docs/` MUST list their exact names.
@@ -111,7 +120,7 @@ A one-time pass: give every open issue a type label (#27 and #30 get `infrastruc
 - **Determinism, `unsafe`, concurrency, heap allocation, `no_std` and wasm, frozen formats, public API, FFI:** n/a, because no library or xtask code changes.
 - **Performance:** n/a.
 - **Documentation:** CONTRIBUTING.md, `docs/workflow.md`, the `.github` and `.claude` READMEs and `docs/README.md` gain entries; `check-docs` gates them.
-- **Policy changes:** M3.9 set `hasProjects: false` in `infra/github/index.ts` ("wiki and Projects off"). Whether a user-owned Project needs that flipped is open (section 10). `infra/github/index.ts` (labels) needs `pulumi preview` then `pulumi up` after the merge. The Project is created by the maintainer in the web interface (the `gh` token needs `gh auth refresh -s project`). Creating the Project and the migration are outward-facing; this spec authorises them, so they are in stage 7, not before the spec is approved.
+- **Policy changes:** M3.9 set `hasProjects: false` in `infra/github/index.ts` ("wiki and Projects off"). If a user-owned Project cannot be linked while it is `false`, this chunk flips it to `true` (section 4.10); this spec names that change. `infra/github/index.ts` (labels, and possibly that flag) needs `pulumi preview` then `pulumi up`, which the maintainer runs before the merge (the repository has no other infrastructure under Pulumi, so nothing else is affected). The Project is created in the web interface or with `gh` (the token needs `gh auth refresh -s project`). Creating the Project and the migration are outward-facing; this spec authorises them, in stage 7 and not before the spec is approved.
 
 ## 7. Alternatives considered
 
@@ -142,7 +151,7 @@ A one-time pass: give every open issue a type label (#27 and #30 get `infrastruc
 
 ## 10. Open questions
 
-- Does a user-owned Project linked to this repository require `hasProjects: true` (reversing M3.9's choice), or is that flag only the legacy repository Projects tab? To be checked against GitHub's behaviour before approval, not assumed.
+None. (Whether `hasProjects` must change is tested in step 1 of section 4.10; either outcome is covered.)
 
 ## 11. Prior art and sources
 
