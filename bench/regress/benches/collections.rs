@@ -7,7 +7,7 @@
     clippy::unwrap_used,
     clippy::cast_possible_truncation
 )]
-//! `engine::collections::IndexMap` and the bitset hot paths, counted in instructions.
+//! `engine::collections::IndexMap` and the bitset and hierarchical bitset hot paths, counted in instructions.
 //!
 //! Every input comes from a fixed seed, so the same commit always measures the same work. Each
 //! benchmark builds its input in a `setup` function, which Gungraun does not count, and runs the
@@ -16,7 +16,7 @@
 use core::any::TypeId;
 use core::hint::black_box;
 
-use engine::collections::{BitArray, BitSet, IndexMap};
+use engine::collections::{BitArray, BitSet, HierarchicalBitSet, IndexMap, Join};
 use engine::random::Prng;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 
@@ -320,6 +320,115 @@ library_benchmark_group!(
         bit_array_ops
 );
 
+/// 65,536 bits: a three-way join over 4,096 bits is under the 10,000-instruction minimum.
+const JOIN_BITS: usize = 65_536;
+
+fn hierarchical_of(indices: &[usize], capacity: usize) -> HierarchicalBitSet {
+    let mut set = HierarchicalBitSet::with_capacity(capacity);
+    for &i in indices {
+        set.insert(i);
+    }
+    set
+}
+
+fn hierarchical_insert_input() -> (HierarchicalBitSet, Vec<usize>) {
+    (
+        HierarchicalBitSet::with_capacity(BITS),
+        shuffled((0..BITS).collect()),
+    )
+}
+
+#[inline(never)]
+fn hierarchical_insert_4k_work(
+    (mut set, indices): (HierarchicalBitSet, Vec<usize>),
+) -> HierarchicalBitSet {
+    for &i in &indices {
+        black_box(set.insert(i));
+    }
+    set
+}
+
+#[library_benchmark]
+#[bench::fixed(setup = hierarchical_insert_input)]
+fn hierarchical_insert_4k(input: (HierarchicalBitSet, Vec<usize>)) -> HierarchicalBitSet {
+    black_box(hierarchical_insert_4k_work(black_box(input)))
+}
+
+fn half_full_hierarchical() -> (HierarchicalBitSet, Vec<usize>) {
+    (
+        hierarchical_of(&half_of(BITS, 0), BITS),
+        shuffled((0..BITS).collect()),
+    )
+}
+
+#[inline(never)]
+fn hierarchical_contains_4k_work((set, indices): (HierarchicalBitSet, Vec<usize>)) -> usize {
+    let mut hits = 0;
+    for &i in &indices {
+        hits += usize::from(set.contains(i));
+    }
+    hits
+}
+
+#[library_benchmark]
+#[bench::fixed(setup = half_full_hierarchical)]
+fn hierarchical_contains_4k(input: (HierarchicalBitSet, Vec<usize>)) -> usize {
+    black_box(hierarchical_contains_4k_work(black_box(input)))
+}
+
+/// 1% of 262,144 indices (2,621 members, spread over most of the 4,096 layer-0 words).
+fn sparse_hierarchical() -> HierarchicalBitSet {
+    let mut indices: Vec<usize> = (0..BIG_BITS).collect();
+    Prng::from_seed(SEED).shuffle(&mut indices);
+    indices.truncate(BIG_BITS / 100);
+    hierarchical_of(&indices, BIG_BITS)
+}
+
+#[inline(never)]
+fn hierarchical_iter_sparse_256k_work(set: &HierarchicalBitSet) -> usize {
+    let mut sum = 0_usize;
+    for i in set {
+        sum = sum.wrapping_add(i);
+    }
+    sum
+}
+
+#[library_benchmark]
+#[bench::fixed(setup = sparse_hierarchical)]
+fn hierarchical_iter_sparse_256k(set: HierarchicalBitSet) -> usize {
+    black_box(hierarchical_iter_sparse_256k_work(black_box(&set)))
+}
+
+/// Three required sets and one excluded, each a different half of the range.
+fn join_sets() -> [HierarchicalBitSet; 4] {
+    [0, 1, 2, 3].map(|pick| hierarchical_of(&half_of(JOIN_BITS, pick), JOIN_BITS))
+}
+
+#[inline(never)]
+fn hierarchical_join_3x1_64k_work(sets: &[HierarchicalBitSet; 4]) -> usize {
+    let [a, b, c, excluded] = sets;
+    let mut sum = 0_usize;
+    for i in Join::new(&[a, b, c], &[excluded]) {
+        sum = sum.wrapping_add(i);
+    }
+    sum
+}
+
+#[library_benchmark]
+#[bench::fixed(setup = join_sets)]
+fn hierarchical_join_3x1_64k(sets: [HierarchicalBitSet; 4]) -> usize {
+    black_box(hierarchical_join_3x1_64k_work(black_box(&sets)))
+}
+
+library_benchmark_group!(
+    name = hierarchical_bit_set;
+    benchmarks =
+        hierarchical_insert_4k,
+        hierarchical_contains_4k,
+        hierarchical_iter_sparse_256k,
+        hierarchical_join_3x1_64k
+);
+
 library_benchmark_group!(
     name = map;
     benchmarks =
@@ -330,4 +439,8 @@ library_benchmark_group!(
         map_get_typeid_64_x8
 );
 
-main!(library_benchmark_groups = map, bit_set);
+main!(
+    library_benchmark_groups = map,
+    bit_set,
+    hierarchical_bit_set
+);
