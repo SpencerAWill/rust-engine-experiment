@@ -8,6 +8,7 @@ use core::iter::FusedIterator;
 use super::BitSet;
 use super::descent::{LAYERS, WordCursor, WordSource};
 use super::exceeds_max_bits;
+use super::join::JoinSource;
 use super::words::{self, MAX_BITS, WORD_BITS, bits_for_words, words_for_bits};
 use crate::collections::error::{BitSetInvariantError, InvariantRule, TryReserveError};
 
@@ -290,6 +291,114 @@ impl HierarchicalBitSet {
             self.clear_parents(word);
         }
         removed
+    }
+
+    /// Adds every member of `other`.
+    ///
+    /// Each layer grows to the trimmed length of `other`'s layer, so `other`'s spare capacity
+    /// does not carry over.
+    pub fn union_with(&mut self, other: &Self) {
+        for (mine, theirs) in self.layers.iter_mut().zip(&other.layers) {
+            let theirs = words::trimmed(theirs);
+            if mine.len() < theirs.len() {
+                mine.resize(theirs.len(), 0);
+            }
+            for (m, t) in mine.iter_mut().zip(theirs) {
+                *m |= t;
+            }
+        }
+        self.top |= other.top;
+    }
+
+    /// Keeps only the members that are also in `other`. It never allocates.
+    pub fn intersect_with(&mut self, other: &Self) {
+        // The cursor holds no borrow between calls: it keeps copies of the upper words it has
+        // yet to visit, and clearing parents only touches bits of paths it has already passed.
+        let mut cursor = WordCursor::new(self.top);
+        while let Some((index, word)) = cursor.next_word(&*self) {
+            let kept = word & other.word(0, index);
+            if kept != word {
+                self.layers[0][index] = kept;
+                if kept == 0 {
+                    self.clear_parents(index);
+                }
+            }
+        }
+    }
+
+    /// Removes the members that are also in `other`. It never allocates.
+    pub fn difference_with(&mut self, other: &Self) {
+        // Only words both sets have non-zero can change, so the cursor walks their AND. As in
+        // `intersect_with`, the source is rebuilt for each call so that no borrow of `self`
+        // outlives it.
+        let mut cursor = WordCursor::new(self.top & other.top);
+        loop {
+            let required = [&*self, other];
+            let source = JoinSource {
+                required: &required,
+                excluded: &[],
+            };
+            let Some((index, common)) = cursor.next_word(&source) else {
+                return;
+            };
+            let word = &mut self.layers[0][index];
+            *word &= !common;
+            if *word == 0 {
+                self.clear_parents(index);
+            }
+        }
+    }
+
+    /// Whether every member is also in `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::HierarchicalBitSet;
+    ///
+    /// let archetype = HierarchicalBitSet::from([0, 2, 5, 9]);
+    /// let query = HierarchicalBitSet::from([2, 5]);
+    /// assert!(query.is_subset(&archetype));
+    /// assert!(archetype.is_superset(&query));
+    /// ```
+    #[must_use]
+    pub fn is_subset(&self, other: &Self) -> bool {
+        let mut cursor = WordCursor::new(self.top);
+        while let Some((index, word)) = cursor.next_word(self) {
+            if word & !other.word(0, index) != 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Whether every member of `other` is also in this set.
+    #[must_use]
+    pub fn is_superset(&self, other: &Self) -> bool {
+        other.is_subset(self)
+    }
+
+    /// Whether the two sets have no member in common.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::HierarchicalBitSet;
+    ///
+    /// let a = HierarchicalBitSet::from([1, 2]);
+    /// assert!(a.is_disjoint(&HierarchicalBitSet::from([3, 1_000_000])));
+    /// assert!(!a.is_disjoint(&HierarchicalBitSet::from([2])));
+    /// ```
+    #[must_use]
+    pub fn is_disjoint(&self, other: &Self) -> bool {
+        let required = [self, other];
+        let source = JoinSource {
+            required: &required,
+            excluded: &[],
+        };
+        WordCursor::new(self.top & other.top)
+            .next_word(&source)
+            .is_none()
     }
 
     /// Whether `index` is a member. An index past the end is not, and nothing is allocated.
@@ -1015,5 +1124,69 @@ mod tests {
         assert!(empty.is_empty());
         assert_eq!(empty.check_invariants(), Ok(()));
         assert_eq!(BitSet::from(&empty), BitSet::new());
+    }
+
+    fn set_of(items: &[usize]) -> HierarchicalBitSet {
+        items.iter().copied().collect()
+    }
+
+    #[test]
+    fn intersect_with_clears_emptied_parents() {
+        // 0 and 64 share a layer-1 word; 4_096 is under another layer-1 word.
+        let mut set = set_of(&[0, 64, 4_096, 262_144]);
+        set.intersect_with(&set_of(&[0, 262_144]));
+        assert_eq!(bounded(set.iter(), 5), [0, 262_144]);
+        assert_eq!(set.layers[1][0], 0b01);
+        assert_eq!(set.layers[1][1], 0);
+        assert_eq!(set.layers[1][64], 1);
+        assert_eq!(set.layers[2][0], 0b01);
+        assert_eq!(set.layers[2][1], 0b01);
+        assert_eq!(set.check_invariants(), Ok(()));
+        set.intersect_with(&HierarchicalBitSet::new());
+        assert!(set.is_empty());
+        assert_eq!(set.top, 0);
+        assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn difference_with_clears_emptied_parents() {
+        let mut set = set_of(&[0, 64, 4_096, 262_144]);
+        set.difference_with(&set_of(&[64, 4_096, 1_000_000]));
+        assert_eq!(bounded(set.iter(), 5), [0, 262_144]);
+        assert_eq!(set.layers[1][0], 0b01);
+        assert_eq!(set.layers[1][1], 0);
+        assert_eq!(set.layers[1][64], 1);
+        assert_eq!(set.check_invariants(), Ok(()));
+        set.difference_with(&set.clone());
+        assert!(set.is_empty());
+        assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn union_with_grows_to_trimmed_length() {
+        let mut big = HierarchicalBitSet::with_capacity(65_536);
+        big.insert(3);
+        let mut set = HierarchicalBitSet::new();
+        set.union_with(&big);
+        assert_eq!(set.as_words().len(), 1);
+        assert_eq!(set.layers[1].len(), 1);
+        assert_eq!(bounded(set.iter(), 3), [3]);
+        set.union_with(&set_of(&[5_000, 70]));
+        assert_eq!(bounded(set.iter(), 5), [3, 70, 5_000]);
+        assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn subset_ignores_capacity() {
+        let small = set_of(&[1, 2]);
+        let mut big = HierarchicalBitSet::with_capacity(65_536);
+        big.extend([1, 2, 3]);
+        assert!(small.is_subset(&big));
+        assert!(big.is_superset(&small));
+        assert!(!big.is_subset(&small));
+        assert!(HierarchicalBitSet::with_capacity(65_536).is_subset(&small));
+        assert!(small.is_disjoint(&set_of(&[3, 100_000])));
+        assert!(!small.is_disjoint(&big));
+        assert!(small.is_disjoint(&HierarchicalBitSet::new()));
     }
 }

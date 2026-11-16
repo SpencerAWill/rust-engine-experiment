@@ -10,9 +10,9 @@ use crate::collections::error::EmptyJoinError;
 
 /// The sets a join reads, seen as one set of words.
 #[derive(Clone, Copy)]
-struct JoinSource<'a> {
-    required: &'a [&'a HierarchicalBitSet],
-    excluded: &'a [&'a HierarchicalBitSet],
+pub(super) struct JoinSource<'a> {
+    pub(super) required: &'a [&'a HierarchicalBitSet],
+    pub(super) excluded: &'a [&'a HierarchicalBitSet],
 }
 
 impl WordSource for JoinSource<'_> {

@@ -92,7 +92,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: set algebra and tests (R3, R6)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `bit_set/hierarchical.rs`, `collections/tests/hierarchical_model.rs`, `libs/engine/tests/collections_laws.rs`.
 - **Interfaces produced:** `union_with`, `intersect_with`, `difference_with` (`&mut self, &Self`); `is_subset`, `is_superset`, `is_disjoint` (`&self, &Self) -> bool`), as §1 describes.
 - **Test first:**
@@ -185,3 +185,4 @@ Choices the spec leaves to implementation:
 - **Step 1: `MAX_BITS`, `bits_for_words` and `words_for_bits`** moved to `words.rs`; `BitSet::MAX_BITS` now refers to `words::MAX_BITS` (same value).
 - **Step 2: `first_word` and `last_word`** were not written: nothing uses them (the set's `first` and `last` descend on their own), and an unused `pub(super)` function fails clippy's `dead_code`. `LAYERS` moved to `descent.rs`.
 - **Step 3: exclusions** are applied as one `word & !excluded` per excluded set at layer 0, not through an OR of the excluded words first (same result). `Join`'s `Debug` prints only the number of required and excluded sets.
+- **Step 4: no `clear_word_upwards`.** `intersect_with` and `difference_with` reuse `clear_parents`. The cursor takes its source per call and keeps copies of the upper words not yet visited, so `intersect_with` advances it over `&*self` and then writes; `difference_with` rebuilds the two-set `JoinSource` each iteration. Nothing is buffered. `JoinSource` is `pub(super)`.

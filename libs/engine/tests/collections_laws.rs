@@ -5,7 +5,7 @@ use std::hash::BuildHasher;
 
 use std::collections::BTreeSet;
 
-use engine::collections::{BitSet, IndexMap, IndexSet};
+use engine::collections::{BitSet, HierarchicalBitSet, IndexMap, IndexSet};
 use foldhash::fast::FixedState;
 use proptest::prelude::*;
 
@@ -155,6 +155,52 @@ proptest! {
         // The same members, a different growth history.
         let left = bit_set_with_history(&a, sa, &ha);
         let right = bit_set_with_history(&a, sb, &hb);
+        prop_assert!(left == right);
+        prop_assert_eq!(hash_of(&left), hash_of(&right));
+    }
+}
+
+/// A hierarchical set holding `members`, with spare capacity and a high insert that is removed
+/// again, which leaves trailing zero words in every layer.
+fn hierarchical_with_history(
+    members: &[usize],
+    spare: usize,
+    high: &[usize],
+) -> HierarchicalBitSet {
+    let mut set = HierarchicalBitSet::new();
+    set.ensure_capacity(spare);
+    for &h in high {
+        set.insert(4_200 + h);
+    }
+    for &m in members {
+        set.insert(m);
+    }
+    for &h in high {
+        set.remove(4_200 + h);
+    }
+    set
+}
+
+proptest! {
+    #[test]
+    fn hierarchical_eq_matches_model_eq(
+        (a, sa, ha) in bit_set_inputs(),
+        (b, sb, hb) in bit_set_inputs(),
+    ) {
+        let left = hierarchical_with_history(&a, sa, &ha);
+        let right = hierarchical_with_history(&b, sb, &hb);
+        let model_a: BTreeSet<usize> = a.iter().copied().collect();
+        let model_b: BTreeSet<usize> = b.iter().copied().collect();
+        prop_assert_eq!(left == right, model_a == model_b);
+    }
+
+    #[test]
+    fn equal_hierarchical_sets_hash_equal(
+        (a, sa, ha) in bit_set_inputs(),
+        (sb, hb) in (0..8_000_usize, prop::collection::vec(0..2_000_usize, 0..3)),
+    ) {
+        let left = hierarchical_with_history(&a, sa, &ha);
+        let right = hierarchical_with_history(&a, sb, &hb);
         prop_assert!(left == right);
         prop_assert_eq!(hash_of(&left), hash_of(&right));
     }

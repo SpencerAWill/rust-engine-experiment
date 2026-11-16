@@ -19,6 +19,9 @@ enum Op {
     TryExtend(Vec<usize>),
     RoundTripBitSet,
     CloneSwap,
+    UnionWith(Vec<usize>),
+    IntersectWith(Vec<usize>),
+    DifferenceWith(Vec<usize>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -54,6 +57,9 @@ fn op() -> impl Strategy<Value = Op> {
         members().prop_map(Op::TryExtend),
         Just(Op::RoundTripBitSet),
         Just(Op::CloneSwap),
+        members().prop_map(Op::UnionWith),
+        members().prop_map(Op::IntersectWith),
+        members().prop_map(Op::DifferenceWith),
     ]
 }
 
@@ -67,7 +73,9 @@ fn model_words(model: &BTreeSet<usize>) -> Vec<u64> {
     words
 }
 
-fn run(ops: &[Op]) {
+fn run(ops: &[Op], probe_members: &[usize]) {
+    let probe: HierarchicalBitSet = probe_members.iter().copied().collect();
+    let probe_model: BTreeSet<usize> = probe_members.iter().copied().collect();
     let mut set = HierarchicalBitSet::new();
     let mut model = BTreeSet::<usize>::new();
     for op in ops {
@@ -106,10 +114,41 @@ fn run(ops: &[Op]) {
                 set = set.clone();
                 (Ret::Unit, Ret::Unit)
             }
+            Op::UnionWith(items) => {
+                let other: HierarchicalBitSet = items.iter().copied().collect();
+                set.union_with(&other);
+                model.extend(items.iter().copied());
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::IntersectWith(items) => {
+                let other: HierarchicalBitSet = items.iter().copied().collect();
+                set.intersect_with(&other);
+                model.retain(|m| items.contains(m));
+                (Ret::Unit, Ret::Unit)
+            }
+            Op::DifferenceWith(items) => {
+                let other: HierarchicalBitSet = items.iter().copied().collect();
+                set.difference_with(&other);
+                model.retain(|m| !items.contains(m));
+                (Ret::Unit, Ret::Unit)
+            }
         };
         assert_eq!(got, want, "after {op:?}");
         check(&set, &model);
+        check_tests(&set, &model, &probe, &probe_model);
+        check_tests(&probe, &probe_model, &set, &model);
     }
+}
+
+fn check_tests(
+    a: &HierarchicalBitSet,
+    model_a: &BTreeSet<usize>,
+    b: &HierarchicalBitSet,
+    model_b: &BTreeSet<usize>,
+) {
+    assert_eq!(a.is_subset(b), model_a.is_subset(model_b));
+    assert_eq!(a.is_superset(b), model_a.is_superset(model_b));
+    assert_eq!(a.is_disjoint(b), model_a.is_disjoint(model_b));
 }
 
 fn check(set: &HierarchicalBitSet, model: &BTreeSet<usize>) {
@@ -135,7 +174,10 @@ fn check(set: &HierarchicalBitSet, model: &BTreeSet<usize>) {
 
 proptest! {
     #[test]
-    fn hierarchical_matches_model(ops in prop::collection::vec(op(), 0..200)) {
-        run(&ops);
+    fn hierarchical_matches_model(
+        ops in prop::collection::vec(op(), 0..200),
+        probe in members(),
+    ) {
+        run(&ops, &probe);
     }
 }
