@@ -30,3 +30,6 @@ dhat-heap*.json
 .claude/worktrees/
 .claude/settings.local.json
 .claude/agent-memory-local/
+
+# macOS Finder metadata: check-docs counts untracked files that are not ignored
+.DS_Store

@@ -249,6 +249,6 @@ None. Decided at acceptance (2026-11-12): the `unsafe` lint fallback (R16), leav
 - [The Rust Fuzz Book: cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) for the package layout and commands.
 - [`arbitrary` crate documentation](https://docs.rs/arbitrary) for structure-aware inputs.
 - [LLVM libFuzzer documentation](https://llvm.org/docs/LibFuzzer.html) for `-max_total_time` and `-max_len`.
-- [Model-based (stateful) testing, as in the existing `libs/engine/tests/handle_model.rs`](../../libs/engine/tests/handle_model.rs) for the op and model structure reused here.
+- [Model-based (stateful) testing, as in the existing `libs/engine/tests/handle_model.rs`](../../../libs/engine/tests/genid_model.rs) (renamed `genid_model.rs` in M3.11) for the op and model structure reused here.
 - [M0+M1 spec §4.7, §4.8 and §4.12](../m0-m1-foundations/spec.md) for the original fuzzing plan; [ADR 0001](../../adr/0001-unsafe-policy.md), [ADR 0002](../../adr/0002-originality-and-dependency-licensing.md), [ADR 0003](../../adr/0003-same-build-determinism.md).
 - No code copied from other projects (ADR 0002).

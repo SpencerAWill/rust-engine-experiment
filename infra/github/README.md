@@ -1,6 +1,6 @@
 # GitHub configuration (Pulumi)
 
-Status: Active (2026-11-12)
+Status: Living (2026-11-15)
 
 This Pulumi project declares the GitHub settings for `SpencerAWill/rust-engine-experiment`:
 repository settings, the ruleset on `main`, labels, Actions permissions, Actions variables
@@ -9,7 +9,22 @@ the next `pulumi up` reverts it.
 
 Commands run on your machine. Pulumi Cloud only stores the state (stack `SpencerAWill/github/prod`).
 
-## Use
+## When this applies
+
+- You change a repository setting, the `main` ruleset, a required check, a label, or an Actions variable or secret.
+- A pull request that changes this directory has merged: run `pulumi preview`, then `pulumi up`.
+
+## Contents
+
+- `index.ts`: every setting, the ruleset and its `requiredChecks`, the labels.
+- `privateVulnerabilityReporting.ts`: a dynamic resource for the one setting the provider lacks (see Notes).
+- `Pulumi.yaml`: the project.
+- `Pulumi.prod.yaml`: the `prod` stack's configuration, secrets encrypted by the stack's key.
+- `package.json`: dependencies (installed with `pnpm` from the repository root).
+- `tsconfig.json`: TypeScript settings.
+- `.gitignore`: keeps `node_modules/` and `bin/` out of git.
+
+## How to
 
 ```sh
 cd infra/github

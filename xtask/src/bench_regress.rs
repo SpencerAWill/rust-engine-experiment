@@ -130,7 +130,8 @@ fn base_regress_dir(listed: &str) -> Option<&'static str> {
 
 /// What the head run can see changed: a change to any of these can change an instruction count
 /// (spec §4.4 step 2). A pattern ending in `/**` matches everything below that directory; any
-/// other pattern matches the path exactly.
+/// other pattern matches the path exactly. `is_relevant` first drops every Markdown path (`.md`),
+/// so a pattern here never needs to exclude documentation under `libs/` or `bench/regress/`.
 const RELEVANT: &[&str] = &[
     "libs/**",
     "bench/regress/**",
@@ -144,8 +145,12 @@ const RELEVANT: &[&str] = &[
 ];
 
 /// Whether a changed path (relative to the repository root, with `/` separators) can change an
-/// instruction count.
+/// instruction count. Markdown never can, so a path ending in `.md` is not relevant even under a
+/// `RELEVANT` directory.
 fn is_relevant(path: &str) -> bool {
+    if crate::check_docs::is_markdown(path) {
+        return false;
+    }
     RELEVANT
         .iter()
         .any(|pattern| match pattern.strip_suffix("**") {
@@ -288,7 +293,7 @@ fn preflight(repo: &Path, head_lock: &str) -> Result<String, String> {
     if std::env::consts::OS != "linux" {
         return Err(format!(
             "bench-regress needs Linux and Valgrind, and this is {}: run it in the devcontainer \
-             (see CONTRIBUTING.md)",
+             (see bench/README.md)",
             std::env::consts::OS
         ));
     }
@@ -777,6 +782,24 @@ mod tests {
             "examples/fixed_step_sim/src/main.rs",
         ] {
             assert!(!is_relevant(path), "{path} should not be relevant");
+        }
+    }
+
+    #[test]
+    fn markdown_is_not_relevant() {
+        for path in [
+            "libs/engine/README.md",
+            "bench/regress/README.md",
+            "libs/engine/src/notes.md",
+        ] {
+            assert!(!is_relevant(path), "{path} should not be relevant");
+        }
+        for path in [
+            "libs/engine/src/lib.rs",
+            ".cargo/mutants.toml",
+            "bench/regress/benches/genid.rs",
+        ] {
+            assert!(is_relevant(path), "{path} should be relevant");
         }
     }
 

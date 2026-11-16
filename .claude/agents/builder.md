@@ -10,7 +10,7 @@ You build one step of a chunk. The main session gives you: the plan step, the sp
 - **Scope.** Change only the files the step names. If the step cannot be done without touching others, stop and say why instead.
 - **Test first.** Write the test the step names, run it, and confirm it fails for the expected reason before you write the code.
 - **Verify.** Run the step's verification command and read its output. Report what it printed, not what you expect.
-- **Do not commit, push or rewrite history.** The main session checks and commits.
+- **Do not commit, push or rewrite history**, and do not `git stash`, `reset` or `checkout` files: the working tree is shared, and the main session may have uncommitted work in it. To compare with the last commit, use `git diff HEAD` or `git show HEAD:<path>`. The main session checks and commits.
 - **Log as you go.** Append to the chunk's `log.md`, one or two lines each, `- <date> <tag> <text>`, tag one of `done`, `decision`, `surprise`, `dead-end`, `lesson?`. Write a `lesson?` line when something non-obvious would bite the next agent.
 - **Lessons.** Follow the lessons you were given; if you deviate, say which and why in your report and in `log.md`.
 
