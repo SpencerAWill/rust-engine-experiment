@@ -35,7 +35,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: the `/triage` skill (R3, R4)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `.claude/skills/triage/SKILL.md` (new), `.claude/README.md` (Contents entry)
 - **Test first:** `cargo xtask check-docs` passes on the branch before the step (the baseline), and the skill's start-up check, run by hand against the expected names in step 6, is the failing case recorded in step 9.
 - **Change:** frontmatter (`name`, `description`, `argument-hint`) in the style of `grill`; the body states the rule (no build, test, benchmark or container command; no file edits), the start-up check (compare the Project's fields and options with the section of `docs/maintainers.md` and stop naming the difference), the loop (list the Inbox; for each issue propose labels, Priority, Size, a definition meeting spec 4.4, possible duplicates and, for an external issue, a short reply; one batch for confirmation; then write), and the exact allowed writes of spec 4.6.
