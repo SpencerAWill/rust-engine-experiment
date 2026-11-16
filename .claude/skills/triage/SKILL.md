@@ -34,7 +34,7 @@ For each issue, one entry:
 - For a Project item labelled `research`, the entry is only: remove it from the Project. No Priority, Size or definition.
 - **Status:** Ready if the definition is complete, otherwise Inbox with what is missing.
 - **Possible duplicates**, by number, with the reason.
-- For an issue whose author is not the maintainer's account (`gh issue view --json author` against `gh api user`): a short, neutral reply that says where the issue stands. Priority wording is for the maintainer; do not post "Later" as a verdict.
+- For an issue whose author is not the maintainer's account (`gh issue view --json author` against `gh api --method GET user --jq .login`): a short, neutral reply that says where the issue stands. Priority wording is for the maintainer; do not post "Later" as a verdict.
 
 Present the batch in one message, ordered by proposed Priority, and ask which entries to apply.
 

@@ -80,9 +80,9 @@ Choices the spec leaves to implementation:
 ### Step 8: migration (R7) · stage 7
 
 - [ ] **Who:** main session, after the maintainer confirms the batch (the same propose-then-confirm as `/triage`)
-- **Test first:** `gh issue list --state open --json number,labels` shows issues without exactly one type label (at least #27 and #30), and `gh project item-list` shows no items.
+- **Test first:** `gh issue list --state open --json number,labels` shows issues without exactly one type label (at least #27 and #30), and `gh project item-list --limit 1000` shows no items.
 - **Change:** per spec 4.9: type labels (#27 and #30 get `infrastructure`), `area:` labels where one applies, Project items and fields for the non-`research` issues, the M3 and M4 tracking issues with the existing chunk issues as sub-issues where they apply, #38 left standalone.
-- **Verify:** a query printing every open issue with its type-label count prints 1 for all; every open issue without `research` has a Status in `gh project item-list`; both outputs in `log.md`.
+- **Verify:** a query printing every open issue with its type-label count prints 1 for all; every open issue without `research` has a Status in `gh project item-list --limit 1000`; both outputs in `log.md`.
 - **Commit:** the log.
 
 ### Step 9: dry runs (R3, R4) · stage 7
