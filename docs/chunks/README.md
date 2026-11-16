@@ -7,7 +7,7 @@ Status: Living (2026-11-15). One folder per chunk of the [roadmap](../roadmap.md
 - You start, resume or review a chunk ([workflow](../workflow.md)).
 - You want to know how something was designed, or why a spec says what it says.
 
-How far to trust a spec, a plan and a log, and how chunk folders are named: [conventions](../README.md#conventions).
+How far to trust a spec, a plan and a log: the `chunks/` row of [docs/README.md](../README.md#contents); how chunk folders are named and when a plan becomes historical: its [conventions](../README.md#conventions).
 
 ## Contents
 
