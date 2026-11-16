@@ -68,7 +68,7 @@ Choices the spec leaves to the plan:
 
 ### Step 6: Library-facing rules into `CONTRIBUTING.md` (R11)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `CONTRIBUTING.md`.
 - **Test first:** n/a (documentation); the rule map of step 8 checks it.
 - **Change:** spec §4.9's first bullet, into "Tests" (coverage and mutants are report-only, so none of these is a CI gate): Coverage's two rules (no `cfg(coverage)`, `cfg(coverage_nightly)` or `#[coverage(...)]`; unit tests in inline `#[cfg(test)]` modules, with the reason), Mutation testing's "no `mutants::` attributes and no `mutants` dependency in library code", and Fuzzing's "turn a crash into a failing test first". The manual copies are removed in step 7.
