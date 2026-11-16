@@ -79,7 +79,7 @@ The shape is recorded once, in `docs/README.md` "Conventions"; `check-docs` enfo
 
 - An entry is a top-level bullet, or a table row other than the header row. Its name is the first inline code span or link in it, whichever comes first; for a link, the name is its target. An entry with no code span or link is prose and is ignored. A name that starts with `../`, `/` or a URL scheme is a cross-reference and is ignored.
 - A name is a path relative to the README's directory, with any trailing `/` and `#anchor` removed. The child it covers is its first path segment.
-- Every tracked file or directory directly inside the README's directory, other than `README.md`, MUST be covered by an entry. "Tracked" means listed by `git ls-files`; a directory is tracked when it contains a tracked file.
+- Every tracked file or directory directly inside the README's directory, other than `README.md`, MUST be covered by an entry. "Tracked" means listed by `git ls-files --cached --others --exclude-standard` (files in the index plus untracked files that are not ignored), so a local run sees new files before they are staged and CI, whose checkout has no untracked files, sees the same set *(main session's call)*; a directory is tracked when it contains a tracked file. Every check of this spec uses this set.
 - Every entry's name MUST be a tracked file or directory.
 - A name containing `*` is a wildcard: `*` matches any run of characters within one path segment, never `/`. It covers every child it matches and MUST match at least one. `docs/chunks/README.md` lists `_template/`, `m0-m1-foundations/` and `m*/`.
 
