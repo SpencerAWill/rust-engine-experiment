@@ -21,6 +21,18 @@ const fn shift(k: usize) -> usize {
     WORD_SHIFT as usize * (k + 1)
 }
 
+/// The most words layer `k` can need for an index below [`MAX_BITS`]. Computed from `MAX_BITS`,
+/// not from `usize::BITS`, so it is the same on every target.
+const MAX_WORDS: [usize; VECTOR_LAYERS] = {
+    let mut words = [0; VECTOR_LAYERS];
+    let mut k = 0;
+    while k < VECTOR_LAYERS {
+        words[k] = ((MAX_BITS - 1) >> shift(k)) + 1;
+        k += 1;
+    }
+    words
+};
+
 /// A set of small non-negative integers in six layers of `u64` words, so that iteration can skip
 /// empty ranges.
 ///
@@ -238,6 +250,11 @@ impl HierarchicalBitSet {
     fn grow_to_hold(&mut self, index: usize) -> Result<(), TryReserveError> {
         // The one place the per-layer word count is computed.
         let needed: [usize; VECTOR_LAYERS] = core::array::from_fn(|k| (index >> shift(k)) + 1);
+        // Defensive bound, unreachable through the public API (`try_insert` rejects
+        // `index >= MAX_BITS` first): never ask for more than an in-range index can need.
+        if needed.iter().zip(&MAX_WORDS).any(|(n, max)| n > max) {
+            return Err(TryReserveError::capacity_overflow());
+        }
         for (layer, &needed) in self.layers.iter_mut().zip(&needed) {
             layer
                 .try_reserve(needed.saturating_sub(layer.len()))
@@ -1018,6 +1035,22 @@ mod tests {
         assert_eq!(bounded(small.as_trimmed_words().iter(), 3), [&0b110]);
     }
 
+    #[test]
+    fn max_words_are_the_literal_per_layer_counts() {
+        assert_eq!(MAX_WORDS, [1 << 26, 1 << 20, 1 << 14, 1 << 8, 4]);
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn grow_beyond_max_words_is_rejected_unchanged() {
+        let mut set = HierarchicalBitSet::new();
+        set.insert(5);
+        let before = set.clone();
+        assert!(set.grow_to_hold(1 << 40).is_err());
+        assert_eq!(set, before);
+        assert_eq!(set.layers[0].len(), 1);
+    }
+
     #[cfg(target_pointer_width = "64")]
     #[test]
     fn top_of_range() {
@@ -1030,6 +1063,9 @@ mod tests {
             assert!(set.insert(i), "insert {i}");
             assert!(set.contains(i));
             assert_eq!(set.check_invariants(), Ok(()), "after insert {i}");
+        }
+        for (layer, max) in set.layers.iter().zip(MAX_WORDS) {
+            assert_eq!(layer.len(), max);
         }
         assert_eq!(set.top, 0b1111); // all of top's bits 0 to 3
         assert!(set.try_insert(max).is_err());
