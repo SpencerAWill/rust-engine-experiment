@@ -13,6 +13,7 @@ A lesson is guidance an agent or contributor follows by default and may deviate 
 
 - [`bench.md`](bench.md): what the instruction-count gate counts as relevant.
 - [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
+- [`perf.md`](perf.md): inlining hot paths, and measuring heap bytes with `dhat` and wall clock against baselines.
 - [`specs.md`](specs.md): writing specs and plans whose checks can pass.
 - [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
 - [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents.
