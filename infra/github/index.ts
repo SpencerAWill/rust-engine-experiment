@@ -29,9 +29,10 @@ const repo = new github.Repository(
         visibility: "public",
 
         hasIssues: true,
-        // Repository Projects are off: the backlog is issues plus a user-owned Project
-        // (docs/maintainers.md, "Issue tracking"). No wiki: the design record is docs/.
-        hasProjects: false,
+        // Repository Projects are on so the backlog's user-owned Project (docs/maintainers.md,
+        // "Issue tracking") shows on the repository page; M3.9 had them off while nothing used them.
+        // No wiki: the design record is docs/.
+        hasProjects: true,
         hasWiki: false,
         // Questions go here, not to issues (the issue chooser links to it: .github/ISSUE_TEMPLATE/config.yml).
         hasDiscussions: true,
