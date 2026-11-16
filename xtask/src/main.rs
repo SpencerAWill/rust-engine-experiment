@@ -11,6 +11,7 @@
 mod bench_doc;
 mod bench_regress;
 mod bench_report;
+mod check_docs;
 mod check_statics;
 mod check_unsafe;
 mod check_workflows;
@@ -41,6 +42,7 @@ enum Command {
     CheckUnsafe,
     CheckStatics,
     CheckWorkflows,
+    CheckDocs,
     GuardPush,
     NoStd,
     Wasm,
@@ -103,6 +105,7 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
         "check-statics" => only(&[]).map(|()| Command::CheckStatics),
         "check-workflows" => only(&[]).map(|()| Command::CheckWorkflows),
+        "check-docs" => only(&[]).map(|()| Command::CheckDocs),
         "guard-push" => only(&[]).map(|()| Command::GuardPush),
         "prng-stats" => parse_prng_stats(flags),
         "no-std" => only(&[]).map(|()| Command::NoStd),
@@ -491,6 +494,7 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::CheckUnsafe => check_unsafe::run(),
         Command::CheckStatics => check_statics::run(),
         Command::CheckWorkflows => check_workflows::run(),
+        Command::CheckDocs => check_docs::run(),
         // `main` runs this one directly, since it exits with a code other than 1.
         Command::GuardPush => Err("guard-push is run by `main`".to_string()),
         Command::NoStd => no_std(),
@@ -628,6 +632,12 @@ mod tests {
         assert!(parse(&["check-workflows", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::CheckWorkflows));
         assert!(!ci_steps(true).contains(&Command::CheckWorkflows));
+    }
+
+    #[test]
+    fn check_docs_parses_and_is_not_yet_a_ci_step() {
+        assert_eq!(parse(&["check-docs"]), Ok(Command::CheckDocs));
+        assert!(parse(&["check-docs", "--x"]).is_err());
     }
 
     #[test]

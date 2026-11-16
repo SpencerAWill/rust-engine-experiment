@@ -36,7 +36,7 @@ Choices the spec leaves to the plan:
 
 ### Step 3: `check-docs`: files, globs, frontmatter, lessons, links, `AGENTS.md` (R4 to R8)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `xtask/Cargo.toml`, `Cargo.lock`, `xtask/src/main.rs` (`Command::CheckDocs`, `"check-docs"` in `parse`, `execute`; **not** in `ci_steps` yet), `xtask/src/check_docs.rs`, `xtask/src/check_docs/{glob,markdown,links,frontmatter}.rs`.
 - **Test first:** unit tests against fixture trees, written before the code and seen failing (compile error, then failures against stubs that return no problems):
   - glob: `*` stays in one segment; `?`; `**` at the start, middle and end, matching zero segments too (`docs/**` matches `docs/a.md`, `**/README.md` matches `README.md`); rejection of `{a,b}`, `[ab]`, `!x`.
@@ -137,4 +137,4 @@ Choices the spec leaves to the plan:
 
 ## 5. Deviations
 
-None yet.
+- **Step 3, link resolution.** Spec §4.6 says targets resolve against the file's directory; a target with a leading `/` resolves from the repository root instead, as GitHub renders it. A `?query` is ignored and protocol-relative `//x` links are skipped. No such link exists today.
