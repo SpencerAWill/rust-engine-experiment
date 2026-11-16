@@ -96,7 +96,7 @@ pub struct HierarchicalBitSet { layers: [Vec<u64>; 5], top: u64 }
 | Traits | `Clone`, `Debug`, `Default`, `PartialEq`, `Eq`, `Hash` |
 
 - `insert` sets the bit in layer 0 and, only if that word was zero before, sets the parent bits upwards, stopping at the first parent word that was already non-zero. `remove` clears the bit and, only if the word became zero, clears the parent bits upwards, stopping at the first parent word that stays non-zero. `contains` reads layer 0 only.
-- `intersect_with`, `difference_with`, `is_subset`, `is_superset` and `is_disjoint` SHOULD visit only the layer-0 words under set bits of the upper layers (of `self`, or of both sets for `is_disjoint` and `intersect_with`), so their cost follows the non-empty words. `union_with` grows `self` to `other`'s length if it is longer.
+- `intersect_with`, `difference_with`, `is_subset`, `is_superset` and `is_disjoint` SHOULD visit only the layer-0 words under set bits of the upper layers (of `self`, or of both sets for `is_disjoint` and `intersect_with`), so their cost follows the non-empty words. `union_with` grows `self` to `other`'s trimmed length (`other.as_trimmed_words().len()`) if that is longer, as `BitSet::union_with` does, so a union with a set of large capacity but low members does not allocate (§4.6) *(main session's call)*.
 - `symmetric_difference_with` is left out (my call): nothing planned needs it, and it is the one operation whose upper layers cannot be updated without re-deriving them.
 - Every operation's result MUST equal the same operation on a `BTreeSet<usize>` with the same members, and `check_invariants` MUST pass after every operation.
 - Equality, hashing and `Debug` follow M3.14 §4.5: equality and `Hash` depend only on the members (`Hash` hashes `as_trimmed_words()`), and `Debug` prints `{3, 1000000}`.
@@ -145,20 +145,21 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 
 **Tests.**
 
-- A proptest model in `libs/engine/src/collections/tests/` drives random operation sequences (every method of §4.3, with indices near zero, near word and layer boundaries (multiples of 64, 4,096, 262,144) and near `MAX_BITS`) against a `BTreeSet<usize>`, comparing members, `len`, `is_empty`, `first`, `last`, iteration and `contains`, and calling `check_invariants`, after each operation.
+- A proptest model in `libs/engine/src/collections/tests/` drives random operation sequences (every method of §4.3, with indices below 1,048,576, drawn near zero and near word and layer boundaries: multiples of 64, 4,096 and 262,144) against a `BTreeSet<usize>`, comparing members, `len`, `is_empty`, `first`, `last`, iteration and `contains`, and calling `check_invariants`, after each operation. Indices are capped because layer 0 is dense: one member near `MAX_BITS` costs about 512 MiB, and a model case may clone or union it *(main session's call, following M3.14's capped model and `u16` fuzz indices)*.
+- Top-of-range unit tests, separate from the model: `insert`, `contains`, `remove`, `first`, `last` and iteration with members at `MAX_BITS - 1` and at 2^30, 2^31 and 3 × 2^30 (so `top`'s bits 0 to 3 are each set), with `check_invariants` after each, and the panic at `MAX_BITS`. These allocate up to 512 MiB, so they run on 64-bit hosts only (`#[cfg(target_pointer_width = "64")]`); the wasm run covers the layer arithmetic through the capped model *(main session's call)*.
 - A `Join` proptest: one to four required and zero to two excluded sets, including repeats and sets of different lengths, against `BTreeSet` intersection and difference.
 - A golden test of the layers: a fixed set of indices produces literal words in layers 0 to 5.
 - Conversions to and from `BitSet` keep the members; equality and hashing across capacities, as M3.14 §4.8.
-- `tests/allocations.rs` (`dhat`) for §4.6; `#[should_panic(expected = ...)]` tests for every panic of §4.5, with a panic-hook test of the caller's location; compile-time `Send + Sync + Unpin` assertions.
+- `libs/engine/tests/collections_allocations.rs` (`dhat`) for §4.6; `#[should_panic(expected = ...)]` tests for every panic of §4.5, with a panic-hook test of the caller's location; compile-time `Send + Sync + Unpin` assertions.
 
-**Fuzzing.** A new target, `fuzz/fuzz_targets/hierarchical_bit_set_ops.rs`, applies operation sequences and joins to three `HierarchicalBitSet`s against `BTreeSet<usize>` models, calls `check_invariants` after each operation, and is added to the nightly fuzz job's target list.
+**Fuzzing.** A new target, `fuzz/fuzz_targets/hierarchical_bit_set_ops.rs`, applies operation sequences and joins to three `HierarchicalBitSet`s against `BTreeSet<usize>` models, with indices below 1,048,576 so the three sets and their clones stay far under libFuzzer's 2 GiB limit *(main session's call)*, calls `check_invariants` after each operation, and is added to the nightly target list in `xtask/src/fuzz.rs`.
 
 **Benchmarks.**
 
 - `bench/regress/benches/collections.rs` (Gungraun, gated at 5%, each above the gate's 10,000-instruction minimum): inserting 4,096 indices into a set made `with_capacity(4_096)`; `contains` over 4,096 indices at 50% occupancy; iterating a 262,144-bit range at 1% occupancy; a `Join` of three sets with one exclusion at 50% occupancy.
 - `bench/compare/benches/collections.rs` (wall clock, report only): insert, `contains`, iteration, and a three-way intersection with one exclusion, on `HierarchicalBitSet`, `BitSet`, `hibitset::BitSet` and `hi_sparse_bitset::BitSet` (the `_128bit` config, whose range of 2,097,152 indices covers the cases), over a 1,048,576-index range at 0.1%, 1%, 50% and 99% occupancy, with members spread uniformly and clustered in runs. `BitSet` has no multi-way join, so its intersection is done with `intersect_with` into a scratch set, and the report says so. The dev-dependencies are `hibitset` with default features off (no `rayon`) and `hi_sparse_bitset` with its defaults; both MUST pass `cargo xtask deny` without changes to `deny.toml`.
 
-**Space report.** A report-only target in `bench/compare` builds each of the four structures for each occupancy and spread above, plus "one member at index 1,000,000", under `dhat`, and prints a table of heap bytes after building, peak heap bytes during building, and bytes per member. `dhat`'s peak is per process, so each measurement runs in a fresh process or the target documents how it isolates them (the plan decides). The pull request carries the table, the machine and the commit.
+**Space report.** A report-only target in `bench/compare` builds each of the four structures for each occupancy and spread above, plus "one member at index 1,000,000", under `dhat`, and prints a table of heap bytes after building, peak heap bytes during building, and bytes per member. Each structure is built empty, with no presizing, by inserting the members one at a time in a seeded random order, as M4's component sets will fill; where the structure has `shrink_to_fit` (ours and `BitSet`), a third column gives the bytes after it *(main session's call: presizing would make our peak equal our final size and hide growth)*. `dhat`'s peak is per process, so each measurement runs in a fresh process or the target documents how it isolates them (the plan decides). The pull request carries the table, the machine and the commit.
 
 **xtask.** The new files are in the triaged `collections` mutants module; new missed mutants and timeouts are triaged in `docs/mutation-triage.md`.
 
@@ -224,11 +225,11 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 | R2 | golden layer test; a unit test of `MAX_BITS`; unit tests that `check_invariants` reports a hand-broken set (built with a test-only constructor); the suite under `cargo xtask wasm` and on 64-bit CI hosts |
 | R3 | the proptest model of §4.8 |
 | R4 | the proptest model compares iteration; a unit test counting the layer-0 words visited when iterating a set with two members 1,000,000 apart (a test-only counter, or the Gungraun 1%-occupancy benchmark's instruction count) |
-| R5 | the `Join` proptest; `tests/allocations.rs` |
+| R5 | the `Join` proptest; `libs/engine/tests/collections_allocations.rs` |
 | R6 | proptests of equality and hashing across capacities, with a hasher that records its input |
 | R7 | compile-time assertions |
 | R8 | `#[should_panic(expected = ...)]` tests; panic-hook location test; review of `# Panics` sections |
-| R9 | `tests/allocations.rs` (`dhat`): zero blocks for every operation of §4.6 |
+| R9 | `libs/engine/tests/collections_allocations.rs` (`dhat`): zero blocks for every operation of §4.6 |
 | R10 | documentation review; `cargo xtask doc` |
 | R11 | `cargo xtask no-std`; `cargo xtask wasm` |
 | R12 | the fuzz target file; the nightly job's target list; the local `cargo xtask fuzz` summary in the pull request |
