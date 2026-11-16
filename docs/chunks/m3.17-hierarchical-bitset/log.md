@@ -20,3 +20,6 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-16 done `cargo xtask deny` passes with `hibitset` 0.6.4 (default features off) and `hi_sparse_bitset` 0.10.0 added to `bench/compare` (checked in a throwaway worktree, not committed): its `MIT/Apache-2.0` licence string is accepted.
 - 2026-11-16 decision Spec accepted by the maintainer.
 - 2026-11-16 done Plan written and accepted (10 steps). Lessons (lessons-researcher, registered agent): testing-1 and specs-2 followed; bench-1, specs-1, docs-1 not applicable.
+- 2026-11-16 done Step 1 (builder, registered agent): layers, single-bit operations, `check_invariants`, `BitSetInvariantError`. Main session re-ran `ci --quick` (700 passed, 6 skipped), `wasm` (engine lib 173 passed) and `no-std`.
+- 2026-11-16 surprise Spec §4.8's top-of-range members could not set `top`'s bit 0 (layer 4's word index is `i >> 30`); member 0 added, spec parenthesis corrected (plan §5).
+- 2026-11-16 lesson? Under wasm32, `MAX_BITS + 1` in a test is a deny-by-default overflow lint; use `checked_add`. Clippy pedantic rejects `usize as u32` and `u64 as usize` casts in layer arithmetic (builder report).

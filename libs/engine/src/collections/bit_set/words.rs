@@ -5,6 +5,21 @@
 /// Bits in a word.
 pub(super) const WORD_BITS: usize = 64;
 
+/// The number of valid bit indices of every bitset: `u32::MAX`, on every target.
+pub(super) const MAX_BITS: usize = u32::MAX as usize;
+
+/// The number of bits in `words` words, saturating at [`MAX_BITS`].
+///
+/// A plain `words * 64` overflows `usize` on a 32-bit target.
+pub(super) fn bits_for_words(words: usize) -> usize {
+    words.saturating_mul(WORD_BITS).min(MAX_BITS)
+}
+
+/// The words that hold `bits` bits, or `None` if `bits` is above [`MAX_BITS`].
+pub(super) fn words_for_bits(bits: usize) -> Option<usize> {
+    (bits <= MAX_BITS).then(|| bits.div_ceil(WORD_BITS))
+}
+
 /// The word index and the single-bit mask of bit `i`.
 #[inline]
 pub(super) const fn locate(i: usize) -> (usize, u64) {

@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine::collections::{BitArray, BitSet, IndexMap};
+use engine::collections::{BitArray, BitSet, HierarchicalBitSet, IndexMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -151,6 +151,36 @@ fn bit_set_from_words_past_max_bits_panics_at_caller() {
         "panic location was {file}"
     );
     assert!(message.contains("try_from_words"), "message was {message}");
+}
+
+#[test]
+fn hierarchical_insert_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.insert(HierarchicalBitSet::MAX_BITS);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "use try_insert", "HierarchicalBitSet::insert:"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn hierarchical_with_capacity_past_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = HierarchicalBitSet::with_capacity(HierarchicalBitSet::MAX_BITS + 1);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "try_with_capacity"] {
+        assert!(message.contains(part), "message was {message}");
+    }
 }
 
 /// Runs `f`, which must panic, and returns where it panicked and what it said.

@@ -10,12 +10,29 @@
 //! least significant bit, of word `i / 64`. The `as_words` methods expose this layout, so it is
 //! part of the API: a change to it is a breaking change.
 //!
+//! # Hierarchical layers
+//!
+//! [`HierarchicalBitSet`] keeps layer 0 in the layout above and adds five layers over it, so that
+//! a range with no members can be skipped. For `k` in 1 to 5, bit `b` of word `j` of layer `k` is
+//! set if and only if word `j × 64 + b` of layer `k - 1` exists and is non-zero. Layer 5 is a
+//! single word, `top`, of which only bits 0 to 3 are ever set, because the largest index,
+//! [`HierarchicalBitSet::MAX_BITS`] `- 1` (`u32::MAX - 1`), has a layer-4 word index of 3. One
+//! bit of layer 1 covers 64 indices, of layer 2 4,096, of layer 3 262,144, and so on. The layers
+//! are the same on every target: nothing is sized from the pointer width.
+//!
+//! **Space.** Layer 0 is dense: it holds at least `ceil((highest index + 1) / 64)` words, however
+//! few members there are. Each upper layer holds at most 1/64 of the layer below, plus one word.
+//! A set with one member at index `i` therefore takes about `i / 8` bytes, and one at
+//! `MAX_BITS - 1` about 512 MiB. A sparse variant that stores only occupied blocks would not
+//! have that cost; it is not part of this module.
+//!
 //! # Iteration
 //!
 //! [`Iter`] yields the members in ascending order, and from the back in descending order. It
 //! costs O(1) per member plus O(1) per zero word.
 
 mod array;
+mod hierarchical;
 mod iter;
 mod words;
 
@@ -24,22 +41,11 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 
 pub use array::BitArray;
+pub use hierarchical::HierarchicalBitSet;
 pub use iter::{IntoIter, Iter};
 
 use crate::collections::error::TryReserveError;
-use words::WORD_BITS;
-
-/// The number of bits in `words` words, saturating at [`BitSet::MAX_BITS`].
-///
-/// A plain `words * 64` overflows `usize` on a 32-bit target.
-fn bits_for_words(words: usize) -> usize {
-    words.saturating_mul(WORD_BITS).min(BitSet::MAX_BITS)
-}
-
-/// The words that hold `bits` bits, or `None` if `bits` is above [`BitSet::MAX_BITS`].
-fn words_for_bits(bits: usize) -> Option<usize> {
-    (bits <= BitSet::MAX_BITS).then(|| bits.div_ceil(WORD_BITS))
-}
+use words::{bits_for_words, words_for_bits};
 
 /// Whether a set bit at `highest` breaks the invariant of [`BitSet`].
 fn exceeds_max_bits(highest: u64) -> bool {
@@ -97,7 +103,7 @@ impl BitSet {
     ///
     /// It is `u32::MAX` on every target, so a program behaves the same on 32-bit and 64-bit
     /// targets.
-    pub const MAX_BITS: usize = u32::MAX as usize;
+    pub const MAX_BITS: usize = words::MAX_BITS;
 
     /// An empty set. It does not allocate.
     #[must_use]

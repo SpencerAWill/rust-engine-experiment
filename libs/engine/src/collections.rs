@@ -100,8 +100,8 @@ mod hasher;
 pub mod index_map;
 pub mod index_set;
 
-pub use bit_set::{BitArray, BitSet};
-pub use error::{BitIndexError, TryReserveError};
+pub use bit_set::{BitArray, BitSet, HierarchicalBitSet};
+pub use error::{BitIndexError, BitSetInvariantError, TryReserveError};
 pub use index_map::IndexMap;
 pub use index_set::IndexSet;
 

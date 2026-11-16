@@ -47,7 +47,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: layers and single-bit operations (R2, R6 to R8 for the set; part of R3 and R10)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `collections/bit_set.rs` (module declarations and re-exports; module docs gain the layer rule of spec §4.2 and the space bound of §4.7), `bit_set/words.rs` (`bits_for_words`, `words_for_bits` moved here), `bit_set/hierarchical.rs` (new), `collections/error.rs`, `collections.rs` (re-exports), `libs/engine/tests/collections_panics.rs`, `libs/engine/tests/collections_auto_traits.rs`.
 - **Interfaces produced:** `pub struct HierarchicalBitSet` with `MAX_BITS`, `const fn new`, `with_capacity`, `try_with_capacity`, `ensure_capacity`, `try_ensure_capacity`, `capacity`, `shrink_to_fit`, `clear`, `insert`, `try_insert`, `remove`, `contains`, `len`, `is_empty`, `first`, `last`, `as_words`, `as_trimmed_words`, `check_invariants`; `Clone`, `Default`, `Debug`, `PartialEq`, `Eq`, `Hash`; `BitSetInvariantError`. `first` and `last` descend from `top` without the cursor (`trailing_zeros` and `leading_zeros` per layer). `Debug` iterates layer 0 with the existing flat `Iter::new` until Step 2.
 - **Test first:**
@@ -179,4 +179,7 @@ Choices the spec leaves to implementation:
 
 ## 5. Deviations
 
-None yet.
+- **Step 1: panic message.** It follows `BitSet`'s wording ("... is not allowed: indices and capacities are limited to HierarchicalBitSet::MAX_BITS (...) and the allocation must succeed; use try_insert to handle it"), because the plan's text was wrong when an allocation fails.
+- **Step 1: `BitSetInvariantError`** has a third private field, the broken rule, so `Display` names it.
+- **Step 1: top-of-range members.** Layer 4's word index is `i >> 30`, so `2^30`, `2^31`, `3 × 2^30` and `MAX_BITS - 1` set only `top`'s bits 1 to 3; the test adds member 0 for bit 0. Spec §4.8's parenthesis said the three powers set bits 0 to 3; corrected there.
+- **Step 1: `MAX_BITS`, `bits_for_words` and `words_for_bits`** moved to `words.rs`; `BitSet::MAX_BITS` now refers to `words::MAX_BITS` (same value).
