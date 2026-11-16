@@ -1,6 +1,6 @@
 # M3.18: Issue tracking
 
-- **Status:** Draft (2026-11-16)
+- **Status:** Accepted (2026-11-16)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.16 · **Decides:** no ADR (process and documentation; the Project's configuration is not code, see 4.6)
 - **Estimated size:** about 500 changed lines of Markdown and YAML, about 60 lines in `infra/github/index.ts`, one new skill
 
