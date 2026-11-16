@@ -209,7 +209,11 @@ fn hierarchical_ensure_capacity_past_max_bits_panics_at_caller() {
         file.ends_with("tests/collections_panics.rs"),
         "panic location was {file}"
     );
-    for part in ["MAX_BITS", "ensure_capacity", "try_ensure_capacity"] {
+    for part in [
+        "MAX_BITS",
+        "HierarchicalBitSet::ensure_capacity:",
+        "try_ensure_capacity",
+    ] {
         assert!(message.contains(part), "message was {message}");
     }
 }
@@ -224,7 +228,7 @@ fn hierarchical_extend_at_max_bits_panics_at_caller() {
         file.ends_with("tests/collections_panics.rs"),
         "panic location was {file}"
     );
-    for part in ["extend", "try_extend"] {
+    for part in ["HierarchicalBitSet::extend:", "try_extend"] {
         assert!(message.contains(part), "message was {message}");
     }
 }
@@ -239,7 +243,7 @@ fn hierarchical_extend_ref_at_max_bits_panics_at_caller() {
         file.ends_with("tests/collections_panics.rs"),
         "panic location was {file}"
     );
-    for part in ["extend", "try_extend"] {
+    for part in ["HierarchicalBitSet::extend:", "try_extend"] {
         assert!(message.contains(part), "message was {message}");
     }
 }
@@ -253,7 +257,7 @@ fn hierarchical_from_array_at_max_bits_panics_at_caller() {
         file.ends_with("tests/collections_panics.rs"),
         "panic location was {file}"
     );
-    for part in ["from", "try_extend"] {
+    for part in ["HierarchicalBitSet::from:", "try_extend"] {
         assert!(message.contains(part), "message was {message}");
     }
 }

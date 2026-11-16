@@ -19,7 +19,7 @@
 //! [`HierarchicalBitSet::MAX_BITS`] `- 1` (`u32::MAX - 1`), has a layer-4 word index of 3. One
 //! bit of layer 1 covers 64 indices, of layer 2 4,096, of layer 3 262,144, and so on. The layers
 //! are the same on every target: nothing is sized from the pointer width. The layer scheme and
-//! the join follow the design of the [`hibitset`](https://docs.rs/hibitset) crate (from the
+//! the join follow the design of the [`hibitset`](https://docs.rs/hibitset/0.6.4) crate (from the
 //! `specs` ECS); the code is our own.
 //!
 //! **Space.** Layer 0 is dense: it holds at least `ceil((highest index + 1) / 64)` words, however

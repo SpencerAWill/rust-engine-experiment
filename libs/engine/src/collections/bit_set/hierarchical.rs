@@ -885,6 +885,12 @@ mod tests {
     }
 
     #[test]
+    fn iter_debug_format() {
+        let set = HierarchicalBitSet::new();
+        assert_eq!(debug_bounded(&set.iter(), 64), "HierarchicalIter { .. }");
+    }
+
+    #[test]
     fn debug_format() {
         let mut set = HierarchicalBitSet::new();
         assert_eq!(debug_bounded(&set, 64), "{}");
