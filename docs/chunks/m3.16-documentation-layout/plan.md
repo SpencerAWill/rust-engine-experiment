@@ -59,7 +59,7 @@ Choices the spec leaves to the plan:
 
 ### Step 5: Fix the broken links (R13)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `docs/chunks/m2.0-roadmap-and-process/plan.md`, `docs/chunks/m2.1-fuzzing/spec.md`, and any other file `check-docs` reports a link problem in before any README work.
 - **Test first:** `cargo xtask check-docs 2>&1 | grep 'link'` lists the #58 links.
 - **Change:** as spec §4.10; any other broken link fixed the same way and listed in `log.md`.
