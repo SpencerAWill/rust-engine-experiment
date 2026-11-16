@@ -27,9 +27,9 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 
 The path from an idea to a chunk is in [workflow.md](workflow.md#from-issue-to-chunk). This section is the Project's configuration, which lives in GitHub, not in the repository. `/triage` checks the live Project against these names and stops if they differ.
 
-- **Project:** "Engine backlog", user-owned (`SpencerAWill`), private until the repository goes public, linked to this repository. Provisional: keep it for a milestone, then keep or drop it by how much the backlog grew.
+- **Project:** "Engine backlog", user-owned (`SpencerAWill`), public like the repository (so Priority wording stays neutral), linked to this repository. Provisional: keep it for a milestone, then keep or drop it by how much the backlog grew.
 - **Status:** Inbox, Ready, Scheduled, Done. **Priority:** Now, Next, Later. **Size:** S, M, L, XL. All single-select. There is no Parked status.
-- **Automation:** auto-add issues from this repository unless labelled `research`; Status becomes Done when an issue closes. `research` issues (the icebox, #38 included) are not Project items.
+- **Automation:** auto-add issues from this repository unless labelled `research`; "Item added to project" sets Status to Inbox (and "Item reopened" sets it back to Inbox), because the stock default is an option this Project does not have; Status becomes Done when an issue closes. `research` issues (the icebox, #38 included) are not Project items.
 - **Views:** Inbox, Ready by Priority, Scheduled, and a board.
 - **Labels** are declared in `infra/github/index.ts`. Every issue carries exactly one type label (`bug`, `enhancement`, `infrastructure`, `documentation`, `research`); `performance` and `determinism` are additive; `area:*` is for code only.
 - **Contributors:** a Ready issue that is small and safe may carry `help wanted` or `good first issue`. Claim an issue before starting by assigning yourself or commenting, so two people (or two agents) do not do the same work.

@@ -23,7 +23,7 @@ Blank issues are off. Pick the template that fits:
 | Ask a question | none: use Discussions | |
 | Report a vulnerability | none: report it privately ([SECURITY.md](SECURITY.md)) | |
 
-The templates are issue forms in `.github/ISSUE_TEMPLATE/`; the labels they assign are declared in `infra/github/index.ts`, so a new label goes there too. They ask for the outcome and how it is verified, which is what lets an issue be scheduled. How an issue becomes a chunk is in [docs/workflow.md](docs/workflow.md#from-issue-to-chunk). To work on an open issue, assign yourself or comment first, so the work is not done twice; issues marked `help wanted` or `good first issue` are the ones open for it.
+The templates are issue forms in `.github/ISSUE_TEMPLATE/`; the labels they assign are declared in `infra/github/index.ts`, so a new label goes there too. They ask for the outcome and how it is verified, which is what lets an issue be scheduled. How an issue becomes a chunk is in [docs/workflow.md](docs/workflow.md#from-issue-to-chunk). An issue filed with `gh issue create` (by a person or an assistant) uses the same headings as the forms: **The problem**, **Proposal**, **Done when**, **How it is verified**, **Depends on** (optional), and, for an assistant-drafted one, the line "An assistant drafted this issue." and `--label ai-assisted`. To work on an open issue, assign yourself or comment first, so the work is not done twice; issues marked `help wanted` or `good first issue` are a good place to start.
 
 ## Licence and originality
 

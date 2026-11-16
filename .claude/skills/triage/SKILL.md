@@ -8,7 +8,7 @@ argument-hint: "[issue numbers, or empty for the whole Inbox]"
 
 Reviews and defines unscheduled issues before any work is done on them. The path, the vocabulary and the Definition of Ready are in [docs/workflow.md](../../../docs/workflow.md#from-issue-to-chunk); the Project's field and option names are in [docs/maintainers.md](../../../docs/maintainers.md#issue-tracking). Neither is repeated here.
 
-Issues: `$ARGUMENTS` (default: every open issue whose Project Status is Inbox, plus open issues that are not Project items and do not carry `research`).
+Issues: `$ARGUMENTS` (default: every open issue whose Project Status is Inbox or empty, open issues that are not Project items and do not carry `research`, and Project items that carry `research`, which are removed).
 
 ## The rule: machine-light
 
@@ -26,8 +26,8 @@ For each issue read its body, labels, comments, and linked issues. Search the ro
 
 For each issue, one entry:
 
-- **Labels:** exactly one type label (`bug`, `enhancement`, `infrastructure`, `documentation` or `research`), `performance` or `determinism` where they apply, an `area:` label where the issue is about one module or tool, `needs-measurement` where it applies, and `ai-assisted` if the form's "An assistant drafted this issue" box is ticked (the box decides only this label, never who filed the issue).
-- **Priority** (Now, Next, Later) and **Size** (S, M, L, XL), each with a one-line reason. XL means: split into a tracking issue with one sub-issue per chunk before it can be Ready.
+- **Labels:** exactly one type label (the list is in `docs/maintainers.md`), `performance` or `determinism` where they apply, an `area:` label where the issue is about one module or tool, `needs-measurement` where it applies, and `ai-assisted` if the form's "An assistant drafted this issue" box is ticked (the box decides only this label, never who filed the issue).
+- **Priority** and **Size**, from the options in `docs/maintainers.md`, each with a one-line reason. XL means: split into a tracking issue with one sub-issue per chunk before it can be Ready.
 - **Definition:** the problem and its cost, the outcome that counts as done, the verification, dependencies, per the Definition of Ready. Missing facts that only the maintainer has are listed as questions, not invented.
 - **Status:** Ready if the definition is complete, otherwise Inbox with what is missing.
 - **Possible duplicates**, by number, with the reason.

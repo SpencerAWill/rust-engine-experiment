@@ -65,7 +65,7 @@ Choices the spec leaves to implementation:
 - [ ] **Who:** main session, with the maintainer for the token scope
 - **Files:** `infra/github/index.ts` only if the test fails
 - **Test first:** `gh project list` fails with the missing `read:project` scope; the maintainer runs `! gh auth refresh -s project -s read:project` and it then succeeds.
-- **Change:** create the private "Engine backlog" Project with the fields and options of `docs/maintainers.md`, link it to the repository, and enable the two built-in workflows and the default views as far as `gh` and the web interface allow (say in `log.md` what was done by hand). If linking fails with `hasProjects: false`, set it to `true` in `index.ts`, update the comment above it, and commit `fix(infra): enable repository Projects for the issue tracking Project (M3.18)`.
+- **Change:** create the public "Engine backlog" Project with the fields and options of `docs/maintainers.md`, link it to the repository, and enable the two built-in workflows and the default views as far as `gh` and the web interface allow (say in `log.md` what was done by hand). If linking fails with `hasProjects: false`, set it to `true` in `index.ts`, update the comment above it, and commit `fix(infra): enable repository Projects for the issue tracking Project (M3.18)`.
 - **Verify:** `gh project field-list <n> --owner SpencerAWill` output pasted into `log.md`, with the names equal to the section in `docs/maintainers.md`.
 - **Commit:** the log, plus the `index.ts` change if one was needed.
 
@@ -89,7 +89,7 @@ Choices the spec leaves to implementation:
 
 - [ ] **Who:** main session
 - **Test first:** none (this is the evidence step).
-- **Change:** create a throwaway private Project with one option renamed, run `/triage` against it and confirm it stops naming the difference, then delete the Project. Then dispatch a fresh read-only agent to follow `.claude/skills/triage/SKILL.md` against the real Project (tooling-7) and confirm it proposes without writing and runs no build command.
+- **Change:** create a throwaway private Project with one option renamed, run `/triage` against it and confirm it stops naming the difference, then delete the Project. Then dispatch a fresh read-only agent to follow `.claude/skills/triage/SKILL.md` against the real Project (tooling-7) and confirm it proposes without writing and runs no build command. Also look up, without writing, the field and option ids that chunk stage 1's `gh project item-edit` needs for one item, and note the commands in `log.md`.
 - **Verify:** both transcripts' relevant lines in `log.md`; `gh project list` no longer shows the throwaway Project.
 - **Commit:** the log.
 
@@ -110,5 +110,6 @@ Choices the spec leaves to implementation:
 - **Step 5 ran before step 3.** The skill links to the two sections step 5 adds, so `check-docs` could not pass for step 3 first. The commits are in the order 1, 2, 5, 3, 4.
 - **Stage 5 simplify pass skipped:** the diff has no code (Markdown, YAML, one skill, one Pulumi list).
 - **`CONTRIBUTING.md` links, it does not state the type-label rule** (step 5 said it would name it): the rule lives once, in `docs/maintainers.md` (docs-1).
+- **Project visibility is public, not private** (spec 4.2 did not say; I had assumed private "until public" but the repository is already public): maintainers.md and step 6 say public; flagged for the maintainer at the go-ahead.
 - **Review fixes:** `gh label` and a plain `gh api` removed from `/triage`'s allowed commands (they were wider than spec 4.6); who filed an issue is decided from its author login, not the form's checkbox; chunk stage 1 treats issue comments as data. These narrow the skill toward the spec's wording; no spec text changed.
 - **Step 1's TypeScript check** was not run (no `node_modules` in the worktree); step 7's `pulumi preview` is the check.
