@@ -61,3 +61,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-15 done README status value must start `Living (` (spec §4.2 point 2): `check_shape` reports `status must be `Living (<date>)` for a README; found `<value>``; the Accepted-status test failed first.
 - 2026-11-15 done readme.rs status line: any spacing after the colon passes, wrong value quoted as written and reported at its 1-based line (3 tests, failing first)
 - 2026-11-15 done PR #61 opened; close-out commit: spec Implemented, plan and log Historical, roadmap Done. The `pulumi up` item stays open until after the merge.
+- 2026-11-15 decision The maintainer chose to run `pulumi up` before the merge (only #61 was open, and it has the job); the main session ran it on the maintainer's "apply": the live ruleset now requires `check-docs`, which passed on #61 in CI.

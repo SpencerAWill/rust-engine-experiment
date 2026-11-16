@@ -232,7 +232,7 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 - [x] #58's links are fixed (421a1b5; PR #61 closes #58).
 - [x] Markdown paths no longer trigger the instruction-count gate (`bench_regress::tests::markdown_is_not_relevant`).
 - [x] `cargo xtask ci` passes (locally at 51bef9f; the PR's CI run is pending at close-out).
-- [ ] After the merge, the maintainer has run `pulumi up` in `infra/github` (pending: after the merge).
+- [x] `pulumi up` in `infra/github` has run: before the merge, at the maintainer's choice, with #61 the only open pull request; the live ruleset requires `check-docs` (`log.md`).
 
 ## 10. Open questions
 
