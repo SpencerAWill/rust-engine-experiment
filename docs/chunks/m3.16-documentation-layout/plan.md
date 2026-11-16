@@ -27,7 +27,7 @@ Choices the spec leaves to the plan:
 
 ### Step 2: Markdown does not trigger the instruction-count gate (R15)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `xtask/src/bench_regress.rs`.
 - **Test first:** a unit test `markdown_is_not_relevant` next to the existing `is_relevant` tests: `libs/engine/README.md`, `bench/regress/README.md` and `libs/engine/src/notes.md` are not relevant; `libs/engine/src/lib.rs`, `.cargo/mutants.toml` and `bench/regress/benches/genid.rs` still are. Run it and see the first three assertions fail.
 - **Change:** `is_relevant` returns false for a path ending in `.md`, before the `RELEVANT` match; update the doc comment on `RELEVANT`. Also repoint the error message at line 291 from "(see CONTRIBUTING.md)" to "(see bench/README.md)" (R11; the file is written in step 7).
