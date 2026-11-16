@@ -94,7 +94,7 @@ Choices the spec leaves to the plan:
 
 ### Step 9: The other READMEs, rule files and `AGENTS.md` (R1 to R3, R10, R12)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `docs/README.md` (shape; the README shape as a Conventions bullet), `docs/adr/README.md`, `docs/chunks/README.md`, `docs/lessons/README.md` ("Format" after Contents), `.claude/README.md` (`rules/`), `infra/github/README.md`, `libs/engine/README.md`, `examples/README.md`, `spikes/ecs_storage/README.md`, `.claude/rules/{engine,bench,fuzz,xtask,spikes,examples,docs,claude,ci}.md`, `AGENTS.md` ("Where to look").
 - **Test first:** `cargo xtask check-docs` lists these READMEs as missing or misshapen.
 - **Change:** spec §4.1, §4.2, §4.4, §4.7.

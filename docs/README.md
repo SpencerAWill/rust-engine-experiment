@@ -1,8 +1,13 @@
 # Documentation
 
-API reference is the rustdoc of the `engine` crate (`cargo doc --open`). This folder holds the rest: why things are the way they are, how they were designed, and what was measured.
+Status: Living (2026-11-15). API reference is the rustdoc of the `engine` crate (`cargo doc --open`). This folder holds the rest: why things are the way they are, how they were designed, and what was measured.
 
-## What is here
+## When this applies
+
+- You look for why something is the way it is, what is planned, or what was measured.
+- You write or change any document in the repository: the conventions below apply everywhere, not only in `docs/`.
+
+## Contents
 
 | Path | What it is | Kind | How far to trust it |
 |---|---|---|---|
@@ -21,6 +26,7 @@ Rules that are checked mechanically (lints, `unsafe`, determinism bans, workflow
 
 ## Conventions
 
+- **A README in each directory that matters.** The directories are listed in `REQUIRED_READMES` in `xtask/src/check_docs.rs`, plus every `spikes/<topic>/`; the root `README.md` is the project's front page and has its own shape. Each starts with a level-1 heading and a status line (`Status: Living (<date>)`), then `## When this applies` (the situations in which a reader needs it), then `## Contents`: one bullet or table row per file or directory in it, named first in code or as a link (`m*/` covers every name it matches). `## How to` and other sections may follow. Rules live in one place and the README links to them. `cargo xtask check-docs` enforces this, along with relative links and anchors in every Markdown file.
 - **Every document states its status** near the top: `Draft`, `Accepted`, `Amended`, `Implemented`, `Superseded`, `Dropped`, `Historical` (or `Template`, for a template), with a date.
 - **ADRs** are `adr/NNNN-kebab-title.md` with Status, Context, Decision and Consequences. Add one for any decision that would be expensive to reverse. Do not rewrite an accepted ADR to change the decision; write a new one that supersedes it.
 - **Chunk folders** are `chunks/m<N>.<n>-<slug>/`, flat (milestones are a field in the spec header, not a folder level), holding the chunk's `spec.md` and `plan.md`, copied from [`chunks/_template/`](chunks/_template/). A spec keeps stable section numbers because code and config cite them (for example "spec §4.9"); add sections, do not renumber.

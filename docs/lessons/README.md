@@ -4,6 +4,18 @@
 
 A lesson is guidance an agent or contributor follows by default and may deviate from, saying why. Lessons are written when a chunk learns something non-obvious, and read when a later chunk's plan touches the same paths. Nothing loads all of them.
 
+## When this applies
+
+- You plan a chunk: `lessons-researcher` returns the lessons whose `applies_to` matches the paths the spec touches.
+- You change files a lesson applies to, or write or edit a lesson (stage 6 of the [workflow](../workflow.md)).
+
+## Contents
+
+- [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
+- [`specs.md`](specs.md): writing specs and plans whose checks can pass.
+- [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
+- [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents.
+
 ## Format
 
 One file per topic. Its frontmatter lists the paths the lessons apply to; the planning stage matches the paths a spec touches against them.
@@ -22,12 +34,6 @@ applies_to:
 
 - IDs are never reused. A retired lesson is deleted; git history is the archive.
 - **Capture gate:** write a lesson only if it is non-obvious from the code, likely to recur, and costly to miss. If a test, lint or `xtask` check can enforce it, write that instead.
+- **Checked:** `cargo xtask check-docs` checks the frontmatter (only `applies_to`, one quoted glob per line, `*`, `?` and `**` only, each matching a tracked file), the heading and status line, and that each lesson has a unique `<file>-<n>` ID, *Why:*, *From:* and *Confirmed:*.
 - **Edit one bullet at a time.** Search for an existing lesson on the same point and edit it rather than adding a second. Never regenerate a file.
 - **Upkeep:** `/lessons-refresh` at each milestone boundary keeps, edits, merges or deletes each lesson against the code.
-
-## Contents
-
-- [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
-- [`specs.md`](specs.md): writing specs and plans whose checks can pass.
-- [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
-- [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents.

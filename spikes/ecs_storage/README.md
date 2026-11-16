@@ -2,14 +2,19 @@
 
 Status: Accepted (2026-11-14), added by M3.2. The rules of every workload are in the [M3.2 spec](../../docs/chunks/m3.2-spike-harness/spec.md) (§4.4); this page is how to use them.
 
-## What is here
+## When this applies
 
-| Package | Directory | Role |
+- You add a backend or workload to the ECS storage spike, or run its benchmarks.
+- You quote or check a number from M3's storage decision.
+
+## Contents
+
+| Directory | Package | Role |
 |---|---|---|
-| `spike_ecs_harness` | `harness/` | The `Workload` trait, the seven workloads' components, spawn, update and hash functions, `Fnv1a`, `check_conformance` |
-| `spike_ecs_vec` | `vec/` | The reference backends: `vec_aos` for every workload, `vec_soa` for `agents` |
-| `spike_ecs_bench_compare` | `bench_compare/` | Criterion: wall-clock time |
-| `spike_ecs_bench_cache` | `bench_cache/` | Gungraun: instructions and simulated cache misses |
+| `harness/` | `spike_ecs_harness` | The `Workload` trait, the seven workloads' components, spawn, update and hash functions, `Fnv1a`, `check_conformance` |
+| `vec/` | `spike_ecs_vec` | The reference backends: `vec_aos` for every workload, `vec_soa` for `agents` |
+| `bench_compare/` | `spike_ecs_bench_compare` | Criterion: wall-clock time |
+| `bench_cache/` | `spike_ecs_bench_cache` | Gungraun: instructions and simulated cache misses |
 
 The workloads are `simple_iter`, `frag_iter`, `heavy_compute`, `add_remove`, `entity_churn`, `sprites` and `agents`.
 
