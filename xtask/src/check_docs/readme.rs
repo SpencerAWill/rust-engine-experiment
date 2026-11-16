@@ -64,13 +64,12 @@ fn check_shape(path: &str, text: &str, doc: &Doc) -> Vec<Problem> {
     let first_level2 = level2.first().map_or(usize::MAX, |h| h.line);
     let status = text
         .lines()
+        .enumerate()
         .take(first_level2.saturating_sub(1))
-        .find_map(|l| {
-            l.strip_prefix("Status: ")
-                .or_else(|| l.strip_prefix("- **Status:** "))
-                .or_else(|| {
-                    (l.starts_with("Status:") || l.starts_with("- **Status:**")).then_some("")
-                })
+        .find_map(|(i, l)| {
+            l.strip_prefix("Status:")
+                .or_else(|| l.strip_prefix("- **Status:**"))
+                .map(|value| (i + 1, value.trim_start()))
         });
     match status {
         None => problems.push(Problem::new(
@@ -78,9 +77,9 @@ fn check_shape(path: &str, text: &str, doc: &Doc) -> Vec<Problem> {
             None,
             "no status line before the first `##` heading; add `Status: Living (<date>)`",
         )),
-        Some(value) if !value.starts_with("Living (") => problems.push(Problem::new(
+        Some((line, value)) if !value.starts_with("Living (") => problems.push(Problem::new(
             path,
-            None,
+            Some(line),
             &format!(
                 "status must be `Living (<date>)` for a README; found `{}`",
                 value.trim()
@@ -313,6 +312,38 @@ mod tests {
             "{}",
             p[0]
         );
+    }
+
+    #[test]
+    fn any_spacing_after_the_status_colon_passes() {
+        for status in [
+            "Status:Living (2026-11-15)",
+            "Status:  Living (2026-11-15)",
+            "- **Status:**Living (2026-11-15)",
+        ] {
+            let r = format!("# T\n\n{status}\n\n## When this applies\n\nx\n\n## Contents\n\n");
+            assert_eq!(
+                docs(&[("docs/README.md", &r)]),
+                Vec::<String>::new(),
+                "{status}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_wrong_status_without_a_space_is_quoted_as_written() {
+        let r = "# T\n\nStatus:Accepted (x)\n\n## When this applies\n\nx\n\n## Contents\n\n";
+        let p = docs(&[("docs/README.md", r)]);
+        assert_eq!(p.len(), 1, "{p:#?}");
+        assert!(p[0].contains("found `Accepted (x)`"), "{}", p[0]);
+    }
+
+    #[test]
+    fn a_wrong_status_is_reported_at_its_line() {
+        let r = "# T\n\nStatus: Accepted (x)\n\n## When this applies\n\nx\n\n## Contents\n\n";
+        let p = docs(&[("docs/README.md", r)]);
+        assert_eq!(p.len(), 1, "{p:#?}");
+        assert!(p[0].starts_with("docs/README.md:3: "), "{}", p[0]);
     }
 
     #[test]
