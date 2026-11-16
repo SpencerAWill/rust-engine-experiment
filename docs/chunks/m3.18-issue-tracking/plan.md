@@ -44,7 +44,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: hand-off in the chunk loop (spec 4.7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `.claude/skills/chunk/stages/1-brainstorm.md`
 - **Test first:** `git grep -c Scheduled .claude/skills/chunk/stages/1-brainstorm.md` finds nothing.
 - **Change:** step 1 also reads the roadmap row's linked issue; step 2 also sets that issue's Project Status to Scheduled when the row goes to `Drafting`. Two sentences, no other edit.
