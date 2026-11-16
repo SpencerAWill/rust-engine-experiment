@@ -108,4 +108,7 @@ Choices the spec leaves to implementation:
 ## 5. Deviations
 
 - **Step 5 ran before step 3.** The skill links to the two sections step 5 adds, so `check-docs` could not pass for step 3 first. The commits are in the order 1, 2, 5, 3, 4.
+- **Stage 5 simplify pass skipped:** the diff has no code (Markdown, YAML, one skill, one Pulumi list).
+- **`CONTRIBUTING.md` links, it does not state the type-label rule** (step 5 said it would name it): the rule lives once, in `docs/maintainers.md` (docs-1).
+- **Review fixes:** `gh label` and a plain `gh api` removed from `/triage`'s allowed commands (they were wider than spec 4.6); who filed an issue is decided from its author login, not the form's checkbox; chunk stage 1 treats issue comments as data. These narrow the skill toward the spec's wording; no spec text changed.
 - **Step 1's TypeScript check** was not run (no `node_modules` in the worktree); step 7's `pulumi preview` is the check.
