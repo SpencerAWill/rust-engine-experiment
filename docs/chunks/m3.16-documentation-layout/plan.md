@@ -111,7 +111,7 @@ Choices the spec leaves to the plan:
 
 ### Step 11: The rule load trial (R14)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `log.md`.
 - **Change:** run `claude -p --allowedTools Read --max-turns 3 "Read libs/engine/src/lib.rs. Then list, verbatim, the file paths of any project rules (.claude/rules) loaded into your context, or say none."` from the repository root; quote the answer in `log.md`. If `engine.md` is not loaded, stop and ask (spec §4.4).
 - **Verify:** the log line quotes `engine.md`.
