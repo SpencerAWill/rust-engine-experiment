@@ -9,7 +9,7 @@ use super::BitSet;
 use super::descent::{LAYERS, WORD_SHIFT, WordBits, WordCursor, WordSource};
 use super::exceeds_max_bits;
 use super::join::JoinSource;
-use super::words::{self, MAX_BITS, WORD_BITS, bits_for_words, words_for_bits};
+use super::words::{self, MAX_BITS, WORD_BITS, words_for_bits};
 use crate::collections::error::{BitSetInvariantError, InvariantRule, TryReserveError};
 
 /// The vectors: layers 0 to 4.
@@ -111,12 +111,19 @@ impl HierarchicalBitSet {
         self.top == 0
     }
 
-    /// The number of bits that fit without allocating in layer 0: 64 per word allocated, up to
-    /// `MAX_BITS`.
+    /// The number of bits that fit without allocating in any layer: the smallest, over layers 0
+    /// to 4, of 64^(k + 1) times the words allocated in layer k, at most `MAX_BITS`. Every
+    /// `insert(i)` with `i < capacity()` does not allocate. This takes O(1) time.
     #[must_use]
     #[inline]
     pub fn capacity(&self) -> usize {
-        bits_for_words(self.layers[0].capacity())
+        let mut bits = MAX_BITS;
+        let mut per_word = WORD_BITS;
+        for layer in &self.layers {
+            bits = bits.min(layer.capacity().saturating_mul(per_word));
+            per_word = per_word.saturating_mul(WORD_BITS);
+        }
+        bits
     }
 
     /// Makes [`capacity`](Self::capacity) at least `bits`, in every layer, so no insert below
@@ -902,6 +909,34 @@ mod tests {
         // Still usable after shrinking.
         assert!(set.insert(900_000));
         assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn inserts_below_capacity_never_grow_any_layer() {
+        let mut set = HierarchicalBitSet::new();
+        set.insert(64_000);
+        set.insert(64_064);
+        let capacity = set.capacity();
+        assert!(capacity > 64_064);
+        let mut samples = vec![0, 1, 63, 64, 4_095, 4_096, 64_000, 100_000, capacity - 1];
+        samples.extend([capacity / 2, capacity / 3, capacity - 64, capacity - 4_096]);
+        for index in samples.into_iter().filter(|&index| index < capacity) {
+            let before: Vec<usize> = set.layers.iter().map(Vec::capacity).collect();
+            set.insert(index);
+            let after: Vec<usize> = set.layers.iter().map(Vec::capacity).collect();
+            assert_eq!(
+                before, after,
+                "insert({index}) grew a layer, capacity {capacity}"
+            );
+        }
+    }
+
+    #[test]
+    fn with_capacity_reports_at_least_the_request() {
+        for bits in [0, 1, 64, 4_096, 100_000, 1 << 24] {
+            assert!(HierarchicalBitSet::with_capacity(bits).capacity() >= bits);
+        }
+        assert_eq!(HierarchicalBitSet::new().capacity(), 0);
     }
 
     #[test]

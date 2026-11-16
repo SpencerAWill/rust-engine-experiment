@@ -223,6 +223,18 @@ fn check_hierarchical_bitsets_never_allocate() {
         black_box(set.try_insert(HierarchicalBitSet::MAX_BITS).is_err());
         black_box(set.try_insert(usize::MAX).is_err());
     });
+    let below_capacity = fewest_blocks(
+        || {
+            let mut set = HierarchicalBitSet::new();
+            set.insert(64_000);
+            set.insert(64_064);
+            set
+        },
+        |set| {
+            let last = set.capacity() - 1;
+            black_box(set.insert(last));
+        },
+    );
     let join = fewest_blocks(
         || hierarchical_state(HierarchicalBitSet::new()),
         |state| {
@@ -237,6 +249,11 @@ fn check_hierarchical_bitsets_never_allocate() {
     dhat::assert_eq!(with_capacity, 0, "HierarchicalBitSet::with_capacity");
     dhat::assert_eq!(ensure_capacity, 0, "HierarchicalBitSet::ensure_capacity");
     dhat::assert_eq!(limit, 0, "HierarchicalBitSet try_insert at the limit");
+    dhat::assert_eq!(
+        below_capacity,
+        0,
+        "HierarchicalBitSet insert at capacity() - 1"
+    );
     dhat::assert_eq!(join, 0, "Join::new and try_new");
 }
 
