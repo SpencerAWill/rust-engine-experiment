@@ -73,3 +73,57 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 
 - 2026-11-16 surprise `dhat` counts a `realloc` as a change of size (`Delta::new(old_size, new_size)` in dhat 0.3's `realloc`), so peak misses the moment both buffers exist during growth; that is why peak equals "after building" for the dense sets. Noted in `bench/README.md`.
 - 2026-11-16 lesson? clippy's pedantic `cast_precision_loss` fires on `u64 as f64` in bench examples; allow it in the file header (builder report).
+- 2026-11-16 done Wall-clock run 1 (`cargo xtask bench --save m3.17-hierarchical-a`, Apple M4 Pro, AC power, 13:22:56 to 14:52:21, `pmset -g log` shows no sleep, wake or battery event in the window). Ratios, our median time over each baseline's (below 1 is faster):
+
+  | group | case | ours (ns) | BitSet | hibitset | hi_sparse |
+  |---|---|---:|---:|---:|---:|
+  | hierarchical_contains | clustered_0.1pct | 1,224 | 0.96 | 0.93 | 0.43 |
+  | hierarchical_contains | clustered_1pct | 1,231 | 1.00 | 0.96 | 0.37 |
+  | hierarchical_contains | clustered_50pct | 1,324 | 1.00 | 1.07 | 0.40 |
+  | hierarchical_contains | clustered_99pct | 1,311 | 1.00 | 0.96 | 0.32 |
+  | hierarchical_contains | uniform_0.1pct | 1,312 | 1.00 | 1.05 | 0.39 |
+  | hierarchical_contains | uniform_1pct | 1,446 | 1.10 | 1.16 | 0.39 |
+  | hierarchical_contains | uniform_50pct | 1,447 | 1.10 | 1.16 | 0.35 |
+  | hierarchical_contains | uniform_99pct | 1,310 | 0.91 | 1.05 | 0.32 |
+  | hierarchical_insert | clustered_0.1pct | 2,398 | 1.25 | 1.45 | 1.18 |
+  | hierarchical_insert | clustered_1pct | 20,991 | 1.21 | 1.24 | 1.07 |
+  | hierarchical_insert | clustered_50pct | 1,015,700 | 1.19 | 1.16 | 1.06 |
+  | hierarchical_insert | clustered_99pct | 2,009,300 | 1.19 | 1.19 | 1.06 |
+  | hierarchical_insert | uniform_0.1pct | 3,489 | 1.93 | 1.92 | 1.03 |
+  | hierarchical_insert | uniform_1pct | 36,060 | 4.76 | 2.25 | 1.86 |
+  | hierarchical_insert | uniform_50pct | 751,570 | 2.63 | 2.37 | 0.95 |
+  | hierarchical_insert | uniform_99pct | 1,405,200 | 2.51 | 2.38 | 0.88 |
+  | hierarchical_iter | clustered_0.1pct | 528 | 0.11 | 0.35 | 0.77 |
+  | hierarchical_iter | clustered_1pct | 5,185 | 0.46 | 0.34 | 0.74 |
+  | hierarchical_iter | clustered_50pct | 249,680 | 0.78 | 0.33 | 0.71 |
+  | hierarchical_iter | clustered_99pct | 493,900 | 0.79 | 0.32 | 0.71 |
+  | hierarchical_iter | uniform_0.1pct | 1,530 | 0.28 | 0.64 | 1.26 |
+  | hierarchical_iter | uniform_1pct | 14,831 | 1.04 | 0.56 | 1.40 |
+  | hierarchical_iter | uniform_50pct | 376,300 | 1.08 | 0.54 | 1.04 |
+  | hierarchical_iter | uniform_99pct | 566,640 | 0.92 | 0.38 | 0.81 |
+  | hierarchical_join | clustered_0.1pct | 5 | - | 4.40 | 1.45 |
+  | hierarchical_join | clustered_1pct | 10 | - | 1.56 | 1.33 |
+  | hierarchical_join | clustered_50pct | 41,450 | - | 0.37 | 0.65 |
+  | hierarchical_join | clustered_99pct | 30,749 | - | 0.51 | 1.17 |
+  | hierarchical_join | uniform_0.1pct | 553 | - | 0.82 | 6.18 |
+  | hierarchical_join | uniform_1pct | 2,690 | - | 0.54 | 0.38 |
+  | hierarchical_join | uniform_50pct | 53,949 | - | 0.41 | 0.80 |
+  | hierarchical_join | uniform_99pct | 31,245 | - | 0.57 | 1.13 |
+
+  The `engine::BitSet` join column is empty because its label contains spaces, which the extraction script did not match.
+- 2026-11-16 decision Insert is 1.2 to 2.4 times `hibitset`'s time (same design) and up to 4.8 times `BitSet`'s; Gungraun shows about 37 instructions per insert against `BitSet`'s 19 even when the word exists, so the overhead is ours. One focused fix attempt in this chunk (maintainer agreed to fix gaps that point at our code), then one more full run: it measures the new insert, and the unchanged groups give the run-to-run noise floor. The gaps to `hi_sparse_bitset` (near-empty joins, uniform 1% iteration) come from its 128-bit blocks and SIMD and go to the sparse follow-up issue.
+- 2026-11-16 dead-end Insert fix (builder, dev-loop Criterion runs of `hierarchical_insert` only, M4 Pro): baseline medians uniform_1pct 35.5 µs (hibitset 15.8, BitSet 7.54), uniform_50pct 750 µs (333, 284), clustered_50pct 1.014 ms (871, 867). Attempt 1 (`get_mut` on layer 0, cold growth, `top` after the parent loop, no `k == 5` branch): no gain (uniform_50pct +5.6%, clustered 0%). Attempt 2 (parent bits set unconditionally, no `before == 0` branch): uniform_1pct −25% but uniform_50pct +53%, uniform_99pct +63%. No change kept; `hierarchical.rs` is as committed. The cost looks like data-dependent branches and the dependent parent writes, not the instruction count (inferred, not confirmed in asm). Goes to the follow-up issue.
+- 2026-11-16 decision Run 2 is a pure noise-floor run (code unchanged since run 1): some comparisons fall in the 5–15% band (`contains` against `hibitset`, insert against `hi_sparse_bitset`).
+- 2026-11-16 decision Run 2 stopped about 10 minutes in (maintainer agreed) for one insert experiment shaped like `hibitset`'s: parent climb out of line, unconditional parent writes on the slow path only. Partial `m3.17-hierarchical-b` baseline deleted; run 2 restarts on the final code.
+- 2026-11-16 decision Further optimizations stay out of this chunk (maintainer). At close-out, one follow-up issue "hierarchical bitset performance and space" carries the ranked list (internal `fold` iteration; join ordering and bounds; `clear` through the hierarchy; a "full" summary layer; 256-bit blocks with 4 layers; batch insert and remove; paged layer 0; one allocation), the measured gaps and the insert attempts; items 4 to 6 wait on M3.8's storage decision.
+- 2026-11-16 done Insert fix, variant A kept (builder experiment; main session installed and verified it). Asm (aarch64, `--emit=asm` probe): `insert` was not inlined, one `bl` per insert with a 6-register, 80-byte prologue, layer-0 length checked twice, the parent climb inlined into the same function. Variant A: `get_mut` hit path (load, OR, store), growth in a `#[cold] #[inline(never)] insert_growing`, `set_parents` `#[inline(never)]` and called only when a word goes from zero. Variant B (A plus unconditional parent writes) was slower than A and is not kept. Dev-loop medians, µs, two runs each (M4 Pro; `cargo bench -p engine_benches --bench collections -- hierarchical_insert`):
+
+  | case | HEAD | A | A+B | hibitset | BitSet |
+  |---|---:|---:|---:|---:|---:|
+  | uniform_1pct | 36.8 / 36.7 | 13.3 / 13.3 | 19.3 / 19.3 | 14.8–16.1 | 7.7 |
+  | uniform_50pct | 764 / 768 | 310 / 308 | 338 / 338 | 314–325 | 287–289 |
+  | uniform_99pct | 1,426 / 1,427 | 587 / 583 | 629 / 626 | 595–619 | 566–573 |
+  | clustered_50pct | 1,032 / 1,031 | 942 / 941 | 942 / 942 | 931–941 | 936–939 |
+
+  Re-ran `ci --quick` (722 passed, 6 skipped, including the allocation checks), `wasm` (engine lib 191 passed) and `no-std`.
+- 2026-11-16 lesson? `#[inline]` on a method does not make it inlined: a cold or rare path inlined into it (here the parent climb, and the panic formatting) can push it past LLVM's budget, so every call pays a full prologue. Keep hot paths tiny and put rare work in `#[inline(never)]` functions; check with `--emit=asm`, not by reading the source.

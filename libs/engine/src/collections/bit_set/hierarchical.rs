@@ -205,16 +205,26 @@ impl HierarchicalBitSet {
         }
         let (word, mask) = words::locate(index);
         // The common case: the word exists already. Then so do the upper words it needs.
-        if word >= self.layers[0].len() {
-            self.grow_to_hold(index)?;
-        }
-        let w = &mut self.layers[0][word];
+        let Some(w) = self.layers[0].get_mut(word) else {
+            return self.insert_growing(index);
+        };
         let before = *w;
-        *w |= mask;
+        *w = before | mask;
         if before == 0 {
             self.set_parents(word);
         }
         Ok(before & mask == 0)
+    }
+
+    /// The slow path of `try_insert`: grows to hold `index`, whose word is then a new zero word.
+    #[cold]
+    #[inline(never)]
+    fn insert_growing(&mut self, index: usize) -> Result<bool, TryReserveError> {
+        self.grow_to_hold(index)?;
+        let (word, mask) = words::locate(index);
+        self.layers[0][word] = mask;
+        self.set_parents(word);
+        Ok(true)
     }
 
     /// Grows every layer to hold `index`, filled with zeros. A failed reservation leaves the set
@@ -249,7 +259,7 @@ impl HierarchicalBitSet {
 
     /// Sets the parent bits of layer-0 word `word`, upwards, stopping at the first parent word
     /// that was already non-zero.
-    #[inline]
+    #[inline(never)]
     fn set_parents(&mut self, word: usize) {
         let mut child = word;
         for k in 1..LAYERS {
