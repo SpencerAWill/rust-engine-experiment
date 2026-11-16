@@ -1,6 +1,6 @@
 # M3.17 plan: Hierarchical bitset
 
-- **Status:** Accepted (2026-11-16)
+- **Status:** Historical: executed in PR #64 (2026-11-16); the spec and the code are authoritative. Deviations are in §5.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

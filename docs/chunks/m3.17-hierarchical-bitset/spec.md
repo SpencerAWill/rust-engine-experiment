@@ -1,6 +1,6 @@
 # M3.17: Hierarchical bitset
 
-- **Status:** Accepted (2026-11-16). Amended the same day after review, with the maintainer's approval: `capacity()` reports the bound across every layer, not layer 0 alone (§4.3), because an insert below a layer-0-only figure could still allocate in an upper layer.
+- **Status:** Implemented (PR #64, 2026-11-16). Accepted 2026-11-16 and amended the same day after review, with the maintainer's approval: `capacity()` reports the bound across every layer, not layer 0 alone (§4.3), because an insert below a layer-0-only figure could still allocate in an upper layer.
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; M4's queries build on it) · **Depends on:** M3.14 · **Decides:** no ADR
 - **Issues:** #44 (sub-issue of #38). Related: #41 / M3.12 (space metrics; §2), the sparse variant (a follow-up issue opened at close-out; §10).
 - **Estimated size:** about 1,000 changed lines, excluding tests, lockfiles and generated files (the set about 450, the join about 150, the error type about 40, benchmarks and the space report about 200, fuzz target about 80, documents about 80)
@@ -241,13 +241,13 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally and CI is green on all three platforms.
-- [ ] The model and join tests pass, including under `cargo xtask wasm`.
-- [ ] The fuzz target ran for 10 minutes without a failure.
-- [ ] `cargo xtask bench-regress` passes, and the wall-clock comparison and space table are in the pull request.
-- [ ] The mutation triage is recorded.
-- [ ] The reviews are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, #44's box in #38 is ticked, and the sparse-variant follow-up issue is open.
+- [ ] `cargo xtask ci` passes locally and CI is green on all three platforms. (`cargo xtask ci` passes locally on 86a1dce; CI on the pull request is pending when this is written.)
+- [x] The model and join tests pass, including under `cargo xtask wasm` (`hierarchical_matches_model`, `join_matches_model`; wasm engine lib 193 passed).
+- [x] The fuzz target ran for 10 minutes without a failure (`Done 1038875 runs in 601 second(s)` at 2ef2088; `491921 runs` at 575776b).
+- [x] `cargo xtask bench-regress` passes (container runs at 49585db, 5f1ebca and 306bf57: no regression), and the wall-clock comparison and space table are in the pull request.
+- [ ] The mutation triage is recorded. (Pending: it comes from this pull request's `mutants` job, plan §5.)
+- [x] The reviews are recorded in the pull request.
+- [x] The spec is `Implemented` and the plan `Historical`, #44's box in #38 is ticked, and the sparse-variant follow-up issue is open (#63, together with the performance ideas).
 
 ## 10. Open questions
 

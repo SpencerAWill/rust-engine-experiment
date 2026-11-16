@@ -1,6 +1,6 @@
 # M3.17 log: Hierarchical bitset
 
-- **Status:** Living (2026-11-16).
+- **Status:** Historical: PR #64 (2026-11-16).
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>
@@ -181,3 +181,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-16 done Reviews (registered agents, `.claude/agents/`). Round 1 on 306bf57: review-code (4 findings: space-report peak, R8 panic tests, word-routine reuse, Join proptest weighting; all fixed), review-security (1: cite `hibitset`, ADR 0002; fixed), review-docs (5: CHANGELOG triage claim, catalog citation, `bench/README.md` note fixed; plan restating spec declined; tables in log accepted), review-spec (R8 gap, CHANGELOG claim, stale verification; fixed or re-run; R15 pending on the PR's mutants job), review-conditional (public API, determinism, performance, portability: `capacity()` contract, fixed by spec amendment; panic tests; iterator `Debug`; `Join` borrow note; gate run; all fixed). Round 2 on b0ff2d4, fresh reviewers: security pass (nit: versioned link), docs pass (nit: plan's old `capacity()`, covered by plan §5), spec pass (pending items: full ci, now done; bench-regress, see decision above), code pass (nit: qualified names in panic tests), conditional pass (nits: qualified names, a `Debug` pin test; gate run, see decision above).
 - 2026-11-16 done Re-review nits (builder): qualified operation names in the four panic tests (each failed with the operation renamed to `zz`: 3 passed, 4 failed), `iter_debug_format` pins `HierarchicalIter { .. }`, `hibitset` link versioned 0.6.4. Full `cargo xtask ci` on the final tree passes (729 passed, 6 skipped; 735 passed).
 - 2026-11-16 done Lessons (stage 6): added perf-1 (hot paths inlined), perf-2 (dhat peak and inputs), perf-3 (baseline presizing in setup) in new `docs/lessons/perf.md`; testing-2 (qualified names in panic tests), testing-3 (multi-buffer `capacity()`); specs-3 (one named test per table row), specs-4 (evidence names its commit), specs-5 (cite a followed design in rustdoc); testing-1 confirmed. Not kept: the wasm overflow lint and clippy cast lints (enforced by tooling), the CHANGELOG-before-deliverable point and the plan-deviation-with-amendment point (minor, caught by review).
+- 2026-11-16 done Close-out: PR #64 opened; follow-up #63 (performance and space, including the sparse variant); #44's box ticked in #38. Pending: CI on the pull request, and the R15 mutation triage from its `mutants` job.
