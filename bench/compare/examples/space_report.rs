@@ -16,10 +16,11 @@
 //! 50% and 99%; `uniform` and `clustered` runs of 256), plus one member at 1,000,000.
 //!
 //! `dhat`'s peak is per process, so the parent spawns itself once per case with
-//! `--case <structure> <case>`. A child lists its members first, then builds the structure empty
-//! (not presized), inserting them one at a time in a seeded random order, and reads
-//! `dhat::HeapStats`. The member list stays alive while the structure is built, so its size is
-//! subtracted from every figure. `dhat` runs in testing mode: no `dhat-heap.json` is written.
+//! `--case <structure> <case>`. A child lists its members first, before the profiler starts, so
+//! neither the list nor the generator's scratch space (a 128 KiB bitmap, a run list) is counted.
+//! It then builds the structure empty (not presized), inserting the members one at a time in a
+//! seeded random order, and reads `dhat::HeapStats`: every figure covers only the structure and
+//! its growth. `dhat` runs in testing mode: no `dhat-heap.json` is written.
 
 use std::process::Command;
 
@@ -169,12 +170,12 @@ struct Row {
     shrunk: Option<usize>,
 }
 
-/// Builds `case` in `S` and reads the heap. The caller holds a `dhat` profiler in testing mode.
-fn measure<S: Space>(structure: &str, case: &str) -> Row {
-    let members = members(case);
+/// Builds `members` in `S` and reads the heap. The caller holds a `dhat` profiler in testing mode
+/// that started after `members` was generated.
+fn measure<S: Space>(structure: &str, case: &str, members: &[u32]) -> Row {
     let baseline = HeapStats::get().curr_bytes;
     let mut set = S::empty();
-    for &i in &members {
+    for &i in members {
         set.insert(i);
     }
     let stats = HeapStats::get();
@@ -192,21 +193,22 @@ fn measure<S: Space>(structure: &str, case: &str) -> Row {
     }
 }
 
-fn run_case(structure: &str, case: &str) -> Row {
+fn run_case(structure: &str, case: &str, members: &[u32]) -> Row {
     match structure {
-        "engine::HierarchicalBitSet" => measure::<HierarchicalBitSet>(structure, case),
-        "engine::BitSet" => measure::<BitSet>(structure, case),
-        "hibitset::BitSet" => measure::<hibitset::BitSet>(structure, case),
-        "hi_sparse_bitset::BitSet<_128bit>" => {
-            measure::<hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>>(structure, case)
-        }
+        "engine::HierarchicalBitSet" => measure::<HierarchicalBitSet>(structure, case, members),
+        "engine::BitSet" => measure::<BitSet>(structure, case, members),
+        "hibitset::BitSet" => measure::<hibitset::BitSet>(structure, case, members),
+        "hi_sparse_bitset::BitSet<_128bit>" => measure::<
+            hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>,
+        >(structure, case, members),
         _ => panic!("unknown structure {structure}"),
     }
 }
 
 fn child(structure: &str, case: &str) {
+    let members = members(case);
     let _profiler = Profiler::builder().testing().build();
-    let row = run_case(structure, case);
+    let row = run_case(structure, case, &members);
     let shrunk = row.shrunk.map_or("-".to_string(), |b| b.to_string());
     println!("{}\t{}\t{}\t{}", row.members, row.built, row.peak, shrunk);
 }
@@ -271,8 +273,9 @@ mod tests {
     /// `--case`, and this is the only test that starts a profiler.)
     #[test]
     fn one_member_at_1_000_000_reports_layer_zero() {
+        let members = members(ONE_MEMBER);
         let _profiler = Profiler::builder().testing().build();
-        let row = run_case("engine::HierarchicalBitSet", ONE_MEMBER);
+        let row = run_case("engine::HierarchicalBitSet", ONE_MEMBER, &members);
         assert_eq!(row.members, 1);
         assert!(row.built >= 125_000, "built only {} bytes", row.built);
         assert!(row.peak >= row.built);

@@ -43,6 +43,9 @@ impl WordSource for JoinSource<'_> {
 /// them; the excluded sets are applied to layer 0 only. It never allocates. A set may appear
 /// more than once, and in both lists (the join is then empty).
 ///
+/// The slices of sets must outlive the join. An array temporary works in a `for` header, but
+/// bind it with `let` when the join is stored, or the compiler reports E0716.
+///
 /// # Examples
 ///
 /// ```

@@ -63,6 +63,19 @@ pub(super) fn highest_bit_u64(words: &[u64]) -> Option<u64> {
     Some(index as u64 * WORD_BITS as u64 + u64::from(63 - word.leading_zeros()))
 }
 
+/// The parent word of each run of 64 words of `child`: bit `b` of word `j` is set when word
+/// `j * 64 + b` of `child` is non-zero.
+pub(super) fn summarize(child: &[u64]) -> alloc::vec::Vec<u64> {
+    child
+        .chunks(WORD_BITS)
+        .map(|run| {
+            run.iter()
+                .enumerate()
+                .fold(0_u64, |bits, (b, w)| bits | u64::from(*w != 0) << b)
+        })
+        .collect()
+}
+
 /// `dst |= src`, word by word. A `src` longer than `dst` is cut off, so callers grow `dst` first.
 #[inline]
 pub(super) fn union_into(dst: &mut [u64], src: &[u64]) {

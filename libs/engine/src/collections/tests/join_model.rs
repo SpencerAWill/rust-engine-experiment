@@ -30,7 +30,7 @@ proptest! {
         excluded in prop::collection::vec(members(), 0..=2),
         // Which sets are used again: indices into `required` then `excluded`.
         repeat_required in prop::option::of(0..4_usize),
-        repeat_excluded in prop::option::of(0..4_usize),
+        repeat_excluded in prop::option::weighted(0.2, 0..4_usize),
     ) {
         let build = |items: &Vec<usize>| items.iter().copied().collect::<HierarchicalBitSet>();
         let req_sets: Vec<HierarchicalBitSet> = required.iter().map(build).collect();

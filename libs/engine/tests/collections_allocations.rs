@@ -178,12 +178,14 @@ fn work_on_hierarchical_bit_set(state: &mut HierarchicalState) {
         hits += usize::from(set.contains(i));
     }
     hits += set.first().unwrap_or(0) + set.last().unwrap_or(0) + set.len();
-    hits += set.iter().sum::<usize>();
+    hits += set.iter().take(BITS).sum::<usize>();
     let [second, third] = &*other_required;
     let required = [&*set, second, third];
     let excluded_sets = [&*excluded];
-    hits += Join::new(&required, &excluded_sets).sum::<usize>();
-    hits += Join::try_new(&required, &excluded_sets).map_or(0, Iterator::count);
+    hits += Join::new(&required, &excluded_sets)
+        .take(BITS)
+        .sum::<usize>();
+    hits += Join::try_new(&required, &excluded_sets).map_or(0, |join| join.take(BITS).count());
     set.intersect_with(argument);
     set.difference_with(argument);
     for i in (0..BITS).step_by(2) {

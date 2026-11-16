@@ -198,6 +198,66 @@ fn hierarchical_with_capacity_past_max_bits_panics_at_caller() {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn hierarchical_ensure_capacity_past_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.ensure_capacity(HierarchicalBitSet::MAX_BITS + 1);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "ensure_capacity", "try_ensure_capacity"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_extend_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.extend([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["extend", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_extend_ref_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.extend(&[HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["extend", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_from_array_at_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = HierarchicalBitSet::from([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["from", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
 #[test]
 fn join_new_with_no_required_sets_panics_at_caller() {
     let (file, message) = panic_info(|| {

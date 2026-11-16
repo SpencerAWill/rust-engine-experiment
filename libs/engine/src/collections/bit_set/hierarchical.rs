@@ -310,9 +310,7 @@ impl HierarchicalBitSet {
             if mine.len() < theirs.len() {
                 mine.resize(theirs.len(), 0);
             }
-            for (m, t) in mine.iter_mut().zip(theirs) {
-                *m |= t;
-            }
+            words::union_into(mine, theirs);
         }
         self.top |= other.top;
     }
@@ -478,7 +476,7 @@ impl HierarchicalBitSet {
     /// Rebuilds layers 1 to 5 from layer 0.
     fn rebuild_upper_layers(&mut self) {
         for k in 1..LAYERS {
-            let parent = summarize(&self.layers[k - 1]);
+            let parent = words::summarize(&self.layers[k - 1]);
             if k == VECTOR_LAYERS {
                 self.top = parent.first().copied().unwrap_or(0);
             } else {
@@ -577,15 +575,10 @@ impl HierarchicalBitSet {
             } else {
                 &self.layers[k]
             };
-            for j in 0..parent.len().max(child.len().div_ceil(WORD_BITS)) {
-                let expected = child
-                    .get(j * WORD_BITS..)
-                    .unwrap_or_default()
-                    .iter()
-                    .take(WORD_BITS)
-                    .enumerate()
-                    .fold(0_u64, |bits, (b, w)| bits | u64::from(*w != 0) << b);
-                if parent.get(j).copied().unwrap_or(0) != expected {
+            let expected = words::summarize(child);
+            for j in 0..parent.len().max(expected.len()) {
+                let got = parent.get(j).copied().unwrap_or(0);
+                if got != expected.get(j).copied().unwrap_or(0) {
                     return Err(BitSetInvariantError::new(k, j, InvariantRule::ParentBit));
                 }
             }
@@ -603,19 +596,6 @@ fn limit_exceeded(operation: &str, subject: fmt::Arguments<'_>, twin: &str) -> !
          {twin} to handle it",
         max = HierarchicalBitSet::MAX_BITS
     );
-}
-
-/// The parent word of each run of 64 words of `child`: bit `b` of word `j` is set when word
-/// `j * 64 + b` of `child` is non-zero.
-fn summarize(child: &[u64]) -> Vec<u64> {
-    child
-        .chunks(WORD_BITS)
-        .map(|run| {
-            run.iter()
-                .enumerate()
-                .fold(0_u64, |bits, (b, w)| bits | u64::from(*w != 0) << b)
-        })
-        .collect()
 }
 
 impl WordSource for HierarchicalBitSet {
@@ -721,7 +701,7 @@ impl<'a> IntoIterator for &'a HierarchicalBitSet {
 /// assert!(positions.contains(1_000_000));
 /// assert_eq!(positions.iter().collect::<Vec<_>>(), [3, 1_000_000]);
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HierarchicalIter<'a> {
     set: &'a HierarchicalBitSet,
     cursor: WordCursor,
@@ -738,6 +718,12 @@ impl Iterator for HierarchicalIter<'_> {
 }
 
 impl FusedIterator for HierarchicalIter<'_> {}
+
+impl fmt::Debug for HierarchicalIter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HierarchicalIter").finish_non_exhaustive()
+    }
+}
 
 impl PartialEq for HierarchicalBitSet {
     fn eq(&self, other: &Self) -> bool {
