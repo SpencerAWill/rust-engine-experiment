@@ -1,6 +1,6 @@
 # M3.17: Hierarchical bitset
 
-- **Status:** Accepted (2026-11-16)
+- **Status:** Accepted (2026-11-16). Amended the same day after review, with the maintainer's approval: `capacity()` reports the bound across every layer, not layer 0 alone (§4.3), because an insert below a layer-0-only figure could still allocate in an upper layer.
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; M4's queries build on it) · **Depends on:** M3.14 · **Decides:** no ADR
 - **Issues:** #44 (sub-issue of #38). Related: #41 / M3.12 (space metrics; §2), the sparse variant (a follow-up issue opened at close-out; §10).
 - **Estimated size:** about 1,000 changed lines, excluding tests, lockfiles and generated files (the set about 450, the join about 150, the error type about 40, benchmarks and the space report about 200, fuzz target about 80, documents about 80)
@@ -87,7 +87,7 @@ pub struct HierarchicalBitSet { layers: [Vec<u64>; 5], top: u64 }
 | Group | Items |
 |---|---|
 | Construction | `const fn new()`, `with_capacity(bits)`, `try_with_capacity(bits)`, `Default`, `FromIterator<usize>`, `Extend<usize>`, `Extend<&usize>`, `From<[usize; N]>`, `try_extend(impl IntoIterator<Item = usize>)`, `From<&BitSet>`, and `From<&HierarchicalBitSet> for BitSet` |
-| Size and capacity | `len()` (O(words of layer 0)), `is_empty()` (O(1): `top == 0`), `capacity()` (`64 ×` the words allocated in layer 0), `ensure_capacity(bits)`, `try_ensure_capacity(bits)`, `shrink_to_fit()`, `clear()` (keeps the allocations) |
+| Size and capacity | `len()` (O(words of layer 0)), `is_empty()` (O(1): `top == 0`), `capacity()` (the bits that fit without allocating in any layer: the smallest, over layers 0 to 4, of `64^(k + 1) ×` the words allocated in layer `k`, at most `MAX_BITS`; every `insert(i)` with `i < capacity()` MUST NOT allocate), `ensure_capacity(bits)`, `try_ensure_capacity(bits)`, `shrink_to_fit()`, `clear()` (keeps the allocations) |
 | Bits | `insert(usize) -> bool`, `try_insert(usize) -> Result<bool, TryReserveError>`, `remove(usize) -> bool` (never allocates), `contains(usize) -> bool` |
 | Order | `first()`, `last()` (each O(layers): descend from `top`), `iter() -> HierarchicalIter<'_>`; `IntoIterator` for `&HierarchicalBitSet` |
 | Set algebra, in place | `union_with(&Self)`, `intersect_with(&Self)`, `difference_with(&Self)` |
