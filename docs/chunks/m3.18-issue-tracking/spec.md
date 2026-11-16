@@ -55,17 +55,17 @@ An issue never spans more than one pull request, so `Closes #N` is always correc
 
 ### 4.1 Labels
 
-Existing labels stay. New: an `area:` family matching the `engine` modules and repository areas (`area:collections`, `area:genid`, `area:random`, `area:time`, `area:math`, `area:bench`, `area:xtask`, `area:ci`, `area:docs`, `area:workflow`), `needs-measurement` (triage found the issue cannot be defined without a run), and `ai-assisted` (an assistant drafted the issue). Labels are declared in `infra/github/index.ts` (authoritative; labels not listed there are deleted). Status and priority are never labels.
+Existing labels stay and none is retired. **Type labels** are the existing `bug`, `enhancement`, `infrastructure`, `documentation` and `research`; every issue carries exactly one of them. `performance` and `determinism` are additive (an issue may carry them with a type). New: an `area:` family for code only, matching the `engine` modules and tools (`area:collections`, `area:genid`, `area:random`, `area:time`, `area:math`, `area:bench`, `area:xtask`); CI, docs and process are covered by `infrastructure` and `documentation`, so there is no `area:ci`, `area:docs` or `area:workflow` *(main session's call)*. Also new: `needs-measurement` (triage found the issue cannot be defined without a run), and `ai-assisted` (an assistant drafted the issue). Labels are declared in `infra/github/index.ts` (authoritative; labels not listed there are deleted). Status and priority are never labels.
 
 ### 4.2 The Project
 
 One user-owned Project, "Engine backlog", with single-select fields:
 
-- **Status:** Inbox, Ready, Scheduled, Done. (Fewer states first; add Defined or In progress only if wanted.) Parked is also a Status for the icebox.
+- **Status:** Inbox, Ready, Scheduled, Done. (Fewer states first; add Defined or In progress only if wanted.) There is no Parked status: the icebox is the `research` issues, which are not Project items *(main session's call)*.
 - **Priority:** Now, Next, Later (neutral wording, since contributors can see it).
 - **Size:** S, M, L, XL (XL means split before scheduling).
 
-Built-in workflows: auto-add issues from this repository except those labelled `research`; set Status to Done when an issue closes. Default views: Inbox, Ready by Priority, Scheduled, and a board. Research issues are added to the Project only when they leave the icebox.
+Built-in workflows: auto-add issues from this repository except those labelled `research`; set Status to Done when an issue closes. Default views: Inbox, Ready by Priority, Scheduled, and a board. `research` issues, #38 included, are not items; when one is scheduled it loses `research` for a type label and is added. When `research` is added to an issue after it was created, `/triage` removes it from the Project.
 
 ### 4.3 Tracking issues
 
@@ -81,11 +81,11 @@ An issue is Ready when its body states: the problem and what it costs; the outco
 
 ### 4.6 `/triage`
 
-A skill in `.claude/skills/triage/`. Allowed commands: `gh issue`, `gh project`, `gh api` (read, and the writes below), and file reads. Forbidden: anything that builds, tests or measures, and any file edit outside the issue text. It proposes before writing: labels, Priority, Size, a drafted definition, duplicates, and for each external issue a short reply. It writes only after the maintainer confirms the batch. Follow-up issues from chunk stage 7 are unchanged: already authorized. On start it checks the Project's field and option names against the list in 4.2 and stops with a clear error if they differ, since the Project is edited in the web interface and cannot be declared in Pulumi.
+A skill in `.claude/skills/triage/`. Allowed commands: `gh issue`, `gh project`, `gh api` (read, and the writes below), and file reads. Forbidden: anything that builds, tests or measures, and any file edit outside the issue text. It proposes before writing: labels, Priority, Size, a drafted definition, possible duplicates, and a short reply for each external issue. It writes only after the maintainer confirms the batch. Its allowed writes are exactly: add or remove labels; set Project fields and add or remove Project items; edit the body of an issue filed by the maintainer or an assistant to add the definition; post a comment; close an issue as `duplicate` only with the maintainer's confirmation of that issue by number. It never edits the body of an issue filed by someone else (it comments instead) *(main session's call)*. Follow-up issues from chunk stage 7 are unchanged: already authorized. On start it checks the Project's field and option names against the list in 4.2 and stops with a clear error if they differ, since the Project is edited in the web interface and cannot be declared in Pulumi.
 
 ### 4.7 Hand-off to the chunk loop
 
-`/chunk next` is unchanged: the roadmap order picks the chunk. A roadmap row that has an issue cites it as the existing rows do (`#40`). Stage 1 reads the linked issue. Stage 7 moves nothing by hand; the Project automation does.
+The roadmap order still picks the chunk. A roadmap row that has an issue cites it as the existing rows do (`#40`). Two small edits to `.claude/skills/chunk/stages/1-brainstorm.md`: step 1 also reads the linked issue, and step 2 sets that issue's Project Status to Scheduled when the row goes to `Drafting`. This is the chunk's own issue, so it is covered by the chunk's authority. Stage 7 moves nothing by hand; the Project automation sets Done *(main session's call)*.
 
 ### 4.8 Contributors
 
@@ -93,7 +93,7 @@ Ready issues that are small and safe MAY carry `good first issue` or `help wante
 
 ### 4.9 Migration
 
-A one-time pass: label the 17 open issues, set their Project fields, add the two milestone tracking issues (M3, M4). Closed or merged chunks without issues are not backfilled.
+A one-time pass: give every open issue a type label (#27 and #30 get `infrastructure`), add `area:` labels where one applies, set Project fields on the non-`research` issues, and add the two milestone tracking issues (M3, M4). #38 stays standalone. Planned roadmap rows without an issue get none, and existing specs are not edited; a spec links its tracking issue when its chunk starts. Closed or merged chunks without issues are not backfilled *(main session's call)*.
 
 ## 5. Requirements
 
@@ -103,7 +103,7 @@ A one-time pass: label the 17 open issues, set their Project fields, add the two
 - **M3.18-R4** `/triage` MUST stop with an error naming the difference when a Project field or option is missing or renamed.
 - **M3.18-R5** The three Markdown templates MUST become issue forms carrying the Definition of Ready fields.
 - **M3.18-R6** CONTRIBUTING.md and `docs/workflow.md` MUST describe the path in section 3 and link to a single copy of it.
-- **M3.18-R7** Every open issue MUST have a type label, an `area:` label where one applies, and a Project Status after the migration.
+- **M3.18-R7** After the migration every open issue MUST have exactly one type label and an `area:` label where one applies, and every open issue without the `research` label MUST have a Project Status.
 - **M3.18-R8** `cargo xtask ci --quick` MUST pass, including `check-docs`.
 
 ## 6. Cross-cutting concerns
@@ -128,7 +128,7 @@ A one-time pass: label the 17 open issues, set their Project fields, add the two
 | R1 | `gh project field-list` output recorded in `log.md`; the names match the doc |
 | R2 | `pulumi preview` shows the labels; `git grep` finds each in `index.ts` |
 | R3 | The skill's allowed-command list; a dry run recorded in `log.md` |
-| R4 | A dry run against a Project with a renamed option |
+| R4 | A dry run against a throwaway private Project with one option renamed, created and deleted for the purpose (authorised by this spec); the "Engine backlog" Project is never renamed to test |
 | R5 | GitHub renders each form (checked in the chooser) |
 | R6 | `cargo xtask check-docs` |
 | R7 | `gh issue list --state open --json labels` shows no unlabelled issue; Project view shows no empty Status |
