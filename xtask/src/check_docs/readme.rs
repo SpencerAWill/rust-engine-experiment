@@ -62,16 +62,31 @@ fn check_shape(path: &str, text: &str, doc: &Doc) -> Vec<Problem> {
     }
     let level2: Vec<&markdown::Heading> = doc.headings.iter().filter(|h| h.level == 2).collect();
     let first_level2 = level2.first().map_or(usize::MAX, |h| h.line);
-    let has_status = text
+    let status = text
         .lines()
         .take(first_level2.saturating_sub(1))
-        .any(|l| l.starts_with("Status:") || l.starts_with("- **Status:**"));
-    if !has_status {
-        problems.push(Problem::new(
+        .find_map(|l| {
+            l.strip_prefix("Status: ")
+                .or_else(|| l.strip_prefix("- **Status:** "))
+                .or_else(|| {
+                    (l.starts_with("Status:") || l.starts_with("- **Status:**")).then_some("")
+                })
+        });
+    match status {
+        None => problems.push(Problem::new(
             path,
             None,
             "no status line before the first `##` heading; add `Status: Living (<date>)`",
-        ));
+        )),
+        Some(value) if !value.starts_with("Living (") => problems.push(Problem::new(
+            path,
+            None,
+            &format!(
+                "status must be `Living (<date>)` for a README; found `{}`",
+                value.trim()
+            ),
+        )),
+        Some(_) => {}
     }
     let position = |name: &str| level2.iter().position(|h| h.text.trim() == name);
     let (when, contents) = (position("When this applies"), position("Contents"));
@@ -287,8 +302,28 @@ mod tests {
     }
 
     #[test]
+    fn a_status_other_than_living_is_reported() {
+        let r =
+            "# T\n\nStatus: Accepted (2026-11-14)\n\n## When this applies\n\nx\n\n## Contents\n\n";
+        let p = docs(&[("docs/README.md", r)]);
+        assert_eq!(p.len(), 1, "{p:#?}");
+        assert!(
+            p[0].contains("status must be `Living (<date>)`")
+                && p[0].contains("found `Accepted (2026-11-14)`"),
+            "{}",
+            p[0]
+        );
+    }
+
+    #[test]
+    fn a_living_status_with_trailing_text_passes() {
+        let r = "# T\n\nStatus: Living (2026-11-15). Text\n\n## When this applies\n\nx\n\n## Contents\n\n";
+        assert_eq!(docs(&[("docs/README.md", r)]), Vec::<String>::new());
+    }
+
+    #[test]
     fn contents_before_when_this_applies_is_reported() {
-        let r = "# T\n\nStatus: Living\n\n## Contents\n\n## When this applies\n\n";
+        let r = "# T\n\nStatus: Living (2026-11-15)\n\n## Contents\n\n## When this applies\n\n";
         let p = docs(&[("docs/README.md", r)]);
         assert_eq!(p.len(), 1, "{p:#?}");
         assert!(
@@ -300,7 +335,7 @@ mod tests {
 
     #[test]
     fn a_missing_contents_is_reported() {
-        let r = "# T\n\nStatus: Living\n\n## When this applies\n\nx\n";
+        let r = "# T\n\nStatus: Living (2026-11-15)\n\n## When this applies\n\nx\n";
         let p = docs(&[("docs/README.md", r)]);
         assert_eq!(p.len(), 1, "{p:#?}");
         assert!(p[0].contains("no `Contents` section"), "{}", p[0]);
