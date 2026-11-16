@@ -2,10 +2,9 @@
 //! a Markdown file matches one of its headings.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
-use super::Problem;
 use super::markdown::{self, Doc};
+use super::{Problem, is_markdown};
 
 /// Checks every relative link of every Markdown file in `texts` (path to contents).
 pub(super) fn check(files: &BTreeSet<String>, texts: &BTreeMap<String, String>) -> Vec<Problem> {
@@ -106,12 +105,6 @@ fn is_directory(files: &BTreeSet<String>, path: &str) -> bool {
         .range(prefix.clone()..)
         .next()
         .is_some_and(|f| f.starts_with(&prefix))
-}
-
-fn is_markdown(path: &str) -> bool {
-    Path::new(path)
-        .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("md"))
 }
 
 /// Decodes `%XX` escapes (invalid ones are kept as written).

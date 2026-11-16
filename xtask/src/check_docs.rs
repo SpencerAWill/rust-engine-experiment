@@ -123,7 +123,8 @@ fn is_direct_child(path: &str, dir: &str) -> bool {
         .is_some_and(|rest| !rest.contains('/') && is_markdown(rest))
 }
 
-fn is_markdown(path: &str) -> bool {
+/// Whether `path` names a Markdown file (extension `.md`, any case).
+pub(crate) fn is_markdown(path: &str) -> bool {
     std::path::Path::new(path)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("md"))

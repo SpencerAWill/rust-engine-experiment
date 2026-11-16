@@ -148,10 +148,7 @@ const RELEVANT: &[&str] = &[
 /// instruction count. Markdown never can, so a path ending in `.md` is not relevant even under a
 /// `RELEVANT` directory.
 fn is_relevant(path: &str) -> bool {
-    if Path::new(path)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
-    {
+    if crate::check_docs::is_markdown(path) {
         return false;
     }
     RELEVANT
