@@ -86,7 +86,7 @@ Choices the spec leaves to the plan:
 
 ### Step 8: The rule map (R11, lesson specs-2)
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `log.md`.
 - **Change:** for each moved section of the `CONTRIBUTING.md` at `main` (`git show main:CONTRIBUTING.md`), one line per rule (each bullet and each normative sentence): where it is now (file and section). A rule not found is restored before committing.
 - **Verify:** every bullet of the six moved sections at `main` has a line.
