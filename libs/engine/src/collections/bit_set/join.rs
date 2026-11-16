@@ -4,8 +4,7 @@ use core::fmt;
 use core::iter::FusedIterator;
 
 use super::HierarchicalBitSet;
-use super::descent::{LAYERS, WordCursor, WordSource};
-use super::words::WORD_BITS;
+use super::descent::{LAYERS, WordBits, WordCursor, WordSource};
 use crate::collections::error::EmptyJoinError;
 
 /// The sets a join reads, seen as one set of words.
@@ -61,10 +60,7 @@ impl WordSource for JoinSource<'_> {
 pub struct Join<'a> {
     source: JoinSource<'a>,
     cursor: WordCursor,
-    /// The index of the first bit of the current layer-0 word.
-    base: usize,
-    /// The bits of the current layer-0 word not yet yielded.
-    bits: u64,
+    current: WordBits,
 }
 
 impl<'a> Join<'a> {
@@ -125,8 +121,7 @@ impl<'a> Join<'a> {
         Ok(Self {
             cursor: WordCursor::new(source.word(LAYERS - 1, 0)),
             source,
-            base: 0,
-            bits: 0,
+            current: WordBits::default(),
         })
     }
 }
@@ -136,14 +131,7 @@ impl Iterator for Join<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<usize> {
-        while self.bits == 0 {
-            let (word, bits) = self.cursor.next_word(&self.source)?;
-            self.base = word * WORD_BITS;
-            self.bits = bits;
-        }
-        let bit = self.bits.trailing_zeros() as usize;
-        self.bits &= self.bits - 1; // clear the lowest set bit
-        Some(self.base + bit)
+        self.current.next_member(&mut self.cursor, &self.source)
     }
 }
 

@@ -11,7 +11,7 @@ use super::words::WORD_BITS;
 pub(super) const LAYERS: usize = 6;
 
 /// log2 of the word width: the bits of an index one layer consumes.
-const WORD_SHIFT: u32 = WORD_BITS.ilog2();
+pub(super) const WORD_SHIFT: u32 = WORD_BITS.ilog2();
 
 /// Where a cursor reads words from.
 pub(super) trait WordSource {
@@ -63,5 +63,32 @@ impl WordCursor {
                 self.base[below] = child;
             }
         }
+    }
+}
+
+/// The members of the layer-0 word being yielded: the index of its first bit and the bits not
+/// yet yielded. Both iterators over a descent keep one.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct WordBits {
+    base: usize,
+    bits: u64,
+}
+
+impl WordBits {
+    /// The next member in ascending order, refilling from `cursor` when the word is spent.
+    #[inline]
+    pub(super) fn next_member(
+        &mut self,
+        cursor: &mut WordCursor,
+        source: &impl WordSource,
+    ) -> Option<usize> {
+        while self.bits == 0 {
+            let (word, bits) = cursor.next_word(source)?;
+            self.base = word * WORD_BITS;
+            self.bits = bits;
+        }
+        let bit = self.bits.trailing_zeros() as usize;
+        self.bits &= self.bits - 1; // clear the lowest set bit
+        Some(self.base + bit)
     }
 }

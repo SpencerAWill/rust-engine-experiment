@@ -166,3 +166,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
   | join | uniform_50pct | 57.4 µs | 0.67 | 0.41 | 0.79 |
   | join | uniform_99pct | 34.0 µs | 1.20 | 0.64 | 1.17 |
 - 2026-11-16 done Step 10 (main session): `lib.rs` module map, README row, research catalog entry, CHANGELOG entry. Full `cargo xtask ci` passes (nextest 722 passed, 6 skipped; 728 passed in the second test pass), `doc` and `check-docs` clean.
+- 2026-11-16 done Simplify pass (builder, inline single pass): one `WORD_SHIFT`, and a shared private `WordBits::next_member` for the bit loop of `HierarchicalIter` and `Join`. `ci --quick` re-run by main session (722 passed, 6 skipped). Instruction counts before and after are checked with `bench-regress --base b667ca6` in the container.

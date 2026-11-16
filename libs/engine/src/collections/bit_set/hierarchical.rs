@@ -6,7 +6,7 @@ use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 
 use super::BitSet;
-use super::descent::{LAYERS, WordCursor, WordSource};
+use super::descent::{LAYERS, WORD_SHIFT, WordBits, WordCursor, WordSource};
 use super::exceeds_max_bits;
 use super::join::JoinSource;
 use super::words::{self, MAX_BITS, WORD_BITS, bits_for_words, words_for_bits};
@@ -14,9 +14,6 @@ use crate::collections::error::{BitSetInvariantError, InvariantRule, TryReserveE
 
 /// The vectors: layers 0 to 4.
 const VECTOR_LAYERS: usize = LAYERS - 1;
-
-/// log2 of the word width: the bits of an index one layer consumes.
-const WORD_SHIFT: u32 = WORD_BITS.ilog2();
 
 /// The shift that turns a bit index into the index of its word in layer `k`.
 #[inline]
@@ -436,8 +433,7 @@ impl HierarchicalBitSet {
         HierarchicalIter {
             set: self,
             cursor: WordCursor::new(self.top),
-            base: 0,
-            bits: 0,
+            current: WordBits::default(),
         }
     }
 
@@ -729,10 +725,7 @@ impl<'a> IntoIterator for &'a HierarchicalBitSet {
 pub struct HierarchicalIter<'a> {
     set: &'a HierarchicalBitSet,
     cursor: WordCursor,
-    /// The index of the first bit of the current layer-0 word.
-    base: usize,
-    /// The bits of the current layer-0 word not yet yielded.
-    bits: u64,
+    current: WordBits,
 }
 
 impl Iterator for HierarchicalIter<'_> {
@@ -740,14 +733,7 @@ impl Iterator for HierarchicalIter<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<usize> {
-        while self.bits == 0 {
-            let (word, bits) = self.cursor.next_word(self.set)?;
-            self.base = word * WORD_BITS;
-            self.bits = bits;
-        }
-        let bit = self.bits.trailing_zeros() as usize;
-        self.bits &= self.bits - 1; // clear the lowest set bit
-        Some(self.base + bit)
+        self.current.next_member(&mut self.cursor, self.set)
     }
 }
 
