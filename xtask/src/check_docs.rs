@@ -170,8 +170,10 @@ fn repository_root() -> Result<std::path::PathBuf, String> {
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout.strip_suffix('\n').unwrap_or(&stdout);
     Ok(std::path::PathBuf::from(
-        String::from_utf8_lossy(&output.stdout).trim_end(),
+        line.strip_suffix('\r').unwrap_or(line),
     ))
 }
 
@@ -336,18 +338,15 @@ mod tests {
         assert_eq!(files, BTreeSet::from(["only-here.md".to_string()]));
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_tracked_symlink_is_not_a_file() {
         let dir = temp_dir("symlink");
         fs::write(dir.join("real.md"), "x\n").unwrap();
-        #[cfg(unix)]
-        let linked = std::os::unix::fs::symlink(dir.join("real.md"), dir.join("link.md")).is_ok();
-        #[cfg(not(unix))]
-        let linked = false;
-        if linked {
-            let files = existing_files(&dir, "real.md\0link.md\0");
-            assert_eq!(files, BTreeSet::from(["real.md".to_string()]));
-        }
+        std::os::unix::fs::symlink(dir.join("real.md"), dir.join("link.md"))
+            .expect("the symlink must be creatable for this test to mean anything");
+        let files = existing_files(&dir, "real.md\0link.md\0");
+        assert_eq!(files, BTreeSet::from(["real.md".to_string()]));
         let _ = fs::remove_dir_all(&dir);
     }
 }

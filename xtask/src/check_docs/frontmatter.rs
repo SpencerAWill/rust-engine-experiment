@@ -150,7 +150,14 @@ fn check_frontmatter(
     for (index, line) in lines.iter().enumerate().take(end).skip(1) {
         let number = index + 1;
         if *line == format!("{key}:") {
-            (under, key_line) = (Under::Expected, Some(number));
+            if key_line.is_some() {
+                problems.push(Problem::new(
+                    path,
+                    Some(number),
+                    &format!("duplicate `{key}:`; merge the lists"),
+                ));
+            }
+            (under, key_line) = (Under::Expected, key_line.or(Some(number)));
         } else if let Some(item) = line.strip_prefix("  - ") {
             if under == Under::Expected {
                 globs += 1;
@@ -281,6 +288,35 @@ mod tests {
         expect(
             &lesson("---\napplies_to:\n  - \"docs/**\"\n# Lessons: demo\n"),
             &[(PATH, "not closed")],
+        );
+    }
+
+    #[test]
+    fn a_repeated_key_is_one_problem() {
+        let text =
+            "---\npaths:\n  - \"docs/**\"\npaths:\n  - \"xtask/**\"\n---\nRead docs/README.md.\n";
+        let (files, _) = fixture(&[(RULE_PATH, text), ("docs/a.md", ""), ("xtask/a.rs", "")]);
+        let got: Vec<String> = check_rule(RULE_PATH, text, &files)
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        expect(
+            &got,
+            &[(
+                ".claude/rules/docs.md:4",
+                "duplicate `paths:`; merge the lists",
+            )],
+        );
+        let text = LESSON.replace(
+            "---\n# Lessons",
+            "applies_to:\n  - \"docs/**\"\n---\n# Lessons",
+        );
+        expect(
+            &lesson(&text),
+            &[(
+                "docs/lessons/demo.md:4",
+                "duplicate `applies_to:`; merge the lists",
+            )],
         );
     }
 
