@@ -18,3 +18,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-16 done Grill cold read (spec-reader, registered agent): three questions, all settled as main-session calls; two path fixes (allocation test file, fuzz list in `xtask/src/fuzz.rs`).
 - 2026-11-16 decision Main-session calls from the cold read: model and fuzz indices capped below 1,048,576, with top-of-range unit tests on 64-bit hosts only (layer 0 near `MAX_BITS` is about 512 MiB); `union_with` grows to `other`'s trimmed length, as `BitSet`; the space report builds by one-at-a-time insertion in seeded random order with no presizing, plus a bytes-after-`shrink_to_fit` column.
 - 2026-11-16 done `cargo xtask deny` passes with `hibitset` 0.6.4 (default features off) and `hi_sparse_bitset` 0.10.0 added to `bench/compare` (checked in a throwaway worktree, not committed): its `MIT/Apache-2.0` licence string is accepted.
+- 2026-11-16 decision Spec accepted by the maintainer.

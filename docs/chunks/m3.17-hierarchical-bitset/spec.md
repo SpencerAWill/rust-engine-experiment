@@ -1,6 +1,6 @@
 # M3.17: Hierarchical bitset
 
-- **Status:** Draft (2026-11-16)
+- **Status:** Accepted (2026-11-16)
 - **Milestone:** M3 (scheduled during M3, not part of its exit criteria; M4's queries build on it) · **Depends on:** M3.14 · **Decides:** no ADR
 - **Issues:** #44 (sub-issue of #38). Related: #41 / M3.12 (space metrics; §2), the sparse variant (a follow-up issue opened at close-out; §10).
 - **Estimated size:** about 1,000 changed lines, excluding tests, lockfiles and generated files (the set about 450, the join about 150, the error type about 40, benchmarks and the space report about 200, fuzz target about 80, documents about 80)
