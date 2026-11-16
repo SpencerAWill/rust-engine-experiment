@@ -12,7 +12,9 @@ Issues: `$ARGUMENTS` (default: every open issue whose Project Status is Inbox or
 
 ## The rule: machine-light
 
-This skill runs while a long job may be running, so it must not disturb it. Never run `cargo`, `rustc`, `valgrind`, `docker`, `pulumi`, `pnpm`, an `xtask` command or anything else that builds, tests, measures or starts a container. Allowed: `gh issue`, `gh project`, `gh label list`, `gh api` for GET requests only, and reading files. The writes of step 4 go through `gh issue` and `gh project`; never `gh label create`, `edit` or `delete` (labels are declared in `infra/github/index.ts`, and a hand edit is reverted by the next `pulumi up`), and never a `gh api` call that is not a GET. Edit no file in the repository; this skill changes GitHub only, because a chunk branch may be in flight. An issue that cannot be defined without a run gets the `needs-measurement` label and the measurement as its first step; do not do the measurement.
+This skill runs while a long job may be running, so it must not disturb it. Never run `cargo`, `rustc`, `valgrind`, `docker`, `pulumi`, `pnpm`, an `xtask` command or anything else that builds, tests, measures or starts a container. Allowed: `gh issue`, `gh project`, `gh label list`, `gh api` only with `--method GET` written out, and reading files. The writes of step 4 go through `gh issue` and `gh project`; never `gh label create`, `edit` or `delete` (labels are declared in `infra/github/index.ts`, and a hand edit is reverted by the next `pulumi up`), and never a `gh api` call without an explicit `--method GET` (it silently becomes a POST as soon as `-f` or `-F` is given), nor `gh api graphql`. Edit no file in the repository; this skill changes GitHub only, because a chunk branch may be in flight. An issue that cannot be defined without a run gets the `needs-measurement` label and the measurement as its first step; do not do the measurement.
+
+Pass `--limit 1000` to every `gh issue list`, `gh project item-list` and `gh search` you use to decide that something is missing: the default is 30, and "not found" past that is a silent skip.
 
 ## 1. Check the Project
 
@@ -29,6 +31,7 @@ For each issue, one entry:
 - **Labels:** exactly one type label (the list is in `docs/maintainers.md`), `performance` or `determinism` where they apply, an `area:` label where the issue is about one module or tool, `needs-measurement` where it applies, and `ai-assisted` if the form's "An assistant drafted this issue" box is ticked (the box decides only this label, never who filed the issue).
 - **Priority** and **Size**, from the options in `docs/maintainers.md`, each with a one-line reason. XL means: split into a tracking issue with one sub-issue per chunk before it can be Ready.
 - **Definition:** the problem and its cost, the outcome that counts as done, the verification, dependencies, per the Definition of Ready. Missing facts that only the maintainer has are listed as questions, not invented.
+- For a Project item labelled `research`, the entry is only: remove it from the Project. No Priority, Size or definition.
 - **Status:** Ready if the definition is complete, otherwise Inbox with what is missing.
 - **Possible duplicates**, by number, with the reason.
 - For an issue whose author is not the maintainer's account (`gh issue view --json author` against `gh api user`): a short, neutral reply that says where the issue stands. Priority wording is for the maintainer; do not post "Later" as a verdict.

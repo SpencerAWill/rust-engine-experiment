@@ -65,7 +65,7 @@ Choices the spec leaves to implementation:
 - [ ] **Who:** main session, with the maintainer for the token scope
 - **Files:** `infra/github/index.ts` only if the test fails
 - **Test first:** `gh project list` fails with the missing `read:project` scope; the maintainer runs `! gh auth refresh -s project -s read:project` and it then succeeds.
-- **Change:** create the public "Engine backlog" Project with the fields and options of `docs/maintainers.md`, link it to the repository, and enable the two built-in workflows and the default views as far as `gh` and the web interface allow (say in `log.md` what was done by hand). If linking fails with `hasProjects: false`, set it to `true` in `index.ts`, update the comment above it, and commit `fix(infra): enable repository Projects for the issue tracking Project (M3.18)`.
+- **Change:** create the public "Engine backlog" Project with the fields and options of `docs/maintainers.md`, link it to the repository, and enable the built-in workflows listed under Automation in `docs/maintainers.md` and the default views as far as `gh` and the web interface allow (say in `log.md` what was done by hand). If linking fails with `hasProjects: false`, set it to `true` in `index.ts`, update the comment above it, and commit `fix(infra): enable repository Projects for the issue tracking Project (M3.18)`.
 - **Verify:** `gh project field-list <n> --owner SpencerAWill` output pasted into `log.md`, with the names equal to the section in `docs/maintainers.md`.
 - **Commit:** the log, plus the `index.ts` change if one was needed.
 
