@@ -1,6 +1,6 @@
 # M3.16: Documentation layout
 
-- **Status:** Accepted (2026-11-15)
+- **Status:** Implemented (PR #61, 2026-11-15); accepted 2026-11-15
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.15 (merged in PR #59; its spec §4.12 hands this scope on) · **Decides:** no ADR (documentation conventions, recorded in `docs/README.md` and enforced by `cargo xtask check-docs`)
 - **Estimated size:** about 620 lines of Rust in `xtask` plus about 400 lines of tests; about 900 changed lines of Markdown, most of them moved
 - **Closes:** #58
@@ -223,16 +223,16 @@ Friction with the loop, its roles or its skills is logged as `lesson?` when it h
 
 ## 9. Done when
 
-- [ ] `cargo xtask check-docs` exists, is tested, and passes on the branch.
-- [ ] It runs in `cargo xtask ci`, as a `ci.yml` job, and is in `requiredChecks`.
-- [ ] Every README of §4.1 exists in the shape of §4.2.
-- [ ] The manuals are moved (§4.9), the rule map is in `log.md`, and no reference to a moved section is left.
-- [ ] The nine rule files exist and one was shown to load.
-- [ ] `AGENTS.md` is under 80 lines and its table points at the READMEs.
-- [ ] #58's links are fixed.
-- [ ] Markdown paths no longer trigger the instruction-count gate.
-- [ ] `cargo xtask ci` passes.
-- [ ] After the merge, the maintainer has run `pulumi up` in `infra/github`.
+- [x] `cargo xtask check-docs` exists, is tested (`xtask/src/check_docs/`), and passes on the branch (`check-docs: 0 problems` in `cargo xtask ci` at 51bef9f).
+- [x] It runs in `cargo xtask ci`, as a `ci.yml` job, and is in `requiredChecks` (`xtask/src/main.rs` `ci_steps`, `.github/workflows/ci.yml`, `infra/github/index.ts`).
+- [x] Every README of §4.1 exists in the shape of §4.2 (enforced by `check-docs`).
+- [x] The manuals are moved (§4.9), the rule map is in `log.md` (step 8), and the §8 R11 grep finds no reference to a moved section.
+- [x] The nine rule files exist and one was shown to load (`log.md`, step 11).
+- [x] `AGENTS.md` is under 80 lines (65) and its table points at the READMEs.
+- [x] #58's links are fixed (421a1b5; PR #61 closes #58).
+- [x] Markdown paths no longer trigger the instruction-count gate (`bench_regress::tests::markdown_is_not_relevant`).
+- [x] `cargo xtask ci` passes (locally at 51bef9f; the PR's CI run is pending at close-out).
+- [ ] After the merge, the maintainer has run `pulumi up` in `infra/github` (pending: after the merge).
 
 ## 10. Open questions
 

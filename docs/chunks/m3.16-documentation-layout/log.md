@@ -1,6 +1,6 @@
 # M3.16 log: Documentation layout
 
-- **Status:** Living (2026-11-15)
+- **Status:** Historical: PR #61 (2026-11-15)
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>
@@ -60,3 +60,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-15 decision Stage 6: builder file forbids `git stash`/`reset`/`checkout` on the shared tree (the step 4 stash); lessons xtask-1 (resolve the root), xtask-2 (CRLF trial), bench-1 (`include_str!` of Markdown vs the gate's `.md` skip) added; the README status value becomes a check (`Living (`) instead of a lesson. Not kept: quoted links in logs and line-based YAML (now enforced by `check-docs`), test helpers picking up new checks (low cost), stale full-ci pass (stage 7 re-runs `ci`), simplify refactors in Deviations (minor), the heredoc `&&` slip (general shell knowledge).
 - 2026-11-15 done README status value must start `Living (` (spec §4.2 point 2): `check_shape` reports `status must be `Living (<date>)` for a README; found `<value>``; the Accepted-status test failed first.
 - 2026-11-15 done readme.rs status line: any spacing after the colon passes, wrong value quoted as written and reported at its 1-based line (3 tests, failing first)
+- 2026-11-15 done PR #61 opened; close-out commit: spec Implemented, plan and log Historical, roadmap Done. The `pulumi up` item stays open until after the merge.
