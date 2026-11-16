@@ -23,6 +23,18 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] Merge only on the maintainer's explicit go-ahead (in the chunk loop the main session squash-merges, never with `--admin`).
 - [ ] After merging any pull request (chunk or not) that changes `infra/github/`: `pulumi preview`, then `pulumi up` in `infra/github`. Until then a new required check, label or setting (such as Discussions) does not exist in the repository.
 
+## Issue tracking
+
+The path from an idea to a chunk is in [workflow.md](workflow.md#from-issue-to-chunk). This section is the Project's configuration, which lives in GitHub, not in the repository. `/triage` checks the live Project against these names and stops if they differ.
+
+- **Project:** "Engine backlog", user-owned (`SpencerAWill`), private until the repository goes public, linked to this repository. Provisional: keep it for a milestone, then keep or drop it by how much the backlog grew.
+- **Status:** Inbox, Ready, Scheduled, Done. **Priority:** Now, Next, Later. **Size:** S, M, L, XL. All single-select. There is no Parked status.
+- **Automation:** auto-add issues from this repository unless labelled `research`; Status becomes Done when an issue closes. `research` issues (the icebox, #38 included) are not Project items.
+- **Views:** Inbox, Ready by Priority, Scheduled, and a board.
+- **Labels** are declared in `infra/github/index.ts`. Every issue carries exactly one type label (`bug`, `enhancement`, `infrastructure`, `documentation`, `research`); `performance` and `determinism` are additive; `area:*` is for code only.
+- **Contributors:** a Ready issue that is small and safe may carry `help wanted` or `good first issue`. Claim an issue before starting by assigning yourself or commenting, so two people (or two agents) do not do the same work.
+- **Tracking issues:** one per roadmap milestone and one per multi-chunk effort, with sub-issues. Close a milestone's when the milestone completes.
+
 ## When a milestone completes
 
 - [ ] Instruction-count check (from M3 on): in the devcontainer or CI, run `cargo xtask bench-regress --report-only --base m<N-1>` (the previous milestone's tag) and record the result in `docs/benchmarks.md` ("Instruction counts across milestones"). The first run is at the end of M3, against `m2`; at the end of M2 no earlier tag contains the benchmarks.
@@ -30,6 +42,7 @@ Status: Accepted (2026-11-12). Operational checklists for the repository; the en
 - [ ] In the roadmap, mark the milestone `Done` and the next one `Current`, and break the next one into chunks.
 - [ ] Run `/lessons-refresh` over `docs/lessons/` (keep, edit, merge or delete each lesson against the code).
 - [ ] If a new Claude model shipped since the last milestone, re-check the model of each role in `.claude/agents/` against one chunk's results ([docs/workflow.md](workflow.md#roles)).
+- [ ] Close the milestone's tracking issue, and look through the `research` icebox for anything worth scheduling.
 - [ ] Decide whether this is the boundary at which to run "Before the repository goes public".
 
 ## Benchmarking

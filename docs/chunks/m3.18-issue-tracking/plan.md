@@ -53,11 +53,11 @@ Choices the spec leaves to implementation:
 
 ### Step 5: documentation (R1, R6)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/workflow.md`, `docs/maintainers.md`, `CONTRIBUTING.md`, `AGENTS.md` (one line, only if `check-docs`'s length limit allows), `docs/README.md` (only if a Contents entry is needed)
 - **Test first:** `git grep -n 'From issue to chunk' docs CONTRIBUTING.md` finds nothing.
 - **Change:** `docs/workflow.md`: the "From issue to chunk" section (vocabulary, the path, the sources of truth, the cardinalities table, the split-a-chunk rule, the machine-light rule for `/triage`), adapted from spec §3 and linking the spec for the reasoning. `docs/maintainers.md`: an "Issue tracking" section with the Project's name, field names and options (exactly spec 4.2), its automation and default views, the claim convention for contributors, when `help wanted` and `good first issue` apply, and one item on the milestone checklist (close the milestone's tracking issue, review the `research` icebox). `CONTRIBUTING.md`: three lines under Issues linking to the workflow section, naming the type-label rule and the claim convention. The Definition of Ready (spec 4.4) is written once, in `docs/workflow.md`.
-- **Verify:** `cargo xtask check-docs` exits 0; `git grep -n 'Inbox, Ready, Scheduled, Done' docs CONTRIBUTING.md .claude` finds exactly one place (`docs/maintainers.md`).
+- **Verify:** `cargo xtask check-docs` exits 0; `git grep -n 'Inbox, Ready, Scheduled, Done' -- docs CONTRIBUTING.md .claude ':!docs/chunks'` finds exactly one place (`docs/maintainers.md`).
 - **Commit:** `docs: describe the path from issue to chunk and the issue tracking setup (M3.18)`
 
 ### Step 6: create the Project and test `hasProjects` (R1) · stage 7, after the PR is open
@@ -107,4 +107,5 @@ Choices the spec leaves to implementation:
 
 ## 5. Deviations
 
-None yet.
+- **Step 5 ran before step 3.** The skill links to the two sections step 5 adds, so `check-docs` could not pass for step 3 first. The commits are in the order 1, 2, 5, 3, 4.
+- **Step 1's TypeScript check** was not run (no `node_modules` in the worktree); step 7's `pulumi preview` is the check.
