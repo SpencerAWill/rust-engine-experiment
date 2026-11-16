@@ -1,6 +1,6 @@
 # M3.18 plan: Issue tracking
 
-- **Status:** Accepted (2026-11-16)
+- **Status:** Historical: executed in PR #65 (2026-11-16); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

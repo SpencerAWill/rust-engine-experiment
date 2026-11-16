@@ -1,6 +1,6 @@
 # M3.18 log: Issue tracking
 
-- **Status:** Living (2026-11-16)
+- **Status:** Historical: PR #65 (2026-11-16)
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>
@@ -48,3 +48,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-16 decision Spec 8's R5 asks for the issue chooser to render the new forms. GitHub reads templates from the default branch, so this cannot be checked before the merge: a post-merge check for the maintainer (open https://github.com/SpencerAWill/rust-engine-experiment/issues/new/choose after the merge and confirm the three forms render with their required fields), stated in the PR.
 - 2026-11-16 lesson? A trial prompt that restricts the trial agent more narrowly than the skill allows hides gaps (my trial rules omitted `gh project view`, which the skill allows): give the trial agent the skill's own rules and nothing narrower (step 9).
 - 2026-11-16 done Lesson from step 9 folded into tooling-7 (edited, not added): the trial agent gets the skill's own rules and nothing narrower.
+- 2026-11-16 done Close-out commit: spec Implemented, plan and log Historical, roadmap row Done (PR #65). R5's chooser rendering stays a post-merge check; everything else in the Done-when list is ticked with evidence.

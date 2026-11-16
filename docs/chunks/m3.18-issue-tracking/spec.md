@@ -1,7 +1,8 @@
 # M3.18: Issue tracking
 
-- **Status:** Accepted (2026-11-16)
+- **Status:** Implemented (PR #65, 2026-11-16); accepted 2026-11-16
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.16 · **Decides:** no ADR (process and documentation; the Project's configuration is not code, see 4.6)
+- **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 500 changed lines of Markdown and YAML, about 60 lines in `infra/github/index.ts`, one new skill
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
@@ -145,9 +146,10 @@ All in stage 7, before the merge go-ahead, so the pull request can claim every r
 
 ## 9. Done when
 
-- [ ] R1 to R8 verified
-- [ ] Pull request opened with the assistant noted and the Reviews section filled
-- [ ] The maintainer has run `pulumi up` in `infra/github`
+- [x] R1 to R4 and R6 to R8 verified; evidence in `log.md` (steps 6 to 9 for R1, R3, R4, R7; the review rounds and `cargo xtask ci` and `check-docs` for R2, R6, R8)
+- [ ] R5: the three forms parse and have unique ids and labels (checked), but GitHub's issue chooser reads templates from `main`, so their rendering is checked after the merge (open `/issues/new/choose` and confirm the three forms render with their required fields)
+- [x] Pull request opened with the assistant noted and the Reviews section filled (#65)
+- [x] The maintainer has run `pulumi up` in `infra/github` (2026-11-16)
 
 ## 10. Open questions
 
