@@ -119,7 +119,7 @@ Choices the spec leaves to the plan:
 
 ### Step 12: Changelog
 
-- [ ] **Who:** main session.
+- [x] **Who:** main session.
 - **Files:** `CHANGELOG.md` (Unreleased, Changed).
 - **Verify:** `cargo xtask check-docs` passes.
 - **Commit:** `docs: add the documentation layout to the changelog (M3.16)`
