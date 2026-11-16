@@ -3,14 +3,13 @@
 use alloc::vec::Vec;
 use core::fmt;
 use core::hash::{Hash, Hasher};
+use core::iter::FusedIterator;
 
+use super::BitSet;
+use super::descent::{LAYERS, WordCursor, WordSource};
 use super::exceeds_max_bits;
-use super::iter::Iter;
 use super::words::{self, MAX_BITS, WORD_BITS, bits_for_words, words_for_bits};
 use crate::collections::error::{BitSetInvariantError, InvariantRule, TryReserveError};
-
-/// The number of layers: layers 0 to 4 are vectors and layer 5 is the single word `top`.
-const LAYERS: usize = 6;
 
 /// The vectors: layers 0 to 4.
 const VECTOR_LAYERS: usize = LAYERS - 1;
@@ -45,6 +44,7 @@ const fn shift(k: usize) -> usize {
 /// positions.insert(1_000_000);
 /// assert!(positions.contains(1_000_000));
 /// assert!(!positions.contains(4));
+/// assert_eq!(positions.iter().collect::<Vec<_>>(), [3, 1_000_000]);
 /// assert_eq!(positions.len(), 2);
 /// assert_eq!((positions.first(), positions.last()), (Some(3), Some(1_000_000)));
 /// ```
@@ -300,6 +300,78 @@ impl HierarchicalBitSet {
         self.layers[0].get(word).is_some_and(|w| w & mask != 0)
     }
 
+    /// An iterator over the members, in ascending order. It skips empty ranges: 64, 4,096,
+    /// 262,144 indices and so on at a time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::HierarchicalBitSet;
+    ///
+    /// let set = HierarchicalBitSet::from([1_000_000, 3]);
+    /// assert_eq!(set.iter().collect::<Vec<_>>(), [3, 1_000_000]);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn iter(&self) -> HierarchicalIter<'_> {
+        HierarchicalIter {
+            set: self,
+            cursor: WordCursor::new(self.top),
+            base: 0,
+            bits: 0,
+        }
+    }
+
+    /// Adds every index from `indices`.
+    ///
+    /// This is the fallible twin of the [`FromIterator`], [`Extend`] and `From` implementations.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TryReserveError`] at the first index that is `>= MAX_BITS` or whose growth
+    /// fails. The indices before it have been inserted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use engine::collections::HierarchicalBitSet;
+    ///
+    /// let mut set = HierarchicalBitSet::new();
+    /// assert!(set.try_extend([1, 2, usize::MAX, 4]).is_err());
+    /// assert_eq!(set.iter().collect::<Vec<_>>(), [1, 2]);
+    /// ```
+    pub fn try_extend(
+        &mut self,
+        indices: impl IntoIterator<Item = usize>,
+    ) -> Result<(), TryReserveError> {
+        for index in indices {
+            self.try_insert(index)?;
+        }
+        Ok(())
+    }
+
+    /// Adds every index, or panics naming `operation`, the public item the caller used.
+    #[track_caller]
+    fn extend_named(&mut self, operation: &str, indices: impl IntoIterator<Item = usize>) {
+        for index in indices {
+            if self.try_insert(index).is_err() {
+                limit_exceeded(operation, format_args!("bit index {index}"), "try_extend");
+            }
+        }
+    }
+
+    /// Rebuilds layers 1 to 5 from layer 0.
+    fn rebuild_upper_layers(&mut self) {
+        for k in 1..LAYERS {
+            let parent = summarize(&self.layers[k - 1]);
+            if k == VECTOR_LAYERS {
+                self.top = parent.first().copied().unwrap_or(0);
+            } else {
+                self.layers[k] = parent;
+            }
+        }
+    }
+
     /// The smallest member. This takes O(1) time: it descends from the top layer.
     #[must_use]
     #[inline]
@@ -418,6 +490,150 @@ fn limit_exceeded(operation: &str, subject: fmt::Arguments<'_>, twin: &str) -> !
     );
 }
 
+/// The parent word of each run of 64 words of `child`: bit `b` of word `j` is set when word
+/// `j * 64 + b` of `child` is non-zero.
+fn summarize(child: &[u64]) -> Vec<u64> {
+    child
+        .chunks(WORD_BITS)
+        .map(|run| {
+            run.iter()
+                .enumerate()
+                .fold(0_u64, |bits, (b, w)| bits | u64::from(*w != 0) << b)
+        })
+        .collect()
+}
+
+impl WordSource for HierarchicalBitSet {
+    #[inline]
+    fn word(&self, layer: usize, index: usize) -> u64 {
+        if layer == VECTOR_LAYERS {
+            self.top
+        } else {
+            self.layers[layer].get(index).copied().unwrap_or(0)
+        }
+    }
+}
+
+impl From<&BitSet> for HierarchicalBitSet {
+    /// Copies the members; the upper layers are built from layer 0.
+    fn from(set: &BitSet) -> Self {
+        let mut out = Self::new();
+        out.layers[0].extend_from_slice(set.as_trimmed_words());
+        out.rebuild_upper_layers();
+        out
+    }
+}
+
+impl From<&HierarchicalBitSet> for BitSet {
+    /// Copies the members; the upper layers are dropped.
+    fn from(set: &HierarchicalBitSet) -> Self {
+        // Cannot panic: a hierarchical set never has a bit at or above `MAX_BITS`.
+        BitSet::from_words(set.as_trimmed_words())
+    }
+}
+
+impl FromIterator<usize> for HierarchicalBitSet {
+    /// # Panics
+    ///
+    /// Panics if an index is `>= MAX_BITS`. Use [`HierarchicalBitSet::try_extend`] on a new set
+    /// to handle that.
+    #[track_caller]
+    fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
+        let mut set = Self::new();
+        set.extend_named("from_iter", iter);
+        set
+    }
+}
+
+impl Extend<usize> for HierarchicalBitSet {
+    /// # Panics
+    ///
+    /// Panics if an index is `>= MAX_BITS`. Use [`HierarchicalBitSet::try_extend`] to handle
+    /// that.
+    #[track_caller]
+    fn extend<I: IntoIterator<Item = usize>>(&mut self, iter: I) {
+        self.extend_named("extend", iter);
+    }
+}
+
+impl<'a> Extend<&'a usize> for HierarchicalBitSet {
+    /// # Panics
+    ///
+    /// Panics if an index is `>= MAX_BITS`. Use [`HierarchicalBitSet::try_extend`] to handle
+    /// that.
+    #[track_caller]
+    fn extend<I: IntoIterator<Item = &'a usize>>(&mut self, iter: I) {
+        self.extend_named("extend", iter.into_iter().copied());
+    }
+}
+
+impl<const N: usize> From<[usize; N]> for HierarchicalBitSet {
+    /// # Panics
+    ///
+    /// Panics if an index is `>= MAX_BITS`. Use [`HierarchicalBitSet::try_extend`] on a new set
+    /// to handle that.
+    #[track_caller]
+    fn from(indices: [usize; N]) -> Self {
+        let mut set = Self::new();
+        set.extend_named("from", indices);
+        set
+    }
+}
+
+impl<'a> IntoIterator for &'a HierarchicalBitSet {
+    type Item = usize;
+    type IntoIter = HierarchicalIter<'a>;
+
+    fn into_iter(self) -> HierarchicalIter<'a> {
+        self.iter()
+    }
+}
+
+/// An iterator over the members of a [`HierarchicalBitSet`], in ascending order.
+///
+/// Created by [`HierarchicalBitSet::iter`]. It reads a word of a layer only under a set bit of
+/// the layer above, so empty ranges cost nothing; it keeps one word per layer, with no
+/// allocation.
+///
+/// # Examples
+///
+/// ```
+/// use engine::collections::HierarchicalBitSet;
+///
+/// let mut positions = HierarchicalBitSet::new();
+/// positions.insert(3);
+/// positions.insert(1_000_000);
+/// assert!(positions.contains(1_000_000));
+/// assert_eq!(positions.iter().collect::<Vec<_>>(), [3, 1_000_000]);
+/// ```
+#[derive(Clone, Debug)]
+pub struct HierarchicalIter<'a> {
+    set: &'a HierarchicalBitSet,
+    cursor: WordCursor,
+    /// The index of the first bit of the current layer-0 word.
+    base: usize,
+    /// The bits of the current layer-0 word not yet yielded.
+    bits: u64,
+}
+
+impl Iterator for HierarchicalIter<'_> {
+    type Item = usize;
+
+    #[inline]
+    fn next(&mut self) -> Option<usize> {
+        while self.bits == 0 {
+            let (word, bits) = self.cursor.next_word(self.set)?;
+            self.base = word * WORD_BITS;
+            self.bits = bits;
+        }
+        let bit = self.bits.trailing_zeros() as usize;
+        self.bits &= self.bits - 1; // clear the lowest set bit
+        Some(self.base + bit)
+    }
+}
+
+impl FusedIterator for HierarchicalIter<'_> {}
+
 impl PartialEq for HierarchicalBitSet {
     fn eq(&self, other: &Self) -> bool {
         // The upper layers follow from layer 0, so they are not compared.
@@ -435,7 +651,7 @@ impl Hash for HierarchicalBitSet {
 
 impl fmt::Debug for HierarchicalBitSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_set().entries(Iter::new(&self.layers[0])).finish()
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
@@ -701,5 +917,103 @@ mod tests {
         assert!(set.is_empty());
         assert_eq!(set.top, 0);
         assert_eq!((set.first(), set.last()), (None, None));
+    }
+
+    /// A source that counts the words it is asked for.
+    struct Counting<'a> {
+        set: &'a HierarchicalBitSet,
+        reads: core::cell::Cell<usize>,
+    }
+
+    impl WordSource for Counting<'_> {
+        fn word(&self, layer: usize, index: usize) -> u64 {
+            self.reads.set(self.reads.get() + 1);
+            self.set.word(layer, index)
+        }
+    }
+
+    #[test]
+    fn iteration_skips_empty_ranges() {
+        let set: HierarchicalBitSet = [0, 1_000_000].into_iter().collect();
+        let source = Counting {
+            set: &set,
+            reads: core::cell::Cell::new(0),
+        };
+        let mut cursor = WordCursor::new(set.top);
+        let mut found = std::vec::Vec::new();
+        while let Some((word, bits)) = cursor.next_word(&source) {
+            found.push((word, bits));
+            assert!(found.len() <= 3, "the cursor does not stop");
+        }
+        assert_eq!(found, [(0, 1), (15_625, 1 << (1_000_000 % 64))]);
+        // A scan of layer 0 would read 15,626 words.
+        assert!(
+            source.reads.get() <= 16,
+            "read {} words",
+            source.reads.get()
+        );
+        assert_eq!(bounded(set.iter(), 4), [0, 1_000_000]);
+    }
+
+    #[test]
+    fn cursor_skips_zero_words_under_set_parents() {
+        // A source whose layer-0 words are all zero under set parent bits, as a join may make.
+        struct Zeros;
+        impl WordSource for Zeros {
+            fn word(&self, layer: usize, index: usize) -> u64 {
+                u64::from(layer > 0 && index == 0)
+            }
+        }
+        let mut cursor = WordCursor::new(1);
+        assert_eq!(cursor.next_word(&Zeros), None);
+        assert_eq!(cursor.next_word(&Zeros), None);
+    }
+
+    #[test]
+    fn try_extend_stops_at_the_failing_index() {
+        let mut set = HierarchicalBitSet::new();
+        assert!(set.try_extend([1, 2, usize::MAX, 4]).is_err());
+        assert_eq!(bounded(set.iter(), 4), [1, 2]);
+        assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn construction_and_extension() {
+        let mut set = HierarchicalBitSet::from([9, 3]);
+        set.extend([70, 3]);
+        set.extend(&[5_000]);
+        assert_eq!(bounded(set.iter(), 6), [3, 9, 70, 5_000]);
+        let collected: HierarchicalBitSet = [5_000, 70].into_iter().collect();
+        assert_eq!(bounded((&collected).into_iter(), 3), [70, 5_000]);
+        assert_eq!(set.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn iterator_is_fused_and_clones() {
+        let set = HierarchicalBitSet::from([1, 100_000]);
+        let mut iter = set.iter();
+        assert_eq!(iter.next(), Some(1));
+        let mut copy = iter.clone();
+        assert_eq!(iter.next(), Some(100_000));
+        assert_eq!((iter.next(), iter.next()), (None, None));
+        assert_eq!(copy.next(), Some(100_000));
+        assert_eq!(copy.next(), None);
+    }
+
+    #[test]
+    fn bit_set_round_trip_keeps_members() {
+        let flat: BitSet = [0, 63, 64, 4_096, 262_144, 1_000_000].into_iter().collect();
+        let set = HierarchicalBitSet::from(&flat);
+        assert_eq!(set.check_invariants(), Ok(()));
+        assert_eq!(set.as_trimmed_words(), flat.as_trimmed_words());
+        assert_eq!(
+            bounded(set.iter(), 7),
+            [0, 63, 64, 4_096, 262_144, 1_000_000]
+        );
+        assert_eq!(BitSet::from(&set), flat);
+        let empty = HierarchicalBitSet::from(&BitSet::new());
+        assert!(empty.is_empty());
+        assert_eq!(empty.check_invariants(), Ok(()));
+        assert_eq!(BitSet::from(&empty), BitSet::new());
     }
 }

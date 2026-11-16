@@ -46,4 +46,5 @@ fn bit_set_and_its_iterators_are_send_sync_unpin() {
 #[test]
 fn hierarchical_bit_set_is_send_sync_unpin() {
     assert_traits::<HierarchicalBitSet>();
+    assert_traits::<bit_set::HierarchicalIter<'static>>();
 }

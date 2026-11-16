@@ -62,7 +62,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: descent cursor, iteration, construction and conversions (R3, R4)
 
-- [ ] **Who:** builder.
+- [x] **Who:** builder.
 - **Files:** `bit_set/descent.rs` (new), `bit_set/hierarchical.rs`, `collections/tests/mod.rs`, `collections/tests/hierarchical_model.rs` (new), `collections_auto_traits.rs`.
 - **Interfaces produced:** `WordSource`, `WordCursor` (§1); `pub struct HierarchicalIter<'a>` (`Iterator<Item = usize>`, `FusedIterator`, `Clone`, `Debug`); `iter`, `IntoIterator for &HierarchicalBitSet`; `FromIterator<usize>`, `Extend<usize>`, `Extend<&usize>`, `From<[usize; N]>`, `try_extend`; `From<&BitSet> for HierarchicalBitSet`, `From<&HierarchicalBitSet> for BitSet`. `Debug` switches to `iter`.
 - **Test first:**
@@ -183,3 +183,4 @@ Choices the spec leaves to implementation:
 - **Step 1: `BitSetInvariantError`** has a third private field, the broken rule, so `Display` names it.
 - **Step 1: top-of-range members.** Layer 4's word index is `i >> 30`, so `2^30`, `2^31`, `3 × 2^30` and `MAX_BITS - 1` set only `top`'s bits 1 to 3; the test adds member 0 for bit 0. Spec §4.8's parenthesis said the three powers set bits 0 to 3; corrected there.
 - **Step 1: `MAX_BITS`, `bits_for_words` and `words_for_bits`** moved to `words.rs`; `BitSet::MAX_BITS` now refers to `words::MAX_BITS` (same value).
+- **Step 2: `first_word` and `last_word`** were not written: nothing uses them (the set's `first` and `last` descend on their own), and an unused `pub(super)` function fails clippy's `dead_code`. `LAYERS` moved to `descent.rs`.

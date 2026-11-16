@@ -32,6 +32,7 @@
 //! costs O(1) per member plus O(1) per zero word.
 
 mod array;
+mod descent;
 mod hierarchical;
 mod iter;
 mod words;
@@ -41,7 +42,7 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 
 pub use array::BitArray;
-pub use hierarchical::HierarchicalBitSet;
+pub use hierarchical::{HierarchicalBitSet, HierarchicalIter};
 pub use iter::{IntoIter, Iter};
 
 use crate::collections::error::TryReserveError;

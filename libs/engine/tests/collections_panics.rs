@@ -168,6 +168,21 @@ fn hierarchical_insert_at_max_bits_panics_at_caller() {
     }
 }
 
+#[test]
+fn hierarchical_from_iter_at_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        // `collect` is not `#[track_caller]`, so a panic through it reports a location in `core`.
+        let _ = HierarchicalBitSet::from_iter([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["try_extend", "HierarchicalBitSet::from_iter:"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
 #[cfg(target_pointer_width = "64")]
 #[test]
 fn hierarchical_with_capacity_past_max_bits_panics_at_caller() {
