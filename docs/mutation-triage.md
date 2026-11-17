@@ -201,3 +201,35 @@ After the confirming run, the code review of the branch led to `#[inline]` on th
 | `bit_set/iter.rs:37:52: replace - with + in Cursor::next` and `replace - with /` | timeout, detected | the clearing expression never clears the lowest bit |
 | `bit_set/iter.rs:46:24: replace += with *= in Cursor::next` | timeout, detected | the word index never advances |
 | `bit_set/iter.rs:118:9: replace <impl Iterator for Iter<'_>>::next -> Option<usize> with Some(0)` and `with Some(1)` | timeout, detected | the iterator never ends |
+
+### Hierarchical bitset (M3.17)
+
+`HierarchicalBitSet`, `Join`, the descent cursor and the layer routines. No test gaps: the eight missed mutants of the triage run are equivalent (seven are excluded in `.cargo/mutants.toml`, each with its reason) or not worth a test, and the code was restructured so that the remaining one no longer exists. Two mutants of the restructured code broke the run itself rather than a test, and the code was changed so they fail fast: one allocated gigabytes, one made the compiler loop forever. The 15 timeouts are mutants that make an iterator or the cursor never end; a test that does not finish detects them.
+
+| | Triage run | Confirming run | Late changes only |
+|---|---|---|---|
+| Mutants tested | 228 | 227 | 10 |
+| Caught | 192 | 196 | 10 |
+| Missed | 8 | 0 | 0 |
+| Timeout | 15 | 15 | 0 |
+| Unviable | 13 | 16 | 0 |
+
+All runs: `cargo-mutants` 27.1.0, `cargo xtask mutants -j 1 --in-diff` of the branch's diff against `main` (the last run: of the three commits after the confirming run's code), in a Linux (aarch64) container limited to 4 GB through `/mutants-run`. The pull request's `mutants-changed` job reached 90 of 229 mutants before its 30-minute limit cancelled it, so the triage was run locally (#62). Peak container memory: 2,691 MiB in the triage run, 1,499 MiB in the confirming run.
+
+**Runs that broke.** After `grow_to_hold` was restructured to compute each layer's word count once, `replace >> with << in HierarchicalBitSet::grow_to_hold` made the counts astronomically large; `try_reserve` granted gigabytes and the watchdog killed the container at 3,838 MiB. `grow_to_hold` now refuses any layer size beyond `MAX_WORDS`, what an index below `MAX_BITS` can need, which the public API never reaches. `MAX_WORDS` was first built with a `const` `while` loop; mutating its counter made const evaluation endless, and one mutant compiled for over 20 minutes until the run was stopped. It is now an explicit array of `max_words(k)` calls.
+
+| Mutant | Class | Action |
+|---|---|---|
+| `descent.rs:54:58: replace \| with ^ in WordCursor::next_word` | equivalent | excluded: `(base << 6) \| bit` with `bit < 64` |
+| `hierarchical.rs:517:43: replace \| with ^ in HierarchicalBitSet::descend` | equivalent | excluded: `(index << 6) \| pick(word)` with `pick < 64` |
+| `words.rs:74:50: replace \| with ^ in summarize` | equivalent | excluded: each child word sets a different bit |
+| `hierarchical.rs:317:27: replace < with <= in HierarchicalBitSet::union_with` | equivalent | excluded: equal lengths make the resize a no-op |
+| `hierarchical.rs:346:51: replace & with \| in HierarchicalBitSet::difference_with` | equivalent | excluded: the extra top bits lead into layer-4 words whose AND is zero, which the cursor skips |
+| `hierarchical.rs:411:34: replace & with \| in HierarchicalBitSet::is_disjoint` | equivalent | excluded: as for `difference_with` |
+| `hierarchical.rs:247:23: replace > with >= in HierarchicalBitSet::grow_to_hold` | equivalent (code restructured) | the resize is now `resize(needed.max(len), 0)`, with no comparison; an exclusion by pattern also matched the `MAX_WORDS` bound check, which is not equivalent |
+| `hierarchical.rs:240:46: replace + with * in HierarchicalBitSet::grow_to_hold` | not worth a test (code restructured) | the reservation was one word short and `resize` grew anyway (observable only on allocation failure); each layer's count is now computed once, so the reservation is no longer a separate expression |
+| `max_words`: `replace - with /` (confirming run) | equivalent | excluded: `u32::MAX` and `u32::MAX - 1` differ only in bit 0, and every layer shifts right by at least 6 |
+| `descent.rs:49:9: replace WordCursor::next_word` with `Some((0, 0))`, `Some((0, 1))`, `Some((1, 0))`, `Some((1, 1))` | timeout, detected | the cursor never ends |
+| `descent.rs:53:30: replace &= with \|=` and `descent.rs:53:50: replace - with +` and `with /` in `WordCursor::next_word`; `descent.rs:55:31: replace - with /` | timeout, detected | the lowest bit is never cleared |
+| `descent.rs:85:9: replace WordBits::next_member` with `Some(0)`, `Some(1)`; `descent.rs:91:19: replace &= with \|=`; `descent.rs:91:32: replace - with +` and `with /` | timeout, detected | the member loop never ends |
+| `hierarchical.rs:723:9: replace <impl Iterator for HierarchicalIter<'_>>::next` with `Some(0)`, `Some(1)` | timeout, detected | the iterator never ends |

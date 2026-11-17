@@ -9,7 +9,7 @@ Status: Living (2026-11-15). Coverage-guided fuzz targets, run with `cargo-fuzz`
 
 ## Contents
 
-- `fuzz_targets/`: one file per target. `genid_map_ops` and `genid_allocator_ops` drive `GenIdMap` and `GenIdAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; `genid_from_bits` checks `GenId::from_bits`, `UntypedGenId::from_bits` and `to_bits`; `bit_set_ops` drives `BitSet`.
+- `fuzz_targets/`: one file per target. `genid_map_ops` and `genid_allocator_ops` drive `GenIdMap` and `GenIdAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; `genid_from_bits` checks `GenId::from_bits`, `UntypedGenId::from_bits` and `to_bits`; `bit_set_ops` drives `BitSet`; `hierarchical_bit_set_ops` drives `HierarchicalBitSet` and `Join`.
 - `Cargo.toml`: the fuzz package, outside the workspace.
 - `Cargo.lock`: its own lockfile, which Dependabot watches.
 - `.gitignore`: keeps `artifacts/`, `corpus/` and `target/` out of git.

@@ -5,6 +5,21 @@
 /// Bits in a word.
 pub(super) const WORD_BITS: usize = 64;
 
+/// The number of valid bit indices of every bitset: `u32::MAX`, on every target.
+pub(super) const MAX_BITS: usize = u32::MAX as usize;
+
+/// The number of bits in `words` words, saturating at [`MAX_BITS`].
+///
+/// A plain `words * 64` overflows `usize` on a 32-bit target.
+pub(super) fn bits_for_words(words: usize) -> usize {
+    words.saturating_mul(WORD_BITS).min(MAX_BITS)
+}
+
+/// The words that hold `bits` bits, or `None` if `bits` is above [`MAX_BITS`].
+pub(super) fn words_for_bits(bits: usize) -> Option<usize> {
+    (bits <= MAX_BITS).then(|| bits.div_ceil(WORD_BITS))
+}
+
 /// The word index and the single-bit mask of bit `i`.
 #[inline]
 pub(super) const fn locate(i: usize) -> (usize, u64) {
@@ -46,6 +61,19 @@ pub(super) fn trimmed(words: &[u64]) -> &[u64] {
 pub(super) fn highest_bit_u64(words: &[u64]) -> Option<u64> {
     let (index, word) = words.iter().enumerate().rev().find(|(_, w)| **w != 0)?;
     Some(index as u64 * WORD_BITS as u64 + u64::from(63 - word.leading_zeros()))
+}
+
+/// The parent word of each run of 64 words of `child`: bit `b` of word `j` is set when word
+/// `j * 64 + b` of `child` is non-zero.
+pub(super) fn summarize(child: &[u64]) -> alloc::vec::Vec<u64> {
+    child
+        .chunks(WORD_BITS)
+        .map(|run| {
+            run.iter()
+                .enumerate()
+                .fold(0_u64, |bits, (b, w)| bits | u64::from(*w != 0) << b)
+        })
+        .collect()
 }
 
 /// `dst |= src`, word by word. A `src` longer than `dst` is cut off, so callers grow `dst` first.

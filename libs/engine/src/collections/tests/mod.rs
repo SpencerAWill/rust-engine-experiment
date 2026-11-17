@@ -3,6 +3,8 @@
 mod bit_array_model;
 mod bit_set_model;
 mod golden;
+mod hierarchical_model;
+mod join_model;
 mod map_model;
 mod set_model;
 

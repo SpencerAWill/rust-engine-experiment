@@ -13,7 +13,7 @@ The library is one crate, `engine`, and these are its modules. A separate crate 
 | Module | Purpose |
 |---|---|
 | `engine::genid` | Generational IDs: `GenId<T>`, `UntypedGenId`, the `GenIdMap<T>` container (`GenIdMap<()>` to iterate live IDs) and the lean `GenIdAllocator<T>` |
-| `engine::collections` | Deterministic insertion-ordered `IndexMap<K, V>` and `IndexSet<T>`, and the bitsets `BitSet` and `BitArray<WORDS>` |
+| `engine::collections` | Deterministic insertion-ordered `IndexMap<K, V>` and `IndexSet<T>`, the bitsets `BitSet` and `BitArray<WORDS>`, and `HierarchicalBitSet` with `Join` for iterating and joining sparse index sets |
 | `engine::random` | Deterministic PRNG with frozen output streams |
 | `engine::time` | `Tick`, `FixedTimestep`, `TimeSource`, clocks |
 | `engine::math` | glam re-exports, `Transform` (local, large-world, 2D), coordinate conversion |

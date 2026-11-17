@@ -24,4 +24,24 @@ exclude_re = [
     '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::union_with',
     # Equivalent: the same as for `union_with`: an equal length makes the resize a no-op.
     '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::symmetric_difference_with',
+    # Equivalent: `(base << 6) | bit` with `bit < 64`, so the low six bits of the left side are
+    # zero and `|` and `^` agree.
+    '^libs/engine/src/collections/bit_set/descent\.rs:.*replace \| with \^ in WordCursor::next_word',
+    # Equivalent: as in `WordCursor::next_word`: `(index << 6) | pick(word)` with `pick < 64`.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace \| with \^ in HierarchicalBitSet::descend',
+    # Equivalent: each child word sets a different bit of the summary word, so the bits ORed in
+    # never overlap and `|` and `^` agree.
+    '^libs/engine/src/collections/bit_set/words\.rs:.*replace \| with \^ in summarize',
+    # Equivalent: with equal lengths the resize is to the length the layer already has, a no-op,
+    # as for `BitSet::union_with`.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace < with <= in HierarchicalBitSet::union_with',
+    # Equivalent: the cursor's top word is the only word not ANDed across both sets; with `|`
+    # the extra top bits lead into layer-4 words whose AND is zero, which the cursor skips, so
+    # the results are the same and only some work is wasted.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::difference_with',
+    # Equivalent: as for `difference_with`: below the top word the source ANDs both sets.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::is_disjoint',
+    # Equivalent: `MAX_BITS - 1` and `MAX_BITS / 1` (`u32::MAX` and `u32::MAX - 1`) differ only in
+    # bit 0, and every layer shifts right by at least 6, so the word counts are the same.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace - with / in max_words',
 ]

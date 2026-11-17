@@ -13,11 +13,12 @@ pub(crate) const FUZZ_NIGHTLY: &str = "nightly-2026-11-12";
 
 /// The fuzz targets, in the order `fuzz all` runs them. A test checks this list against
 /// `fuzz/fuzz_targets/*.rs`.
-pub(crate) const TARGETS: [&str; 4] = [
+pub(crate) const TARGETS: [&str; 5] = [
     "genid_map_ops",
     "genid_allocator_ops",
     "genid_from_bits",
     "bit_set_ops",
+    "hierarchical_bit_set_ops",
 ];
 
 /// The directory of the `fuzz/` package, relative to the repository root.

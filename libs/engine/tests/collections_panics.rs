@@ -7,7 +7,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 
-use engine::collections::{BitArray, BitSet, IndexMap};
+use engine::collections::{BitArray, BitSet, HierarchicalBitSet, IndexMap};
 
 static CAPTURED: Mutex<Option<(String, String)>> = Mutex::new(None);
 
@@ -151,6 +151,129 @@ fn bit_set_from_words_past_max_bits_panics_at_caller() {
         "panic location was {file}"
     );
     assert!(message.contains("try_from_words"), "message was {message}");
+}
+
+#[test]
+fn hierarchical_insert_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.insert(HierarchicalBitSet::MAX_BITS);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "use try_insert", "HierarchicalBitSet::insert:"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_from_iter_at_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        // `collect` is not `#[track_caller]`, so a panic through it reports a location in `core`.
+        let _ = HierarchicalBitSet::from_iter([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["try_extend", "HierarchicalBitSet::from_iter:"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn hierarchical_with_capacity_past_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = HierarchicalBitSet::with_capacity(HierarchicalBitSet::MAX_BITS + 1);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["MAX_BITS", "try_with_capacity"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn hierarchical_ensure_capacity_past_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.ensure_capacity(HierarchicalBitSet::MAX_BITS + 1);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in [
+        "MAX_BITS",
+        "HierarchicalBitSet::ensure_capacity:",
+        "try_ensure_capacity",
+    ] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_extend_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.extend([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["HierarchicalBitSet::extend:", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_extend_ref_at_max_bits_panics_at_caller() {
+    let mut set = HierarchicalBitSet::new();
+    let (file, message) = panic_info(|| {
+        set.extend(&[HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["HierarchicalBitSet::extend:", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn hierarchical_from_array_at_max_bits_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = HierarchicalBitSet::from([HierarchicalBitSet::MAX_BITS]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["HierarchicalBitSet::from:", "try_extend"] {
+        assert!(message.contains(part), "message was {message}");
+    }
+}
+
+#[test]
+fn join_new_with_no_required_sets_panics_at_caller() {
+    let (file, message) = panic_info(|| {
+        let _ = engine::collections::Join::new(&[], &[]);
+    });
+    assert!(
+        file.ends_with("tests/collections_panics.rs"),
+        "panic location was {file}"
+    );
+    for part in ["no required sets", "pass the set of live indices"] {
+        assert!(message.contains(part), "message was {message}");
+    }
 }
 
 /// Runs `f`, which must panic, and returns where it panicked and what it said.
