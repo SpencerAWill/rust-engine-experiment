@@ -42,4 +42,7 @@ exclude_re = [
     '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::difference_with',
     # Equivalent: as for `difference_with`: below the top word the source ANDs both sets.
     '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::is_disjoint',
+    # Equivalent: `MAX_BITS - 1` and `MAX_BITS / 1` (`u32::MAX` and `u32::MAX - 1`) differ only in
+    # bit 0, and every layer shifts right by at least 6, so the word counts are the same.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace - with / in max_words',
 ]

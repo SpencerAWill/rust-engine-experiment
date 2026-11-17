@@ -23,15 +23,20 @@ const fn shift(k: usize) -> usize {
 
 /// The most words layer `k` can need for an index below [`MAX_BITS`]. Computed from `MAX_BITS`,
 /// not from `usize::BITS`, so it is the same on every target.
-const MAX_WORDS: [usize; VECTOR_LAYERS] = {
-    let mut words = [0; VECTOR_LAYERS];
-    let mut k = 0;
-    while k < VECTOR_LAYERS {
-        words[k] = ((MAX_BITS - 1) >> shift(k)) + 1;
-        k += 1;
-    }
-    words
-};
+// One entry per layer, written out so there is no const loop to hang under mutation; if
+// `VECTOR_LAYERS` changes, this fails to compile.
+const MAX_WORDS: [usize; VECTOR_LAYERS] = [
+    max_words(0),
+    max_words(1),
+    max_words(2),
+    max_words(3),
+    max_words(4),
+];
+
+/// The most words layer `k` can need for an index below [`MAX_BITS`].
+const fn max_words(k: usize) -> usize {
+    ((MAX_BITS - 1) >> shift(k)) + 1
+}
 
 /// A set of small non-negative integers in six layers of `u64` words, so that iteration can skip
 /// empty ranges.
