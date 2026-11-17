@@ -34,6 +34,37 @@ Long jobs that run mutated or untrusted code run only through `/mutants-run`, an
 
 Techniques from installed plugins (such as superpowers' brainstorming, test-driven development and debugging skills) may be used in any stage. Where a plugin's defaults differ from this workflow, the workflow wins: specs, plans and logs go in the chunk folder from [the templates](chunks/_template/), never in a plugin's own location such as `docs/superpowers/`. Nothing here requires a plugin.
 
+## From issue to chunk
+
+An idea becomes a chunk through GitHub issues, before the loop above starts. The reasoning and the alternatives are in the [M3.18 spec](chunks/m3.18-issue-tracking/spec.md); the Project's setup is in [maintainers.md](maintainers.md#issue-tracking).
+
+**Vocabulary.** An *issue* is a request, not yet designed. A *chunk* is a pull-request-sized story with a spec (this repository's own term). A *tracking issue* is an issue whose sub-issues are the work of one effort. *Triage* is reviewing and defining unscheduled issues. The *icebox* is accepted work that is deliberately unscheduled (the `research` issues).
+
+**The path.**
+
+1. An idea starts in a Discussion or directly as an issue, and enters the Project as Inbox.
+2. Triage gives it labels, a Priority and a Size and defines it; when it meets the Definition of Ready it is Ready.
+3. The maintainer schedules it by adding a chunk row to the roadmap. The issue becomes Scheduled (set in chunk stage 1), and from then on the roadmap owns its order.
+4. The chunk runs the loop above on its own branch. Its pull request says `Closes #N`; merging closes the issue and the Project shows Done.
+5. Follow-up issues found along the way (stage 7) start again at Inbox.
+
+**Who is the source of truth.** Priority and what to schedule next: the Project. Order and dependencies of scheduled work: the roadmap. What a piece of work means, once a spec exists: the spec (the issue is only the request and is not edited to match). State of a chunk in flight: the branch, the plan's checkboxes and `log.md`. Classification: labels. Not every chunk has an issue; an issue is the intake path, not a prerequisite.
+
+| Relationship | Count |
+|---|---|
+| Chunk, branch, spec, plan, pull request | 1 : 1 : 1 : 1 : 1 |
+| Roadmap milestone to chunks | 1 : many |
+| Tracking issue to issues | 1 : many |
+| Issue to chunk | normally 1 : 1; several small issues may share one chunk |
+| Pull request to issues closed | 1 : many |
+| Chunk to follow-up issues | 1 : many |
+
+An issue never spans more than one pull request, so `Closes #N` is always right. Work that needs several pull requests is a tracking issue with one sub-issue per chunk, one tracking issue per roadmap milestone above those, and the chunks sequenced by the roadmap's Depends-on column. A chunk that proves too big is split by amending the roadmap: the first pull request keeps the chunk ID, the remainder gets a new one, and IDs are never renumbered.
+
+**Definition of Ready.** An issue is Ready when its body states: the problem and what it costs; the outcome that would count as done; the verification (a command or a named check); dependencies by issue number or chunk ID; a Size below XL (XL is split first); and either no `needs-measurement` label or the measurement named as the first step. It does not need a design: the spec, grilled and approved, provides that.
+
+**Triage while a long job runs.** `/triage` (`.claude/skills/triage/`) reads and writes GitHub only and never builds, tests or measures, so it can run while a benchmark or mutation run is using the machine. It proposes a batch and writes only after the maintainer confirms.
+
 ## Roles
 
 Agent files in [`.claude/agents/`](../.claude/agents/) pin each role's model. The main session's model is a recommendation (Opus), not a setting, so contributors keep their own choice.

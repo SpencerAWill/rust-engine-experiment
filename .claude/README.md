@@ -6,7 +6,7 @@ Claude Code configuration shared by everyone who works on this repository: the a
 
 ## When this applies
 
-- You run a chunk with Claude Code: `/chunk next` starts the next one on the roadmap, `/chunk resume` continues one, `/grill <doc>` interrogates a design document.
+- You run a chunk with Claude Code: `/chunk next` starts the next one on the roadmap, `/chunk resume` continues one, `/grill <doc>` interrogates a design document, `/triage` defines and orders the issue Inbox.
 - You change how agents work here: a role, a skill, a permission or a hook.
 
 ## Contents
@@ -14,6 +14,7 @@ Claude Code configuration shared by everyone who works on this repository: the a
 - `agents/`: one file per role, each pinning its model; the table is in [docs/workflow.md](../docs/workflow.md#roles).
 - `skills/chunk/`: the loop. `SKILL.md` dispatches `next`, `resume` and single stages; `stages/` holds one file per stage, so only the current one is read.
 - `skills/grill/`: the grill stage, usable on any design document.
+- `skills/triage/`: triage and define the GitHub issue Inbox with only `gh` and file reads, so it can run while a long job occupies the machine; writes only after confirmation.
 - `skills/lessons-refresh/`: the milestone pass over [docs/lessons/](../docs/lessons/).
 - `skills/bench-run/`: how to take wall-clock benchmarks on a laptop that can be trusted.
 - `skills/mutants-run/`: mutation testing in a memory-capped container, with its scripts.

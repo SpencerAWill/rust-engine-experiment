@@ -45,6 +45,7 @@ Work is done in chunks from the roadmap, each through seven stages: brainstorm, 
 - **Verify before claiming.** Run the command and read its output; do not infer success from the diff.
 - **Small logical commits**, conventional messages ending with the chunk ID, files staged by explicit path. Say in the pull request that an assistant was used.
 - **Report honestly**: a failed test, a skipped step or a noisy measurement is said, with the evidence. Benchmark claims need a saved baseline and the noise floor (`/bench-run`, `cargo xtask bench-report`).
+- **Issues**: the path from issue to chunk and the Definition of Ready are in [docs/workflow.md](docs/workflow.md#from-issue-to-chunk); `/triage` defines issues without building anything.
 - **Docs**: new documents get a status line; hard-to-reverse decisions get an ADR; spec section numbers stay stable; write the minimum and link instead of copying.
 - Mutation testing and other runs of mutated code go through `/mutants-run` (a memory-capped container), never bare on the host.
 
