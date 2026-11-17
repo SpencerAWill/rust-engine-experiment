@@ -32,9 +32,8 @@ exclude_re = [
     # Equivalent: each child word sets a different bit of the summary word, so the bits ORed in
     # never overlap and `|` and `^` agree.
     '^libs/engine/src/collections/bit_set/words\.rs:.*replace \| with \^ in summarize',
-    # Equivalent: an equal length makes the resize a no-op, as for `BitSet::union_with`.
-    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace > with >= in HierarchicalBitSet::grow_to_hold',
-    # Equivalent: the same: resizing to the length the layer already has changes nothing.
+    # Equivalent: with equal lengths the resize is to the length the layer already has, a no-op,
+    # as for `BitSet::union_with`.
     '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace < with <= in HierarchicalBitSet::union_with',
     # Equivalent: the cursor's top word is the only word not ANDed across both sets; with `|`
     # the extra top bits lead into layer-4 words whose AND is zero, which the cursor skips, so

@@ -266,9 +266,7 @@ impl HierarchicalBitSet {
                 .map_err(TryReserveError::from_alloc)?;
         }
         for (layer, &needed) in self.layers.iter_mut().zip(&needed) {
-            if needed > layer.len() {
-                layer.resize(needed, 0);
-            }
+            layer.resize(needed.max(layer.len()), 0);
         }
         Ok(())
     }
