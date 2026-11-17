@@ -245,7 +245,7 @@ Every panic follows the repository rule: `#[track_caller]`, a `# Panics` section
 - [x] The model and join tests pass, including under `cargo xtask wasm` (`hierarchical_matches_model`, `join_matches_model`; wasm engine lib 193 passed).
 - [x] The fuzz target ran for 10 minutes without a failure (`Done 1038875 runs in 601 second(s)` at 2ef2088; `491921 runs` at 575776b).
 - [x] `cargo xtask bench-regress` passes (container runs at 49585db, 5f1ebca and 306bf57: no regression), and the wall-clock comparison and space table are in the pull request.
-- [ ] The mutation triage is recorded. (Pending: it comes from this pull request's `mutants` job, plan §5.)
+- [x] The mutation triage is recorded ([docs/mutation-triage.md](../../mutation-triage.md), "Hierarchical bitset (M3.17)"; run locally in the capped container after the pull request's job timed out, plan §5).
 - [x] The reviews are recorded in the pull request.
 - [x] The spec is `Implemented` and the plan `Historical`, #44's box in #38 is ticked, and the sparse-variant follow-up issue is open (#63, together with the performance ideas).
 

@@ -147,7 +147,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: mutation testing and triage (R15)
 
-- [ ] **Who:** main session runs `/mutants-run`; builder writes the tests for test gaps; main session writes the triage.
+- [x] **Who:** main session runs `/mutants-run`; builder writes the tests for test gaps; main session writes the triage.
 - **Files:** tests in the files above, `.cargo/mutants.toml` (exclusions with reasons, only for *equivalent* or *not worth a test*), `docs/mutation-triage.md` (a "Hierarchical bitset (M3.17)" subsection under `engine::collections`).
 - **Test first:** `/mutants-run` with `--module collections` before any new test; classify every missed mutant and timeout in `bit_set/hierarchical.rs`, `descent.rs`, `join.rs` and the new error code. Likely survivors: the shift arithmetic of the layer index, the `top` range check in `check_invariants`, and the `Display` texts.
 - **Change:** a test per *test gap, fixed*; an exclusion with a reason per *equivalent* or *not worth a test*.
@@ -195,3 +195,4 @@ Choices the spec leaves to implementation:
 - **Step 10: the catalog's Lemire citation** says it was read for M3.14, whose iteration this set reuses; it was not re-read for this chunk.
 - **After review: spec §4.3 amended** (maintainer approved): `capacity()` is the minimum over layers of allocated words × 64^(k + 1), not §1's `bits_for_words(layers[0].capacity())`, because an insert below the layer-0 figure could grow layer 1.
 - **After review: other changes.** `summarize` moved to `words.rs` and `check_invariants` uses it (so it now allocates; it is a test and fuzz tool); `union_with` goes through `words::union_into`; the space report generates its inputs before starting the profiler, so its peak column now equals bytes after building in every row and Step 8's note about the peak applies only to growth reallocations; the allocation test bounds its walks with `take`; panic tests cover every §4.5 row with the qualified operation name; `hibitset` is cited in the `bit_set` module docs (ADR 0002).
+- **Step 9, as run:** the pull request's `mutants-changed` job timed out at 30 minutes (90 of 229 mutants), so the triage ran locally through `/mutants-run` with `--in-diff` of the branch (maintainer's choice). It led to three more changes in `grow_to_hold` and a `MAX_WORDS` bound (see docs/mutation-triage.md).
