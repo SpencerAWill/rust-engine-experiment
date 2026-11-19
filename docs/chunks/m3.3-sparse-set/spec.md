@@ -114,6 +114,8 @@ impl World {
     pub fn spawn(&mut self) -> Entity;
     pub fn despawn(&mut self, entity: Entity) -> bool;
     pub fn is_alive(&self, entity: Entity) -> bool;
+    pub fn len(&self) -> usize;
+    pub fn is_empty(&self) -> bool;
     pub fn insert<T: 'static>(&mut self, entity: Entity, value: T) -> Option<T>;
     pub fn remove<T: 'static>(&mut self, entity: Entity) -> Option<T>;
     pub fn get<T: 'static>(&self, entity: Entity) -> Option<&T>;
@@ -126,6 +128,7 @@ impl World {
 ```
 
 - Entities come from `engine::genid`'s lean `GenIdAllocator<EntityMarker>`. `spawn` allocates; `despawn` removes the entity from every storage, then frees the ID, and returns `false` for a dead entity.
+- **Live count.** `len` is the number of live entities, kept in a counter that `spawn` increments and a successful `despawn` decrements, because the lean allocator does not count or list its IDs. `entity_churn` and `agents` use it to spawn back up to their targets (§4.7). The model test checks it against the model (§8, R5). *(Main session's call, from the grill: the alternative, each backend counting the despawns it records, puts bookkeeping in the measured `step` and breaks if a command is ever skipped.)*
 - **Component identity.** A `BTreeMap<TypeId, ComponentId>` maps each type to a dense `ComponentId(u32)`, the index of its storage in `Vec<Box<dyn ErasedStorage>>`. A storage is created on the first `insert` of its type, or by `group`. `TypeId` order is stable within one build, which is the determinism [ADR 0003](../../adr/0003-same-build-determinism.md) asks for; nothing observable iterates the map. The identity model the engine adopts is M3.8's decision.
 - `insert` returns the replaced value, or `None`. It MUST panic on a dead entity, with `#[track_caller]`, a `# Panics` section and a message naming the entity and saying it was despawned. A silent drop of the value would hide a bug. Spike crates are exempt from the `try_` twin rule.
 - `remove`, `get` and `get_mut` return `None` for a dead entity or a missing component.
@@ -228,9 +231,9 @@ impl Commands {
 | `frag_iter` | `&mut Data`; the checksum runs one `query_ref::<(&L, &Data)>` per letter type `L` | not implemented: a single-type query has nothing to group |
 | `heavy_compute` | `(&mut Matrix, &mut Position, &Rotation)` | `(Matrix, Position, Rotation)` |
 | `add_remove` | reads `(Entity, &A)` into a reused buffer and inserts `B` with `world.insert`; then reads `(Entity, With<B>)` the same way and removes `B` | `(A, B)`: each insert of `B` joins the group and each removal leaves it, so this is where group maintenance costs show. Both queries are strict subsets of the group and take the view path |
-| `entity_churn` | `(Entity, (&mut Position, &Velocity, &mut Lifetime))`, recording `commands.despawn(e)` for expired entities; `apply`; then spawn with direct inserts until `count` are alive | `(Position, Velocity, Lifetime)` |
+| `entity_churn` | `(Entity, (&mut Position, &Velocity, &mut Lifetime))`, recording `commands.despawn(e)` for expired entities; `apply`; then spawn with direct inserts until `world.len()` is `count` | `(Position, Velocity, Lifetime)` |
 | `sprites` | move: `(&mut Transform2d, &Velocity2d)`; draw: `query_ref::<(&Transform2d, &Sprite), Without<Hidden>>` pushing to the owned draw list | `(Transform2d, Velocity2d)`; the draw query uses the view path |
-| `agents` | `(Entity, (&mut Transform2d, &mut Velocity, &mut Ttl, Option<&mut Seeker>))`: copies the seeker to a local, calls the harness's `update`, writes back, or records `insert`/`remove` of `Seeker` when it appeared or went away, and records `despawn` when the ttl reaches 0; `apply`; then spawn until the target | `(Transform2d, Velocity, Ttl)` |
+| `agents` | `(Entity, (&mut Transform2d, &mut Velocity, &mut Ttl, Option<&mut Seeker>))`: copies the seeker to a local, calls the harness's `update`, writes back, or records `insert`/`remove` of `Seeker` when it appeared or went away, and records `despawn` when the ttl reaches 0; `apply`; then spawn until `world.len()` reaches the target | `(Transform2d, Velocity, Ttl)` |
 
 - `agents` stores `AgentId(u64)`, `Transform2d`, `Velocity(Vec2)`, `Ttl(u32)` and `Seeker` as separate components. `AgentId`, `Velocity` and `Ttl` are newtypes local to the backend, because the harness uses bare `u64`, `Vec2` and `u32`. Its checksum builds an `agents_2d::Agent` on the stack for each entity and calls `agent_hash`, as `vec_soa` does.
 - `sprites` stores `Hidden` as a zero-sized component on the hidden entities.
@@ -258,6 +261,7 @@ impl Commands {
   - M3.3's row is `Done (PR #n)` in the close-out commit.
 - **`spikes/ecs_storage/README.md`:** a row for `spike_ecs_sparse_set` in the package table.
 - **`CHANGELOG.md`:** an entry.
+- **`xtask/src/coverage.rs`:** `spike_ecs_sparse_set` joins `SPIKE_PACKAGES`, so coverage keeps excluding spikes. *(Main session's call, from the grill.)*
 
 ## 5. Requirements
 
@@ -317,7 +321,7 @@ impl Commands {
 | R2 | unit tests: `insert` on a despawned entity panics with the expected message; `group` after a spawn, with a type in two groups, and with a repeated type, each panics; a query with a repeated type panics; review of the `# Panics` sections |
 | R3 | review: `Packed<T>`'s fields are private to its module, and every method changes both vectors or neither |
 | R4 | unit tests in `storage.rs` and `world.rs` that corrupt one private field (test code in the same module) and check that `check_invariants` names the broken invariant, one per invariant; the model test |
-| R5 | proptest model test: random `spawn`, `despawn`, `insert`, `remove` and `apply` over four component types, with and without a group of two or three of them, compared with a `BTreeMap<Entity, components>` model, `check_invariants` after every operation |
+| R5 | proptest model test: random `spawn`, `despawn`, `insert`, `remove` and `apply` over four component types, with and without a group of two or three of them, compared with a `BTreeMap<Entity, components>` model (including `len`), `check_invariants` after every operation |
 | R6 | query unit tests: required, `Option`, `With`, `Without`, `Entity`, a nested tuple, a never-inserted required type gives no matches; the model test also compares a fixed set of queries with the model |
 | R7 | query unit tests of `uses_group` for an exact match, a superset with an extra probed type, and a strict subset |
 | R8 | review of the probe functions |
