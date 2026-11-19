@@ -58,7 +58,7 @@ jobs:
           name: proptest-regressions
           path: "**/*.proptest-regressions"
 
-  # Coverage-guided fuzzing of engine_handle: every target for 10 minutes. A finding fails the job
+  # Coverage-guided fuzzing of the genid and collections modules: every target for 10 minutes. A finding fails the job
   # and uploads the crash input; the corpus is cached between runs so coverage accumulates. The
   # job is deliberately not `continue-on-error`: a red run is how a finding becomes visible.
   fuzz:

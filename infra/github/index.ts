@@ -29,8 +29,10 @@ const repo = new github.Repository(
         visibility: "public",
 
         hasIssues: true,
-        // Unused: the backlog is issues, the design record is docs/.
-        hasProjects: false,
+        // Repository Projects are on so the backlog's user-owned Project (docs/maintainers.md,
+        // "Issue tracking") shows on the repository page; M3.9 had them off while nothing used them.
+        // No wiki: the design record is docs/.
+        hasProjects: true,
         hasWiki: false,
         // Questions go here, not to issues (the issue chooser links to it: .github/ISSUE_TEMPLATE/config.yml).
         hasDiscussions: true,
@@ -97,6 +99,7 @@ const requiredChecks = [
     "check-unsafe",
     "check-statics",
     "check-workflows",
+    "check-docs",
     "hack",
     "typos",
     "deny",
@@ -120,7 +123,8 @@ new github.RepositoryRuleset("main-ruleset", {
     conditions: {
         refName: { includes: ["~DEFAULT_BRANCH"], excludes: [] },
     },
-    bypassActors: [{ actorType: "RepositoryRole", actorId: adminRoleId, bypassMode: "always" }],
+    // Admins may bypass only through a pull request, so nobody pushes or force-pushes to main directly (spec M3.15 section 4.6).
+    bypassActors: [{ actorType: "RepositoryRole", actorId: adminRoleId, bypassMode: "pull_request" }],
     rules: {
         deletion: true,
         nonFastForward: true,
@@ -186,6 +190,27 @@ const labels: { name: string; color: string; description: string }[] = [
         color: "b60205",
         description: "Same build, same platform, same inputs, different results (ADR 0003)",
     },
+    // Applied by hand to research tracking issues (docs/research/) and the sub-issues spawned from them.
+    {
+        name: "research",
+        color: "c5def5",
+        description: "External research or survey; not a decision or scheduled work",
+    },
+    // Applied by /triage (.claude/skills/triage/); see docs/workflow.md, "From issue to chunk".
+    // `area:` is for code only; CI, docs and process issues use `infrastructure` and `documentation`.
+    { name: "area:collections", color: "ededed", description: "engine::collections" },
+    { name: "area:genid", color: "ededed", description: "engine::genid" },
+    { name: "area:random", color: "ededed", description: "engine::random" },
+    { name: "area:time", color: "ededed", description: "engine::time" },
+    { name: "area:math", color: "ededed", description: "engine::math" },
+    { name: "area:bench", color: "ededed", description: "Benchmarks and the instruction-count gate (bench/)" },
+    { name: "area:xtask", color: "ededed", description: "The xtask command-line tool (xtask/)" },
+    {
+        name: "needs-measurement",
+        color: "fef2c0",
+        description: "Cannot be defined or scheduled until something is measured; the measurement is the first step",
+    },
+    { name: "ai-assisted", color: "d4c5f9", description: "An assistant drafted this issue" },
 ];
 
 new github.IssueLabels("labels", { repository: repo.name, labels });

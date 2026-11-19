@@ -1,0 +1,51 @@
+//! `Send`, `Sync` and `Unpin` whenever the element types are (spec §4.6).
+#![forbid(unsafe_code)]
+
+use engine::collections::index_map::{
+    Entry, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Values, ValuesMut,
+};
+use engine::collections::{
+    BitArray, BitSet, HierarchicalBitSet, IndexMap, IndexSet, bit_set, index_set,
+};
+
+fn assert_traits<T: Send + Sync + Unpin>() {}
+
+#[test]
+fn map_and_its_iterators_are_send_sync_unpin() {
+    assert_traits::<IndexMap<u32, String>>();
+    assert_traits::<Iter<'static, u32, String>>();
+    assert_traits::<IterMut<'static, u32, String>>();
+    assert_traits::<Keys<'static, u32, String>>();
+    assert_traits::<Values<'static, u32, String>>();
+    assert_traits::<ValuesMut<'static, u32, String>>();
+    assert_traits::<IntoIter<u32, String>>();
+    assert_traits::<IntoKeys<u32, String>>();
+    assert_traits::<IntoValues<u32, String>>();
+    assert_traits::<Entry<'static, u32, String>>();
+}
+
+#[test]
+fn set_and_its_iterators_are_send_sync_unpin() {
+    assert_traits::<IndexSet<String>>();
+    assert_traits::<index_set::Iter<'static, String>>();
+    assert_traits::<index_set::IntoIter<String>>();
+}
+
+#[test]
+fn bit_array_and_its_iterator_are_send_sync_unpin() {
+    assert_traits::<BitArray<2>>();
+    assert_traits::<bit_set::Iter<'static>>();
+}
+
+#[test]
+fn bit_set_and_its_iterators_are_send_sync_unpin() {
+    assert_traits::<BitSet>();
+    assert_traits::<bit_set::IntoIter>();
+}
+
+#[test]
+fn hierarchical_bit_set_is_send_sync_unpin() {
+    assert_traits::<HierarchicalBitSet>();
+    assert_traits::<bit_set::HierarchicalIter<'static>>();
+    assert_traits::<engine::collections::Join<'static>>();
+}

@@ -1,6 +1,6 @@
 # GitHub configuration (Pulumi)
 
-Status: Active (2026-11-12)
+Status: Living (2026-11-15)
 
 This Pulumi project declares the GitHub settings for `SpencerAWill/rust-engine-experiment`:
 repository settings, the ruleset on `main`, labels, Actions permissions, Actions variables
@@ -9,7 +9,22 @@ the next `pulumi up` reverts it.
 
 Commands run on your machine. Pulumi Cloud only stores the state (stack `SpencerAWill/github/prod`).
 
-## Use
+## When this applies
+
+- You change a repository setting, the `main` ruleset, a required check, a label, or an Actions variable or secret.
+- A pull request that changes this directory has merged: run `pulumi preview`, then `pulumi up`.
+
+## Contents
+
+- `index.ts`: every setting, the ruleset and its `requiredChecks`, the labels.
+- `privateVulnerabilityReporting.ts`: a dynamic resource for the one setting the provider lacks (see Notes).
+- `Pulumi.yaml`: the project.
+- `Pulumi.prod.yaml`: the `prod` stack's configuration, secrets encrypted by the stack's key.
+- `package.json`: dependencies (installed with `pnpm` from the repository root).
+- `tsconfig.json`: TypeScript settings.
+- `.gitignore`: keeps `node_modules/` and `bin/` out of git.
+
+## How to
 
 ```sh
 cd infra/github
@@ -25,8 +40,9 @@ pulumi up
 - **Required checks** are the job names in `.github/workflows/ci.yml`. When a job is added,
   renamed or removed, update `requiredChecks` in `index.ts` in the same pull request. A required
   check that never reports blocks every pull request.
-- **Admin bypass** is on, so the repository admin can still push to `main` directly. Everyone
-  else needs a pull request with passing checks.
+- **Admin bypass** is limited to pull requests (`bypassMode: "pull_request"`). Direct pushes to
+  `main` are refused for everyone, the admin included; the admin can still merge a pull request
+  without waiting for its checks.
 - **Settings without a provider resource.** `@pulumi/github` 6.15.1 has no resource for private
   vulnerability reporting, so `privateVulnerabilityReporting.ts` is a dynamic resource that calls
   `PUT`, `GET` and `DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` with Node's

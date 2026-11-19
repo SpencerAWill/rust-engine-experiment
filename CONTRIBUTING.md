@@ -5,8 +5,8 @@ Thanks for your interest. This is an experimental engine: APIs change, and some 
 ## How work is organized
 
 - Work is planned in [docs/roadmap.md](docs/roadmap.md): milestones, broken into **chunks** of exactly one pull request each.
-- Each chunk has a `spec.md` and a `plan.md`, copied from [docs/design/_template/](docs/design/_template/). The maintainer reviews them before implementation starts.
-- Pull request titles end with the chunk ID, for example `feat(fuzz): fuzz HandlePool against a model (M2.1)`.
+- Each chunk goes through the loop in [docs/workflow.md](docs/workflow.md): its `spec.md`, `plan.md` and `log.md` live in `docs/chunks/<id>-<slug>/`, copied from [docs/chunks/_template/](docs/chunks/_template/). The maintainer approves the spec before implementation starts, and gives the go-ahead to merge.
+- Pull request titles end with the chunk ID, for example `feat(genid): add UntypedGenId (M3.11)`.
 - Ideas and bugs that are not scheduled go into issues; questions go to [Discussions](https://github.com/SpencerAWill/rust-engine-experiment/discussions). When an issue is scheduled, a chunk spec links it.
 
 ## Issues
@@ -17,13 +17,13 @@ Blank issues are off. Pick the template that fits:
 | --- | --- | --- |
 | Report behaviour that differs from the documentation | Bug report | `bug` |
 | Report that the same build on the same platform gave different results for the same inputs ([ADR 0003](docs/adr/0003-same-build-determinism.md)) | Determinism bug | `bug`, `determinism` |
-| Report a measured slowdown, speedup or memory change | Performance report (needs a saved baseline and the noise floor, see "Benchmarks") | `performance` |
+| Report a measured slowdown, speedup or memory change | Performance report (needs a saved baseline and the noise floor, see [bench/README.md](bench/README.md#wall-clock-benchmarks)) | `performance` |
 | Propose an engine feature, a performance idea you have not measured, or a change to an API or a design decision | Feature request | `enhancement` |
 | Propose work on CI, tooling, the repository layout or settings, or this process | Infrastructure or chore | `infrastructure` |
 | Ask a question | none: use Discussions | |
 | Report a vulnerability | none: report it privately ([SECURITY.md](SECURITY.md)) | |
 
-The templates are in `.github/ISSUE_TEMPLATE/`; the labels they assign are declared in `infra/github/index.ts`, so a new label goes there too.
+The templates are issue forms in `.github/ISSUE_TEMPLATE/`; the labels they assign are declared in `infra/github/index.ts`, so a new label goes there too. They ask for the outcome and how it is verified, which is what lets an issue be scheduled. How an issue becomes a chunk is in [docs/workflow.md](docs/workflow.md#from-issue-to-chunk). An issue filed with `gh issue create` (by a person or an assistant) uses the headings of the matching form: for a feature request or an infrastructure issue **The problem**, **Proposal**, **Done when**, **How it is verified** and optionally **Depends on**; for any other kind, the headings of its form. An assistant-drafted issue also says "An assistant drafted this issue." and is created with `--label ai-assisted`. To work on an open issue, assign yourself or comment first, so the work is not done twice; issues marked `help wanted` or `good first issue` are a good place to start.
 
 ## Licence and originality
 
@@ -50,10 +50,11 @@ cargo xtask ci --quick      # fmt check, clippy, and tests only
 
 These are policy, not preferences. A pull request that breaks one will not be merged:
 
+- **One library crate.** New library code goes in a module of `engine`. A separate crate needs one of the criteria in [ADR 0004](docs/adr/0004-crate-splitting-rule.md), named with its evidence in the spec of the chunk that needs it.
 - **No `unsafe`.** Every crate root has `#![forbid(unsafe_code)]` (`check-unsafe`). An exception needs an ADR and an entry in `unsafe-allowlist.toml`.
-- **Determinism.** No `std` `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code (see `clippy.toml`; transcendentals go through `engine_math::scalar`). Simulation state must be snapshot-able plain data.
+- **Determinism.** No `std` `HashMap`/`HashSet`/`RandomState`, `Instant::now`, `SystemTime::now`, `thread_local!`, or inherent transcendental float methods in library code (see `clippy.toml`; transcendentals go through `engine::math::scalar`). Simulation state must be snapshot-able plain data.
 - **No global mutable state** (`check-statics`, [ADR 0008](docs/adr/0008-no-global-state.md)).
-- **Frozen formats.** The PRNG output streams and `Handle::to_bits` are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
+- **Frozen formats.** The PRNG output streams and `UntypedGenId::to_bits` (and `GenId::to_bits`, which forwards to it) are frozen for all of `0.x`. Changing one needs an ADR and updated golden tests, not just a code change.
 - **Documentation.** Every public item is documented and every public type has a runnable doctest.
 - **Panics.** A documented panic needs `#[track_caller]`, a `# Panics` section, an actionable message, and a fallible `try_` twin.
 - **Workflows** (`check-workflows`): actions pinned to commit hashes, a read-only token (a job-level `write` scope only if it is in `WRITE_ALLOWLIST`, with a reason), no persisted checkout credentials, no `pull_request_target`.
@@ -63,91 +64,23 @@ These are policy, not preferences. A pull request that breaks one will not be me
 
 Changes come with tests. For a bug fix, write the test first and confirm it fails for the reason you expect, then fix the code. Prefer testing behaviour over implementation. The layers in use are unit tests, proptest model tests against a simple reference, golden values, and doctests. Do not weaken or delete a failing test without saying so in the pull request.
 
-## Benchmarks
+- **A fuzz crash is a bug.** Turn it into a failing unit test (or a case in `libs/engine/tests/genid_model.rs`) first, watch it fail, then fix the code.
+- **Unit tests stay in inline `#[cfg(test)]` modules.** `cargo xtask coverage` fails on an out-of-line `#[cfg(test)] mod name;`, and tests generated by a macro outside any `#[cfg(test)]` item (a top-level `proptest! { ... }` in a `src` file) would be counted as library code.
+- **No coverage or mutation attributes in library code:** no `cfg(coverage)`, `cfg(coverage_nightly)` or `#[coverage(...)]`, so the instrumented build compiles the same code as the normal one; no `mutants::` attributes and no `mutants` dependency, because mutants are excluded only in `.cargo/mutants.toml`.
 
-Performance claims need measurements. Wall-clock numbers from a laptop or shared CI runner are noisy (we have measured about 5% drift between runs on a quiet machine), so:
+## Tools
 
-- Run on AC power with other apps closed, and record the machine and conditions. On macOS `cargo xtask bench` refuses to start on battery and keeps the machine awake; afterwards, check `pmset -g log` for a power change or sleep during the run.
-- Compare against a saved baseline: `cargo xtask bench --save NAME`, then `cargo xtask bench-report --baseline NEW --against OLD`. The report only calls a change real if it exceeds 5% and the confidence intervals do not overlap.
-- Say what you measured and what you did not.
+How to run each tool, what its output means and its rules live next to it:
 
-## Instruction-count gate
-
-Wall-clock benchmarks are too noisy to gate a pull request, so the `bench-regress` check counts CPU instructions instead, under Valgrind through [Gungraun](https://docs.rs/crate/gungraun/). It builds and runs the benchmarks of `bench/regress/` (package `engine_bench_regress`) at the base commit and at the head, in the same job, and fails when any benchmark's instruction count rose by more than 5%. Nothing is stored between runs.
-
-```sh
-cargo xtask bench-regress                 # compare HEAD (and your working tree) with the merge base with origin/main
-cargo xtask bench-regress --base HEAD~3   # compare with another commit
-cargo xtask bench-regress --report-only   # report a regression without failing
-```
-
-- **Linux only.** Valgrind does not run on macOS, so on a Mac use the devcontainer. The command stops before building when the platform, Valgrind (3.20 or later) or the `gungraun-runner` version is wrong, and says what to install.
-- **When it runs.** It skips itself, and passes, when no file that can change a count differs from the base (`libs/`, `bench/regress/`, the manifests, the toolchain, `.cargo/`, and the gate's own code and workflow). It compares a pull request with its parent only, so several small regressions across pull requests can add up; the milestone check in `docs/maintainers.md` is the backstop.
-- **The label.** An intended regression needs the `perf-regression-accepted` label and a justification in the pull request description. With the label the check reports the regression and passes; a build failure or a Valgrind error still fails it. The label is not tied to a commit and covers later pushes too, so the description must name the benchmarks it covers, and the review compares that list with the "Accepted by label" list of the final run (see "Reviews before a pull request"). A toolchain bump often needs the label, because the compiler changed the code it generated.
-- **A `gungraun` bump is not compared.** The runner installed for the head cannot run a benchmark binary built against another `gungraun` version, so a pull request that changes it (normally a Dependabot bump) passes without a comparison.
-- **Architectures.** Counts from the aarch64 devcontainer are only comparable with other aarch64 runs; CI runs on x86_64. Never compare across the two.
-- **Adding a benchmark.** Add a function to `bench/regress/benches/handle.rs` or `prng.rs`, or a new `[[bench]]` file with `harness = false`. Build the input in a `setup` function (it is not counted) from a fixed seed, and put the operation in a separate `#[inline(never)]` function that the benchmark calls (see the comment at the top of `handle.rs` for why). A benchmark must measure at least 10,000 instructions: with fewer, a harmless change in code generation exceeds 5%. `cargo xtask bench-smoke` runs each benchmark function once without Valgrind, so a broken benchmark fails ordinary CI.
-- **Moving the package.** The base run looks for `engine_bench_regress` at `bench/regress/` and then at its earlier locations, `LEGACY_REGRESS_DIRS` in `xtask/src/bench_regress.rs`. If you move it, add the old directory there, or every comparison with an earlier commit (the milestone check included) reports every benchmark as new.
-- **Renaming.** When you change what an existing benchmark measures, rename it. The base runs the base's copy of the benchmark, so an edited benchmark with the same name compares two different things.
-
-## Fuzzing
-
-Coverage-guided fuzz targets for `engine_handle` live in `fuzz/` (outside the workspace). Three drive `HandlePool`, `HandleAllocator` and `DenseHandleAllocator` with arbitrary operation sequences against a simple reference model, checking `check_invariants` after every operation; one checks `Handle::from_bits` and `to_bits`.
-
-```sh
-cargo xtask fuzz handle_pool_ops --time 60      # one target for 60 s (the default)
-cargo xtask fuzz all                            # every target, 10 min each, as the nightly job does
-cargo xtask fuzz handle_pool_ops --replay fuzz/artifacts/handle_pool_ops/crash-<hash>
-cargo xtask fuzz-build                          # compile only; CI does this on every pull request
-```
-
-You need `cargo-fuzz` and the pinned nightly; the command prints the install lines when either is missing. Fuzzing does not work on Windows (libFuzzer needs a non-MSVC toolchain): use the devcontainer or WSL. `cargo xtask ci` skips `fuzz-build` with a loud note when the tools are missing, but fails when `CI` is set.
-
-- **A finding.** The nightly `fuzz` job goes red and uploads `fuzz/artifacts` for 30 days. Following the test-first rule above, first turn the crash into a failing unit test (or a case in `tests/model.rs`) in `libs/engine_handle`, watch it fail, then fix the code. Do not commit crash files or the corpus.
-- **Bumping the nightly.** Change `FUZZ_NIGHTLY` in `xtask/src/fuzz.rs` (the only place the date is written; CI and the devcontainer read it through `cargo xtask fuzz-toolchain`), run `cargo xtask fuzz-build`, and mention the bump in the pull request.
-- **Why `fuzz/` is outside `cargo xtask deny`.** It is a developer tool that is never built into or shipped with an engine artifact, and `libfuzzer-sys` is licensed `NCSA` (in addition to MIT or Apache-2.0), which is outside the allow list of [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md). Dependabot watches `fuzz/Cargo.lock` instead, so advisories on its dependencies still surface.
-
-## Coverage
-
-```sh
-cargo xtask coverage          # measure, print the per-crate table, write the reports
-cargo xtask coverage --open   # the same, then open the HTML report
-```
-
-You need `cargo-llvm-cov` and `rustup component add llvm-tools-preview`; the command prints the line for whichever is missing. It runs the workspace tests under instrumentation (the same tests and features as `cargo xtask test --include-ignored`, minus doctests, `xtask`, `engine_benches`, `engine_bench_regress` and the spike packages) in a separate build under `target/llvm-cov-target/`, so the first run is as slow as a clean build. It writes `target/llvm-cov/html/index.html` (annotated source, for triage), `target/llvm-cov/lcov.info` (for editor gutters) and `target/llvm-cov/summary.md` (the table).
-
-- **What the table counts.** Lines and functions in `libs/*/src/` and `examples/*/src/`. It leaves out doctests (not measured: `cargo-llvm-cov` supports them only on nightly, so code that only a doctest runs shows as uncovered), `tests/`, `benches/`, `bench/`, `spikes/` and `xtask/`, and every item marked `#[test]` or `#[cfg(test)]` (including `cfg(all(test, ...))`); the heading says how many instrumented lines that removed. Code under `#[cfg(any(test, feature = "test-invariants"))]` is counted. The HTML and lcov reports are unfiltered apart from the directories, so their percentages are higher.
-- **No threshold.** CI's `coverage` job writes the same table to the job summary and uploads the reports for 30 days. It fails only when a test fails, and it is not a required check. Use the report to find behaviour no test exercises, not to raise the number.
-- **Two rules.** Library code does not use `cfg(coverage)`, `cfg(coverage_nightly)` or `#[coverage(...)]`, so the instrumented build compiles the same code as the normal one. Unit tests stay in inline `#[cfg(test)]` modules: an out-of-line `#[cfg(test)] mod name;` fails the command, and tests generated by a macro outside any `#[cfg(test)]` item (a top-level `proptest! { ... }` in a `src` file) would be counted as library code.
-- **Platforms.** CI measures on Ubuntu only. The command is verified on macOS and Linux, not on Windows.
-
-## Mutation testing
-
-```sh
-cargo xtask mutants --list            # check the exclusions and list the mutants; builds nothing
-cargo xtask mutants                   # test the triaged crates (engine_handle and engine_random)
-cargo xtask mutants -p engine_random  # one crate
-cargo xtask mutants -j 2              # two mutants at a time
-cargo xtask mutants --in-diff FILE    # only mutants in code that a unified diff changes
-```
-
-You need `cargo-mutants` at the pinned version; the command prints the install line when it is missing and warns when the version differs, because results from another version are not comparable. The command checks the exclusion list, runs `cargo mutants` with the settings in `.cargo/mutants.toml` (nextest, all features, ignored tests included, `cap_lints`), writes the output to `target/mutants/mutants.out/` and the table to `target/mutants/summary.md`, and prints it. The first run builds a copy of the workspace per job, so it is as slow as a clean build.
-
-- **What the outcomes mean.** *Caught*: a test failed with the mutant in place, which is what should happen. *Missed*: every test passed with it, so a test is missing or the mutant changes nothing observable. *Timeout*: the tests did not finish in time, usually an endless loop; this detects the mutant. *Unviable*: the mutant does not compile and says nothing about the tests. Doctests do not run (as in coverage), so a mutant only a doctest catches shows as missed.
-- **Report only.** A missed mutant never fails anything and there is no target score: a score to hit invites tests written for the score. The command fails only when it could not produce a report. CI's `mutants` workflow runs every mutant on Sundays (on `main`) and on manual dispatch (about 20 minutes). On a pull request that changes the sources of `engine_handle` or `engine_random`, or the mutants tooling, it runs only the mutants in the changed code (`cargo xtask mutants --in-diff FILE`) after checking the exclusion list, which takes a few minutes. Both write the table to the job summary and upload `mutants.out/` for 30 days. Neither is a required check.
-- **Ad hoc runs.** A plain `cargo mutants` uses the same settings. For one mutant: `cargo mutants -p engine_handle -F 'shrink_to_fit'`. For changed code: `git diff main > target/changes.diff`, then `cargo mutants --in-diff target/changes.diff`. Read a missed mutant's diff in `target/mutants/mutants.out/diff/`.
-- **Triage.** Give each missed mutant exactly one class: *test gap, fixed* (a test at the public-API level that fails with the mutant and passes without it; never one that only pins the mutant's diff), *test gap, deferred* (an issue; the mutant stays missed), *bug* (an issue, fixed in its own pull request, test first), *equivalent* (no input tells it from the original; exclude it) or *not worth a test* (real behaviour no caller depends on, such as a speed-only fast path; exclude it and say why). A readable `Debug` impl is behaviour, not a candidate for exclusion. The record is [docs/mutation-triage.md](docs/mutation-triage.md); it is written by hand.
-- **Exclusions.** Only in `exclude_re` in `.cargo/mutants.toml`, never as a `#[mutants::skip]` attribute: library code has no `mutants::` attributes and no `mutants` dependency. The list is written in a restricted form (`exclude_re = [`, one `'single-quoted'` regex per line followed by `,`, `]`), with a comment directly above each entry giving the reason. The command rejects an entry without a reason, an entry that contains a line or column number (a `:` followed by a digit; it would stop matching when the file changes), and an entry that matches no mutant. `cargo xtask mutants --list` prints how many mutants each entry removes; check that against what you meant. `cargo-mutants` never applies a name filter to its "delete field" mutants, so those cannot be excluded.
-- **The triaged set** is a constant in `xtask/src/mutants.rs` and grows by chunk: a chunk that triages another crate adds it there and to the record.
-
-## Spike crates
-
-A **spike** is a measured experiment whose code is kept so its numbers can be re-run: the storage prototypes of M3 are the first. Spike crates live under `spikes/<topic>/<crate>/` (see [spikes/README.md](spikes/README.md)) and follow the rules of the bench crates, not the library rules:
-
-- **They keep** the workspace lints, `#![forbid(unsafe_code)]` (until an ADR says otherwise: M3.7 is the first chunk that may), `cargo deny`, and the determinism lints. Every public item is documented.
-- **They are exempt from** "every public type has a runnable doctest", from the `try_` twin rule for documented panics, and from the inline-test-module rule of coverage (a spike may keep its tests in `src/tests.rs`). They are outside coverage and mutation testing: conformance tests are what keep spike code honest, and CI runs them with the rest of the workspace.
-- **Backends are checked before they are measured.** A backend must pass `check_conformance` against the reference for every workload it implements before its numbers are quoted anywhere.
-- **Benchmarks are manual.** `cargo xtask spike-bench <topic>` runs a spike's Criterion bench and `cargo bench -p <package>` its Gungraun bench; neither is a CI gate. `cargo xtask bench` and `bench-doc` leave them out, so the library suites and `docs/benchmarks.md` do not change. Quote spike numbers under the rules in "Benchmarks" above.
+| Tool | Manual |
+| --- | --- |
+| Every `cargo xtask` command | [xtask/README.md](xtask/README.md) |
+| Wall-clock benchmarks | [bench/README.md](bench/README.md#wall-clock-benchmarks) |
+| The instruction-count gate (`bench-regress`, the `perf-regression-accepted` label) | [bench/README.md](bench/README.md#instruction-count-gate) |
+| Fuzzing | [fuzz/README.md](fuzz/README.md) |
+| Coverage | [xtask/README.md](xtask/README.md#coverage) |
+| Mutation testing and triage | [xtask/README.md](xtask/README.md#mutation-testing) |
+| Spike crates | [spikes/README.md](spikes/README.md) |
 
 ## Commits and pull requests
 
@@ -158,23 +91,23 @@ A **spike** is a measured experiment whose code is kept so its numbers can be re
 
 ## Reviews before a pull request
 
-Before opening a pull request, review the change from each perspective below, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards.
+Before opening a pull request, review the change from each perspective below, whoever or whatever wrote it. Re-run them before marking the pull request ready if the change grew substantially afterwards. In the chunk loop each review is done by an agent that did not write the change, after a `/simplify` pass, using the reviewer files in `.claude/agents/` (named below); a person can run the same checklist by hand.
 
 **Always**
 
-- **Code review** (`/code-review`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
-- **Security review** (`/security-review`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps; a new `write` token scope needs an entry with a reason in `WRITE_ALLOWLIST` in `xtask/src/check_workflows.rs`).
-- **Documentation review**, by hand: every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` is current; the chunk is closed out in this pull request (spec `Implemented (PR #n, date)`, plan `Historical`, roadmap row `Done (PR #n)`, the spec's done-when list ticked with evidence), never in a documentation-only pull request after the merge; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
-- **Spec conformance review**, by hand: for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
+- **Code review** (`review-code`): correctness bugs, checks that cannot fail (a test or fuzz target that passes whatever the code does), missed edge cases, and rule breaks from "What CI enforces".
+- **Security review** (`review-security`): `unsafe`, input handling, dependency and licence changes (new crates, their licences against [ADR 0002](docs/adr/0002-originality-and-dependency-licensing.md), their provenance), and workflows (token permissions, pinned actions, secrets, untrusted input in `run:` steps; a new `write` token scope needs an entry with a reason in `WRITE_ALLOWLIST` in `xtask/src/check_workflows.rs`).
+- **Documentation review** (`review-docs`): every new public item is documented; new documents have a status line; relative links resolve; `CHANGELOG.md` is current; the chunk is closed out in this pull request (spec `Implemented (PR #n, date)`, plan and log `Historical`, roadmap row `Done (PR #n)`, the spec's done-when list ticked with evidence), never in a documentation-only pull request after the merge; a spec's section numbers stay stable; anything that differs from the plan is in its Deviations section; and a claim in the docs is one you ran, not one you inferred.
+- **Spec conformance review** (`review-spec`): for each requirement in the chunk's spec (§5), point to the evidence in its §8 that it holds, and check that what the pull request claims is what was actually run.
 
-**When the change touches it.** These are mandatory too, but you may answer "n/a" with the reason.
+**When the change touches it** (`review-conditional`, told which apply). These are mandatory too, but you may answer "n/a" with the reason.
 
 | Review | Applies when | Asks |
 | --- | --- | --- |
 | **Public API** | a public item is added, changed or removed | Is the change deliberate and recorded? Does each panic have `#[track_caller]`, a `# Panics` section, an actionable message and a `try_` twin? Is the type future-proof (`#[non_exhaustive]`, sealed traits)? |
 | **Determinism** | library code changes, especially iteration, floats, hashing or anything `usize`-dependent | The lints catch banned names, not unordered iteration, platform-width differences, float reduction order or ambient state. Does it give identical results on aarch64, x86_64, wasm and 32-bit? |
-| **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor (see "Benchmarks")? When `perf-regression-accepted` is used: does the description name the benchmarks it covers, and do they match the final run's "Accepted by label" list (see "Instruction-count gate")? |
-| **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere the facade promises? |
+| **Performance** | a hot path changes, or the pull request makes a performance claim | Is there a saved baseline and the noise floor ([bench/README.md](bench/README.md#wall-clock-benchmarks))? When `perf-regression-accepted` is used: does the description name the benchmarks it covers, and do they match the final run's "Accepted by label" list ([bench/README.md](bench/README.md#instruction-count-gate))? |
+| **Portability** | `no_std`, wasm, Windows or CI changes | Does it still build and run everywhere `engine` promises? |
 
 Triage every finding: fix it, or write in the pull request why you did not. The pull request description has a Reviews section that lists all eight reviews with a one-line result each, or `n/a: <reason>` for a triggered review that does not apply.
 

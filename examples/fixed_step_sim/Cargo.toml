@@ -1,6 +1,6 @@
 [package]
 name = "fixed_step_sim"
-description = "Headless deterministic simulation demonstrating the M1 crates together"
+description = "Headless deterministic simulation demonstrating the M1 modules of `engine` together"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,7 +1,8 @@
 //! The summary table built from `cargo-mutants`' outcome files.
 //!
 //! Each outcome file lists mutant names in the form `cargo mutants --list` prints:
-//! `<path>:<line>:<column>: <description>`. [`render`] groups them by crate and writes the
+//! `<path>:<line>:<column>: <description>`. [`render`] groups them by module of `engine` (or by
+//! package, for `examples/*`) and writes the
 //! Markdown that `cargo xtask mutants` prints and CI appends to the job summary.
 
 use std::collections::BTreeMap;
@@ -26,15 +27,15 @@ pub(super) struct Outcomes<'a> {
 pub(super) struct Header<'a> {
     /// The `cargo mutants --version` output.
     pub(super) version: &'a str,
-    /// The packages that were run.
-    pub(super) packages: &'a [String],
-    /// How many mutants the exclusion list removes from those packages.
+    /// The modules of `engine` that were run.
+    pub(super) modules: &'a [String],
+    /// How many mutants the exclusion list removes from those modules.
     pub(super) excluded_mutants: usize,
     /// How many entries the exclusion list has.
     pub(super) exclude_entries: usize,
 }
 
-/// Outcome counts of one crate.
+/// Outcome counts of one row of the table.
 #[derive(Debug, Default, Clone, Copy)]
 struct Row {
     caught: usize,
@@ -62,13 +63,14 @@ impl Row {
 
 /// A mutant name split into the parts the summary needs.
 struct Name<'a> {
-    krate: String,
+    /// The table row: `engine::<module>`, `engine` for the crate root, or an example's package.
+    row: String,
     path: &'a str,
     line: u32,
     column: u32,
 }
 
-/// Splits a mutant name into its crate, path, line and column.
+/// Splits a mutant name into its row, path, line and column.
 fn parse_name(name: &str) -> Result<Name<'_>, String> {
     let bad = || {
         format!("cannot read `{name}` as a mutant name (`<path>:<line>:<column>: <description>`)")
@@ -79,24 +81,52 @@ fn parse_name(name: &str) -> Result<Name<'_>, String> {
     let line = parts.next().and_then(|l| l.parse().ok()).ok_or_else(bad)?;
     let path = parts.next().filter(|p| !p.is_empty()).ok_or_else(bad)?;
     let mut components = Path::new(path).components().map(Component::as_os_str);
-    let krate = match (components.next(), components.next(), components.next()) {
-        (Some(root), Some(krate), Some(src))
-            if (root == "libs" || root == "examples") && src == "src" =>
+    let row = match (
+        components.next(),
+        components.next(),
+        components.next(),
+        components.next(),
+    ) {
+        (Some(libs), Some(engine), Some(src), Some(first))
+            if libs == "libs" && engine == "engine" && src == "src" =>
+        {
+            module_row(
+                first.to_string_lossy().as_ref(),
+                components.next().is_some(),
+            )
+        }
+        (Some(examples), Some(krate), Some(src), Some(_))
+            if examples == "examples" && src == "src" =>
         {
             krate.to_string_lossy().into_owned()
         }
         _ => {
             return Err(format!(
-                "`{name}` is not under `libs/<crate>/src/` or `examples/<crate>/src/`"
+                "`{name}` is not under `libs/engine/src/` or `examples/<crate>/src/`"
             ));
         }
     };
     Ok(Name {
-        krate,
+        row,
         path,
         line,
         column,
     })
+}
+
+/// The row of a file directly under `libs/engine/src/`, named `first` (a directory, when
+/// `nested`, else a file): the module it belongs to, or `engine` for the crate root.
+fn module_row(first: &str, nested: bool) -> String {
+    let module = if nested {
+        first
+    } else {
+        first.strip_suffix(".rs").unwrap_or(first)
+    };
+    if module == "lib" && !nested {
+        "engine".to_string()
+    } else {
+        format!("engine::{module}")
+    }
 }
 
 /// The non-blank lines of an outcome file.
@@ -108,29 +138,29 @@ fn names(file: &str) -> impl Iterator<Item = &str> {
 /// then writes no outcome files, so there is no table to build.
 pub(super) fn render_no_mutants(header: &Header<'_>) -> String {
     format!(
-        "## Mutation testing\n\n{}; packages: {}; No mutant is in the code the diff changes, so nothing was run.\n",
+        "## Mutation testing\n\n{}; modules: {}; No mutant is in the code the diff changes, so nothing was run.\n",
         header.version,
-        header.packages.join(", ")
+        header.modules.join(", ")
     )
 }
 
-/// Renders the summary: a heading line, the per-crate table, and the missed mutants.
+/// Renders the summary: a heading line, the per-module table, and the missed mutants.
 ///
 /// # Errors
 ///
 /// A name that is not of the form `<path>:<line>:<column>: <description>`, or whose path is not
-/// under `libs/<crate>/src/` or `examples/<crate>/src/`, is an error naming it.
+/// under `libs/engine/src/` or `examples/<crate>/src/`, is an error naming it.
 pub(super) fn render<'a>(header: &Header<'_>, outcomes: &Outcomes<'a>) -> Result<String, String> {
     let mut rows: BTreeMap<String, Row> = header
-        .packages
+        .modules
         .iter()
-        .map(|p| (p.clone(), Row::default()))
+        .map(|m| (format!("engine::{m}"), Row::default()))
         .collect();
     let mut missed = Vec::new();
     let mut tally = |file: &'a str, count: fn(&mut Row), is_missed: bool| -> Result<(), String> {
         for name in names(file) {
             let parsed = parse_name(name)?;
-            count(rows.entry(parsed.krate).or_default());
+            count(rows.entry(parsed.row).or_default());
             if is_missed {
                 missed.push((parsed.path, parsed.line, parsed.column, name));
             }
@@ -146,13 +176,13 @@ pub(super) fn render<'a>(header: &Header<'_>, outcomes: &Outcomes<'a>) -> Result
     let mut out = String::from("## Mutation testing\n\n");
     let _ = writeln!(
         out,
-        "{}; packages: {}; {} mutants excluded by {} entries in .cargo/mutants.toml.\n",
+        "{}; modules: {}; {} mutants excluded by {} entries in .cargo/mutants.toml.\n",
         header.version,
-        header.packages.join(", "),
+        header.modules.join(", "),
         header.excluded_mutants,
         header.exclude_entries
     );
-    out.push_str("| Crate | Tested | Caught | Missed | Timeout | Unviable |\n");
+    out.push_str("| Module | Tested | Caught | Missed | Timeout | Unviable |\n");
     out.push_str("|---|---|---|---|---|---|\n");
     let mut total = Row::default();
     for (name, row) in &rows {
@@ -181,14 +211,14 @@ pub(super) fn render<'a>(header: &Header<'_>, outcomes: &Outcomes<'a>) -> Result
 mod tests {
     use super::*;
 
-    fn packages(names: &[&str]) -> Vec<String> {
+    fn modules(names: &[&str]) -> Vec<String> {
         names.iter().map(|n| (*n).to_string()).collect()
     }
 
-    fn header(packages: &[String]) -> Header<'_> {
+    fn header(modules: &[String]) -> Header<'_> {
         Header {
             version: "cargo-mutants 27.1.0",
-            packages,
+            modules,
             excluded_mutants: 0,
             exclude_entries: 0,
         }
@@ -202,22 +232,22 @@ mod tests {
     };
 
     #[test]
-    fn rows_are_ordered_by_crate_with_total_last() {
-        let pkgs = packages(&["engine_random", "engine_handle"]);
+    fn rows_are_ordered_by_module_with_total_last() {
+        let pkgs = modules(&["random", "genid"]);
         let outcomes = Outcomes {
-            caught: "libs/engine_random/src/a.rs:1:1: x\nlibs/engine_handle/src/a.rs:1:1: y\nlibs/engine_handle/src/a.rs:2:1: z\n",
-            missed: "libs/engine_random/src/a.rs:3:1: m\n",
-            timeout: "libs/engine_handle/src/a.rs:5:1: t\n",
-            unviable: "libs/engine_random/src/a.rs:4:1: u\nlibs/engine_random/src/a.rs:9:1: v\n",
+            caught: "libs/engine/src/random/a.rs:1:1: x\nlibs/engine/src/genid/a.rs:1:1: y\nlibs/engine/src/genid/a.rs:2:1: z\n",
+            missed: "libs/engine/src/random/a.rs:3:1: m\n",
+            timeout: "libs/engine/src/genid/a.rs:5:1: t\n",
+            unviable: "libs/engine/src/random/a.rs:4:1: u\nlibs/engine/src/random/a.rs:9:1: v\n",
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
         let rows: Vec<&str> = out.lines().filter(|l| l.starts_with("| ")).collect();
         assert_eq!(
             rows,
             [
-                "| Crate | Tested | Caught | Missed | Timeout | Unviable |",
-                "| engine_handle | 3 | 2 | 0 | 1 | 0 |",
-                "| engine_random | 4 | 1 | 1 | 0 | 2 |",
+                "| Module | Tested | Caught | Missed | Timeout | Unviable |",
+                "| engine::genid | 3 | 2 | 0 | 1 | 0 |",
+                "| engine::random | 4 | 1 | 1 | 0 | 2 |",
                 "| Total | 7 | 3 | 1 | 1 | 2 |",
             ]
         );
@@ -225,20 +255,23 @@ mod tests {
 
     #[test]
     fn selected_crate_without_outcomes_shows_zeros() {
-        let pkgs = packages(&["engine_handle", "engine_time"]);
+        let pkgs = modules(&["genid", "time"]);
         let outcomes = Outcomes {
-            caught: "libs/engine_handle/src/a.rs:1:1: x\n",
+            caught: "libs/engine/src/genid/a.rs:1:1: x\n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
-        assert!(out.contains("| engine_time | 0 | 0 | 0 | 0 | 0 |"), "{out}");
+        assert!(
+            out.contains("| engine::time | 0 | 0 | 0 | 0 | 0 |"),
+            "{out}"
+        );
     }
 
     #[test]
     fn missed_list_is_in_file_and_line_order() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let outcomes = Outcomes {
-            missed: "libs/engine_handle/src/b.rs:9:3: r1\nlibs/engine_handle/src/a.rs:30:1: r2\nlibs/engine_handle/src/a.rs:4:1: r3\n",
+            missed: "libs/engine/src/genid/b.rs:9:3: r1\nlibs/engine/src/genid/a.rs:30:1: r2\nlibs/engine/src/genid/a.rs:4:1: r3\n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
@@ -247,9 +280,9 @@ mod tests {
         assert_eq!(
             listed,
             [
-                "libs/engine_handle/src/a.rs:4:1: r3",
-                "libs/engine_handle/src/a.rs:30:1: r2",
-                "libs/engine_handle/src/b.rs:9:3: r1",
+                "libs/engine/src/genid/a.rs:4:1: r3",
+                "libs/engine/src/genid/a.rs:30:1: r2",
+                "libs/engine/src/genid/b.rs:9:3: r1",
             ]
         );
         assert!(missed.contains("```text\n"), "{missed}");
@@ -257,15 +290,15 @@ mod tests {
 
     #[test]
     fn no_missed_says_none() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let out = render(&header(&pkgs), &EMPTY).unwrap();
         assert!(out.contains("### Missed (0)\n\nNone.\n"), "{out}");
         assert!(!out.contains("```"), "{out}");
     }
 
     #[test]
-    fn heading_line_names_version_packages_and_exclusions() {
-        let pkgs = packages(&["engine_handle", "engine_random"]);
+    fn heading_line_names_version_modules_and_exclusions() {
+        let pkgs = modules(&["genid", "random"]);
         let head = Header {
             excluded_mutants: 12,
             exclude_entries: 5,
@@ -274,14 +307,28 @@ mod tests {
         let out = render(&head, &EMPTY).unwrap();
         assert!(out.starts_with("## Mutation testing\n\n"), "{out}");
         assert!(
-            out.contains("cargo-mutants 27.1.0; packages: engine_handle, engine_random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.\n"),
+            out.contains("cargo-mutants 27.1.0; modules: genid, random; 12 mutants excluded by 5 entries in .cargo/mutants.toml.\n"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn crate_root_maps_to_engine() {
+        let outcomes = Outcomes {
+            caught: "libs/engine/src/lib.rs:1:1: x\nlibs/engine/src/time.rs:2:1: y\n",
+            ..EMPTY
+        };
+        let out = render(&header(&[]), &outcomes).unwrap();
+        assert!(out.contains("| engine | 1 | 1 | 0 | 0 | 0 |"), "{out}");
+        assert!(
+            out.contains("| engine::time | 1 | 1 | 0 | 0 | 0 |"),
             "{out}"
         );
     }
 
     #[test]
     fn examples_paths_map_to_their_crate() {
-        let pkgs = packages(&["fixed_step_sim"]);
+        let pkgs = modules(&[]);
         let outcomes = Outcomes {
             caught: "examples/fixed_step_sim/src/main.rs:1:1: x\n",
             ..EMPTY
@@ -295,7 +342,7 @@ mod tests {
 
     #[test]
     fn name_outside_the_patterns_is_an_error() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let outcomes = Outcomes {
             caught: "xtask/src/main.rs:1:1: x\n",
             ..EMPTY
@@ -306,7 +353,7 @@ mod tests {
 
     #[test]
     fn line_that_is_not_a_name_is_an_error() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let outcomes = Outcomes {
             missed: "garbage\n",
             ..EMPTY
@@ -317,23 +364,23 @@ mod tests {
 
     #[test]
     fn blank_lines_are_ignored() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let outcomes = Outcomes {
-            caught: "\nlibs/engine_handle/src/a.rs:1:1: x\n\n   \n",
+            caught: "\nlibs/engine/src/genid/a.rs:1:1: x\n\n   \n",
             ..EMPTY
         };
         let out = render(&header(&pkgs), &outcomes).unwrap();
         assert!(
-            out.contains("| engine_handle | 1 | 1 | 0 | 0 | 0 |"),
+            out.contains("| engine::genid | 1 | 1 | 0 | 0 | 0 |"),
             "{out}"
         );
     }
 
     #[test]
     fn descriptions_may_contain_colons() {
-        let pkgs = packages(&["engine_handle"]);
+        let pkgs = modules(&["genid"]);
         let outcomes = Outcomes {
-            missed: "libs/engine_handle/src/a.rs:7:5: replace <impl fmt::Debug for Handle<T>>::fmt with Ok(Default::default())\n",
+            missed: "libs/engine/src/genid/a.rs:7:5: replace <impl fmt::Debug for GenId<T>>::fmt with Ok(Default::default())\n",
             ..EMPTY
         };
         assert!(render(&header(&pkgs), &outcomes).is_ok());
@@ -341,11 +388,11 @@ mod tests {
 
     #[test]
     fn a_diff_without_mutants_says_nothing_was_run() {
-        let pkgs = packages(&["engine_handle", "engine_random"]);
+        let pkgs = modules(&["genid", "random"]);
         let out = render_no_mutants(&header(&pkgs));
         assert!(out.starts_with("## Mutation testing\n\n"), "{out}");
         assert!(
-            out.contains("cargo-mutants 27.1.0; packages: engine_handle, engine_random;"),
+            out.contains("cargo-mutants 27.1.0; modules: genid, random;"),
             "{out}"
         );
         assert!(

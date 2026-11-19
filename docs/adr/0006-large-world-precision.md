@@ -29,7 +29,7 @@ followed by `to_world` round-trips with an error of at most 1 mm. At a 10 km off
 spacing is about 1 mm, so this is essentially the limit of the representation. The same guarantee
 holds in 2D.
 
-**Layouts are pinned.** `engine_math` asserts `size_of` and `align_of` of the four transform types
+**Layouts are pinned.** `engine::math` asserts `size_of` and `align_of` of the four transform types
 with `const` assertions, so a change fails the build instead of silently changing snapshot or FFI
 layouts. The values are the same on every target measured:
 
@@ -46,7 +46,7 @@ assertions, which CI compiles on ubuntu-latest. The `const` assertions were chec
 glam's `scalar-math` is enabled.
 
 **The `scalar-math` hazard and upgrade path.** Cross-platform bit-exact determinism (ADR 0003) will
-need three changes together: back `engine_math::scalar` with the pure-Rust `libm` crate, enable
+need three changes together: use `libm` in `engine::math::scalar` whatever the features, enable
 glam's `libm` feature, and enable glam's `scalar-math` feature. `scalar-math` changes the size and
 alignment of `Vec3A`, `Vec4`, `Quat`, `Mat3A`, and `Mat4`, and therefore of every transform here.
 That breaks anything that depends on the layout (C# bindings, snapshots, serialized data), the same

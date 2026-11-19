@@ -1,5 +1,5 @@
 # Shared cargo-mutants settings, used by `cargo xtask mutants` and by a plain `cargo mutants`.
-# See CONTRIBUTING.md "Mutation testing" and docs/mutation-triage.md for how exclusions are made.
+# See xtask/README.md "Mutation testing" and docs/mutation-triage.md for how exclusions are made.
 test_tool = "nextest"
 all_features = true
 additional_cargo_test_args = ["--run-ignored", "all"]
@@ -9,14 +9,39 @@ gitignore = true
 exclude_re = [
     # Equivalent: the index occupies bits 32..64 and the generation bits 0..32, so the two never
     # share a set bit and `|` and `^` agree.
-    '^libs/engine_handle/src/handle\.rs:.*replace \| with \^ in Handle<T>::to_bits',
+    '^libs/engine/src/genid/id\.rs:.*replace \| with \^ in UntypedGenId::to_bits',
     # Equivalent: `VACANT_BIT | next` with `next < MAX_SLOTS` (checked by the line above), so
     # `next` never has the top bit and `|` and `^` agree.
-    '^libs/engine_handle/src/slots\.rs:.*replace \| with \^ in Slot::set_state',
+    '^libs/engine/src/genid/slots\.rs:.*replace \| with \^ in Slot::set_state',
     # Equivalent: an occupied slot's link is below the dense length, and every vacant or retired
     # link is at least `VACANT_BIT`, far above any length, so `<` and `<=` agree.
-    '^libs/engine_handle/src/pool\.rs:.*replace < with <= in HandlePool<T>::resolve',
+    '^libs/engine/src/genid/map\.rs:.*replace < with <= in GenIdMap<T>::resolve',
     # Equivalent: `type_name` never contains a lone `:`, so the guard is true whenever the byte
     # is `:`, which is the only time the arm is reached.
-    '^libs/engine_handle/src/handle\.rs:.*replace match guard bytes\.get\(i \+ 1\) == Some\(&b.:.\) with true in write_short_type_name',
+    '^libs/engine/src/genid/id\.rs:.*replace match guard bytes\.get\(i \+ 1\) == Some\(&b.:.\) with true in write_short_type_name',
+    # Equivalent: when the argument's trimmed length equals `self`'s, growing to it is a resize to
+    # the length the vector already has, so `>` and `>=` agree.
+    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::union_with',
+    # Equivalent: the same as for `union_with`: an equal length makes the resize a no-op.
+    '^libs/engine/src/collections/bit_set\.rs:.*replace > with >= in BitSet::symmetric_difference_with',
+    # Equivalent: `(base << 6) | bit` with `bit < 64`, so the low six bits of the left side are
+    # zero and `|` and `^` agree.
+    '^libs/engine/src/collections/bit_set/descent\.rs:.*replace \| with \^ in WordCursor::next_word',
+    # Equivalent: as in `WordCursor::next_word`: `(index << 6) | pick(word)` with `pick < 64`.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace \| with \^ in HierarchicalBitSet::descend',
+    # Equivalent: each child word sets a different bit of the summary word, so the bits ORed in
+    # never overlap and `|` and `^` agree.
+    '^libs/engine/src/collections/bit_set/words\.rs:.*replace \| with \^ in summarize',
+    # Equivalent: with equal lengths the resize is to the length the layer already has, a no-op,
+    # as for `BitSet::union_with`.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace < with <= in HierarchicalBitSet::union_with',
+    # Equivalent: the cursor's top word is the only word not ANDed across both sets; with `|`
+    # the extra top bits lead into layer-4 words whose AND is zero, which the cursor skips, so
+    # the results are the same and only some work is wasted.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::difference_with',
+    # Equivalent: as for `difference_with`: below the top word the source ANDs both sets.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace & with \| in HierarchicalBitSet::is_disjoint',
+    # Equivalent: `MAX_BITS - 1` and `MAX_BITS / 1` (`u32::MAX` and `u32::MAX - 1`) differ only in
+    # bit 0, and every layer shifts right by at least 6, so the word counts are the same.
+    '^libs/engine/src/collections/bit_set/hierarchical\.rs:.*replace - with / in max_words',
 ]

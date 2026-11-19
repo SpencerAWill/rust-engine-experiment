@@ -338,8 +338,8 @@ mod tests {
     fn finish_cases() {
         let regressed = [
             row("prng", "next_u64_10k", Some(100), 200, true),
-            row("handle", "pool_insert_1k", Some(100), 100, false),
-            row("handle", "dense_free_1k", Some(100), 130, true),
+            row("genid", "map_insert_1k", Some(100), 100, false),
+            row("genid", "dense_free_1k", Some(100), 130, true),
         ];
         // Passed
         assert!(finish(&Verdict::Passed, false, &regressed).is_ok());
@@ -347,8 +347,8 @@ mod tests {
         // Regressed, no label: an error naming each regressed benchmark and the label.
         let error = finish(&Verdict::Regressed, false, &regressed).unwrap_err();
         assert!(error.contains("prng::next_u64_10k"), "{error}");
-        assert!(error.contains("handle::dense_free_1k"), "{error}");
-        assert!(!error.contains("pool_insert_1k"), "{error}");
+        assert!(error.contains("genid::dense_free_1k"), "{error}");
+        assert!(!error.contains("map_insert_1k"), "{error}");
         assert!(error.contains("perf-regression-accepted"), "{error}");
         // Regressed, with the label: success, still naming them.
         let message = finish(&Verdict::Regressed, true, &regressed).unwrap();
@@ -357,7 +357,7 @@ mod tests {
             "{message}"
         );
         assert!(message.contains("prng::next_u64_10k"), "{message}");
-        assert!(message.contains("handle::dense_free_1k"), "{message}");
+        assert!(message.contains("genid::dense_free_1k"), "{message}");
         // Regressed, but no regressed row could be read.
         let unnamed = finish(&Verdict::Regressed, false, &[]).unwrap_err();
         assert!(unnamed.contains("unavailable"), "{unnamed}");
@@ -386,8 +386,8 @@ mod tests {
     fn table_orders_by_target_then_id_and_marks_regressed_rows() {
         let rows = [
             row("prng", "shuffle_1k", Some(1000), 1053, true),
-            row("handle", "pool_insert_1k", None, 55_040, false),
-            row("handle", "dense_free_1k", Some(200), 200, false),
+            row("genid", "map_insert_1k", None, 55_040, false),
+            row("genid", "dense_free_1k", Some(200), 200, false),
         ];
         let table = render_table(&rows);
         let find = |needle: &str| {
@@ -395,12 +395,12 @@ mod tests {
                 .find(needle)
                 .unwrap_or_else(|| panic!("{needle}\n{table}"))
         };
-        assert!(find("handle::dense_free_1k") < find("handle::pool_insert_1k"));
-        assert!(find("handle::pool_insert_1k") < find("prng::shuffle_1k"));
+        assert!(find("genid::dense_free_1k") < find("genid::map_insert_1k"));
+        assert!(find("genid::map_insert_1k") < find("prng::shuffle_1k"));
         assert!(table.contains("+5.3%"), "{table}");
         assert!(table.contains("+0.0%"), "{table}");
         let line_of = |needle: &str| table.lines().find(|l| l.contains(needle)).unwrap();
-        assert!(line_of("pool_insert_1k").contains("new"), "{table}");
+        assert!(line_of("map_insert_1k").contains("new"), "{table}");
         assert!(line_of("shuffle_1k").contains("REGRESSED"), "{table}");
         assert!(!line_of("dense_free_1k").contains("REGRESSED"), "{table}");
     }

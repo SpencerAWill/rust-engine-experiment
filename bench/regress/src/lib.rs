@@ -5,7 +5,7 @@
     clippy::disallowed_methods,
     clippy::unwrap_used
 )]
-//! Instruction-count regression benchmarks for the engine's foundation crates.
+//! Instruction-count regression benchmarks for the `engine` library.
 //!
 //! This crate has no library code. The benchmarks live in `benches/` and run under Valgrind
 //! through Gungraun, which counts CPU instructions instead of timing them, so the numbers do

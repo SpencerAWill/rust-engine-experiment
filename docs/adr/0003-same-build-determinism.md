@@ -1,6 +1,6 @@
 # ADR 0003: Same-build determinism
 
-Status: Accepted (2026-11-12)
+Status: Accepted (2026-11-12). Rewritten in place by M3.13 (2026-11-14); see its [spec §4.8](../chunks/m3.13-one-engine-crate/spec.md).
 
 ## Context
 
@@ -16,9 +16,9 @@ Replays, save/load, rollback netcode, and "record a bug, replay it" all depend o
 - `disallowed-types`: `std::collections::HashMap`, `HashSet`, and `std::hash::RandomState` (their default hasher is seeded from OS randomness, so iteration order differs between runs).
 - `disallowed-methods`: `Instant::now`, `SystemTime::now`, and the inherent transcendental float methods on `f32` and `f64`.
 - `disallowed-macros`: `thread_local!`.
-- Sanctioned exceptions use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. M1 has exactly two: `SystemClock` and `engine_math::scalar`. Non-simulation crates (`xtask`, `engine_benches`) opt out at the crate root.
+- Sanctioned exceptions use `#[expect(clippy::disallowed_methods, reason = "...")]` on the smallest possible item. There are exactly two: `SystemClock` and `engine::math::scalar`. The non-library packages `xtask`, `engine_benches` and `engine_bench_regress` opt out at the crate root.
 
-**Transcendental math funnel.** All transcendental math goes through `engine_math::scalar`, which delegates to `std` in M1. The upgrade path to cross-platform determinism is a future ADR with three changes together: back `scalar` with the pure-Rust `libm` crate, enable glam's `libm` feature, and enable glam's `scalar-math` feature. That switch changes output values and the size and alignment of `Vec3A`, `Vec4`, `Quat`, `Mat3A`, `Mat4`, so it is a deliberate, versioned, engine-wide decision and never a Cargo feature. Static layout assertions in `engine_math` make an accidental change loud.
+**Transcendental math funnel.** All transcendental math goes through `engine::math::scalar`. A build with the `std` feature uses `std`'s transcendental functions, in `scalar` and inside glam. A build without `std` uses the pure-Rust `libm` crate, in `scalar` and inside glam (through glam's `nostd-libm` feature), because no other backend exists there. Within one build the backend is fixed, so same-build determinism holds; a `std` build and a `no_std` build may differ in the last bits. The `std` feature is not the cross-platform switch: it selects the only backend the target has, and on a target with `std` it can be turned off, which selects `libm`. The upgrade path to cross-platform determinism is a future ADR with three changes together: use `libm` in `scalar` whatever the features, enable glam's `libm` feature, and enable glam's `scalar-math` feature. That switch changes output values and the size and alignment of `Vec3A`, `Vec4`, `Quat`, `Mat3A`, `Mat4`, so it is a deliberate, versioned, engine-wide decision and never a Cargo feature. Static layout assertions in `engine::math` make an accidental change loud, and `clippy.toml` bans calling the wrapped `libm` functions outside `scalar`.
 
 **Float notes.** Rust does not contract `a * b + c` into fused multiply-add, and we never enable fast-math. Basic IEEE operations are bit-reproducible. glam's SIMD backends sum horizontally in different orders (SSE2 and NEON differ), so `dot`, `length`, `normalize`, and quaternion/matrix products can differ in the last bit between x86_64 and aarch64. That is consistent with same-build determinism, but it limits what can share a cross-architecture golden value.
 
@@ -35,5 +35,5 @@ Replays, save/load, rollback netcode, and "record a bug, replay it" all depend o
 ## Consequences
 
 - Nondeterminism hazards are caught at lint time rather than found as desyncs later.
-- The cost of a later cross-platform switch is contained to one module plus a feature decision.
+- The cost of a later cross-platform switch is contained to one module plus a feature decision, and `engine` builds for bare-metal and WebAssembly targets with the `libm` backend.
 - Downstream crates can enable glam's `fast-math` or `scalar-math` through Cargo feature unification. `scalar-math` is caught by the layout assertions; `fast-math` cannot be detected, so the README documents it as unsupported.

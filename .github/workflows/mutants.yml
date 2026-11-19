@@ -1,10 +1,10 @@
 name: Mutants
 
-# Report-only mutation testing of the triaged crates (docs/mutation-triage.md). It fails only
+# Report-only mutation testing of the triaged modules of `engine` (docs/mutation-triage.md). It fails only
 # when the setup is broken, never because a mutant was missed.
 #
 # Weekly and on dispatch it runs every mutant (about 20 minutes). On a pull request it runs only
-# the mutants in the code the pull request changes, so a change to the triaged crates or to the
+# the mutants in the code the pull request changes, so a change to the triaged modules or to the
 # mutants tooling gets a result in a few minutes. The pull_request trigger also lets a change to
 # this workflow run before merge: a workflow can only be dispatched by hand once it exists on the
 # default branch.
@@ -19,9 +19,12 @@ on:
       - .github/workflows/mutants.yml
       - xtask/src/mutants.rs
       - xtask/src/mutants/**
-      - libs/engine_collections/src/**
-      - libs/engine_handle/src/**
-      - libs/engine_random/src/**
+      - libs/engine/src/collections.rs
+      - libs/engine/src/collections/**
+      - libs/engine/src/genid.rs
+      - libs/engine/src/genid/**
+      - libs/engine/src/random.rs
+      - libs/engine/src/random/**
 
 # Least privilege: nothing here writes to the repository.
 permissions:

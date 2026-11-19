@@ -10,7 +10,7 @@ use serde_json::Value;
 pub(crate) struct Point {
     /// Criterion's group id, such as `get_random` or `scenario/steady_churn_frame`.
     pub(crate) group: String,
-    /// The compared implementation (criterion's function id), such as `engine_handle`.
+    /// The compared implementation (criterion's function id), such as `engine::GenIdMap`.
     pub(crate) implementation: String,
     /// What distinguishes runs of one implementation, such as `u64` in `u64/1000`.
     pub(crate) variant: Option<String>,
@@ -165,7 +165,7 @@ pub(crate) fn load(criterion_dir: &Path, baseline: &str) -> Result<Vec<Point>, S
 mod tests {
     use super::*;
 
-    const BENCH_SIZED: &str = r#"{"group_id":"get_random","function_id":"engine_handle","value_str":"u64/1000000","throughput":{"Elements":1000000},"full_id":"get_random/engine_handle/u64/1000000","directory_name":"get_random/engine_handle/u64_1000000","title":"x"}"#;
+    const BENCH_SIZED: &str = r#"{"group_id":"get_random","function_id":"engine::GenIdMap","value_str":"u64/1000000","throughput":{"Elements":1000000},"full_id":"get_random/engine::GenIdMap/u64/1000000","directory_name":"get_random/engine::GenIdMap/u64_1000000","title":"x"}"#;
     const BENCH_PLAIN_SIZE: &str = r#"{"group_id":"allocator/batch_fresh","function_id":"batch","value_str":"1000","throughput":{"Elements":1000},"full_id":"a","directory_name":"a","title":"a"}"#;
     const BENCH_UNSIZED: &str = r#"{"group_id":"prng/next_u64","function_id":"fastrand","value_str":null,"throughput":{"Elements":1000000},"full_id":"a","directory_name":"a","title":"a"}"#;
     const ESTIMATES: &str = r#"{"mean":{"confidence_interval":{"confidence_level":0.95,"lower_bound":1.0,"upper_bound":3.0},"point_estimate":2.0,"standard_error":0.1},"median":{"confidence_interval":{"confidence_level":0.95,"lower_bound":1500000.0,"upper_bound":2500000.0},"point_estimate":2000000.0,"standard_error":0.1}}"#;
@@ -174,7 +174,7 @@ mod tests {
     fn parses_a_sized_benchmark_with_a_variant() {
         let p = parse_point(BENCH_SIZED, ESTIMATES).unwrap();
         assert_eq!(p.group, "get_random");
-        assert_eq!(p.implementation, "engine_handle");
+        assert_eq!(p.implementation, "engine::GenIdMap");
         assert_eq!(p.variant.as_deref(), Some("u64"));
         assert_eq!(p.x, Some(1_000_000.0));
         assert_eq!(p.elements, Some(1_000_000));
@@ -182,8 +182,8 @@ mod tests {
             (p.median_ns, p.lower_ns, p.upper_ns),
             (2_000_000.0, 1_500_000.0, 2_500_000.0)
         );
-        assert_eq!(p.series(), "engine_handle \u{b7} u64");
-        assert_eq!(p.id(), "get_random/engine_handle \u{b7} u64@1000000");
+        assert_eq!(p.series(), "engine::GenIdMap \u{b7} u64");
+        assert_eq!(p.id(), "get_random/engine::GenIdMap \u{b7} u64@1000000");
         assert_eq!(p.per_element(), (2.0, 1.5, 2.5));
     }
 

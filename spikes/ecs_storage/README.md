@@ -1,15 +1,20 @@
 # ECS storage spike
 
-Status: Accepted (2026-11-14), added by M3.2. The rules of every workload are in the [M3.2 spec](../../docs/design/m3-ecs-storage/m3.2-spike-harness/spec.md) (§4.4); this page is how to use them.
+Status: Living (2026-11-15). Added by M3.2. The rules of every workload are in the [M3.2 spec](../../docs/chunks/m3.2-spike-harness/spec.md) (§4.4); this page is how to use them.
 
-## What is here
+## When this applies
 
-| Package | Directory | Role |
+- You add a backend or workload to the ECS storage spike, or run its benchmarks.
+- You quote or check a number from M3's storage decision.
+
+## Contents
+
+| Directory | Package | Role |
 |---|---|---|
-| `spike_ecs_harness` | `harness/` | The `Workload` trait, the seven workloads' components, spawn, update and hash functions, `Fnv1a`, `check_conformance` |
-| `spike_ecs_vec` | `vec/` | The reference backends: `vec_aos` for every workload, `vec_soa` for `agents` |
-| `spike_ecs_bench_compare` | `bench_compare/` | Criterion: wall-clock time |
-| `spike_ecs_bench_cache` | `bench_cache/` | Gungraun: instructions and simulated cache misses |
+| `harness/` | `spike_ecs_harness` | The `Workload` trait, the seven workloads' components, spawn, update and hash functions, `Fnv1a`, `check_conformance` |
+| `vec/` | `spike_ecs_vec` | The reference backends: `vec_aos` for every workload, `vec_soa` for `agents` |
+| `bench_compare/` | `spike_ecs_bench_compare` | Criterion: wall-clock time |
+| `bench_cache/` | `spike_ecs_bench_cache` | Gungraun: instructions and simulated cache misses |
 
 The workloads are `simple_iter`, `frag_iter`, `heavy_compute`, `add_remove`, `entity_churn`, `sprites` and `agents`.
 
@@ -52,6 +57,6 @@ cargo xtask spike-bench ecs --save m3-run1 # the same, saved as a Criterion base
 cargo bench -p spike_ecs_bench_cache       # Linux with Valgrind: instructions, L1/LL/RAM hits, estimated cycles
 ```
 
-Criterion's ids are `spike/ecs/<workload>/<backend>/<count>`. Both commands are manual: neither is a CI gate, and `cargo xtask bench` and `bench-doc` leave them out. `spike-bench` refuses battery power on macOS, as `bench` does. Quote results under the rules in CONTRIBUTING.md's "Benchmarks".
+Criterion's ids are `spike/ecs/<workload>/<backend>/<count>`. Both commands are manual: neither is a CI gate, and `cargo xtask bench` and `bench-doc` leave them out. `spike-bench` refuses battery power on macOS, as `bench` does. Quote results under the rules for [wall-clock benchmarks](../../bench/README.md#wall-clock-benchmarks).
 
-The cache bench needs Valgrind 3.20 or later and `gungraun-runner` (see CONTRIBUTING.md's "Instruction-count gate"). Counts are only comparable between runs on the same architecture and the same simulated cache sizes. Callgrind takes the simulated cache sizes from the host CPU when it can and from defaults when it cannot, so M3.8 should pin them with `--I1`, `--D1` and `--LL` before comparing runs from different machines. A plain Docker container may block `setarch` (`failed to set personality`); `--security-opt seccomp=unconfined` lets it through.
+The cache bench needs Valgrind 3.20 or later and `gungraun-runner` (see [the instruction-count gate](../../bench/README.md#instruction-count-gate)). Counts are only comparable between runs on the same architecture and the same simulated cache sizes. Callgrind takes the simulated cache sizes from the host CPU when it can and from defaults when it cannot, so M3.8 should pin them with `--I1`, `--D1` and `--LL` before comparing runs from different machines. A plain Docker container may block `setarch` (`failed to set personality`); `--security-opt seccomp=unconfined` lets it through.

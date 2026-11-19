@@ -1,7 +1,8 @@
 //! `cargo xtask mutants`: mutation testing through `cargo-mutants`.
 //!
 //! The command checks the exclusion list in `.cargo/mutants.toml` ([`excludes`]), runs
-//! `cargo mutants` on the triaged crates, and prints a per-crate summary ([`summary`]). It reports;
+//! `cargo mutants` on the triaged modules of `engine`, and prints a per-module summary
+//! ([`summary`]). It reports;
 //! a missed mutant is not a failure. It fails only when no report could be produced.
 
 use std::io::ErrorKind;
@@ -18,9 +19,12 @@ mod summary;
 /// devcontainer script repeat it, and a test fails when they differ.
 pub(crate) const MUTANTS_VERSION: &str = "27.1.0";
 
-/// The crates whose mutants have been triaged (see `docs/mutation-triage.md`). A later chunk that
-/// triages another crate adds it here.
-const TRIAGED: &[&str] = &["engine_collections", "engine_handle", "engine_random"];
+/// The modules of `engine`, which `--module` accepts.
+const MODULES: &[&str] = &["collections", "genid", "math", "random", "time"];
+
+/// The modules whose mutants have been triaged (see `docs/mutation-triage.md`). A later chunk that
+/// triages another module adds it here.
+const TRIAGED: &[&str] = &["collections", "genid", "random"];
 
 /// Where `cargo-mutants` writes its output, and the summary beside it.
 const OUT_DIR: &str = "target/mutants";
@@ -28,11 +32,11 @@ const OUT_DIR: &str = "target/mutants";
 /// The configuration file, relative to the workspace root.
 const CONFIG: &str = ".cargo/mutants.toml";
 
-/// Options of `mutants [-p PACKAGE]... [-j N] [--list] [--in-diff FILE]`.
+/// Options of `mutants [--module NAME]... [-j N] [--list] [--in-diff FILE]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Options {
-    /// Packages to test; empty means the triaged set.
-    packages: Vec<String>,
+    /// Modules of `engine` to test; empty means the triaged set.
+    modules: Vec<String>,
     /// How many mutants to test at once; `None` leaves the tool's default (one).
     jobs: Option<NonZeroU32>,
     /// Check the exclusions and list the mutants instead of running them.
@@ -44,7 +48,7 @@ pub(crate) struct Options {
 /// Parses the arguments that follow `mutants`.
 pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String> {
     let mut options = Options {
-        packages: Vec::new(),
+        modules: Vec::new(),
         jobs: None,
         list: false,
         in_diff: None,
@@ -53,8 +57,17 @@ pub(crate) fn parse_flags(flags: &[&str]) -> Result<Options, String> {
     while let Some(flag) = it.next() {
         match *flag {
             "-p" => {
-                let package = it.next().ok_or("`-p` needs a package name")?;
-                options.packages.push((*package).to_string());
+                return Err("`-p` was replaced by `--module`: the library is one crate".to_string());
+            }
+            "--module" => {
+                let module = it.next().ok_or("`--module` needs a module name")?;
+                if !MODULES.contains(module) {
+                    return Err(format!(
+                        "unknown module `{module}` for `--module` (one of: {})",
+                        MODULES.join(", ")
+                    ));
+                }
+                options.modules.push((*module).to_string());
             }
             "-j" => {
                 let value = it.next().ok_or("`-j` needs a number of jobs")?;
@@ -102,24 +115,39 @@ fn clear_previous_output(root: &Path) -> Result<(), String> {
     }
 }
 
-/// The packages to test: those named, or else the triaged set.
-fn packages(options: &Options) -> Vec<String> {
-    if options.packages.is_empty() {
-        TRIAGED.iter().map(|p| (*p).to_string()).collect()
+/// The modules to test: those named, or else the triaged set.
+fn modules(options: &Options) -> Vec<String> {
+    if options.modules.is_empty() {
+        TRIAGED.iter().map(|m| (*m).to_string()).collect()
     } else {
-        options.packages.clone()
+        options.modules.clone()
     }
 }
 
-fn package_args(packages: &[String]) -> impl Iterator<Item = String> + '_ {
-    packages.iter().flat_map(|p| ["-p".to_string(), p.clone()])
+/// The arguments that select `engine`'s `modules` by file: each module's root file and its
+/// directory. `-f` only limits which files are examined, so the exclusions in the configuration
+/// still apply.
+fn file_args(modules: &[String]) -> Vec<String> {
+    modules
+        .iter()
+        .flat_map(|m| {
+            [
+                "-f".to_string(),
+                format!("libs/engine/src/{m}.rs"),
+                "-f".to_string(),
+                format!("libs/engine/src/{m}/**"),
+            ]
+        })
+        .collect()
 }
 
-/// The `cargo mutants` command line of a run. It passes no name filter (`-F`, `-E`, `-f`), so the
-/// exclusions in the configuration apply unchanged; `--in-diff` only narrows the run to changed code.
+/// The `cargo mutants` command line of a run. It passes no name filter (`-F`, `-E`), so the
+/// exclusions in the configuration apply unchanged; `-f` and `--in-diff` only narrow the run to
+/// the selected files and to changed code.
 fn run_args(options: &Options) -> Vec<String> {
     let mut args: Vec<String> = ["mutants", "--output", OUT_DIR].map(String::from).into();
-    args.extend(package_args(&packages(options)));
+    args.extend(["-p".to_string(), "engine".to_string()]);
+    args.extend(file_args(&modules(options)));
     if let Some(jobs) = options.jobs {
         args.extend(["--jobs".to_string(), jobs.to_string()]);
     }
@@ -129,11 +157,12 @@ fn run_args(options: &Options) -> Vec<String> {
     args
 }
 
-/// The command line that lists the mutants of `packages`, with or without the configuration (and
+/// The command line that lists the mutants of `modules`, with or without the configuration (and
 /// so with or without its exclusions).
-fn list_args(packages: &[String], use_config: bool) -> Vec<String> {
+fn list_args(modules: &[String], use_config: bool) -> Vec<String> {
     let mut args: Vec<String> = ["mutants", "--list"].map(String::from).into();
-    args.extend(package_args(packages));
+    args.extend(["-p".to_string(), "engine".to_string()]);
+    args.extend(file_args(modules));
     if !use_config {
         args.push("--no-config".to_string());
     }
@@ -265,7 +294,7 @@ pub(crate) fn mutants(options: &Options) -> Result<(), String> {
         return Err(errors.join("\n"));
     }
 
-    let selected = packages(options);
+    let selected = modules(options);
     let configured = cargo_output(root, &list_args(&selected, true))?;
     let excluded = count_names(&cargo_output(root, &list_args(&selected, false))?)
         .saturating_sub(count_names(&configured));
@@ -292,7 +321,7 @@ pub(crate) fn mutants(options: &Options) -> Result<(), String> {
 
     let header = summary::Header {
         version: version.trim(),
-        packages: &selected,
+        modules: &selected,
         excluded_mutants: excluded,
         exclude_entries: entries.len(),
     };
@@ -336,9 +365,9 @@ mod tests {
     use super::*;
     use excludes::Entry;
 
-    fn opts(packages: &[&str], jobs: Option<u32>, list: bool) -> Options {
+    fn opts(modules: &[&str], jobs: Option<u32>, list: bool) -> Options {
         Options {
-            packages: packages.iter().map(|p| (*p).to_string()).collect(),
+            modules: modules.iter().map(|m| (*m).to_string()).collect(),
             jobs: jobs.and_then(NonZeroU32::new),
             list,
             in_diff: None,
@@ -360,14 +389,15 @@ mod tests {
     }
 
     #[test]
-    fn parses_packages_jobs_and_list() {
+    fn parses_modules_jobs_and_list() {
         assert_eq!(
-            parse_flags(&["-p", "a", "-p", "b", "-j", "2", "--list"]),
-            Ok(opts(&["a", "b"], Some(2), true))
+            parse_flags(&["--module", "genid", "--module", "time", "-j", "2", "--list"]),
+            Ok(opts(&["genid", "time"], Some(2), true))
         );
         assert_eq!(parse_flags(&[]), Ok(opts(&[], None, false)));
         for bad in [
-            &["-p"][..],
+            &["--module"][..],
+            &["--module", "nope"],
             &["-j"],
             &["-j", "0"],
             &["-j", "x"],
@@ -382,38 +412,89 @@ mod tests {
     }
 
     #[test]
-    fn packages_default_to_the_triaged_set() {
+    fn module_flag_selects_modules() {
+        let parsed = parse_flags(&["--module", "time", "--module", "genid"]).unwrap();
+        assert_eq!(parsed.modules, ["time", "genid"]);
+        assert_eq!(modules(&parsed), ["time", "genid"]);
+    }
+
+    #[test]
+    fn p_flag_is_rejected_with_a_pointer() {
+        let err = parse_flags(&["-p", "engine"]).unwrap_err();
+        assert!(err.contains("--module"), "{err}");
+    }
+
+    #[test]
+    fn default_is_the_triaged_modules() {
         assert_eq!(
-            packages(&opts(&[], None, false)),
-            ["engine_collections", "engine_handle", "engine_random"]
-        );
-        assert_eq!(
-            packages(&opts(&["engine_time"], None, false)),
-            ["engine_time"]
+            modules(&opts(&[], None, false)),
+            ["collections", "genid", "random"]
         );
     }
 
     #[test]
-    fn run_args_match_the_spec() {
+    fn modules_are_the_public_modules_of_engine() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let lib = std::fs::read_to_string(root.join("libs/engine/src/lib.rs")).unwrap();
+        // `pub mod prelude { ... }` is inline and holds re-exports, not mutable code.
+        let mut declared: Vec<&str> = lib
+            .lines()
+            .filter_map(|l| l.strip_prefix("pub mod ")?.strip_suffix(';'))
+            .collect();
+        declared.sort_unstable();
         assert_eq!(
-            run_args(&opts(&[], None, false)),
+            declared, MODULES,
+            "`MODULES` and `pub mod` in libs/engine/src/lib.rs differ"
+        );
+    }
+
+    #[test]
+    fn every_triaged_module_is_a_module() {
+        for module in TRIAGED {
+            assert!(MODULES.contains(module), "{module}");
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join(format!("libs/engine/src/{module}.rs"));
+            assert!(
+                path.is_file(),
+                "{} is not a module of engine",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn run_args_examine_each_module_root_and_directory() {
+        let args = run_args(&opts(&["genid"], None, false));
+        assert_eq!(
+            args,
             [
                 "mutants",
                 "--output",
                 "target/mutants",
                 "-p",
-                "engine_collections",
-                "-p",
-                "engine_handle",
-                "-p",
-                "engine_random"
+                "engine",
+                "-f",
+                "libs/engine/src/genid.rs",
+                "-f",
+                "libs/engine/src/genid/**",
             ]
         );
-        let with_jobs = run_args(&opts(&["engine_random"], Some(2), false));
+        let with_jobs = run_args(&opts(&["random"], Some(2), false));
         assert_eq!(&with_jobs[with_jobs.len() - 2..], ["--jobs", "2"]);
         assert!(!run_args(&opts(&[], None, false)).contains(&"--jobs".to_string()));
-        for args in [run_args(&opts(&[], None, false)), with_jobs] {
-            for filter in ["-F", "-E", "-f", "--re", "--exclude-re", "--file"] {
+        // The default selects the three triaged modules.
+        let default = run_args(&opts(&[], None, false));
+        for module in ["collections", "genid", "random"] {
+            assert!(
+                default.contains(&format!("libs/engine/src/{module}.rs")),
+                "{default:?}"
+            );
+        }
+        // No name filter: the exclusions in the configuration must apply unchanged.
+        for args in [default, with_jobs] {
+            for filter in ["-F", "-E", "--re", "--exclude-re", "--file"] {
                 assert!(!args.contains(&filter.to_string()), "{filter} in {args:?}");
             }
         }
@@ -421,15 +502,22 @@ mod tests {
 
     #[test]
     fn list_args_with_and_without_config() {
-        let pkgs = ["a".to_string(), "b".to_string()];
-        assert_eq!(
-            list_args(&pkgs, true),
-            ["mutants", "--list", "-p", "a", "-p", "b"]
-        );
-        assert_eq!(
-            list_args(&pkgs, false),
-            ["mutants", "--list", "-p", "a", "-p", "b", "--no-config"]
-        );
+        let mods = ["genid".to_string(), "time".to_string()];
+        let files = [
+            "-f",
+            "libs/engine/src/genid.rs",
+            "-f",
+            "libs/engine/src/genid/**",
+            "-f",
+            "libs/engine/src/time.rs",
+            "-f",
+            "libs/engine/src/time/**",
+        ];
+        let mut with = vec!["mutants", "--list", "-p", "engine"];
+        with.extend(files);
+        assert_eq!(list_args(&mods, true), with);
+        with.push("--no-config");
+        assert_eq!(list_args(&mods, false), with);
     }
 
     #[test]

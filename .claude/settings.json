@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo xtask ci)",
+      "Bash(cargo xtask ci --quick)",
+      "Bash(cargo xtask test)",
+      "Bash(cargo xtask test *)",
+      "Bash(cargo xtask clippy)",
+      "Bash(cargo xtask fmt --check)",
+      "Bash(cargo xtask typos)",
+      "Bash(cargo xtask doc)",
+      "Bash(cargo xtask deny)",
+      "Bash(cargo xtask no-std)",
+      "Bash(cargo xtask wasm)",
+      "Bash(cargo xtask check-unsafe)",
+      "Bash(cargo xtask check-statics)",
+      "Bash(cargo xtask check-workflows)",
+      "Bash(cargo xtask fuzz-build)",
+      "Bash(cargo xtask bench-smoke)",
+      "Bash(cargo xtask mutants --list)",
+      "Bash(pmset -g batt)",
+      "Bash(pmset -g log)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-push.sh\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

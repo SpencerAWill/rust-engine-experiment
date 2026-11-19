@@ -11,12 +11,14 @@
 mod bench_doc;
 mod bench_regress;
 mod bench_report;
+mod check_docs;
 mod check_statics;
 mod check_unsafe;
 mod check_workflows;
 mod cmd;
 mod coverage;
 mod fuzz;
+mod guard_push;
 mod mutants;
 mod prng_stats;
 
@@ -40,6 +42,8 @@ enum Command {
     CheckUnsafe,
     CheckStatics,
     CheckWorkflows,
+    CheckDocs,
+    GuardPush,
     NoStd,
     Wasm,
     PrngStats {
@@ -101,6 +105,8 @@ fn parse(args: &[&str]) -> Result<Command, String> {
         "check-unsafe" => only(&[]).map(|()| Command::CheckUnsafe),
         "check-statics" => only(&[]).map(|()| Command::CheckStatics),
         "check-workflows" => only(&[]).map(|()| Command::CheckWorkflows),
+        "check-docs" => only(&[]).map(|()| Command::CheckDocs),
+        "guard-push" => only(&[]).map(|()| Command::GuardPush),
         "prng-stats" => parse_prng_stats(flags),
         "no-std" => only(&[]).map(|()| Command::NoStd),
         "wasm" => only(&[]).map(|()| Command::Wasm),
@@ -223,20 +229,14 @@ fn run_tests(release: bool, include_ignored: bool) -> Result<(), String> {
     )
 }
 
-/// The `no_std` leaf crates, built without default features for a bare-metal target.
+/// `engine`, built without default features for a bare-metal target.
 fn no_std() -> Result<(), String> {
     run(
         "cargo",
         &[
             "build",
             "-p",
-            "engine_collections",
-            "-p",
-            "engine_handle",
-            "-p",
-            "engine_random",
-            "-p",
-            "engine_time",
+            "engine",
             "--no-default-features",
             "--target",
             "thumbv7em-none-eabihf",
@@ -245,8 +245,8 @@ fn no_std() -> Result<(), String> {
     )
 }
 
-/// Builds the facade for `wasm32-unknown-unknown` (which also proves `SystemClock` is excluded
-/// there), then runs the leaf crates' and `engine_math`'s tests on `wasm32-wasip1` under wasmtime.
+/// Builds `engine` for `wasm32-unknown-unknown` (which also proves `SystemClock` is excluded
+/// there), then runs its tests on `wasm32-wasip1` under wasmtime.
 fn wasm() -> Result<(), String> {
     run(
         "cargo",
@@ -269,15 +269,7 @@ fn wasm() -> Result<(), String> {
             "--lib",
             "--tests",
             "-p",
-            "engine_collections",
-            "-p",
-            "engine_handle",
-            "-p",
-            "engine_random",
-            "-p",
-            "engine_time",
-            "-p",
-            "engine_math",
+            "engine",
         ],
         &[("CARGO_TARGET_WASM32_WASIP1_RUNNER", "wasmtime")],
     )
@@ -396,7 +388,7 @@ fn bench_build_args() -> Vec<String> {
 }
 
 /// The `cargo hack` command line: check every package with each of its features alone, and with
-/// none. `--no-dev-deps` keeps `engine_handle`'s self dev-dependency (which turns on
+/// none. `--no-dev-deps` keeps `engine`'s self dev-dependency (which turns on
 /// `test-invariants`) from hiding a feature-gated build break.
 fn hack_args() -> Vec<String> {
     [
@@ -443,6 +435,7 @@ fn ci_steps(quick: bool) -> Vec<Command> {
             Command::CheckUnsafe,
             Command::CheckStatics,
             Command::CheckWorkflows,
+            Command::CheckDocs,
             Command::Hack,
             Command::Typos,
             Command::Deny,
@@ -502,6 +495,9 @@ fn execute(command: &Command) -> Result<(), String> {
         Command::CheckUnsafe => check_unsafe::run(),
         Command::CheckStatics => check_statics::run(),
         Command::CheckWorkflows => check_workflows::run(),
+        Command::CheckDocs => check_docs::run(),
+        // `main` runs this one directly, since it exits with a code other than 1.
+        Command::GuardPush => Err("guard-push is run by `main`".to_string()),
         Command::NoStd => no_std(),
         Command::PrngStats { seed, bytes } => prng_stats::run(*seed, *bytes),
         Command::Wasm => wasm(),
@@ -566,6 +562,11 @@ fn execute(command: &Command) -> Result<(), String> {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    // The push guard exits 2 to block, which Claude Code treats as "refuse", so it bypasses the
+    // `Result` path below (which exits 1).
+    if args.first() == Some(&"guard-push") && parse(&args) == Ok(Command::GuardPush) {
+        return guard_push::run();
+    }
     match parse(&args).and_then(|c| execute(&c)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(msg) => {
@@ -628,9 +629,18 @@ mod tests {
     #[test]
     fn check_workflows_parses_and_runs_in_the_full_ci_only() {
         assert_eq!(parse(&["check-workflows"]), Ok(Command::CheckWorkflows));
+        assert_eq!(parse(&["guard-push"]), Ok(Command::GuardPush));
         assert!(parse(&["check-workflows", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::CheckWorkflows));
         assert!(!ci_steps(true).contains(&Command::CheckWorkflows));
+    }
+
+    #[test]
+    fn check_docs_parses_and_runs_in_the_full_ci_only() {
+        assert_eq!(parse(&["check-docs"]), Ok(Command::CheckDocs));
+        assert!(parse(&["check-docs", "--x"]).is_err());
+        assert!(ci_steps(false).contains(&Command::CheckDocs));
+        assert!(!ci_steps(true).contains(&Command::CheckDocs));
     }
 
     #[test]
@@ -701,7 +711,7 @@ mod tests {
         assert!(parse(&["hack", "--x"]).is_err());
         assert!(ci_steps(false).contains(&Command::Hack));
         assert!(!ci_steps(true).contains(&Command::Hack));
-        // `--no-dev-deps` matters: engine_handle's self dev-dependency would otherwise turn on
+        // `--no-dev-deps` matters: engine's self dev-dependency would otherwise turn on
         // `test-invariants` everywhere and hide feature-gated breakage.
         assert_eq!(
             hack_args(),
@@ -761,7 +771,7 @@ mod tests {
     fn mutants_parses_and_is_not_a_ci_step() {
         assert!(matches!(parse(&["mutants"]), Ok(Command::Mutants(_))));
         assert!(matches!(
-            parse(&["mutants", "-p", "engine_random", "-j", "2", "--list"]),
+            parse(&["mutants", "--module", "random", "-j", "2", "--list"]),
             Ok(Command::Mutants(_))
         ));
         assert!(parse(&["mutants", "--x"]).is_err());
