@@ -1,7 +1,8 @@
 # M3.3: Sparse-set prototype
 
-- **Status:** Draft (2026-11-14)
+- **Status:** Draft (2026-11-19; first drafted 2026-11-14, before M3.11 to M3.18)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
+- **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 1,650 changed lines, excluding tests, lockfiles and generated files (`storage` about 250, `world` about 350, `query` about 450, the workload modules about 450, documents about 150)
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
@@ -23,8 +24,8 @@ This chunk adds `spike_ecs_sparse_set`, a minimal safe ECS on sparse-set storage
 
 **Non-goals**
 
-- No paged sparse array. The sparse array is flat, behind a private type, so paging later touches one type (§7). Whether paging is needed is judged from M3.11's memory numbers.
-- No memory measurement. That is M3.11, a new chunk (§4.9).
+- No paged sparse array. The sparse array is flat, behind a private type, so paging later touches one type (§7). Whether paging is needed is judged from space numbers, which issue #41 adds.
+- No memory measurement. Issue #41 adds space measurement; this chunk adds no roadmap row or dependency for it (§4.9).
 - No query layer shared with other backends. M3.4 reuses the same names and syntax by convention (§4.5, §7).
 - No runtime-registered components (M3.6), no `unsafe` (M3.7), no parallel iteration (M7), no change detection (M6).
 - No bundle API (`spawn((A, B, C))`). It mostly helps archetypes, which can place a whole entity at once; M3.4 may add it.
@@ -99,13 +100,13 @@ spikes/ecs_storage/sparse_set/     # package spike_ecs_sparse_set (library)
   src/tests.rs                     # conformance, invariants under churn, the model test, query tests
 ```
 
-The package follows CONTRIBUTING.md's "Spike crates": `publish = false` through the workspace, the workspace lints, `#![forbid(unsafe_code)]`, documented public items. It depends on `engine`, `spike_ecs_harness` and `agents_2d`, and has `spike_ecs_vec` and `proptest` as dev-dependencies.
+The package follows the spike-crate rules in [spikes/README.md](../../../spikes/README.md): `publish = false` through the workspace, the workspace lints, `#![forbid(unsafe_code)]`, documented public items. It depends on `engine`, `spike_ecs_harness` and `agents_2d`, and has `spike_ecs_vec` and `proptest` as dev-dependencies.
 
 ### 4.2 `World`
 
 ```rust
 pub struct EntityMarker;
-pub type Entity = Handle<EntityMarker>;
+pub type Entity = GenId<EntityMarker>;
 
 impl World {
     pub fn new() -> Self;
@@ -124,8 +125,8 @@ impl World {
 }
 ```
 
-- Entities come from `engine_handle`'s lean `HandleAllocator<EntityMarker>`. `spawn` allocates; `despawn` removes the entity from every storage, then frees the handle, and returns `false` for a dead entity.
-- **Component identity.** A `BTreeMap<TypeId, ComponentId>` maps each type to a dense `ComponentId(u32)`, the index of its storage in `Vec<Box<dyn ErasedStorage>>`. A storage is created on the first `insert` of its type, or by `group`. `TypeId` order is stable within one build, which is the determinism [ADR 0003](../../../adr/0003-same-build-determinism.md) asks for; nothing observable iterates the map. The identity model the engine adopts is M3.8's decision.
+- Entities come from `engine::genid`'s lean `GenIdAllocator<EntityMarker>`. `spawn` allocates; `despawn` removes the entity from every storage, then frees the ID, and returns `false` for a dead entity.
+- **Component identity.** A `BTreeMap<TypeId, ComponentId>` maps each type to a dense `ComponentId(u32)`, the index of its storage in `Vec<Box<dyn ErasedStorage>>`. A storage is created on the first `insert` of its type, or by `group`. `TypeId` order is stable within one build, which is the determinism [ADR 0003](../../adr/0003-same-build-determinism.md) asks for; nothing observable iterates the map. The identity model the engine adopts is M3.8's decision.
 - `insert` returns the replaced value, or `None`. It MUST panic on a dead entity, with `#[track_caller]`, a `# Panics` section and a message naming the entity and saying it was despawned. A silent drop of the value would hide a bug. Spike crates are exempt from the `try_` twin rule.
 - `remove`, `get` and `get_mut` return `None` for a dead entity or a missing component.
 - `group::<G>()` MUST panic, as `insert` does, if any entity has been spawned, if any of `G`'s types already belongs to a group, or if a type appears twice in `G`. `GroupSpec` is implemented for tuples of 2 to 4 `'static` types.
@@ -141,7 +142,7 @@ pub(crate) struct SparseSet<T> { sparse: SparseIndex, packed: Packed<T> }
 
 - **`Packed<T>`** owns the parallel arrays and offers only paired operations: `push(entity, value)`, `swap_remove(i) -> (Entity, T)`, `swap(i, j)`, `len`, `entities() -> &[Entity]`, `data() -> &[T]`, `data_mut() -> &mut [T]`, `split_mut() -> (&[Entity], &mut [T])`. The two vectors MUST have the same length after every operation; no code outside `Packed` can reach them. A `Vec<(Entity, T)>` was rejected (§7).
 - **`SparseIndex`** maps `entity.index()` to a dense position. It offers `get(index) -> Option<u32>` (an index past the end is absent), `set(index, position)`, which grows the vector with `EMPTY` as needed, and `clear(index)`. Its field is private, so a paged layout replaces this type only.
-- **`index_of(entity)`** is the position `d = sparse[entity.index()]` if `d` is present and `packed.entities()[d] == entity`. Comparing the full handle catches stale handles, so the sparse array stores no generations.
+- **`index_of(entity)`** is the position `d = sparse[entity.index()]` if `d` is present and `packed.entities()[d] == entity`. Comparing the full ID catches stale IDs, so the sparse array stores no generations.
 - **`insert`** replaces the value of a present entity. Otherwise it pushes to `packed` and sets the sparse slot.
 - **`remove`** swap-removes from `packed`, updates the sparse slot of the entity moved into the hole, if any, and clears the removed entity's slot.
 - **`swap(i, j)`** swaps two positions in `packed` and updates both sparse slots. Only group maintenance calls it.
@@ -185,7 +186,7 @@ Group maintenance MUST keep G1 and G2 after every `insert`, `remove`, `despawn` 
 
 **View path.** The driver is the smallest storage among the required parameters and filters. For each position `i` of the driver: copy the entity out, probe each other parameter, check the `Without` filters, and on a full match fetch the items and call the closure. The driver's own index is `i` and is not probed.
 
-**Trusted probes.** Inside a query, the entity comes from a storage, so by S3 it is live and a present sparse slot is its own. A probe MUST therefore be `sparse.get(e.index())` alone, without reading the probed storage's entity array. The public `get`, `get_mut`, `insert` and `remove` keep `index_of`'s full check, because their handles come from the caller.
+**Trusted probes.** Inside a query, the entity comes from a storage, so by S3 it is live and a present sparse slot is its own. A probe MUST therefore be `sparse.get(e.index())` alone, without reading the probed storage's entity array. The public `get`, `get_mut`, `insert` and `remove` keep `index_of`'s full check, because their IDs come from the caller.
 
 **Group path.** A query takes the group path if its required types include every member of some group. If several groups qualify, it takes the one with the most members, and of those the first declared. It walks `0..group.len`. Members are read at index `i` from data slices re-sliced to `..group.len`, so the compiler can drop their bounds checks (SHOULD; not asserted). Other parameters and filters are probed as on the view path. A query whose required types are a strict subset of a group's members uses the view path. `Query::uses_group()` and `QueryRef::uses_group()` report which path was chosen, so tests can check it.
 
@@ -241,7 +242,7 @@ impl Commands {
 
 | Idea | Why not now | Where |
 |---|---|---|
-| Paged sparse array | Its lookup cost would show and its memory benefit would not: no workload has a rare component in a large world, and nothing measures memory yet | Judged from M3.11's numbers; its own chunk if needed |
+| Paged sparse array | Its lookup cost would show and its memory benefit would not: no workload has a rare component in a large world, and nothing measures memory yet | Judged from #41's space numbers; its own chunk if needed |
 | Per-type command queues | Only `agents` uses boxed commands | A Deviation here if boxing dominates |
 | Per-entity component mask (despawn visits only the entity's storages; faster `With`/`Without`) | Entities in the churn workloads have at most five components | M3.5 or M4 |
 | Chunked slice iteration for SIMD | Archetypes have the same opportunity; it is an API decision | M4 |
@@ -253,8 +254,7 @@ impl Commands {
 
 - **`docs/roadmap.md`:**
   - M3.3's title becomes "Sparse-set prototype (safe): views-only and owning-group backends on one minimal `World`".
-  - New row M3.11, "Memory metric: peak heap bytes per workload and backend (dhat), in the harness", depending on M3.2, status `Planned`.
-  - M3.8 depends on "M3.0 to M3.7, M3.10, M3.11". Its title also asks it to read the iteration numbers with §4.7's measurement caveat, and to note that change-detection ticks (M6) will add a column to every storage model.
+  - M3.8's title also asks it to read the iteration numbers with §4.7's measurement caveat, to note that change-detection ticks (M6) will add a column to every storage model, and to say the decision rests on time alone unless space numbers (#41) exist by then. Its dependencies do not change.
   - M3.3's row is `Done (PR #n)` in the close-out commit.
 - **`spikes/ecs_storage/README.md`:** a row for `spike_ecs_sparse_set` in the package table.
 - **`CHANGELOG.md`:** an entry.
@@ -279,10 +279,10 @@ impl Commands {
 
 ## 6. Cross-cutting concerns
 
-- **Determinism:** iteration order follows storage order, which follows only the sequence of operations, so a run is reproducible within a build ([ADR 0003](../../../adr/0003-same-build-determinism.md)). Checksums are order-independent wrapping sums, so conformance does not depend on that order. The `TypeId` map is a `BTreeMap` and nothing observable iterates it. No `HashMap`, ambient state or transcendental function is used; the workspace lints enforce this.
+- **Determinism:** iteration order follows storage order, which follows only the sequence of operations, so a run is reproducible within a build ([ADR 0003](../../adr/0003-same-build-determinism.md)). Checksums are order-independent wrapping sums, so conformance does not depend on that order. The `TypeId` map is a `BTreeMap` and nothing observable iterates it. No `HashMap`, ambient state or transcendental function is used; the workspace lints enforce this.
 - **`unsafe`:** none; the crate forbids it. The safe-Rust costs this design accepts (bounds checks on probed accesses, `for_each` instead of external mutable iterators, one `enumerate` pass to split borrows) are part of what M3.7 measures.
 - **Concurrency:** n/a, because every workload is single-threaded. Parallel iteration is M7's.
-- **Heap allocation:** `setup` may allocate. In the steady state, entity indices are reused LIFO, so sparse arrays stop growing; packed arrays keep their capacity; the reused buffers in `add_remove` and `entity_churn` keep theirs. `agents` allocates one box per seeker change. Not measured here; M3.11 adds peak heap bytes.
+- **Heap allocation:** `setup` may allocate. In the steady state, entity indices are reused LIFO, so sparse arrays stop growing; packed arrays keep their capacity; the reused buffers in `add_remove` and `entity_churn` keep theirs. `agents` allocates one box per seeker change. Not measured here; #41 adds space measurement.
 - **`no_std` and wasm:** n/a, because spike crates are not in those builds.
 - **Frozen formats:** none.
 - **Public API changes:** none in `libs/`. The crate's API is used only by its own workload modules and tests.
@@ -299,8 +299,8 @@ impl Commands {
 - **Groups always on, or groups left out.** Rejected by the maintainer in favour of two backends: the gap between them is the information M3.8 needs.
 - **A paged sparse array, alone or as a third backend.** Rejected by the maintainer for now: its cost would show and its benefit would not (§4.8). The flat array is behind `SparseIndex`, so paging later is local.
 - **Paged packed arrays** (EnTT's, for reference stability). Rejected: the borrow checker already forbids holding a reference across an insert, so stability buys little in safe Rust.
-- **`Vec<(Entity, T)>` instead of `Packed<T>`.** Rejected: a query that reads only `T` would also pull every entity handle through the cache.
-- **Generations in the sparse array.** Rejected: comparing the handle in the packed array catches stale handles at the same cost, and keeps the sparse array at 4 bytes per slot.
+- **`Vec<(Entity, T)>` instead of `Packed<T>`.** Rejected: a query that reads only `T` would also pull every entity ID through the cache.
+- **Generations in the sparse array.** Rejected: comparing the ID in the packed array catches stale IDs at the same cost, and keeps the sparse array at 4 bytes per slot.
 - **`RefCell` per storage for borrow splitting.** Rejected: a runtime flag per storage per query, and panics instead of build-time errors for overlapping access within one query. The `enumerate` pass has no runtime state.
 - **A query trait shared across backends.** Rejected: the query is where storage models differ most (archetypes iterate tables, sparse sets probe), so a shared trait either forces per-entity `get` on everyone or is a shell around per-backend fetches. The orphan rule also forbids implementing a shared trait for `&T` in each backend crate. And the hybrid (M3.5) is the chunk that has to answer "one query over two storage kinds".
 - **A call-site macro that flattens long tuples.** Rejected: rust-analyzer completes and type-checks a plain generic call better, and errors point into macro output.
@@ -326,24 +326,24 @@ impl Commands {
 | R12 | `tests.rs`: invariants checked every tick for `entity_churn` and `agents`, both backends |
 | R13 | `cargo xtask bench-smoke`; `cargo xtask spike-bench ecs` output in the pull request |
 | R14 | `cargo xtask ci`; `cargo xtask deny`; the pull request's CI run |
-| R15 | documentation review (CONTRIBUTING.md "Reviews before a pull request"); `cargo xtask doc` |
+| R15 | the `review-docs` review; `cargo xtask doc` |
 
 ## 9. Done when
 
 - [ ] `cargo xtask ci` passes locally, and CI is green on all three platforms.
 - [ ] Both backends pass conformance for every workload they implement, and the invariant-under-churn and model tests pass.
 - [ ] `cargo xtask spike-bench ecs` lists both backends; its output, and a cache-bench run if the devcontainer is available, are in the pull request, labelled informal.
-- [ ] The roadmap shows M3.3's new title, the M3.11 row and M3.8's new dependency and notes; the spike README and CHANGELOG are updated.
-- [ ] The eight reviews in CONTRIBUTING.md are recorded in the pull request.
-- [ ] The spec is `Implemented` and the plan `Historical`, with Deviations filled in.
+- [ ] The roadmap shows M3.3's new title and M3.8's notes; the spike README and CHANGELOG are updated.
+- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
+- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
 
 ## 10. Open questions
 
-None. Paging is deferred to M3.11's numbers, the memory metric to M3.11, and the items of §4.8 to the chunks named there.
+None. Paging and space measurement are deferred to #41, and the items of §4.8 to the chunks named there.
 
 ## 11. Prior art and sources
 
-Designs only; no code is taken from any of them ([ADR 0002](../../../adr/0002-originality-and-dependency-licensing.md)).
+Designs only; no code is taken from any of them ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)).
 
 - Michele Caini (skypjack), [ECS back and forth, part 2](https://skypjack.github.io/2019-03-07-ecs-baf-part-2/): sparse sets, and owning groups as aligned prefixes.
 - Michele Caini, [ECS back and forth, part 9](https://skypjack.github.io/2020-08-02-ecs-baf-part-9/): sparse set internals: the sparse and packed arrays, paging, and swap-and-pop removal.
