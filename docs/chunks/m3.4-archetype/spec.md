@@ -1,6 +1,6 @@
 # M3.4: Archetype prototype
 
-- **Status:** Accepted (2026-11-20)
+- **Status:** Implemented (PR #77, 2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 1,900 changed lines, excluding tests, lockfiles and generated files (`table` and `archetype` about 350, `world` and `bundle` about 450, `query` about 550, the workload modules about 400, documents about 150)
@@ -324,12 +324,12 @@ As M3.3's (its spec §4.6): `Commands::{new, despawn, insert, remove, len, is_em
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms.
-- [ ] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass.
-- [ ] `cargo xtask spike-bench ecs` lists the `archetype` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal.
-- [ ] The roadmap shows M3.4's new title; the spike README, CHANGELOG and coverage list are updated.
-- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
-- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
+- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms. *Local: passes on e52ae24 (the final code is 4952fc2; later commits are documents only; log.md). CI on PR #77: pending.*
+- [x] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass. *Seven `*_archetype_matches_the_reference` tests, `entity_churn`, `add_remove` and `agents` invariants every tick, and `world_matches_the_model` (with commands and `apply`) pass on 4952fc2 and e52ae24.*
+- [x] `cargo xtask spike-bench ecs` lists the `archetype` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal. *57 ids (14 `archetype`) on 93235b5 (code as of 4952fc2), table in PR #77; no cache-bench run, since neither Valgrind nor Docker is available on this Mac (said in the PR; #74).*
+- [x] The roadmap shows M3.4's new title; the spike README, CHANGELOG and coverage list are updated. *ef81910 (title, README, CHANGELOG), 7216c0e (coverage).*
+- [x] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request. *Two rounds, PR #77 Reviews section.*
+- [x] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in. *This close-out commit.*
 
 ## 10. Open questions
 

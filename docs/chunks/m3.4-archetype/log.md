@@ -1,6 +1,6 @@
 # M3.4 log: Archetype prototype
 
-- **Status:** Living (2026-11-19)
+- **Status:** Historical: PR #77 (2026-11-20)
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>
@@ -71,3 +71,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 done Full `cargo xtask ci` rc 0 on e52ae24 (the final code is 4952fc2; later commits are documents): 885 and 890 tests, doctests, doc, no_std, wasm, hack, typos, deny, bench-smoke, fuzz build, check-docs 0 problems; check-docs re-run after the stage 6 edits: 0 problems.
 - 2026-11-20 done Informal `cargo xtask spike-bench ecs --save m3.4-informal` on 93235b5 (code as of 4952fc2): MacBook (Apple silicon), AC power, `caffeinate -i` (xtask), load average 2.36 at the start (after waiting for the full `ci` run's load to fall below 2.5), 10:07:45 to 10:12:35, 57 ids; `pmset -g log` shows no sleep, wake or battery events in that window. Informal: one run, no noise floor, not for quoting. Headline medians: `simple_iter` 100k vec_aos 91.3 µs, sparse_set 83.9 µs, grouped 24.5 µs, archetype 24.5 µs; `frag_iter` 79 ns, 111 ns, -, 194 ns; `add_remove` 100k 48.6 µs, 1.19 ms, 3.14 ms, 2.23 ms; `entity_churn` 100k 170 µs, 890 µs, 790 µs, 248 µs; `agents` 100k vec_aos 434 µs, vec_soa 413 µs, sparse_set 841 µs, grouped 736 µs, archetype 289 µs. The `agents` Criterion bench steps one instance for a backend-dependent count (M3.8's row), so its cross-backend ratios are not comparable yet. The full table goes in the pull request.
 - 2026-11-20 done Follow-up issue #76: drop the unused `agents_2d` dependency from `spike_ecs_sparse_set` (found by M3.4's code review).
+- 2026-11-20 done Stage 7: branch pushed, PR #77 opened; follow-up #76. Close-out commit: spec `Implemented`, plan and log `Historical`, roadmap `Done (PR #77)`, §9 ticked with evidence (CI on PR #77 pending).
