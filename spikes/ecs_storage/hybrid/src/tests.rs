@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use proptest::prelude::*;
 
 use crate::component::components;
-use crate::{Entity, World};
+use crate::{Commands, Entity, World};
 
 #[derive(Debug, Clone, PartialEq)]
 struct T0(u32);
@@ -29,6 +29,20 @@ enum Op {
     Remove(usize, usize),
     /// One to three distinct types, in the order given, with their values.
     SpawnWith(Vec<(usize, u32)>),
+    /// Record an insert, a remove or a despawn in the one buffer.
+    DeferInsert(usize, usize, u32),
+    DeferRemove(usize, usize),
+    DeferDespawn(usize),
+    /// Apply the buffer.
+    Apply,
+}
+
+/// A recorded command in the model: the entity, and the type and value for an insert.
+#[derive(Debug, Clone, Copy)]
+enum Recorded {
+    Insert(Entity, usize, u32),
+    Remove(Entity, usize),
+    Despawn(Entity),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -38,6 +52,10 @@ fn op() -> impl Strategy<Value = Op> {
         6 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
         4 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
         3 => prop::collection::vec((0usize..4, any::<u32>()), 1..=3).prop_map(Op::SpawnWith),
+        3 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::DeferInsert(k, t, v)),
+        2 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::DeferRemove(k, t)),
+        1 => any::<usize>().prop_map(Op::DeferDespawn),
+        2 => Just(Op::Apply),
     ]
 }
 
@@ -99,6 +117,24 @@ fn remove(w: &mut World, e: Entity, t: usize) -> Option<u32> {
     }
 }
 
+fn defer_insert(c: &mut Commands, e: Entity, t: usize, v: u32) {
+    match t {
+        0 => c.insert(e, T0(v)),
+        1 => c.insert(e, T1(v)),
+        2 => c.insert(e, S0(v)),
+        _ => c.insert(e, S1(v)),
+    }
+}
+
+fn defer_remove(c: &mut Commands, e: Entity, t: usize) {
+    match t {
+        0 => c.remove::<T0>(e),
+        1 => c.remove::<T1>(e),
+        2 => c.remove::<S0>(e),
+        _ => c.remove::<S1>(e),
+    }
+}
+
 fn get(w: &World, e: Entity, t: usize) -> Option<u32> {
     match t {
         0 => w.get::<T0>(e).map(|c| c.0),
@@ -108,12 +144,69 @@ fn get(w: &World, e: Entity, t: usize) -> Option<u32> {
     }
 }
 
+/// Applies recorded commands to the model in order; one on a dead entity is skipped (specs-3).
+fn apply_to_model(
+    model: &mut Model,
+    live: &mut BTreeSet<u32>,
+    recorded: impl Iterator<Item = Recorded>,
+) {
+    for command in recorded {
+        match command {
+            Recorded::Insert(e, t, v) => {
+                if let Some((m, row)) = model.get_mut(&e.index())
+                    && *m == e
+                {
+                    row[t] = Some(v);
+                }
+            }
+            Recorded::Remove(e, t) => {
+                if let Some((m, row)) = model.get_mut(&e.index())
+                    && *m == e
+                {
+                    row[t] = None;
+                }
+            }
+            Recorded::Despawn(e) => {
+                if model.get(&e.index()).is_some_and(|(m, _)| *m == e) {
+                    model.remove(&e.index());
+                    live.remove(&e.index());
+                }
+            }
+        }
+    }
+}
+
+/// Records a deferred operation in the buffer and in the model's list; none if nothing spawned.
+fn record(op: &Op, spawned: &[Entity], buffer: &mut Commands, recorded: &mut Vec<Recorded>) {
+    if spawned.is_empty() {
+        return;
+    }
+    let pick = |k: usize| spawned[k % spawned.len()];
+    match *op {
+        Op::DeferInsert(k, t, v) => {
+            defer_insert(buffer, pick(k), t, v);
+            recorded.push(Recorded::Insert(pick(k), t, v));
+        }
+        Op::DeferRemove(k, t) => {
+            defer_remove(buffer, pick(k), t);
+            recorded.push(Recorded::Remove(pick(k), t));
+        }
+        Op::DeferDespawn(k) => {
+            buffer.despawn(pick(k));
+            recorded.push(Recorded::Despawn(pick(k)));
+        }
+        _ => unreachable!("only deferred operations are recorded"),
+    }
+}
+
 #[allow(clippy::many_single_char_names)] // model-test locals: w, e, t, v, k
 fn run(ops: &[Op]) {
     let mut w = World::new();
     let mut spawned: Vec<Entity> = Vec::new();
     let mut model: Model = BTreeMap::new();
     let mut live: BTreeSet<u32> = BTreeSet::new();
+    let mut buffer = Commands::new();
+    let mut recorded: Vec<Recorded> = Vec::new();
     for op in ops {
         match *op {
             Op::Spawn => {
@@ -166,6 +259,15 @@ fn run(ops: &[Op]) {
                     _ => None,
                 };
                 assert_eq!(remove(&mut w, e, t), old);
+            }
+            Op::DeferInsert(..) | Op::DeferRemove(..) | Op::DeferDespawn(_) => {
+                record(op, &spawned, &mut buffer, &mut recorded);
+            }
+            Op::Apply => {
+                assert_eq!(buffer.len(), recorded.len());
+                w.apply(&mut buffer);
+                assert!(buffer.is_empty());
+                apply_to_model(&mut model, &mut live, recorded.drain(..));
             }
             _ => {}
         }

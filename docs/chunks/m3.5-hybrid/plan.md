@@ -94,7 +94,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: `Commands` (R9)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/commands.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `pub struct Commands` and `World::apply` per spec §4.8 (`impl World { apply }` in `commands.rs`), `T: Component` bounds; `apply` drains so capacity is kept; `#[cfg(test)] fn capacity`. `Default`, `Debug` (the number of commands). `pub use commands::Commands;`.
 - **Test first:** `commands_run_in_recorded_order` (insert then remove of the same type leaves it absent, once per kind); `command_on_a_dead_entity_is_skipped` (no panic, `check_invariants` `Ok`, `len` unchanged; focus 10); `apply_empties_the_buffer_and_keeps_its_capacity`; `commands_reach_each_storage` (a recorded sparse `insert` leaves the location unchanged; a recorded table `insert` moves the entity). In `tests.rs`, `world_matches_the_model` gains `DeferInsert(k, type, value)`, `DeferRemove(k, type)`, `DeferDespawn(k)` and `Apply`, with one buffer and a model of the recorded commands that applies them in order and skips dead entities (specs-3). Fails first: does not compile.
@@ -189,3 +189,4 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 - **Step 3, visibility:** `Archetype`, `ErasedColumn`, `ColumnMut`, `SparseSet`, `SparseMut` and `SparseSlotMut` are `pub` inside private modules, since the seal GATs name them.
 - **Step 3, required sparse fetch:** probe then fetch, two lookups per row (spec §4.7 allows fusing them; no measured workload has one).
 - **Step 3, allocations (ecs-2):** 2 heap allocations per table-only run, 3 with a sparse `Option` or a mutable run with a sparse filter, the same with 2 and 28 registered types; none per archetype or row (log.md, 2026-11-20).
+- **Step 4, `commands_reach_each_storage`:** checks `archetype_count` rather than the location (`Location` is private to `world.rs`); `sparse_toggle_keeps_the_location` covers the location through `World::insert`, which the command calls.

@@ -17,6 +17,7 @@
 
 mod archetype;
 mod bundle;
+mod commands;
 mod component;
 mod query;
 mod sparse;
@@ -29,6 +30,7 @@ mod tests;
 use engine::genid::GenId;
 
 pub use bundle::Bundle;
+pub use commands::Commands;
 pub use component::{Component, SparseStorage, Storage, TableStorage};
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use world::{InvariantViolation, World};
