@@ -17,7 +17,7 @@ This chunk adds `spike_ecs_sparse_set`, a minimal safe ECS on sparse-set storage
 
 - A sparse-set storage whose packed entity and value arrays cannot fall out of step, because one private type owns both (§4.3).
 - Owning groups: storages kept sorted so that the entities with every member component sit in an aligned prefix, maintained on every insert, remove and despawn (§4.4).
-- Typed tuple queries with `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `Entity`, `With<T>` and `Without<T>`, nested tuples, and two execution paths: probing (view) and aligned prefixes (group) (§4.5).
+- Typed tuple queries with `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>` and `Entity`, chained `.with::<T>()` and `.without::<T>()` filters, nested tuples, and two execution paths: probing (view) and aligned prefixes (group) (§4.5).
 - A command buffer for structural changes decided during a query (§4.6).
 - Two backends, so the gap between them is the measured cost and benefit of groups (§4.7).
 - Invariant checks and a model test that cover group maintenance under churn (§8).
@@ -43,15 +43,17 @@ use spike_ecs_sparse_set::{Commands, Entity, With, Without, World};
 #[derive(Clone, Copy)] struct Velocity(f32);
 struct Frozen;
 
-let mut world = World::new();
-world.group::<(Position, Velocity)>();          // optional; only before the first spawn
+let mut world = World::builder()
+    .group::<(Position, Velocity)>()            // optional; World::new() has no groups
+    .build();
 
 let e = world.spawn();
 world.insert(e, Position(0.0));
 world.insert(e, Velocity(1.0));
 
 world
-    .query::<(&mut Position, &Velocity), Without<Frozen>>()
+    .query_mut::<(&mut Position, &Velocity)>()
+    .without::<Frozen>()
     .for_each(|(p, v)| p.0 += v.0);
 
 assert_eq!(world.get::<Position>(e).map(|p| p.0), Some(1.0));
@@ -67,11 +69,19 @@ world
 world.apply(&mut commands);
 ```
 
-Mutable queries are iterated with `for_each`. Read-only queries are built from `&World` with `query_ref` and also offer `iter()`. Queries take up to four parameters; a tuple of tuples goes beyond that:
+`query` borrows the world shared and allows only read-only parameters; `query_mut` borrows it mutably. Mutable queries are iterated with `for_each`. Read-only queries also offer `iter()` and `IntoIterator`:
+
+```rust
+for (p, v) in world.query::<(&Position, &Velocity)>().with::<Frozen>() {
+    /* ... */
+}
+```
+
+Filters chain: `.with::<T>()` and `.without::<T>()`, any number of each. Queries take up to four parameters; a tuple of tuples goes beyond that:
 
 ```rust
 world
-    .query::<(Entity, (&mut A, &mut B, &mut C, Option<&mut D>))>()
+    .query_mut::<(Entity, (&mut A, &mut B, &mut C, Option<&mut D>))>()
     .for_each(|(e, (a, b, c, d))| { /* ... */ });
 ```
 
@@ -92,10 +102,10 @@ spike_ecs_harness::check_conformance::<spike_ecs_vec::simple_iter::VecSimpleIter
 
 ```
 spikes/ecs_storage/sparse_set/     # package spike_ecs_sparse_set (library)
-  src/lib.rs                       # re-exports World, Entity, Commands, With, Without, query types
+  src/lib.rs                       # re-exports World, WorldBuilder, Entity, Commands, InvariantViolation, With, Without, query types
   src/storage.rs                   # SparseSet<T>, Packed<T>, SparseIndex, ErasedStorage
-  src/world.rs                     # World, groups, Commands
-  src/query.rs                     # QueryParam, Filter, ReadOnly, GroupSpec, Query, QueryRef, the tuple macro
+  src/world.rs                     # World, WorldBuilder, groups, Commands, InvariantViolation
+  src/query.rs                     # QueryParam, Filter, ReadOnly, GroupSpec (sealed), Query, QueryMut, QueryIter, the tuple macro
   src/{simple_iter, frag_iter, heavy_compute, add_remove, entity_churn, sprites, agents}.rs
   src/tests.rs                     # conformance, invariants under churn, the model test, query tests
 ```
@@ -109,8 +119,8 @@ pub struct EntityMarker;
 pub type Entity = GenId<EntityMarker>;
 
 impl World {
-    pub fn new() -> Self;
-    pub fn group<G: GroupSpec>(&mut self);
+    pub fn new() -> Self;                       // no groups; also `Default`
+    pub fn builder() -> WorldBuilder;
     pub fn spawn(&mut self) -> Entity;
     pub fn despawn(&mut self, entity: Entity) -> bool;
     pub fn is_alive(&self, entity: Entity) -> bool;
@@ -120,20 +130,32 @@ impl World {
     pub fn remove<T: 'static>(&mut self, entity: Entity) -> Option<T>;
     pub fn get<T: 'static>(&self, entity: Entity) -> Option<&T>;
     pub fn get_mut<T: 'static>(&mut self, entity: Entity) -> Option<&mut T>;
-    pub fn query<Q: QueryParam, F: Filter = ()>(&mut self) -> Query<'_, Q, F>;
-    pub fn query_ref<Q: ReadOnly, F: Filter = ()>(&self) -> QueryRef<'_, Q, F>;
+    pub fn query<Q: ReadOnly>(&self) -> Query<'_, Q>;
+    pub fn query_mut<Q: QueryParam>(&mut self) -> QueryMut<'_, Q>;
     pub fn apply(&mut self, commands: &mut Commands);
-    pub fn check_invariants(&self) -> Result<(), String>;
+    pub fn check_invariants(&self) -> Result<(), InvariantViolation>;
 }
+
+#[must_use]
+pub struct WorldBuilder { /* declared groups */ }   // also `Default`
+
+impl WorldBuilder {
+    pub fn new() -> Self;
+    pub fn group<G: GroupSpec>(self) -> Self;
+    pub fn build(self) -> World;
+}
+
+pub struct InvariantViolation { /* message */ }     // Display, Error
 ```
 
 - Entities come from `engine::genid`'s lean `GenIdAllocator<EntityMarker>`. `spawn` allocates; `despawn` removes the entity from every storage, then frees the ID, and returns `false` for a dead entity.
 - **Live count.** `len` is the number of live entities, kept in a counter that `spawn` increments and a successful `despawn` decrements, because the lean allocator does not count or list its IDs. `entity_churn` and `agents` use it to spawn back up to their targets (§4.7). The model test checks it against the model (§8, R5). *(Main session's call, from the grill: the alternative, each backend counting the despawns it records, puts bookkeeping in the measured `step` and breaks if a command is ever skipped.)*
-- **Component identity.** A `BTreeMap<TypeId, ComponentId>` maps each type to a dense `ComponentId(u32)`, the index of its storage in `Vec<Box<dyn ErasedStorage>>`. A storage is created on the first `insert` of its type, or by `group`. `TypeId` order is stable within one build, which is the determinism [ADR 0003](../../adr/0003-same-build-determinism.md) asks for; nothing observable iterates the map. The identity model the engine adopts is M3.8's decision.
+- **Component identity.** A `BTreeMap<TypeId, ComponentId>` maps each type to a dense `ComponentId(u32)`, the index of its storage in `Vec<Box<dyn ErasedStorage>>`. A storage is created on the first `insert` of its type, or by `build` for a group's members. `TypeId` order is stable within one build, which is the determinism [ADR 0003](../../adr/0003-same-build-determinism.md) asks for; nothing observable iterates the map. The identity model the engine adopts is M3.8's decision.
 - `insert` returns the replaced value, or `None`. It MUST panic on a dead entity, with `#[track_caller]`, a `# Panics` section and a message naming the entity and saying it was despawned. A silent drop of the value would hide a bug. Spike crates are exempt from the `try_` twin rule.
 - `remove`, `get` and `get_mut` return `None` for a dead entity or a missing component.
-- `group::<G>()` MUST panic, as `insert` does, if any entity has been spawned, if any of `G`'s types already belongs to a group, or if a type appears twice in `G`. `GroupSpec` is implemented for tuples of 2 to 4 `'static` types.
-- `check_invariants` checks §4.3's and §4.4's invariants and returns the first violation as a message.
+- **Groups are declared on a `WorldBuilder`**, so a group cannot be declared once entities exist. `WorldBuilder::group::<G>()` MUST panic, as `insert` does, if any of `G`'s types already belongs to a declared group, or if a type appears twice in `G`. `GroupSpec` is implemented for tuples of 2 to 4 `'static` types. `World::new()` and `World::default()` are `WorldBuilder::new().build()`. *(Maintainer, from the API review: a `group` method on `World` read as a getter and needed an "after the first spawn" panic.)*
+- `check_invariants` checks §4.3's and §4.4's invariants and returns the first violation as an `InvariantViolation`. It has the shape of `engine::genid::InvariantViolation` (a private message, `Debug`, `Clone`, `PartialEq`, `Eq`, `Display` as "invariant violated: …", `std::error::Error`), which the spike cannot construct because its constructor is `pub(crate)`.
+- **Common traits.** `World`, `WorldBuilder` and `Commands` implement `Default` and `Debug`. `World`'s `Debug` shows the live count and each storage's type name and length, not every value. Every other public type implements `Debug`.
 
 ### 4.3 Storage
 
@@ -177,29 +199,34 @@ Group maintenance MUST keep G1 and G2 after every `insert`, `remove`, `despawn` 
 
 ### 4.5 Queries
 
-**Parameters.** `QueryParam` is implemented for `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `Entity`, and tuples of 1 to 4 `QueryParam`s, recursively, so nested tuples are queries. `Filter` is implemented for `()`, `With<T>`, `Without<T>`, and tuples of 1 to 4 filters. `ReadOnly` marks the parameters without `&mut`. One `macro_rules!` macro generates the tuple impls of all three traits from a single list of type names, so raising the limit is one edit.
+**Parameters.** `QueryParam` is implemented for `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `Entity`, and tuples of 1 to 4 `QueryParam`s, recursively, so nested tuples are queries. `ReadOnly` marks the parameters without `&mut`. One `macro_rules!` macro generates the tuple impls of both traits from a single list of type names, so raising the limit is one edit.
+
+**Filters.** `Query<'w, Q, F = ()>` and `QueryMut<'w, Q, F = ()>` carry their filters as a type parameter with a default, which a struct allows and a function does not. `.with::<T>()` and `.without::<T>()` consume the query and return it with `F` replaced by `(F, With<T>)` or `(F, Without<T>)`. `Filter` is implemented for `()`, `With<T>`, `Without<T>` and pairs of filters, so a chain of any length is one type and needs no tuple impls. *(Maintainer, from the API review: `query::<Q, F: Filter = ()>` does not compile, see §7.)*
+
+**Sealed traits.** `QueryParam`, `ReadOnly`, `Filter` and `GroupSpec` are sealed, each by its own private supertrait (one seal shared by all four gives conflicting impls on pairs, which are parameter tuples, filters and groups at once), so only this crate implements them, and the helper types their methods mention stay out of the public API.
 
 `&T`, `&mut T` and `With<T>` are **required**: an entity matches only if it has `T`. `Option<…>` and `Without<T>` are not.
 
-**Building a query.** `query` and `query_ref` MUST:
+**Running a query.** Building a query only records its types; the filters are known once the chain ends. The methods that run it (`for_each` on both types, and `iter` and `into_iter` on `Query`) are `#[track_caller]` and MUST:
 
 1. Look up each type's `ComponentId`. If a required type has no storage, the query matches nothing.
-2. Panic, with `#[track_caller]`, if a type appears twice among the parameters and filters (for example `(&mut Position, &Position)`), with a message naming the type. Panic in the same way if no parameter or filter is required (for example `query::<Entity>()`, `query::<Option<&A>>()` or `query::<Entity, Without<A>>()`), with a message saying that this prototype needs at least one `&T`, `&mut T` or `With<T>`. The correct behavior is to match every live entity that passes the filters, but nothing can drive it: the lean allocator does not list its IDs. No workload runs such a query. *(Maintainer, from the grill; the correct behavior is M4's, §4.8.)*
-3. For `query`, borrow the storages in one `iter_mut().enumerate()` pass over the storage list, handing each `&mut` to its slot. This is safe and costs O(storages) per query. (`get_disjoint_mut` needs a constant `N`, and `Q::COUNT + F::COUNT` is not a constant expression on stable Rust.)
+2. Panic if a type appears twice among the parameters and filters (for example `(&mut Position, &Position)`), with a message naming the type. Panic in the same way if no parameter or filter is required (for example `query::<Entity>()`, `query::<Option<&A>>()` or `query::<Entity>().without::<A>()`), with a message saying that this prototype needs at least one `&T`, `&mut T` or `.with::<T>()`. The correct behavior is to match every live entity that passes the filters, but nothing can drive it: the lean allocator does not list its IDs. No workload runs such a query. *(Maintainer, from the grill; the correct behavior is M4's, §4.8.)*
+3. For `QueryMut`, borrow the storages in one `iter_mut().enumerate()` pass over the storage list, handing each `&mut` to its slot. This is safe and costs O(storages) per query. (`get_disjoint_mut` needs a constant `N`, and `Q::COUNT + F::COUNT` is not a constant expression on stable Rust.)
 
 **View path.** The driver is the smallest storage among the required parameters and filters. For each position `i` of the driver: copy the entity out, probe each other parameter, check the `Without` filters, and on a full match fetch the items and call the closure. The driver's own index is `i` and is not probed.
 
 **Trusted probes.** Inside a query, the entity comes from a storage, so by S3 it is live and a present sparse slot is its own. A probe MUST therefore be `sparse.get(e.index())` alone, without reading the probed storage's entity array. The public `get`, `get_mut`, `insert` and `remove` keep `index_of`'s full check, because their IDs come from the caller.
 
-**Group path.** A query takes the group path if its required types include every member of some group. If several groups qualify, it takes the one with the most members, and of those the first declared. It walks `0..group.len`. Members are read at index `i` from data slices re-sliced to `..group.len`, so the compiler can drop their bounds checks (SHOULD; not asserted). Other parameters and filters are probed as on the view path. A query whose required types are a strict subset of a group's members uses the view path. `Query::uses_group()` and `QueryRef::uses_group()` report which path was chosen, so tests can check it.
+**Group path.** A query takes the group path if its required types include every member of some group. If several groups qualify, it takes the one with the most members, and of those the first declared. It walks `0..group.len`. Members are read at index `i` from data slices re-sliced to `..group.len`, so the compiler can drop their bounds checks (SHOULD; not asserted). Other parameters and filters are probed as on the view path. A query whose required types are a strict subset of a group's members uses the view path. `pub(crate)` methods `Query::uses_group()` and `QueryMut::uses_group()` report which path would be taken, so the crate's tests can check it; they are not public API.
 
 **Iteration.**
 
-- `Query::for_each(self, f: impl FnMut(Q::Item<'_>))`. Each call gets fresh reborrows, so several `&mut` from different storages are sound without `unsafe`. A safe external iterator cannot yield `&mut` items from probed positions (it cannot prove two yielded references disjoint), so mutable queries have no `iter`.
-- `QueryRef::for_each` and `QueryRef::iter`, which yields `Q::Item<'_>`.
+- `QueryMut::for_each(self, f: impl FnMut(Q::Item<'_>))`. Each call gets fresh reborrows, so several `&mut` from different storages are sound without `unsafe`. A safe external iterator cannot yield `&mut` items from probed positions (it cannot prove two yielded references disjoint), so mutable queries have no `iter`.
+- `Query::for_each`, `Query::iter` and `IntoIterator for Query`, whose iterator `QueryIter<'w, Q, F>` yields `Q::Item<'w>`.
+- `Query`, `QueryMut` and `QueryIter` are `#[must_use]`: a query that is built and never run does nothing.
 - The closure and every fetch are monomorphized; nothing per entity goes through `dyn`. The probe and fetch functions are `#[inline]`.
 
-**Shared surface by convention.** M3.4 and M3.5 SHOULD use the same names and syntax (`query::<(&mut A, &B), Without<C>>()`, `query_ref`, `With`, `Without`, `Option`, `Entity`, `Commands`), so the workload modules read alike across backends. No trait is shared across backend crates (§7).
+**Shared surface by convention.** M3.4 and M3.5 SHOULD use the same names and syntax (`query`, `query_mut`, `.with::<T>()`, `.without::<T>()`, `Option`, `Entity`, `Commands`, `World::builder()`), so the workload modules read alike across backends. No trait is shared across backend crates (§7).
 
 ### 4.6 Commands
 
@@ -208,7 +235,7 @@ pub struct Commands { /* Vec<Command> */ }
 enum Command { Despawn(Entity), Deferred(Box<dyn FnOnce(&mut World)>) }
 
 impl Commands {
-    pub fn new() -> Self;
+    pub fn new() -> Self;                       // also `Default`
     pub fn despawn(&mut self, entity: Entity);
     pub fn insert<T: 'static>(&mut self, entity: Entity, value: T);
     pub fn remove<T: 'static>(&mut self, entity: Entity);
@@ -223,16 +250,16 @@ impl Commands {
 
 ### 4.7 Backends
 
-`BACKEND` is `"sparse_set"` for the `SparseSetX` types and `"sparse_set_grouped"` for the `GroupedX` types. In every workload, `setup` spawns entities `0..n` in order, inserting each entity's components in the order the harness's `spawn` returns them; `checksum` folds a `query_ref` with the harness's hash. The harness's `update` functions hold the floating-point order and MUST be the ones called.
+`BACKEND` is `"sparse_set"` for the `SparseSetX` types and `"sparse_set_grouped"` for the `GroupedX` types. In every workload, `setup` spawns entities `0..n` in order, inserting each entity's components in the order the harness's `spawn` returns them; `checksum` folds a `query` with the harness's hash. The harness's `update` functions hold the floating-point order and MUST be the ones called.
 
-| Workload | `sparse_set` | `sparse_set_grouped`: group declared |
+| Workload | `sparse_set` | `sparse_set_grouped`: group declared on the builder |
 |---|---|---|
 | `simple_iter` | `(&mut Position, &Velocity)` | `(Position, Velocity)` |
-| `frag_iter` | `&mut Data`; the checksum runs one `query_ref::<(&L, &Data)>` per letter type `L` | not implemented: a single-type query has nothing to group |
+| `frag_iter` | `&mut Data`; the checksum runs one `query::<(&L, &Data)>()` per letter type `L` | not implemented: a single-type query has nothing to group |
 | `heavy_compute` | `(&mut Matrix, &mut Position, &Rotation)` | `(Matrix, Position, Rotation)` |
-| `add_remove` | reads `(Entity, &A)` into a reused buffer and inserts `B` with `world.insert`; then reads `(Entity, With<B>)` the same way and removes `B` | `(A, B)`: each insert of `B` joins the group and each removal leaves it, so this is where group maintenance costs show. Both queries are strict subsets of the group and take the view path |
+| `add_remove` | reads `(Entity, &A)` into a reused buffer and inserts `B` with `world.insert`; then reads `query::<Entity>().with::<B>()` the same way and removes `B` | `(A, B)`: each insert of `B` joins the group and each removal leaves it, so this is where group maintenance costs show. Both queries are strict subsets of the group and take the view path |
 | `entity_churn` | `(Entity, (&mut Position, &Velocity, &mut Lifetime))`, recording `commands.despawn(e)` for expired entities; `apply`; then spawn with direct inserts until `world.len()` is `count` | `(Position, Velocity, Lifetime)` |
-| `sprites` | move: `(&mut Transform2d, &Velocity2d)`; draw: `query_ref::<(&Transform2d, &Sprite), Without<Hidden>>` pushing to the owned draw list | `(Transform2d, Velocity2d)`; the draw query uses the view path |
+| `sprites` | move: `(&mut Transform2d, &Velocity2d)`; draw: `query::<(&Transform2d, &Sprite)>().without::<Hidden>()` pushing to the owned draw list | `(Transform2d, Velocity2d)`; the draw query uses the view path |
 | `agents` | `(Entity, (&mut Transform2d, &mut Velocity, &mut Ttl, Option<&mut Seeker>))`: copies the seeker to a local, calls the harness's `update`, writes back, or records `insert`/`remove` of `Seeker` when it appeared or went away, and records `despawn` when the ttl reaches 0; `apply`; then spawn until `world.len()` reaches the target | `(Transform2d, Velocity, Ttl)` |
 
 - `agents` stores `AgentId(u64)`, `Transform2d`, `Velocity(Vec2)`, `Ttl(u32)` and `Seeker` as separate components. `AgentId`, `Velocity` and `Ttl` are newtypes local to the backend, because the harness uses bare `u64`, `Vec2` and `u32`. Its checksum builds an `agents_2d::Agent` on the stack for each entity and calls `agent_hash`, as `vec_soa` does.
@@ -254,6 +281,12 @@ impl Commands {
 | Queries with no required type (`query::<Entity>()`): match every live entity that passes the filters | Needs a list of live entities, such as EnTT's sparse set of entities, which every spawn and despawn would pay for; no workload runs such a query, so this prototype panics (§4.5) | M4 |
 | Change-detection ticks next to each value | They add memory traffic to every storage model alike | Noted for M3.8; built in M6 |
 
+**API notes for M4**, from the API review; none changes what this chunk measures:
+
+- Any `'static` type is a component. With no bundle API, `world.insert(e, (A, B))` silently stores the tuple as one component; a `Component` trait (as bevy has) would reject it.
+- `Entity` is a type alias, so its `Debug` is `GenId`'s; M4 would make it a newtype.
+- `World` is not `Send` or `Sync` (`Box<dyn ErasedStorage>`, boxed commands); M7 needs both.
+
 ### 4.9 Documents
 
 - **`docs/roadmap.md`:**
@@ -267,7 +300,7 @@ impl Commands {
 ## 5. Requirements
 
 - **M3.3-R1** `spikes/ecs_storage/sparse_set` MUST be a workspace member named `spike_ecs_sparse_set`, and its crate root MUST carry `#![forbid(unsafe_code)]`.
-- **M3.3-R2** `World` MUST provide the API of §4.2, including the panics of `insert`, `group`, `query` and `query_ref`, each with `#[track_caller]`, a `# Panics` section and a message that names the type or entity.
+- **M3.3-R2** `World` MUST provide the API of §4.2, and `WorldBuilder`, the query types of §4.5 and `Commands` the API of §4.6, including `Default`, `Debug`, the sealed traits and `#[must_use]`, and the panics of `insert`, `WorldBuilder::group` and the methods that run a query, each with `#[track_caller]`, a `# Panics` section and a message that names the type or entity.
 - **M3.3-R3** The packed entity and value arrays MUST be owned by one type whose operations keep them the same length; no other code MUST be able to reach them.
 - **M3.3-R4** `check_invariants` MUST report a violation of each of S1, S2, S3, G1 and G2, and MUST return `Ok` after any sequence of public operations.
 - **M3.3-R5** Group maintenance MUST keep G1 and G2 after every `insert`, `remove`, `despawn` and `apply`.
@@ -313,13 +346,18 @@ impl Commands {
 - **`Commands` boxing every command, including despawn.** Rejected: `entity_churn` despawns about 6.5% of its entities a tick, and `Despawn(Entity)` needs no box.
 - **`Commands` for `add_remove`'s passes.** Rejected: they are not inside a query, so boxed commands would measure the buffer, not the storage.
 - **An external `iter` for mutable queries.** Not possible in safe Rust for probed positions (§4.5).
+- **Filters as a defaulted type parameter of the method (`query::<Q, F: Filter = ()>()`).** Rejected: it does not compile. On the pinned 1.100 toolchain a default on a function's type parameter is denied (`invalid_type_param_default`, a future hard error), and even with the lint allowed `query::<Q>()` cannot infer `F`. Found by the API review of 2026-11-19.
+- **`query_filtered::<Q, F>()` beside `query::<Q>()`** (bevy). Rejected by the maintainer: with `query_mut` it makes four entry points, where chained filters need two.
+- **`query` on `&mut World` and `query_ref` on `&World`.** Rejected by the maintainer: std names the shared borrow plainly and the mutable one `_mut` (`get`/`get_mut`, `iter`/`iter_mut`), as hecs does for queries.
+- **A `group` method on `World` that panics after the first spawn.** Rejected by the maintainer for the builder (§4.2).
+- **`check_invariants` returning `Result<(), String>`.** Rejected: the Rust API Guidelines ask for an error type that implements `Error` (C-GOOD-ERR), and `engine::genid` already has one of this shape.
 
 ## 8. Verification
 
 | Requirement | Verified by |
 |---|---|
 | R1 | the workspace `Cargo.toml`; `cargo xtask check-unsafe` |
-| R2 | unit tests: `insert` on a despawned entity panics with the expected message; `group` after a spawn, with a type in two groups, and with a repeated type, each panics; a query with a repeated type panics; a query with no required type panics; review of the `# Panics` sections |
+| R2 | unit tests: `insert` on a despawned entity panics with the expected message; `WorldBuilder::group` with a type in two groups and with a repeated type each panics; a query with a repeated type panics; a query with no required type panics; review of the `# Panics` sections |
 | R3 | review: `Packed<T>`'s fields are private to its module, and every method changes both vectors or neither |
 | R4 | unit tests in `storage.rs` and `world.rs` that corrupt one private field (test code in the same module) and check that `check_invariants` names the broken invariant, one per invariant; the model test |
 | R5 | proptest model test: random `spawn`, `despawn`, `insert`, `remove` and `apply` over four component types, with and without a group of two or three of them, compared with a `BTreeMap<Entity, components>` model (including `len`), `check_invariants` after every operation |
