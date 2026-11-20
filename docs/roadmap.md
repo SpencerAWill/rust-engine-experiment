@@ -27,7 +27,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | M3.0 | Windowed baseline sample: `examples/agents_2d` (`winit` and `softbuffer`, example-only), the agent workload and its order-independent checksum | none | Done (PR #24) | [spec](chunks/m3.0-windowed-baseline/spec.md), [plan](chunks/m3.0-windowed-baseline/plan.md) |
 | M3.1 | `engine::collections`: deterministic map and set | none | Done (PR #26) | [spec](chunks/m3.1-collections/spec.md), [plan](chunks/m3.1-collections/plan.md) |
 | M3.2 | Spike harness under `spikes/ecs_storage/`: the `Workload` interface and conformance check, seven workloads (simple and fragmented iteration, heavy compute, add/remove, entity churn, 100k 2D sprites, the M3.0 agent workload), the plain-`Vec` backends (array-of-structs, and struct-of-arrays for agents), Criterion and Gungraun cache-simulation benches | M3.0, M3.1 | Done (PR #36) | [spec](chunks/m3.2-spike-harness/spec.md), [plan](chunks/m3.2-spike-harness/plan.md) |
-| M3.3 | Sparse-set prototype (safe) | M3.2 | Accepted | [spec](chunks/m3.3-sparse-set/spec.md) |
+| M3.3 | Sparse-set prototype (safe) | M3.2 | In progress | [spec](chunks/m3.3-sparse-set/spec.md), [plan](chunks/m3.3-sparse-set/plan.md) |
 | M3.4 | Archetype prototype (safe) | M3.2 | Planned | |
 | M3.5 | Per-component hybrid prototype (safe) | M3.3, M3.4 | Planned | |
 | M3.6 | Runtime-registered components in safe byte columns, in the leading prototype | M3.3, M3.4, M3.5 | Planned | |
