@@ -2000,6 +2000,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_dense"
+version = "0.1.0"
+dependencies = [
+ "engine",
+ "proptest",
+]
+
+[[package]]
 name = "spike_ecs_harness"
 version = "0.1.0"
 dependencies = [

@@ -47,7 +47,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: columns and the `World` (R1, R2 in part, R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/dense/Cargo.toml`, `src/lib.rs`, `src/column.rs`, `src/world.rs`, `src/tests.rs` (new); workspace `Cargo.toml` (member); `xtask/src/coverage.rs` (`spike_ecs_dense` in `SPIKE_PACKAGES` and in `test_args_match_the_spec`'s expected `--exclude` list, spec §4.9); `Cargo.lock`.
 - **Interfaces produced:**
   - `lib.rs`: `pub struct EntityMarker;`, `pub type Entity = GenId<EntityMarker>;`, `pub use world::{InvariantViolation, World};`. Crate docs say what the crate is, point to the spec, and cite the designs it follows (specs' `VecStorage` and hibitset joins; spec §11), with no code taken (specs-5).
