@@ -15,10 +15,12 @@
 //! This is a spike: it exists to be measured against the other storage prototypes, not to be
 //! published. The spec is `docs/chunks/m3.5-hybrid/spec.md`.
 
+pub mod add_remove;
 mod archetype;
 mod bundle;
 mod commands;
 mod component;
+pub mod entity_churn;
 pub mod frag_iter;
 mod harness_components;
 pub mod heavy_compute;

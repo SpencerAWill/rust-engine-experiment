@@ -114,7 +114,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: `add_remove` and `entity_churn` (R10 in part, R11 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/add_remove.rs`, `src/entity_churn.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `add_remove::HybridAddRemove` (reused `Vec<(Entity, f32)>` and `Vec<Entity>`; read query `(Entity, &A)` and removal query `query::<Entity>().with::<B>()`, each its own private function with hooks) and `entity_churn::HybridEntityChurn` (a `Commands`, the `Prng`, `next_id` and the target; respawns with `spawn_with` after `apply` until `world.len()` is the target).
 - **Test first** (`tests.rs`): `add_remove_hybrid_matches_the_reference`, `entity_churn_hybrid_matches_the_reference`; `add_remove_hybrid_matches_its_archetypes` (after one step: read query matches `(A)` with empty `probed()`; removal query matches every archetype with `B` required in `probed()`); `entity_churn_hybrid_matches_its_archetypes`; `add_remove_keeps_invariants_every_tick` (also asserts no entity has `B` after a tick, and `archetype_count` after every tick equals its value after setup; R11) and `entity_churn_keeps_invariants_every_tick`; `zero_count_is_valid` for the two. Fails first: does not compile.
@@ -190,3 +190,5 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 - **Step 3, required sparse fetch:** probe then fetch, two lookups per row (spec §4.7 allows fusing them; no measured workload has one).
 - **Step 3, allocations (ecs-2):** 2 heap allocations per table-only run, 3 with a sparse `Option` or a mutable run with a sparse filter, the same with 2 and 28 registered types; none per archetype or row (log.md, 2026-11-20).
 - **Step 4, `commands_reach_each_storage`:** checks `archetype_count` rather than the location (`Location` is private to `world.rs`); `sparse_toggle_keeps_the_location` covers the location through `World::insert`, which the command calls.
+- **Step 6, `add_remove` hooks:** `read_archetypes`/`read_probed` and `remove_archetypes`/`remove_probed`, one pair per query.
+- **Step 6, red checks:** run with `cargo nextest run -p spike_ecs_hybrid --no-fail-fast`, since `cargo xtask test` stops at the first failure and hid red check 4's planned tests on the first try (log.md, 2026-11-20).
