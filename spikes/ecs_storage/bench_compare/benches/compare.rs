@@ -11,6 +11,15 @@ use core::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use spike_ecs_harness::{Params, Spec, Workload};
+use spike_ecs_sparse_set::{
+    add_remove::{GroupedAddRemove, SparseSetAddRemove},
+    agents::{GroupedAgents, SparseSetAgents},
+    entity_churn::{GroupedEntityChurn, SparseSetEntityChurn},
+    frag_iter::SparseSetFragIter,
+    heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute},
+    simple_iter::{GroupedSimpleIter, SparseSetSimpleIter},
+    sprites::{GroupedSprites, SparseSetSprites},
+};
 use spike_ecs_vec::agents::{SoaAgents, VecAgents};
 use spike_ecs_vec::{
     add_remove::VecAddRemove, entity_churn::VecEntityChurn, frag_iter::VecFragIter,
@@ -45,6 +54,19 @@ fn compare(c: &mut Criterion) {
     bench::<VecSprites>(c);
     bench::<VecAgents>(c);
     bench::<SoaAgents>(c);
+    bench::<SparseSetSimpleIter>(c);
+    bench::<GroupedSimpleIter>(c);
+    bench::<SparseSetFragIter>(c);
+    bench::<SparseSetHeavyCompute>(c);
+    bench::<GroupedHeavyCompute>(c);
+    bench::<SparseSetAddRemove>(c);
+    bench::<GroupedAddRemove>(c);
+    bench::<SparseSetEntityChurn>(c);
+    bench::<GroupedEntityChurn>(c);
+    bench::<SparseSetSprites>(c);
+    bench::<GroupedSprites>(c);
+    bench::<SparseSetAgents>(c);
+    bench::<GroupedAgents>(c);
 }
 
 criterion_group!(benches, compare);

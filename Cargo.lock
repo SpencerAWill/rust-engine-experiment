@@ -1973,6 +1973,7 @@ version = "0.1.0"
 dependencies = [
  "gungraun",
  "spike_ecs_harness",
+ "spike_ecs_sparse_set",
  "spike_ecs_vec",
 ]
 
@@ -1982,6 +1983,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "spike_ecs_harness",
+ "spike_ecs_sparse_set",
  "spike_ecs_vec",
 ]
 

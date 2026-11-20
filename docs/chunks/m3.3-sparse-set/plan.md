@@ -143,7 +143,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: bench registrations (R13)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/Cargo.toml`, `benches/compare.rs`, `spikes/ecs_storage/bench_cache/Cargo.toml`, `benches/cache.rs`, `Cargo.lock`.
 - **Test first:** n/a for registrations. The check before the change: `cargo xtask bench-smoke` lists no `sparse_set` id.
 - **Change:** dev-dependency `spike_ecs_sparse_set = { path = "../sparse_set" }` in both bench crates. `compare.rs`: one `bench::<…>(c);` per implementation (13). `cache.rs`: one `cache_bench!(<workload>_<backend>, <Type>, [<sizes>]);` per implementation with each workload's `Spec::SIZES` (`simple_iter`, `add_remove`, `entity_churn`: `[1_000, 10_000, 100_000]`; `frag_iter`: `[20]`; `heavy_compute`: `[1_000]`; `sprites`: `[100_000]`; `agents`: `[10_000, 100_000]`), each named in its workload's group.
@@ -201,3 +201,4 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 7, test first:** the builder wrote tests and code in one pass and never saw them fail. Made up for afterwards with four temporary breaks, each reverted (skip `remove::<B>`; skip `commands.despawn`; respawn one too few; flip the remove pass to a group-qualifying query), each failing the tests it should (log.md).
 - **Step 7, `add_remove` checksum:** reads `query::<(&A, Option<&B>)>()`, which spec §4.7 does not spell out; it matches the harness's `hash(a, Option<&B>)`.
 - **Step 8, skip rule:** `agents` never reaches §4.6's skip rule: each agent's seeker command comes from its own closure and is recorded before its despawn, so no command follows the despawn of its entity. The rule stays covered by step 5's `command_on_a_dead_entity_is_skipped`. The `agents` checksum nests its tuple (`(&AgentId, &Transform2d, (&Velocity, &Ttl, Option<&Seeker>))`) to stay within four parameters.
+- **Step 9, cache bench not exercised:** `cargo xtask bench-smoke` ran all 27 new Criterion ids, but it only starts the Gungraun binary, which runs no setup without Valgrind, so `prepared`'s size assertion never ran; Valgrind and Docker are not available on this Mac. In its place the main session checked that each of the 13 `cache_bench!` lines uses its workload's `vec_aos` sizes and sits in its workload's group (log.md). The pull request says the cache bench was built, not run.
