@@ -6,7 +6,7 @@ use spike_ecs_harness::heavy_compute::{
 };
 use spike_ecs_harness::{Params, Workload};
 
-use crate::World;
+use crate::{QueryMut, World};
 
 /// `heavy_compute` on a [`World`]; `GROUPED` declares the `(Matrix, Position, Rotation)` group.
 #[derive(Debug)]
@@ -19,13 +19,16 @@ pub type SparseSetHeavyCompute = HeavyComputeOn<false>;
 /// `heavy_compute` on a sparse-set `World` with the `(Matrix, Position, Rotation)` group.
 pub type GroupedHeavyCompute = HeavyComputeOn<true>;
 
+/// The step's query, shared with the test hook so the two cannot drift.
+fn step_query(world: &mut World) -> QueryMut<'_, (&mut Matrix, &mut Position, &Rotation)> {
+    world.query_mut()
+}
+
 #[cfg(test)]
 impl<const GROUPED: bool> HeavyComputeOn<GROUPED> {
     /// Whether the step's query takes the group path, for tests.
-    pub(crate) fn uses_group(&self) -> bool {
-        self.world
-            .query::<(&Matrix, &Position, &Rotation)>()
-            .uses_group()
+    pub(crate) fn uses_group(&mut self) -> bool {
+        step_query(&mut self.world).uses_group()
     }
 }
 
@@ -58,8 +61,7 @@ impl<const GROUPED: bool> Workload for HeavyComputeOn<GROUPED> {
     }
 
     fn step(&mut self) {
-        self.world
-            .query_mut::<(&mut Matrix, &mut Position, &Rotation)>()
+        step_query(&mut self.world)
             .for_each(|(matrix, position, rotation)| rules::update(matrix, position, rotation));
     }
 

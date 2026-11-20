@@ -6,7 +6,7 @@ use spike_ecs_harness::entity_churn::{
 };
 use spike_ecs_harness::{Params, Workload};
 
-use crate::{Commands, Entity, World};
+use crate::{Commands, Entity, QueryMut, World};
 
 /// `entity_churn` on a [`World`]; `GROUPED` declares the `(Position, Velocity, Lifetime)` group.
 #[derive(Debug)]
@@ -23,13 +23,18 @@ pub type SparseSetEntityChurn = EntityChurnOn<false>;
 /// `entity_churn` on a sparse-set `World` with the `(Position, Velocity, Lifetime)` group.
 pub type GroupedEntityChurn = EntityChurnOn<true>;
 
+/// The step's query, shared with the test hook so the two cannot drift.
+fn step_query(
+    world: &mut World,
+) -> QueryMut<'_, (Entity, (&mut Position, &Velocity, &mut Lifetime))> {
+    world.query_mut()
+}
+
 #[cfg(test)]
 impl<const GROUPED: bool> EntityChurnOn<GROUPED> {
     /// Whether the step's query takes the group path, for tests.
-    pub(crate) fn uses_group(&self) -> bool {
-        self.world
-            .query::<(Entity, (&Position, &Velocity, &Lifetime))>()
-            .uses_group()
+    pub(crate) fn uses_group(&mut self) -> bool {
+        step_query(&mut self.world).uses_group()
     }
 
     /// The world, for invariant checks in tests.
@@ -82,14 +87,12 @@ impl<const GROUPED: bool> Workload for EntityChurnOn<GROUPED> {
 
     fn step(&mut self) {
         let commands = &mut self.commands;
-        self.world
-            .query_mut::<(Entity, (&mut Position, &Velocity, &mut Lifetime))>()
-            .for_each(|(e, (position, velocity, lifetime))| {
-                rules::update(position, velocity, lifetime);
-                if rules::is_expired(lifetime) {
-                    commands.despawn(e);
-                }
-            });
+        step_query(&mut self.world).for_each(|(e, (position, velocity, lifetime))| {
+            rules::update(position, velocity, lifetime);
+            if rules::is_expired(lifetime) {
+                commands.despawn(e);
+            }
+        });
         self.world.apply(&mut self.commands);
         self.respawn();
     }

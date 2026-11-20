@@ -191,6 +191,11 @@ impl World {
     }
 
     /// Creates an entity with no components.
+    ///
+    /// # Panics
+    ///
+    /// Panics if 2³¹−2 entity slots are in use or retired.
+    #[track_caller]
     pub fn spawn(&mut self) -> Entity {
         let entity = self.entities.allocate();
         self.live += 1;

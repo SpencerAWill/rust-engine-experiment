@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use proptest::prelude::*;
 
-use crate::{Entity, World, WorldBuilder};
+use crate::{Commands, Entity, World, WorldBuilder};
 
 #[derive(Debug, Clone, PartialEq)]
 struct C0(u32);
@@ -21,6 +21,22 @@ enum Op {
     Despawn(usize),
     Insert(usize, usize, u32),
     Remove(usize, usize),
+    /// Records a deferred insert in the one `Commands` buffer.
+    DeferInsert(usize, usize, u32),
+    /// Records a deferred remove.
+    DeferRemove(usize, usize),
+    /// Records a deferred despawn.
+    DeferDespawn(usize),
+    /// Runs `World::apply` on the buffer.
+    Apply,
+}
+
+/// A recorded command in the model: the entity's bits and what to do.
+#[derive(Debug, Clone, Copy)]
+enum Cmd {
+    Insert(u64, usize, u32),
+    Remove(u64, usize),
+    Despawn(u64),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -29,6 +45,11 @@ fn op() -> impl Strategy<Value = Op> {
         1 => any::<usize>().prop_map(Op::Despawn),
         5 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
         3 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
+        3 => (any::<usize>(), 0usize..4, any::<u32>())
+            .prop_map(|(k, t, v)| Op::DeferInsert(k, t, v)),
+        2 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::DeferRemove(k, t)),
+        1 => any::<usize>().prop_map(Op::DeferDespawn),
+        2 => Just(Op::Apply),
     ]
 }
 
@@ -47,6 +68,24 @@ fn remove(w: &mut World, e: Entity, t: usize) -> Option<u32> {
         1 => w.remove::<C1>(e).map(|c| c.0),
         2 => w.remove::<C2>(e).map(|c| c.0),
         _ => w.remove::<C3>(e).map(|c| c.0),
+    }
+}
+
+fn defer_insert(c: &mut Commands, e: Entity, t: usize, v: u32) {
+    match t {
+        0 => c.insert(e, C0(v)),
+        1 => c.insert(e, C1(v)),
+        2 => c.insert(e, C2(v)),
+        _ => c.insert(e, C3(v)),
+    }
+}
+
+fn defer_remove(c: &mut Commands, e: Entity, t: usize) {
+    match t {
+        0 => c.remove::<C0>(e),
+        1 => c.remove::<C1>(e),
+        2 => c.remove::<C2>(e),
+        _ => c.remove::<C3>(e),
     }
 }
 
@@ -111,6 +150,8 @@ fn run(setup: usize, ops: &[Op]) {
     let mut spawned: Vec<Entity> = Vec::new();
     let mut model: BTreeMap<u64, [Option<u32>; 4]> = BTreeMap::new();
     let mut live: BTreeSet<u64> = BTreeSet::new();
+    let mut commands = Commands::new();
+    let mut recorded: Vec<Cmd> = Vec::new();
     for op in ops {
         match *op {
             Op::Spawn => {
@@ -142,6 +183,41 @@ fn run(setup: usize, ops: &[Op]) {
                     None
                 };
                 assert_eq!(remove(&mut w, e, t), old);
+            }
+            Op::DeferInsert(k, t, v) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                defer_insert(&mut commands, e, t, v);
+                recorded.push(Cmd::Insert(e.to_bits(), t, v));
+            }
+            Op::DeferRemove(k, t) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                defer_remove(&mut commands, e, t);
+                recorded.push(Cmd::Remove(e.to_bits(), t));
+            }
+            Op::DeferDespawn(k) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                commands.despawn(e);
+                recorded.push(Cmd::Despawn(e.to_bits()));
+            }
+            Op::Apply => {
+                assert_eq!(commands.len(), recorded.len());
+                w.apply(&mut commands);
+                // In order; a command whose entity is dead when it runs is skipped (spec 4.6).
+                for cmd in recorded.drain(..) {
+                    match cmd {
+                        Cmd::Insert(bits, t, v) if live.contains(&bits) => {
+                            model.get_mut(&bits).unwrap()[t] = Some(v);
+                        }
+                        Cmd::Remove(bits, t) if live.contains(&bits) => {
+                            model.get_mut(&bits).unwrap()[t] = None;
+                        }
+                        Cmd::Despawn(bits) if live.remove(&bits) => {
+                            model.insert(bits, [None; 4]);
+                        }
+                        _ => {}
+                    }
+                }
+                assert!(commands.is_empty());
             }
             _ => {}
         }
@@ -224,17 +300,17 @@ mod workloads {
 
     #[test]
     fn grouped_simple_iter_uses_the_group() {
-        let w = GroupedSimpleIter::setup(Params { count: 10, seed: 1 });
+        let mut w = GroupedSimpleIter::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
-        let w = SparseSetSimpleIter::setup(Params { count: 10, seed: 1 });
+        let mut w = SparseSetSimpleIter::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
 
     #[test]
     fn grouped_heavy_compute_uses_the_group() {
-        let w = GroupedHeavyCompute::setup(Params { count: 10, seed: 1 });
+        let mut w = GroupedHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
-        let w = SparseSetHeavyCompute::setup(Params { count: 10, seed: 1 });
+        let mut w = SparseSetHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
 
@@ -260,9 +336,9 @@ mod workloads {
 
     #[test]
     fn grouped_entity_churn_uses_the_group() {
-        let w = GroupedEntityChurn::setup(Params { count: 10, seed: 1 });
+        let mut w = GroupedEntityChurn::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
-        let w = SparseSetEntityChurn::setup(Params { count: 10, seed: 1 });
+        let mut w = SparseSetEntityChurn::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
 
@@ -317,20 +393,20 @@ mod workloads {
     #[test]
     fn grouped_sprites_moves_on_the_group_path_and_draws_on_the_view_path() {
         for count in [0, 10] {
-            let w = GroupedSprites::setup(Params { count, seed: 1 });
+            let mut w = GroupedSprites::setup(Params { count, seed: 1 });
             assert!(w.uses_group_for_move());
             assert!(!w.uses_group_for_draw());
         }
-        let w = SparseSetSprites::setup(Params { count: 10, seed: 1 });
+        let mut w = SparseSetSprites::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group_for_move());
         assert!(!w.uses_group_for_draw());
     }
 
     #[test]
     fn grouped_agents_uses_the_group() {
-        let w = GroupedAgents::setup(Params { count: 10, seed: 1 });
+        let mut w = GroupedAgents::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
-        let w = SparseSetAgents::setup(Params { count: 10, seed: 1 });
+        let mut w = SparseSetAgents::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
 

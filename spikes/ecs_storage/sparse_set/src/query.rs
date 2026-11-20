@@ -3,9 +3,14 @@
 //! A query names its parameters (`&T`, `&mut T`, `Option<&T>`, `Entity`, tuples of those) and
 //! its filters (`.with::<T>()`, `.without::<T>()`). Running it walks the smallest storage
 //! among the required types and probes the others (the view path; spec section 4.5).
+//!
+//! The tuple-query API follows the design of `bevy_ecs` and `hecs` (typed tuples of `&T`,
+//! `&mut T` and `Option<&T>`, with `with` and `without` filters). No code was taken from
+//! either; the implementation is original (spec section 11).
 
 use core::any::TypeId;
 use core::fmt;
+use core::iter::FusedIterator;
 use core::marker::PhantomData;
 
 use crate::Entity;
@@ -115,7 +120,7 @@ pub(crate) mod seal {
 
     impl<'w> Slots<'w> {
         /// Slots that borrow the storages shared.
-        pub fn shared(world: &'w World, ids: &[Option<ComponentId>], how: &Access) -> Self {
+        pub fn shared(world: &'w World, ids: &[Option<ComponentId>], how: Access) -> Self {
             let storages = world.storages();
             let slots = ids
                 .iter()
@@ -126,7 +131,7 @@ pub(crate) mod seal {
 
         /// Slots that borrow the storages exclusive: one pass over the storage list hands each
         /// `&mut` to its slot, so no two slots alias and no `unsafe` is needed.
-        pub fn exclusive(world: &'w mut World, ids: &[Option<ComponentId>], how: &Access) -> Self {
+        pub fn exclusive(world: &'w mut World, ids: &[Option<ComponentId>], how: Access) -> Self {
             let mut slots: Vec<Option<Slot<'w>>> = ids.iter().map(|_| None).collect();
             for (k, storage) in world.storages_mut().iter_mut().enumerate() {
                 if let Some(j) = ids
@@ -139,11 +144,11 @@ pub(crate) mod seal {
             Self::new(slots, how)
         }
 
-        fn new(storages: Vec<Option<Slot<'w>>>, how: &Access) -> Self {
+        fn new(storages: Vec<Option<Slot<'w>>>, how: Access) -> Self {
             Self {
                 storages,
                 cursor: 0,
-                direct: how.direct.clone(),
+                direct: how.direct,
                 limit: how.limit,
             }
         }
@@ -824,7 +829,7 @@ fn bind_fetches<'w, Q: QueryParam, F: Filter>(
 /// assert_eq!(ids, [moving]);
 /// ```
 #[must_use = "a query does nothing until it is run"]
-pub struct Query<'w, Q: ReadOnly, F: Filter = ()> {
+pub struct Query<'w, Q, F = ()> {
     world: &'w World,
     marker: PhantomData<fn() -> (Q, F)>,
 }
@@ -884,7 +889,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
         let Some(plan) = Plan::new::<Q, F>(world, op) else {
             return QueryIter { state: None };
         };
-        let mut slots = seal::Slots::shared(world, &plan.ids, &plan.access);
+        let mut slots = seal::Slots::shared(world, &plan.ids, plan.access);
         let (qf, ff, entities) = bind_fetches::<Q, F>(&mut slots);
         QueryIter {
             state: Some(IterState {
@@ -939,7 +944,7 @@ impl<'w, Q: ReadOnly, F: Filter> IntoIterator for &Query<'w, Q, F> {
     /// Panics under the same conditions as [`Query::for_each`].
     #[track_caller]
     fn into_iter(self) -> QueryIter<'w, Q, F> {
-        self.iter()
+        self.start("Query::into_iter")
     }
 }
 
@@ -981,7 +986,17 @@ impl<'w, Q: ReadOnly, F: Filter> Iterator for QueryIter<'w, Q, F> {
         }
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self
+            .state
+            .as_ref()
+            .map_or(0, |st| st.entities.len().saturating_sub(st.next));
+        (0, Some(remaining))
+    }
 }
+
+impl<Q: ReadOnly, F: Filter> FusedIterator for QueryIter<'_, Q, F> {}
 
 impl<Q: ReadOnly, F: Filter> fmt::Debug for QueryIter<'_, Q, F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1014,7 +1029,7 @@ impl<Q: ReadOnly, F: Filter> fmt::Debug for QueryIter<'_, Q, F> {
 /// assert_eq!(world.get::<Position>(e).map(|p| p.0), Some(2.0));
 /// ```
 #[must_use = "a query does nothing until it is run"]
-pub struct QueryMut<'w, Q: QueryParam, F: Filter = ()> {
+pub struct QueryMut<'w, Q, F = ()> {
     world: &'w mut World,
     marker: PhantomData<fn() -> (Q, F)>,
 }
@@ -1056,7 +1071,7 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
         let Some(plan) = Plan::new::<Q, F>(self.world, "QueryMut::for_each") else {
             return;
         };
-        let mut slots = seal::Slots::exclusive(self.world, &plan.ids, &plan.access);
+        let mut slots = seal::Slots::exclusive(self.world, &plan.ids, plan.access);
         let (mut qf, ff, entities) = bind_fetches::<Q, F>(&mut slots);
         for (index, &entity) in entities.iter().enumerate() {
             if F::passes(&ff, entity, index)
@@ -1297,6 +1312,47 @@ mod tests {
     fn query_without_a_required_type_panics_for_option() {
         let w = World::new();
         let _ = w.query::<Option<&A>>().iter();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Query::into_iter: `spike_ecs_sparse_set::query::tests::A` appears twice in the query"
+    )]
+    fn for_loop_over_a_query_reference_names_into_iter() {
+        let w = World::new();
+        let q = w.query::<(&A, &A)>();
+        for _ in &q {}
+    }
+
+    #[test]
+    fn query_iter_size_hint_counts_down_and_is_fused() {
+        let mut w = World::new();
+        for i in 0..4 {
+            let e = w.spawn();
+            w.insert(e, A(i));
+            if i % 2 == 0 {
+                w.insert(e, B(i));
+            }
+        }
+        let q = w.query::<&A>().without::<B>();
+        let mut it = q.iter();
+        // The driver has four entries; the filter drops two, so the upper bound stays loose.
+        assert_eq!(it.size_hint(), (0, Some(4)));
+        assert!(it.next().is_some());
+        let (low, high) = it.size_hint();
+        assert_eq!(low, 0);
+        assert!(high.is_some_and(|h| h <= 3));
+        assert!(it.next().is_some());
+        assert!(it.next().is_none());
+        assert_eq!(it.size_hint(), (0, Some(0)));
+        assert!(it.next().is_none());
+        assert!(it.next().is_none());
+        // A query that cannot match yields an empty, fused iterator too.
+        let empty = World::new();
+        let mut it = empty.query::<&A>().iter();
+        assert_eq!(it.size_hint(), (0, Some(0)));
+        assert!(it.next().is_none());
+        assert!(it.next().is_none());
     }
 
     #[test]

@@ -7,7 +7,7 @@ use engine::prelude::Prng;
 use spike_ecs_harness::add_remove::{self as rules, A, AddRemove, B};
 use spike_ecs_harness::{Params, Workload};
 
-use crate::{Entity, World};
+use crate::{Entity, Query, With, World};
 
 /// `add_remove` on a [`World`]; `GROUPED` declares the `(A, B)` owning group.
 #[derive(Debug)]
@@ -22,16 +22,26 @@ pub type SparseSetAddRemove = AddRemoveOn<false>;
 /// `add_remove` on a sparse-set `World` with the `(A, B)` group.
 pub type GroupedAddRemove = AddRemoveOn<true>;
 
+/// The read pass's query, shared with the test hook so the two cannot drift.
+fn read_query(world: &World) -> Query<'_, (Entity, &A)> {
+    world.query()
+}
+
+/// The remove pass's query, shared with the test hook so the two cannot drift.
+fn remove_query(world: &World) -> Query<'_, Entity, ((), With<B>)> {
+    world.query().with::<B>()
+}
+
 #[cfg(test)]
 impl<const GROUPED: bool> AddRemoveOn<GROUPED> {
     /// Whether the read pass's query takes the group path, for tests.
     pub(crate) fn uses_group_for_read_pass(&self) -> bool {
-        self.world.query::<(Entity, &A)>().uses_group()
+        read_query(&self.world).uses_group()
     }
 
     /// Whether the removal pass's query takes the group path, for tests.
     pub(crate) fn uses_group_for_remove_pass(&self) -> bool {
-        self.world.query::<Entity>().with::<B>().uses_group()
+        remove_query(&self.world).uses_group()
     }
 }
 
@@ -65,19 +75,14 @@ impl<const GROUPED: bool> Workload for AddRemoveOn<GROUPED> {
         // Two separate passes: every insert happens before the first removal (spec 4.4.4).
         self.with_a.clear();
         let with_a = &mut self.with_a;
-        self.world
-            .query::<(Entity, &A)>()
-            .for_each(|(e, a)| with_a.push((e, a.0)));
+        read_query(&self.world).for_each(|(e, a)| with_a.push((e, a.0)));
         for &(e, a) in &self.with_a {
             self.world.insert::<B>(e, rules::make_b(&A(a)));
         }
 
         self.with_b.clear();
         let with_b = &mut self.with_b;
-        self.world
-            .query::<Entity>()
-            .with::<B>()
-            .for_each(|e| with_b.push(e));
+        remove_query(&self.world).for_each(|e| with_b.push(e));
         for &e in &self.with_b {
             self.world.remove::<B>(e);
         }

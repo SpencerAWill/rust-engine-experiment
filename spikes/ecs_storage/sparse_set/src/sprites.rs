@@ -4,7 +4,7 @@ use engine::prelude::{Prng, Transform2d};
 use spike_ecs_harness::sprites::{self as rules, DrawItem, Hidden, Sprite, Sprites, Velocity2d};
 use spike_ecs_harness::{Params, Workload, dt};
 
-use crate::World;
+use crate::{Query, QueryMut, Without, World};
 
 /// `sprites` on a [`World`]; `GROUPED` declares the `(Transform2d, Velocity2d)` owning group.
 ///
@@ -22,21 +22,27 @@ pub type SparseSetSprites = SpritesOn<false>;
 /// `sprites` on a sparse-set `World` with the `(Transform2d, Velocity2d)` group.
 pub type GroupedSprites = SpritesOn<true>;
 
+/// The move query, shared with the test hook so the two cannot drift.
+fn move_query(world: &mut World) -> QueryMut<'_, (&mut Transform2d, &Velocity2d)> {
+    world.query_mut()
+}
+
+/// The draw query, shared with the test hook so the two cannot drift.
+type DrawFilter = ((), Without<Hidden>);
+fn draw_query(world: &World) -> Query<'_, (&Transform2d, &Sprite), DrawFilter> {
+    world.query().without::<Hidden>()
+}
+
 #[cfg(test)]
 impl<const GROUPED: bool> SpritesOn<GROUPED> {
     /// Whether the move query takes the group path, for tests.
-    pub(crate) fn uses_group_for_move(&self) -> bool {
-        self.world
-            .query::<(&Transform2d, &Velocity2d)>()
-            .uses_group()
+    pub(crate) fn uses_group_for_move(&mut self) -> bool {
+        move_query(&mut self.world).uses_group()
     }
 
     /// Whether the draw query takes the group path, for tests.
     pub(crate) fn uses_group_for_draw(&self) -> bool {
-        self.world
-            .query::<(&Transform2d, &Sprite)>()
-            .without::<Hidden>()
-            .uses_group()
+        draw_query(&self.world).uses_group()
     }
 }
 
@@ -76,14 +82,11 @@ impl<const GROUPED: bool> Workload for SpritesOn<GROUPED> {
 
     fn step(&mut self) {
         let dt = self.dt;
-        self.world
-            .query_mut::<(&mut Transform2d, &Velocity2d)>()
+        move_query(&mut self.world)
             .for_each(|(transform, velocity)| rules::update(transform, velocity, dt));
         self.draw_list.clear();
         let draw_list = &mut self.draw_list;
-        self.world
-            .query::<(&Transform2d, &Sprite)>()
-            .without::<Hidden>()
+        draw_query(&self.world)
             .for_each(|(transform, sprite)| draw_list.push(rules::draw_item(transform, sprite)));
     }
 

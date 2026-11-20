@@ -6,7 +6,7 @@ use spike_ecs_harness::simple_iter::{
 };
 use spike_ecs_harness::{Params, Workload};
 
-use crate::World;
+use crate::{QueryMut, World};
 
 /// `simple_iter` on a [`World`]; `GROUPED` declares the `(Position, Velocity)` owning group.
 #[derive(Debug)]
@@ -19,11 +19,16 @@ pub type SparseSetSimpleIter = SimpleIterOn<false>;
 /// `simple_iter` on a sparse-set `World` with the `(Position, Velocity)` group.
 pub type GroupedSimpleIter = SimpleIterOn<true>;
 
+/// The step's query, shared with the test hook so the two cannot drift.
+fn step_query(world: &mut World) -> QueryMut<'_, (&mut Position, &Velocity)> {
+    world.query_mut()
+}
+
 #[cfg(test)]
 impl<const GROUPED: bool> SimpleIterOn<GROUPED> {
     /// Whether the step's query takes the group path, for tests.
-    pub(crate) fn uses_group(&self) -> bool {
-        self.world.query::<(&Position, &Velocity)>().uses_group()
+    pub(crate) fn uses_group(&mut self) -> bool {
+        step_query(&mut self.world).uses_group()
     }
 }
 
@@ -54,8 +59,7 @@ impl<const GROUPED: bool> Workload for SimpleIterOn<GROUPED> {
     }
 
     fn step(&mut self) {
-        self.world
-            .query_mut::<(&mut Position, &Velocity)>()
+        step_query(&mut self.world)
             .for_each(|(position, velocity)| rules::update(position, velocity));
     }
 

@@ -94,20 +94,24 @@ cache_bench!(
     [1_000, 10_000, 100_000]
 );
 cache_bench!(
-    simple_iter_grouped,
+    simple_iter_sparse_set_grouped,
     GroupedSimpleIter,
     [1_000, 10_000, 100_000]
 );
 cache_bench!(frag_iter_sparse_set, SparseSetFragIter, [20]);
 cache_bench!(heavy_compute_sparse_set, SparseSetHeavyCompute, [1_000]);
-cache_bench!(heavy_compute_grouped, GroupedHeavyCompute, [1_000]);
+cache_bench!(
+    heavy_compute_sparse_set_grouped,
+    GroupedHeavyCompute,
+    [1_000]
+);
 cache_bench!(
     add_remove_sparse_set,
     SparseSetAddRemove,
     [1_000, 10_000, 100_000]
 );
 cache_bench!(
-    add_remove_grouped,
+    add_remove_sparse_set_grouped,
     GroupedAddRemove,
     [1_000, 10_000, 100_000]
 );
@@ -117,22 +121,22 @@ cache_bench!(
     [1_000, 10_000, 100_000]
 );
 cache_bench!(
-    entity_churn_grouped,
+    entity_churn_sparse_set_grouped,
     GroupedEntityChurn,
     [1_000, 10_000, 100_000]
 );
 cache_bench!(sprites_sparse_set, SparseSetSprites, [100_000]);
-cache_bench!(sprites_grouped, GroupedSprites, [100_000]);
+cache_bench!(sprites_sparse_set_grouped, GroupedSprites, [100_000]);
 cache_bench!(agents_sparse_set, SparseSetAgents, [10_000, 100_000]);
-cache_bench!(agents_grouped, GroupedAgents, [10_000, 100_000]);
+cache_bench!(agents_sparse_set_grouped, GroupedAgents, [10_000, 100_000]);
 
-library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_grouped);
+library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped);
 library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set);
-library_benchmark_group!(name = heavy_compute; benchmarks = heavy_compute_vec_aos, heavy_compute_sparse_set, heavy_compute_grouped);
-library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_grouped);
-library_benchmark_group!(name = entity_churn; benchmarks = entity_churn_vec_aos, entity_churn_sparse_set, entity_churn_grouped);
-library_benchmark_group!(name = sprites; benchmarks = sprites_vec_aos, sprites_sparse_set, sprites_grouped);
-library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_soa, agents_sparse_set, agents_grouped);
+library_benchmark_group!(name = heavy_compute; benchmarks = heavy_compute_vec_aos, heavy_compute_sparse_set, heavy_compute_sparse_set_grouped);
+library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_sparse_set_grouped);
+library_benchmark_group!(name = entity_churn; benchmarks = entity_churn_vec_aos, entity_churn_sparse_set, entity_churn_sparse_set_grouped);
+library_benchmark_group!(name = sprites; benchmarks = sprites_vec_aos, sprites_sparse_set, sprites_sparse_set_grouped);
+library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_soa, agents_sparse_set, agents_sparse_set_grouped);
 
 main!(
     config = LibraryBenchmarkConfig::default().tool(Callgrind::with_args(["--cache-sim=yes"]));
