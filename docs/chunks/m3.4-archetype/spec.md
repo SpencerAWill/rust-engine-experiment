@@ -1,6 +1,6 @@
 # M3.4: Archetype prototype
 
-- **Status:** Draft (2026-11-19)
+- **Status:** Accepted (2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 1,900 changed lines, excluding tests, lockfiles and generated files (`table` and `archetype` about 350, `world` and `bundle` about 450, `query` about 550, the workload modules about 400, documents about 150)
