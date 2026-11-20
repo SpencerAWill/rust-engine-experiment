@@ -417,3 +417,85 @@ proptest! {
         run(&ops);
     }
 }
+
+mod workloads {
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::frag_iter::VecFragIter;
+    use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::simple_iter::VecSimpleIter;
+
+    use crate::archetype::ArchetypeId;
+    use crate::frag_iter::HybridFragIter;
+    use crate::heavy_compute::HybridHeavyCompute;
+    use crate::simple_iter::HybridSimpleIter;
+
+    fn ids(v: &[usize]) -> Vec<ArchetypeId> {
+        v.iter().map(|&i| ArchetypeId::new(i)).collect()
+    }
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const FRAG_PARAMS: Params = Params {
+        count: 20,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    #[test]
+    fn simple_iter_hybrid_matches_the_reference() {
+        check_conformance::<VecSimpleIter, HybridSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_hybrid_matches_the_reference() {
+        check_conformance::<VecFragIter, HybridFragIter>(FRAG_PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn heavy_compute_hybrid_matches_the_reference() {
+        check_conformance::<VecHeavyCompute, HybridHeavyCompute>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_hybrid_matches_its_archetypes() {
+        let mut w = HybridSimpleIter::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.step_archetypes(), ids(&[1]));
+        assert_eq!(w.step_probed(), []);
+    }
+
+    #[test]
+    fn frag_iter_hybrid_matches_its_archetypes() {
+        let mut w = HybridFragIter::setup(FRAG_PARAMS);
+        assert_eq!(w.archetype_count(), 27);
+        w.step();
+        assert_eq!(w.step_archetypes(), ids(&(1..=26).collect::<Vec<_>>()));
+        assert_eq!(w.step_probed(), []);
+    }
+
+    #[test]
+    fn heavy_compute_hybrid_matches_its_archetypes() {
+        let mut w = HybridHeavyCompute::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.step_archetypes(), ids(&[1]));
+        assert_eq!(w.step_probed(), []);
+    }
+
+    fn zero_count<W: Workload>() {
+        let mut w = W::setup(Params { count: 0, seed: 7 });
+        assert_eq!(w.checksum(), 0);
+        w.step();
+        assert_eq!(w.checksum(), 0);
+    }
+
+    #[test]
+    fn zero_count_is_valid() {
+        zero_count::<HybridSimpleIter>();
+        zero_count::<HybridFragIter>();
+        zero_count::<HybridHeavyCompute>();
+    }
+}

@@ -43,3 +43,6 @@
 - 2026-11-20 surprise `run` in tests.rs hit `clippy::too_many_lines` after the new arms; moved the deferred recording and model apply into `record` and `apply_to_model` rather than allowing the lint.
 - 2026-11-20 decision `commands_reach_each_storage` checks `archetype_count` (unchanged for sparse insert, +1 for table insert) since `Location` is private to world.rs tests.
 - 2026-11-20 done (main session) Step 4 checked: diff limited to the step's files; `ci --quick` exit 0 (1018 tests), re-run by the main session.
+- 2026-11-20 done step 5: harness_components.rs (B, Seeker sparse; rest table incl. Hidden), HybridSimpleIter/FragIter/HeavyCompute adapted from M3.4 with step_probed hooks; `components!` no longer cfg(test). Tests pass, ci --quick passes.
+- 2026-11-20 decision: heavy_compute shares simple_iter's Matrix/Position/Rotation/Velocity types (re-exports), so one impl each covers both.
+- 2026-11-20 done (main session) Step 5 checked: diff limited to the step's files; `ci --quick` exit 0 (1025 tests), re-run by the main session; `harness_components.rs` has exactly `B` and `Seeker` sparse.

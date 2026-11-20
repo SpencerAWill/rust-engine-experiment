@@ -104,7 +104,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: harness components and the iteration workloads (R10 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/harness_components.rs`, `src/simple_iter.rs`, `src/frag_iter.rs`, `src/heavy_compute.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`spike_ecs_harness`, dev `spike_ecs_vec`), `Cargo.lock`.
 - **Interfaces produced:** `harness_components.rs` (private module) implements `Component` for every harness type the seven workloads use: `B` and `Seeker` `SparseStorage`, the rest `TableStorage` (§1; the 26 letter types through the harness's letter list or a local macro over them). `simple_iter::HybridSimpleIter`, `frag_iter::HybridFragIter`, `heavy_compute::HybridHeavyCompute` (spec §4.9), with each step query one private function used by `step` and the hooks of §1 (ecs-1).
 - **Test first** (`tests.rs`): `simple_iter_hybrid_matches_the_reference`, `frag_iter_hybrid_matches_the_reference`, `heavy_compute_hybrid_matches_the_reference`; `<workload>_hybrid_matches_its_archetypes` for each (after setup, `archetype_count` is §4.9's count plus one; after one step, `step_archetypes()` is the expected list and `step_probed()` is empty); `zero_count_is_valid` for the three (focus 9). Fails first: does not compile.

@@ -335,11 +335,9 @@ pub(crate) mod seal {
 
 /// Writes one `impl Component` per type, all with the same storage marker:
 /// `components!(TableStorage: Position, Velocity);`.
-#[cfg(test)]
 macro_rules! components {
     ($storage:ident: $($t:ty),+ $(,)?) => {
         $( impl $crate::Component for $t { type Storage = $crate::$storage; } )+
     };
 }
-#[cfg(test)]
 pub(crate) use components;
