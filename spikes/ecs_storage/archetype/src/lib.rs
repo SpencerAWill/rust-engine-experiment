@@ -15,6 +15,7 @@
 //! not to be published. The spec is `docs/chunks/m3.4-archetype/spec.md`.
 
 pub mod add_remove;
+pub mod agents;
 mod archetype;
 mod bundle;
 mod commands;
@@ -23,6 +24,7 @@ pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
 pub mod simple_iter;
+pub mod sprites;
 mod table;
 mod world;
 

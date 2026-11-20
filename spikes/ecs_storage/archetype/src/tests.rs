@@ -289,22 +289,27 @@ proptest! {
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::agents::VecAgents;
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
+    use spike_ecs_vec::sprites::VecSprites;
 
     use crate::add_remove::ArchetypeAddRemove;
+    use crate::agents::ArchetypeAgents;
     use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
     use crate::simple_iter::ArchetypeSimpleIter;
+    use crate::sprites::ArchetypeSprites;
 
     const PARAMS: Params = Params {
         count: 1_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
+    const AGENT_TICKS: u64 = 1_300;
 
     #[test]
     fn simple_iter_archetype_matches_the_reference() {
@@ -412,6 +417,42 @@ mod workloads {
         }
     }
 
+    #[test]
+    fn sprites_archetype_matches_the_reference() {
+        check_conformance::<VecSprites, ArchetypeSprites>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn agents_archetype_matches_the_reference() {
+        check_conformance::<VecAgents, ArchetypeAgents>(PARAMS, AGENT_TICKS).unwrap();
+    }
+
+    #[test]
+    fn sprites_archetype_layout() {
+        let mut w = ArchetypeSprites::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 3);
+        assert_eq!(w.move_archetypes().len(), 2);
+        assert_eq!(w.draw_archetypes().len(), 1);
+    }
+
+    #[test]
+    fn agents_archetype_layout() {
+        let mut w = ArchetypeAgents::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 3);
+        assert_eq!(w.step_archetypes().len(), 2);
+    }
+
+    #[test]
+    fn agents_keeps_invariants_every_tick() {
+        let mut w = ArchetypeAgents::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..AGENT_TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -426,5 +467,7 @@ mod workloads {
         zero_count::<ArchetypeHeavyCompute>();
         zero_count::<ArchetypeAddRemove>();
         zero_count::<ArchetypeEntityChurn>();
+        zero_count::<ArchetypeSprites>();
+        zero_count::<ArchetypeAgents>();
     }
 }

@@ -1971,6 +1971,7 @@ dependencies = [
 name = "spike_ecs_archetype"
 version = "0.1.0"
 dependencies = [
+ "agents_2d",
  "engine",
  "proptest",
  "spike_ecs_harness",

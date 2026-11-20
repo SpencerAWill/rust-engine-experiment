@@ -49,3 +49,6 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 done Red check 2 (skip `commands.despawn`): `entity_churn_archetype_matches_the_reference` FAILED (`Divergence { workload: "entity_churn", ... tick: 1, expected: 3413490700698960686, actual: 6899782168940034841 }`); the invariant and layout tests also failed (harness `entity_churn.rs:55` assertion). Reverted, byte-identical.
 - 2026-11-20 done Red check 3 (respawn one too few, `len() + 1 < count`): `entity_churn_archetype_matches_the_reference` FAILED (`Divergence { ..., tick: 0, expected: 18177424539612122014, actual: 2863253778866024483 }`), invariants test failed too. Reverted, byte-identical.
 - 2026-11-20 done Step 6 checked by the main session: `ci --quick` rc 0, 879 tests.
+- 2026-11-20 done Step 7: archetype `sprites` and `agents` workloads, six tests; `cargo xtask test` (884 passed) and `ci --quick` pass.
+- 2026-11-20 decision Step 7: the archetype workloads need no `Hidden`/`Seeker` insert path: both spawn straight into a 4/5-element bundle (3 archetypes incl. the empty one); `draw_archetypes` takes `&self` as the draw query is read-only.
+- 2026-11-20 done Step 7 checked by the main session: `ci --quick` rc 0, 884 tests.
