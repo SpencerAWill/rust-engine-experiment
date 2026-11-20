@@ -1,6 +1,6 @@
 # M3.19: Dense per-entity component arrays
 
-- **Status:** Accepted (2026-11-20)
+- **Status:** Implemented (PR #87, 2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.17 · **Decides:** no ADR
 - **Issue:** #79 (tracking issue #78)
 - **Estimated size:** about 1,800 changed lines, excluding tests, lockfiles and generated files (`column` about 200, `world` about 300, `query` about 550, `commands` about 150, the workload modules about 450, documents about 150)
@@ -292,12 +292,12 @@ As M3.3's (its spec §4.6): `Commands::{new, despawn, insert, remove, len, is_em
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms.
-- [ ] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass.
-- [ ] `cargo xtask spike-bench ecs` lists the `dense` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal.
-- [ ] The spike README, CHANGELOG, coverage list and M3.8's roadmap row are updated.
-- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
-- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
+- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms. *Local: passes on f12f8c3 (the final code is 6809b57; later commits are documents only; log.md). CI on PR #87: pending.*
+- [x] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass. *Seven `*_dense_matches_the_reference` tests, the `entity_churn`, `add_remove` and `agents` invariants every tick, and `world_matches_the_model` (queries, commands and `apply`) pass on 6809b57 and f12f8c3.*
+- [x] `cargo xtask spike-bench ecs` lists the `dense` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal. *71 ids (14 `dense`) on f12f8c3 (code as of 6809b57), table in PR #87; no cache-bench run, since neither Valgrind nor Docker is available on this Mac (said in the PR; #74).*
+- [x] The spike README, CHANGELOG, coverage list and M3.8's roadmap row are updated. *235e0e3 (README, CHANGELOG), 8821916 (coverage), this close-out commit (M3.8's row).*
+- [x] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request. *Two rounds, PR #87 Reviews section.*
+- [x] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in. *This close-out commit.*
 
 ## 10. Open questions
 
