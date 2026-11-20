@@ -16,6 +16,11 @@ Document: `$ARGUMENTS` (default: the `spec.md` of the chunk on the current branc
 
 Dispatch `spec-reader` (`.claude/agents/spec-reader.md`) with only the document's path. It returns the questions a builder would have to guess at, ranked.
 
+While it reads, if the document declares Rust API (signatures, trait shapes or usage examples), check that API yourself:
+
+- **Compile it.** Write a stub crate in the scratchpad with the declared signatures, `todo!()` bodies and every example, and build it on the pinned toolchain. Each error is a question for step 2, never something to leave to the builder. A cold read takes signatures on trust: M3.3's `query::<Q, F: Filter = ()>()` reached a spec awaiting approval without compiling.
+- **Check it against the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/checklist.html):** naming (`x`/`x_mut`, `iter`, conversions), common traits (`Debug`, `Default`), error types that implement `Error`, sealed traits, `#[must_use]`, invariants a type could enforce instead of a panic. Each break goes to step 2.
+
 ## 2. Sort
 
 For each question, and anything you noticed yourself:

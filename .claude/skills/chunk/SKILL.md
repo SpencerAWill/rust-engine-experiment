@@ -73,3 +73,4 @@ Run that stage's file and continue to the next stage unless it is a wait:
 - **Log as it happens:** append to `log.md` (`- <date> <tag> <text>`; tags `done`, `decision`, `surprise`, `dead-end`, `lesson?`) and commit it with the work it describes.
 - **Verify before claiming:** run the command, read its output.
 - **Stage by explicit path** (`git add <paths>`), never `-a`; check `git status` after adding.
+- **Nothing else runs `cargo` in the tree during a full `cargo xtask ci`:** its `cargo hack --no-dev-deps` step rewrites the package manifests until it ends, so a builder or reviewer building at the same time sees broken manifests (M3.3).
