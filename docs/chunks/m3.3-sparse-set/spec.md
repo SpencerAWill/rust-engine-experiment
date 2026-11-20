@@ -1,6 +1,6 @@
 # M3.3: Sparse-set prototype
 
-- **Status:** Draft (2026-11-19; first drafted 2026-11-14, before M3.11 to M3.18)
+- **Status:** Accepted (2026-11-19; first drafted 2026-11-14, before M3.11 to M3.18)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 1,650 changed lines, excluding tests, lockfiles and generated files (`storage` about 250, `world` about 350, `query` about 450, the workload modules about 450, documents about 150)
