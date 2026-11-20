@@ -143,7 +143,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: documents (R14 in part)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md`, `CHANGELOG.md`, `docs/roadmap.md` (M3.5's title, spec §4.12).
 - **Test first:** n/a for prose. The checks before the change: `grep -n "hybrid/" spikes/ecs_storage/README.md` and `grep -n "spike_ecs_hybrid" CHANGELOG.md` find nothing; `grep -n "^| M3.5 " docs/roadmap.md` shows the old title.
 - **Change:** spec §4.12: the package row in the spike README; a CHANGELOG entry; the roadmap title. Predictions keep their "expected, unmeasured" wording (docs-3). In the close-out commit: M3.5's row `Done`, M3.8's row gains the costs found while building (step 3's allocation count, step 1's lookup comparison and anything the reviews find); the follow-up issue for enable bits under #78 and the comment on #84 (spec §4.11, §4.12), linked from the pull request, which closes #82 and #83.

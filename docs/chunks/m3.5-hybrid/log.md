@@ -57,3 +57,4 @@
 - 2026-11-20 done (main session) Step 7 checked: diff limited to the step's files; `ci --quick` exit 0 (1036 tests), re-run by the main session.
 - 2026-11-20 done step 8: hybrid registered in both bench crates; compare --test prints 14 /hybrid/ lines (was 0); ci --quick and deny pass
 - 2026-11-20 done (main session) Step 8 checked: 14 `/hybrid/` Criterion ids (re-run); each `cache_bench!` hybrid line's sizes and group match the workload's `vec_aos` line; the cache bench builds; `deny` passes.
+- 2026-11-20 done (main session) Step 9: spike README row, CHANGELOG entry (predictions kept "expected, unmeasured"), roadmap title. Full `cargo xtask ci` exit 0 on 46ebaea plus these document edits (code as of 46ebaea), nothing else running cargo.
