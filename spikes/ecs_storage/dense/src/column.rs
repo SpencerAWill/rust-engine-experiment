@@ -79,7 +79,7 @@ impl<T> ValuesMut<'_, T> {
 
 /// What code that does not know a column's value type can do with it. The method names
 /// avoid `type_id`, which `Any` already has.
-pub trait ErasedColumn {
+pub(crate) trait ErasedColumn {
     /// The `TypeId` of the values.
     fn value_type_id(&self) -> TypeId;
     /// The name of the value type.

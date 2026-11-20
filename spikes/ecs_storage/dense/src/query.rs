@@ -90,7 +90,7 @@ pub(crate) mod seal {
         }
 
         /// Takes the column of `ty`, if it has one and nobody took it yet.
-        pub fn take(&mut self, ty: TypeId) -> Option<&'w mut Box<dyn ErasedColumn>> {
+        fn take(&mut self, ty: TypeId) -> Option<&'w mut Box<dyn ErasedColumn>> {
             let id = self.ids.get(&ty)?;
             self.columns[id.index()].take()
         }
@@ -693,6 +693,11 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
     pub(crate) fn joined(&self) -> JoinedSets {
         let table = label_table(self.world);
         let (required, excluded) = self.join_lists();
+        let required = if self.empty {
+            &self.required[..]
+        } else {
+            required
+        };
         (labelled(&table, required), labelled(&table, excluded))
     }
 }
@@ -855,7 +860,11 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
         let table = label_table(self.world);
         let (_fetch, cx) = resolve_mut::<Q, F>(&mut *self.world);
         let alive = [cx.alive()];
-        let required = join_lists(&cx.required, &alive);
+        let required = if cx.empty {
+            &cx.required[..]
+        } else {
+            join_lists(&cx.required, &alive)
+        };
         (labelled(&table, required), labelled(&table, &cx.excluded))
     }
 }
@@ -1017,6 +1026,19 @@ mod tests {
             w.query_mut::<Option<&A>>().joined(),
             (vec![Joined::Alive], vec![])
         );
+    }
+
+    #[test]
+    fn a_query_that_matches_nothing_reports_the_sets_resolved_so_far() {
+        let mut w = World::new();
+        spawn_with(&mut w, Some(1), None);
+        let id_a = w.component_id(TypeId::of::<A>()).unwrap();
+        let only_a = (vec![Joined::Component(id_a)], vec![]);
+        assert_eq!(w.query::<(&A, &D)>().joined(), only_a);
+        assert_eq!(w.query_mut::<(&mut A, &mut D)>().joined(), only_a);
+        assert_eq!(w.query::<&A>().with::<D>().joined(), only_a);
+        assert_eq!(w.query::<&D>().joined(), (vec![], vec![]));
+        assert_eq!(w.query_mut::<&mut D>().joined(), (vec![], vec![]));
     }
 
     #[test]

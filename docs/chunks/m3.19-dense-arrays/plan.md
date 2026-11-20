@@ -168,3 +168,6 @@ From `lessons-researcher` (2026-11-20).
 - **Step 4, `world()` hook:** each workload also has a `#[cfg(test)] world()` accessor beside `step_joined()`, so the joins tests can look up `ComponentId`s with the `world` field private.
 - **Step 5, red check 4:** skipping the column clear in `despawn` does not fail `entity_churn_keeps_invariants_every_tick`, because the same tick's respawn overwrites every column at each freed index; the plan named the wrong test. `despawn_clears_every_column`, `stale_id_does_not_reach_the_reused_slot` and `world_matches_the_model` (W1) fail instead (log.md, 2026-11-20).
 - **Step 5, `add_remove_dense_joins`:** runs one `step` first, since `B` has no column before the first insert.
+- **Review, `ErasedColumn`:** `pub(crate)`, not `pub` in its module, once `MutCx::take` became private (log.md, 2026-11-20).
+- **Review, spec §4.7's `frag_iter` prediction:** a `QueryMut` run's setup grows with the number of registered types, so the letter types are not free in the step; recorded for M3.8 (log.md, 2026-11-20).
+- **Step 8, spec §7 wording:** "ANDed" became "intersected" for `typos`; editorial.

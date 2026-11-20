@@ -181,8 +181,10 @@ impl World {
             self.allocator.is_alive(entity),
             "World::insert called on a despawned entity {entity:?}; spawn an entity first"
         );
-        self.id_or_create::<T>();
-        self.column_mut::<T>()
+        let id = self.id_or_create::<T>();
+        self.columns[id.index()]
+            .as_any_mut()
+            .downcast_mut::<DenseColumn<T>>()
             .expect("the column of a registered type exists (invariant D2)")
             .insert(entity.index() as usize, value)
     }
