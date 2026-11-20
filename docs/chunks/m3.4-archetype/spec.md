@@ -212,7 +212,7 @@ struct BundleInfo { archetype: ArchetypeId, columns: Box<[usize]> }
 - `Query::for_each`, `Query::iter`, `IntoIterator for Query` and for `&Query`; `QueryIter<'w, Q, F>` yields `Q::Item<'w>`, implements `FusedIterator`, and has an exact `size_hint` (the matched archetypes' rows not yet yielded).
 - `Query`, `QueryMut` and `QueryIter` are `#[must_use]`.
 - The closure and every fetch are monomorphized; nothing per entity goes through `dyn`. Per-archetype setup (step 4) is the only erased work. The query SHOULD NOT allocate per matched archetype; its per-run allocations are counted as built and recorded in the plan (lesson ecs-2).
-- `pub(crate)`, `#[cfg(test)]` `Query::matched_archetypes()` and `QueryMut::matched_archetypes()` return the ids a run would visit, so the crate's tests can check matching; they are not public API.
+- `pub(crate)`, `#[cfg(test)]` `Query::matched_archetypes()` and `QueryMut::matched_archetypes()` return the ids of the archetypes that match (step 3), in id order and whether or not they have rows, so the crate's tests can check matching; they are not public API. *(Main session's call, from the grill: matched rather than visited ids, so an assertion does not depend on which tables happen to be empty on a given tick.)*
 
 ### 4.7 Commands
 
@@ -227,7 +227,7 @@ As M3.3's (its spec §4.6): `Commands::{new, despawn, insert, remove, len, is_em
 | `simple_iter` | `(Matrix, Position, Rotation, Velocity)` (1) | `(&mut Position, &Velocity)` |
 | `frag_iter` | `(L, Data)` per letter type `L` (26) | `&mut Data`, visiting all 26 archetypes; the checksum runs one `query::<(&L, &Data)>()` per letter |
 | `heavy_compute` | as `simple_iter` (1) | `(&mut Matrix, &mut Position, &Rotation)` |
-| `add_remove` | `(A,)` (1) | reads `(Entity, &A)` into a reused buffer and inserts `B` with `world.insert`; then reads `query::<Entity>().with::<B>()` the same way and removes `B`. Each insert moves a row from `(A)` to `(A, B)` and each removal moves it back |
+| `add_remove` | `(A,)` (1) | reads `(Entity, &A)` into a reused buffer and inserts `B` with `world.insert`; then reads `query::<Entity>().with::<B>()` the same way and removes `B`. Each insert moves a row from `(A)` to `(A, B)` and each removal moves it back. After the first step both archetypes exist: the read query matches both (`(A, B)` has no rows when it runs), the removal query matches `(A, B)` only |
 | `entity_churn` | `(SpawnId, Position, Velocity, Lifetime)` (1) | `(Entity, (&mut Position, &Velocity, &mut Lifetime))`, recording `commands.despawn(e)` for expired entities; `apply`; then `spawn_with` until `world.len()` is `count` |
 | `sprites` | `(Transform2d, Velocity2d, Sprite)` or `(Transform2d, Velocity2d, Sprite, Hidden)` (2) | move: `(&mut Transform2d, &Velocity2d)` over both; draw: `query::<(&Transform2d, &Sprite)>().without::<Hidden>()` pushing to the owned draw list |
 | `agents` | `(AgentId, Transform2d, Velocity, Ttl)` or with `Seeker` as a fifth element (2) | `(Entity, (&mut Transform2d, &mut Velocity, &mut Ttl, Option<&mut Seeker>))`, as M3.3's `agents` (its spec §4.7): write back a kept seeker, record `insert`/`remove` of `Seeker` when it appeared or went away, `despawn` when the ttl reaches 0; `apply`; then `spawn_with` until `world.len()` reaches the target |
@@ -269,7 +269,7 @@ As M3.3's (its spec §4.6): `Commands::{new, despawn, insert, remove, len, is_em
 - **M3.4-R6** `spawn_with` MUST place the entity in the archetype of exactly its bundle's types, with no intermediate archetype created or visited.
 - **M3.4-R7** Queries MUST match exactly the entities that have every required type and none of the `Without` types, yield `Some` for an `Option` parameter exactly when the entity has the type, support nested tuples, and, with no required type, visit every live entity that passes the filters.
 - **M3.4-R8** `apply` MUST run commands in recorded order, skip commands on dead entities, and leave the buffer empty.
-- **M3.4-R9** The `archetype` backend MUST implement all seven workloads as §4.8 says and MUST pass `check_conformance` against `vec_aos` for each: 1,000 entities (20 per letter for `frag_iter`) over 120 ticks, and 1,000 agents over 1,300 ticks for `agents`. After `setup`, `archetype_count` MUST be one more than §4.8's count (the empty archetype), and each step query MUST visit the archetypes §4.8 says.
+- **M3.4-R9** The `archetype` backend MUST implement all seven workloads as §4.8 says and MUST pass `check_conformance` against `vec_aos` for each: 1,000 entities (20 per letter for `frag_iter`) over 120 ticks, and 1,000 agents over 1,300 ticks for `agents`. After `setup`, `archetype_count` MUST be one more than §4.8's count (the empty archetype), and each step query MUST match the archetypes §4.8 says (`matched_archetypes`, §4.6).
 - **M3.4-R10** Stepping `entity_churn`, `add_remove` and `agents` MUST keep `check_invariants` at `Ok` after every tick, for as many ticks as R9.
 - **M3.4-R11** Both bench crates MUST register every implementation of R9, as `spikes/ecs_storage/README.md` describes.
 - **M3.4-R12** `cargo xtask ci` MUST pass, CI MUST be green on Ubuntu, macOS and Windows without workflow changes, and `cargo xtask deny` MUST pass without changes to `deny.toml`.
