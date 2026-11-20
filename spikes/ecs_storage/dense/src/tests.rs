@@ -321,3 +321,108 @@ proptest! {
         run(&ops);
     }
 }
+
+mod workloads {
+    use core::any::TypeId;
+
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::frag_iter::VecFragIter;
+    use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::simple_iter::VecSimpleIter;
+
+    use crate::World;
+    use crate::frag_iter::DenseFragIter;
+    use crate::heavy_compute::DenseHeavyCompute;
+    use crate::query::Joined;
+    use crate::simple_iter::DenseSimpleIter;
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    /// The joined list for the component types `T`, named by the world's own ids.
+    fn ids(world: &World, types: &[TypeId]) -> Vec<Joined> {
+        types
+            .iter()
+            .map(|ty| Joined::Component(world.component_id(*ty).expect("type has a column")))
+            .collect()
+    }
+
+    #[test]
+    fn simple_iter_dense_matches_the_reference() {
+        check_conformance::<VecSimpleIter, DenseSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_dense_matches_the_reference() {
+        check_conformance::<VecFragIter, DenseFragIter>(
+            Params {
+                count: 20,
+                seed: 42,
+            },
+            TICKS,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn heavy_compute_dense_matches_the_reference() {
+        check_conformance::<VecHeavyCompute, DenseHeavyCompute>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_dense_joins() {
+        use spike_ecs_harness::simple_iter::{Position, Velocity};
+        let mut w = DenseSimpleIter::setup(Params {
+            count: 10,
+            seed: 42,
+        });
+        let want = ids(
+            w.world(),
+            &[TypeId::of::<Position>(), TypeId::of::<Velocity>()],
+        );
+        assert_eq!(w.step_joined(), (want, vec![]));
+    }
+
+    #[test]
+    fn frag_iter_dense_joins() {
+        use spike_ecs_harness::frag_iter::Data;
+        let mut w = DenseFragIter::setup(Params { count: 2, seed: 42 });
+        let want = ids(w.world(), &[TypeId::of::<Data>()]);
+        assert_eq!(w.step_joined(), (want, vec![]));
+    }
+
+    #[test]
+    fn heavy_compute_dense_joins() {
+        use spike_ecs_harness::heavy_compute::{Matrix, Position, Rotation};
+        let mut w = DenseHeavyCompute::setup(Params {
+            count: 10,
+            seed: 42,
+        });
+        let want = ids(
+            w.world(),
+            &[
+                TypeId::of::<Matrix>(),
+                TypeId::of::<Position>(),
+                TypeId::of::<Rotation>(),
+            ],
+        );
+        assert_eq!(w.step_joined(), (want, vec![]));
+    }
+
+    fn zero_count<W: Workload>() {
+        let mut w = W::setup(Params { count: 0, seed: 7 });
+        assert_eq!(w.checksum(), 0);
+        w.step();
+        assert_eq!(w.checksum(), 0);
+    }
+
+    #[test]
+    fn zero_count_is_valid() {
+        zero_count::<DenseSimpleIter>();
+        zero_count::<DenseFragIter>();
+        zero_count::<DenseHeavyCompute>();
+    }
+}

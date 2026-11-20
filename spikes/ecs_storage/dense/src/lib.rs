@@ -15,7 +15,10 @@
 
 mod column;
 mod commands;
+pub mod frag_iter;
+pub mod heavy_compute;
 mod query;
+pub mod simple_iter;
 #[cfg(test)]
 mod tests;
 mod world;

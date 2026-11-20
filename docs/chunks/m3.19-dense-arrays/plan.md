@@ -90,7 +90,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: `simple_iter`, `frag_iter` and `heavy_compute` (R8 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/simple_iter.rs`, `src/frag_iter.rs`, `src/heavy_compute.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`spike_ecs_harness`, dev `spike_ecs_vec`), `Cargo.lock`.
 - **Interfaces produced:** `simple_iter::DenseSimpleIter`, `frag_iter::DenseFragIter`, `heavy_compute::DenseHeavyCompute` (spec §4.7). Each step query is one private function used by `step` and by a `#[cfg(test)] pub(crate) fn step_joined(&mut self) -> (Vec<Joined>, Vec<Joined>)` hook (ecs-1). `frag_iter` inserts each letter through a local macro over the 26 `Letter` variants, as M3.3's does; its checksum runs one `query::<(&L, &Data)>()` per letter.
 - **Test first** (`tests.rs`): `simple_iter_dense_matches_the_reference`, `frag_iter_dense_matches_the_reference`, `heavy_compute_dense_matches_the_reference`; `<workload>_dense_joins` for each (the step query joins the sets of spec §4.7's table, in parameter order, none excluded); `zero_count_is_valid` for the three (focus 9). Fails first: does not compile.
@@ -165,3 +165,4 @@ From `lessons-researcher` (2026-11-20).
 - **Step 2, `ComponentId`:** stays `pub(crate)`; no sealed signature names it, and `pub` trips `unreachable_pub` (log.md, 2026-11-20).
 - **Step 2, `for` over `&Query`:** panics with its own `Query::into_iter:` prefix, a fourth beside §1's three.
 - **Step 2, `joined()`:** names each joined set by its address against the world's own sets, which tests the run's actual sets; `World::component_id` and `present_sets` are `#[cfg(test)]` helpers (log.md, 2026-11-20).
+- **Step 4, `world()` hook:** each workload also has a `#[cfg(test)] world()` accessor beside `step_joined()`, so the joins tests can look up `ComponentId`s with the `world` field private.
