@@ -326,11 +326,15 @@ mod workloads {
     use core::any::TypeId;
 
     use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
 
     use crate::World;
+    use crate::add_remove::DenseAddRemove;
+    use crate::entity_churn::DenseEntityChurn;
     use crate::frag_iter::DenseFragIter;
     use crate::heavy_compute::DenseHeavyCompute;
     use crate::query::Joined;
@@ -412,6 +416,68 @@ mod workloads {
         assert_eq!(w.step_joined(), (want, vec![]));
     }
 
+    #[test]
+    fn add_remove_dense_matches_the_reference() {
+        check_conformance::<VecAddRemove, DenseAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn entity_churn_dense_matches_the_reference() {
+        check_conformance::<VecEntityChurn, DenseEntityChurn>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_dense_joins() {
+        use spike_ecs_harness::add_remove::{A, B};
+        // One step first: `B` has no column until the first insert.
+        let mut w = DenseAddRemove::setup(Params { count: 10, seed: 1 });
+        w.step();
+        let read = ids(w.world(), &[TypeId::of::<A>()]);
+        assert_eq!(w.read_joined(), (read, vec![]));
+        let remove = ids(w.world(), &[TypeId::of::<B>()]);
+        assert_eq!(w.remove_joined(), (remove, vec![]));
+    }
+
+    #[test]
+    fn entity_churn_dense_joins() {
+        use spike_ecs_harness::entity_churn::{Lifetime, Position, Velocity};
+        let mut w = DenseEntityChurn::setup(Params { count: 10, seed: 1 });
+        let want = ids(
+            w.world(),
+            &[
+                TypeId::of::<Position>(),
+                TypeId::of::<Velocity>(),
+                TypeId::of::<Lifetime>(),
+            ],
+        );
+        assert_eq!(w.step_joined(), (want, vec![]));
+    }
+
+    #[test]
+    fn add_remove_keeps_invariants_every_tick() {
+        use spike_ecs_harness::add_remove::{A, B};
+        let mut w = DenseAddRemove::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+            assert_eq!(w.world().query::<&B>().into_iter().count(), 0);
+            assert_eq!(w.world().query::<&A>().into_iter().count(), PARAMS.count);
+        }
+    }
+
+    #[test]
+    fn entity_churn_keeps_invariants_every_tick() {
+        let mut w = DenseEntityChurn::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -424,5 +490,7 @@ mod workloads {
         zero_count::<DenseSimpleIter>();
         zero_count::<DenseFragIter>();
         zero_count::<DenseHeavyCompute>();
+        zero_count::<DenseAddRemove>();
+        zero_count::<DenseEntityChurn>();
     }
 }

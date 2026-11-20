@@ -13,8 +13,10 @@
 //! This is a spike: it exists to be measured against the other storage backends, not to be
 //! published. The spec is `docs/chunks/m3.19-dense-arrays/spec.md`.
 
+pub mod add_remove;
 mod column;
 mod commands;
+pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;

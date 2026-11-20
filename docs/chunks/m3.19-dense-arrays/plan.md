@@ -100,7 +100,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: `add_remove` and `entity_churn` (R8 in part, R9 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/add_remove.rs`, `src/entity_churn.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `add_remove::DenseAddRemove` (reused `Vec<(Entity, f32)>` and `Vec<Entity>`; read query `(Entity, &A)`, removal query `query::<Entity>().with::<B>()`, each its own private function with a test hook) and `entity_churn::DenseEntityChurn` (a `Commands`, the `Prng`, `next_id` and the target; respawns with `spawn` and one `insert` per component after `apply` until `world.len()` is the target).
 - **Test first** (`tests.rs`): `add_remove_dense_matches_the_reference`, `entity_churn_dense_matches_the_reference`; `add_remove_dense_joins` (read query: A / none; removal query: B / none, not `Alive`); `entity_churn_dense_joins`; `add_remove_keeps_invariants_every_tick` (also asserts no entity has `B` after a tick, so a skipped removal fails it; M3.4's red check 1) and `entity_churn_keeps_invariants_every_tick` (1,000 entities, 120 ticks); `zero_count_is_valid` for the two. Fails first: does not compile.
@@ -166,3 +166,5 @@ From `lessons-researcher` (2026-11-20).
 - **Step 2, `for` over `&Query`:** panics with its own `Query::into_iter:` prefix, a fourth beside §1's three.
 - **Step 2, `joined()`:** names each joined set by its address against the world's own sets, which tests the run's actual sets; `World::component_id` and `present_sets` are `#[cfg(test)]` helpers (log.md, 2026-11-20).
 - **Step 4, `world()` hook:** each workload also has a `#[cfg(test)] world()` accessor beside `step_joined()`, so the joins tests can look up `ComponentId`s with the `world` field private.
+- **Step 5, red check 4:** skipping the column clear in `despawn` does not fail `entity_churn_keeps_invariants_every_tick`, because the same tick's respawn overwrites every column at each freed index; the plan named the wrong test. `despawn_clears_every_column`, `stale_id_does_not_reach_the_reused_slot` and `world_matches_the_model` (W1) fail instead (log.md, 2026-11-20).
+- **Step 5, `add_remove_dense_joins`:** runs one `step` first, since `B` has no column before the first insert.
