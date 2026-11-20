@@ -25,7 +25,7 @@ pub(crate) mod seal {
 
     use crate::Entity;
     use crate::archetype::{Archetype, ComponentId};
-    use crate::table::{ErasedColumn, column_slice, column_slice_mut};
+    use crate::table::{ColumnMut, ErasedColumn, column_slice};
 
     /// How a query uses a component type.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,7 +81,7 @@ pub(crate) mod seal {
         /// From a read-only query.
         Shared(&'w dyn ErasedColumn),
         /// From a mutable query.
-        Mut(&'w mut dyn ErasedColumn),
+        Mut(ColumnMut<'w>),
     }
 
     impl core::fmt::Debug for Slot<'_> {
@@ -96,17 +96,16 @@ pub(crate) mod seal {
     impl<'w> Slot<'w> {
         /// The column's values, shared.
         pub fn into_ref<T: 'static>(self) -> &'w [T] {
-            let column: &'w dyn ErasedColumn = match self {
-                Slot::Shared(c) => c,
-                Slot::Mut(c) => c,
-            };
-            column_slice(column)
+            match self {
+                Slot::Shared(c) => column_slice(c),
+                Slot::Mut(c) => c.slice(),
+            }
         }
 
         /// The column's values, exclusive.
         pub fn into_mut<T: 'static>(self) -> &'w mut [T] {
             match self {
-                Slot::Mut(c) => column_slice_mut(c),
+                Slot::Mut(c) => c.slice_mut(),
                 Slot::Shared(_) => unreachable!("a read-only query has no `&mut` parameter"),
             }
         }
@@ -160,10 +159,10 @@ pub(crate) mod seal {
             self.entities = entities;
             self.columns.clear();
             self.columns.resize_with(entries.len(), || None);
-            for (k, column) in columns.iter_mut().enumerate() {
+            for (k, column) in columns.enumerate() {
                 let id = Some(components[k]);
                 if let Some(j) = entries.iter().position(|e| e.component == id) {
-                    self.columns[j] = Some(Slot::Mut(&mut **column));
+                    self.columns[j] = Some(Slot::Mut(column));
                 }
             }
             self.cursor = 0;

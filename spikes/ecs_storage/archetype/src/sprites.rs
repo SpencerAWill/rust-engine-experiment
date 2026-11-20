@@ -44,6 +44,11 @@ impl ArchetypeSprites {
     pub(crate) fn archetype_count(&self) -> usize {
         self.world.archetype_count()
     }
+
+    /// The world, for archetype inspection in tests.
+    pub(crate) fn world(&self) -> &World {
+        &self.world
+    }
 }
 
 impl Workload for ArchetypeSprites {

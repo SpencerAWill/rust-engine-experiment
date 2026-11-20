@@ -143,29 +143,49 @@ impl World {
     /// # Panics
     ///
     /// Panics with a `World::spawn_with:` message if a type appears twice in the bundle, or if
-    /// the world holds the most entities it can (2³¹−2 entity slots in use or retired). The
-    /// world is unchanged in either case.
+    /// the world holds the most entities it can (2³¹−2 entity slots in use or retired). `len`
+    /// and every existing entity are unchanged in either case; the bundle's archetype may
+    /// already have been created.
     #[track_caller]
     pub fn spawn_with<B: Bundle>(&mut self, bundle: B) -> Entity {
         let key = TypeId::of::<B>();
-        if !self.bundles.contains_key(&key) {
+        // One lookup when the bundle type is known. A new type builds its info first: allocating
+        // first would leak an entity id if the duplicate-type panic fired afterwards.
+        let (entity, archetype, row) = if let Some(info) = self.bundles.get(&key) {
+            Self::place(&mut self.entities, &mut self.archetypes, info, bundle)
+        } else {
             let info = self.build_bundle_info::<B>();
-            self.bundles.insert(key, info);
-        }
-        let Some(entity) = self.entities.try_allocate() else {
+            let info = self.bundles.entry(key).or_insert(info);
+            Self::place(&mut self.entities, &mut self.archetypes, info, bundle)
+        };
+        self.set_location(entity, archetype, row);
+        self.live += 1;
+        entity
+    }
+
+    /// Allocates an entity and pushes `bundle` onto the table `info` names; returns the entity,
+    /// the archetype and the row. Takes the fields it needs so `info` can borrow `bundles`.
+    ///
+    /// # Panics
+    ///
+    /// Panics with a `World::spawn_with:` message if the allocator is full.
+    #[track_caller]
+    fn place<B: Bundle>(
+        entities: &mut GenIdAllocator<EntityMarker>,
+        archetypes: &mut [Archetype],
+        info: &BundleInfo,
+        bundle: B,
+    ) -> (Entity, ArchetypeId, usize) {
+        let Some(entity) = entities.try_allocate() else {
             panic!(
                 "World::spawn_with: the world holds the most entities it can (every entity slot \
                  is in use or retired); despawn entities to free slots"
             )
         };
-        let info = &self.bundles[&key];
-        let archetype = info.archetype;
-        let table = &mut self.archetypes[archetype.index()].table;
+        let table = &mut archetypes[info.archetype.index()].table;
         let row = table.len();
         table.push_bundle(entity, bundle, &info.columns);
-        self.set_location(entity, archetype, row);
-        self.live += 1;
-        entity
+        (entity, info.archetype, row)
     }
 
     /// Finds or creates the archetype of bundle type `B` and records its column order.
@@ -1082,6 +1102,17 @@ mod tests {
         );
         assert_eq!(w.len(), 1);
         assert_eq!(w.archetypes[1].table.len(), 1);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn a_failed_cold_spawn_with_leaves_len_unchanged() {
+        let mut w = World::new();
+        w.entities = GenIdAllocator::with_fixed_capacity(0);
+        let failed =
+            std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn_with((A(1), B(2)))));
+        assert!(failed.is_err());
+        assert_eq!(w.len(), 0);
         assert_eq!(w.check_invariants(), Ok(()));
     }
 

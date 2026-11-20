@@ -9,7 +9,6 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-agents_2d = { path = "../../../examples/agents_2d" }
 engine = { workspace = true }
 spike_ecs_harness = { path = "../harness" }
 

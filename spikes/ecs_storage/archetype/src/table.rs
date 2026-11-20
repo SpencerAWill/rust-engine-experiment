@@ -98,6 +98,29 @@ impl RowWriter<'_> {
     }
 }
 
+/// One column, borrowed exclusively, that can be read and written in place but not resized:
+/// the only methods return a slice of a type the caller names, so no code outside [`Table`] can
+/// push, remove or replace a value and break T1.
+#[derive(Debug)]
+pub struct ColumnMut<'t>(&'t mut dyn ErasedColumn);
+
+impl<'t> ColumnMut<'t> {
+    /// The name of the column's value type.
+    pub fn value_type_name(&self) -> &'static str {
+        self.0.value_type_name()
+    }
+
+    /// The column's values, shared.
+    pub fn slice<T: 'static>(self) -> &'t [T] {
+        column_slice(self.0)
+    }
+
+    /// The column's values, exclusive: a slice, so its length cannot change.
+    pub fn slice_mut<T: 'static>(self) -> &'t mut [T] {
+        column_slice_mut(self.0)
+    }
+}
+
 /// An archetype's entities and component columns. Column `i` holds the archetype's `i`-th
 /// component in ascending [`ComponentId`] order. The fields are private and every operation
 /// changes the entity list and all columns together (T1).
@@ -136,8 +159,11 @@ impl Table {
     /// The entity list and the columns, the columns exclusive. The entity list is not part of
     /// the columns, so a query can read it while it writes a column; a caller cannot change the
     /// length of either through these borrows (T1).
-    pub(crate) fn columns_mut(&mut self) -> (&[Entity], &mut [Box<dyn ErasedColumn>]) {
-        (&self.entities, &mut self.columns)
+    pub(crate) fn columns_mut(&mut self) -> (&[Entity], impl Iterator<Item = ColumnMut<'_>>) {
+        (
+            &self.entities,
+            self.columns.iter_mut().map(|c| ColumnMut(&mut **c)),
+        )
     }
 
     /// Adds a row to a table with no columns.
@@ -159,12 +185,12 @@ impl Table {
     ///
     /// # Panics
     ///
-    /// Panics if `columns` does not cover every column exactly once: the row would break T1.
-    /// Internal only.
+    /// In debug builds, panics if `columns` does not cover every column exactly once: the row
+    /// would break T1. Internal only.
     pub(crate) fn push_bundle<B: Bundle>(&mut self, entity: Entity, bundle: B, columns: &[usize]) {
         bundle.write(&mut RowWriter(&mut self.columns), columns);
         self.entities.push(entity);
-        assert!(
+        debug_assert!(
             self.columns.iter().all(|c| c.len() == self.entities.len()),
             "Table::push_bundle left a column at a different length than the entity list (T1); \
              this is a bug in the prototype"
@@ -308,6 +334,7 @@ mod tests {
         assert_eq!(t.column(1).len(), 2);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "T1")]
     fn push_bundle_with_a_missing_column_panics() {

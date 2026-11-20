@@ -298,11 +298,16 @@ mod workloads {
 
     use crate::add_remove::ArchetypeAddRemove;
     use crate::agents::ArchetypeAgents;
+    use crate::archetype::ArchetypeId;
     use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
+
+    fn ids(v: &[usize]) -> Vec<ArchetypeId> {
+        v.iter().map(|&i| ArchetypeId::new(i)).collect()
+    }
 
     const PARAMS: Params = Params {
         count: 1_000,
@@ -337,7 +342,7 @@ mod workloads {
     fn simple_iter_archetype_layout() {
         let mut w = ArchetypeSimpleIter::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
-        assert_eq!(w.step_archetypes().len(), 1);
+        assert_eq!(w.step_archetypes(), ids(&[1]));
     }
 
     #[test]
@@ -347,14 +352,14 @@ mod workloads {
             seed: 42,
         });
         assert_eq!(w.archetype_count(), 27);
-        assert_eq!(w.step_archetypes().len(), 26);
+        assert_eq!(w.step_archetypes(), ids(&(1..=26).collect::<Vec<_>>()));
     }
 
     #[test]
     fn heavy_compute_archetype_layout() {
         let mut w = ArchetypeHeavyCompute::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
-        assert_eq!(w.step_archetypes().len(), 1);
+        assert_eq!(w.step_archetypes(), ids(&[1]));
     }
 
     #[test]
@@ -373,20 +378,21 @@ mod workloads {
         assert_eq!(w.archetype_count(), 2);
         w.step();
         assert_eq!(w.archetype_count(), 3);
-        assert_eq!(w.read_archetypes().len(), 2);
-        assert_eq!(w.remove_archetypes().len(), 1);
+        // Archetypes: 0 empty, 1 (A), 2 (A, B).
+        assert_eq!(w.read_archetypes(), ids(&[1, 2]));
+        assert_eq!(w.remove_archetypes(), ids(&[2]));
     }
 
     #[test]
     fn entity_churn_archetype_layout() {
         let mut w = ArchetypeEntityChurn::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
-        assert_eq!(w.step_archetypes().len(), 1);
+        assert_eq!(w.step_archetypes(), ids(&[1]));
         for _ in 0..TICKS {
             w.step();
         }
         assert_eq!(w.archetype_count(), 2);
-        assert_eq!(w.step_archetypes().len(), 1);
+        assert_eq!(w.step_archetypes(), ids(&[1]));
     }
 
     #[test]
@@ -431,15 +437,22 @@ mod workloads {
     fn sprites_archetype_layout() {
         let mut w = ArchetypeSprites::setup(PARAMS);
         assert_eq!(w.archetype_count(), 3);
-        assert_eq!(w.move_archetypes().len(), 2);
-        assert_eq!(w.draw_archetypes().len(), 1);
+        assert_eq!(w.move_archetypes(), ids(&[1, 2]));
+        // The draw query matches the archetype without `Hidden`, the one with fewer components.
+        let visible = w
+            .world()
+            .archetypes()
+            .iter()
+            .position(|a| a.components.len() == 3)
+            .unwrap();
+        assert_eq!(w.draw_archetypes(), ids(&[visible]));
     }
 
     #[test]
     fn agents_archetype_layout() {
         let mut w = ArchetypeAgents::setup(PARAMS);
         assert_eq!(w.archetype_count(), 3);
-        assert_eq!(w.step_archetypes().len(), 2);
+        assert_eq!(w.step_archetypes(), ids(&[1, 2]));
     }
 
     #[test]
