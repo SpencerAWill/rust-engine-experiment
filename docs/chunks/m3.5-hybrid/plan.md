@@ -51,7 +51,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: components, tables, sparse sets and the `World` (R1, R2 in part, R4, R5 in part, R6)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/Cargo.toml`, `src/lib.rs`, `src/component.rs`, `src/table.rs`, `src/archetype.rs`, `src/sparse.rs`, `src/world.rs`, `src/tests.rs` (new); workspace `Cargo.toml` (member, if not covered by the `spikes/*/*` glob); `xtask/src/coverage.rs` (`spike_ecs_hybrid` in `SPIKE_PACKAGES` and in `test_args_match_the_spec`'s expected `--exclude` list, spec §4.12); `Cargo.lock`.
 - **Interfaces produced:**
   - `lib.rs`: `EntityMarker`, `Entity`, `pub use component::{Component, Storage, TableStorage, SparseStorage};`, `pub use world::{InvariantViolation, World};`. Crate docs say what the crate is, point to the spec, and cite the designs it follows (bevy_ecs's per-component storage choice, archetype graph and bundles; hecs's tables; spec §11), with no code taken (specs-5).
@@ -178,4 +178,6 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 
 ## 5. Deviations
 
-None yet.
+- **Step 1, the storage seal:** carries `KIND` and the four `World` paths only; the fetch GATs and per-row functions arrive with step 3, `register` is `World::register::<T>()` matching on `KIND` (unused items fail clippy; log.md, 2026-11-20).
+- **Step 1, `StorageKind`:** `pub` inside the private `component` module (the seal names it), so unnameable outside the crate, rather than `pub(crate)` as spec §4.2 says.
+- **Step 1, `check_invariants` order:** A3, then A5, then T1 and T2, A1 and A2, A4, S4 and S1 to S3, so A5 is reachable (sent back once; log.md, 2026-11-20).

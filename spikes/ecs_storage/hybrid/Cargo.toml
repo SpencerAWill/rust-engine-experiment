@@ -1,0 +1,18 @@
+[package]
+name = "spike_ecs_hybrid"
+description = "ECS storage spike: the per-component hybrid backend, table or sparse-set storage chosen by each component type (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

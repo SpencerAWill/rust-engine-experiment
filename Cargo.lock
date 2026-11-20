@@ -2020,6 +2020,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_hybrid"
+version = "0.1.0"
+dependencies = [
+ "engine",
+ "proptest",
+]
+
+[[package]]
 name = "spike_ecs_sparse_set"
 version = "0.1.0"
 dependencies = [
