@@ -27,8 +27,10 @@ fn move_query(world: &mut World) -> QueryMut<'_, (&mut Transform2d, &Velocity2d)
     world.query_mut()
 }
 
-/// The draw query, shared with the test hook so the two cannot drift.
+/// The filter of the draw query: every entity without `Hidden`.
 type DrawFilter = ((), Without<Hidden>);
+
+/// The draw query, shared with the test hook so the two cannot drift.
 fn draw_query(world: &World) -> Query<'_, (&Transform2d, &Sprite), DrawFilter> {
     world.query().without::<Hidden>()
 }

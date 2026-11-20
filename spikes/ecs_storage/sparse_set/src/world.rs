@@ -194,10 +194,16 @@ impl World {
     ///
     /// # Panics
     ///
-    /// Panics if 2³¹−2 entity slots are in use or retired.
+    /// Panics with a `World::spawn:` message if the world holds the most entities it can
+    /// (2³¹−2 entity slots in use or retired).
     #[track_caller]
     pub fn spawn(&mut self) -> Entity {
-        let entity = self.entities.allocate();
+        let Some(entity) = self.entities.try_allocate() else {
+            panic!(
+                "World::spawn: the world holds the most entities it can (every entity slot is \
+                 in use or retired); despawn entities to free slots"
+            )
+        };
         self.live += 1;
         entity
     }
@@ -705,7 +711,13 @@ mod tests {
         w.entities = GenIdAllocator::with_fixed_capacity(1);
         w.spawn();
         let failed = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn()));
-        assert!(failed.is_err());
+        let payload = failed.unwrap_err();
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or_default();
+        assert!(message.starts_with("World::spawn:"), "got: {message}");
         assert_eq!(w.len(), 1);
     }
 }

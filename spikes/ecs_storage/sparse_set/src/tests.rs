@@ -272,7 +272,7 @@ mod workloads {
     }
 
     #[test]
-    fn simple_iter_grouped_matches_the_reference() {
+    fn simple_iter_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecSimpleIter, GroupedSimpleIter>(PARAMS, TICKS).unwrap();
     }
 
@@ -294,7 +294,7 @@ mod workloads {
     }
 
     #[test]
-    fn heavy_compute_grouped_matches_the_reference() {
+    fn heavy_compute_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecHeavyCompute, GroupedHeavyCompute>(PARAMS, TICKS).unwrap();
     }
 
@@ -320,7 +320,7 @@ mod workloads {
     }
 
     #[test]
-    fn add_remove_grouped_matches_the_reference() {
+    fn add_remove_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecAddRemove, GroupedAddRemove>(PARAMS, TICKS).unwrap();
     }
 
@@ -330,7 +330,7 @@ mod workloads {
     }
 
     #[test]
-    fn entity_churn_grouped_matches_the_reference() {
+    fn entity_churn_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecEntityChurn, GroupedEntityChurn>(PARAMS, TICKS).unwrap();
     }
 
@@ -376,7 +376,7 @@ mod workloads {
     }
 
     #[test]
-    fn sprites_grouped_matches_the_reference() {
+    fn sprites_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecSprites, GroupedSprites>(PARAMS, TICKS).unwrap();
     }
 
@@ -386,7 +386,7 @@ mod workloads {
     }
 
     #[test]
-    fn agents_grouped_matches_the_reference() {
+    fn agents_sparse_set_grouped_matches_the_reference() {
         check_conformance::<VecAgents, GroupedAgents>(PARAMS, AGENT_TICKS).unwrap();
     }
 
