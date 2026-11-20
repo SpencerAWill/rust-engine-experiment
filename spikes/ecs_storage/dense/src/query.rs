@@ -103,9 +103,15 @@ pub(crate) mod seal {
         }
 
         /// Takes the column of `T` for writing, if it has one and nobody took it yet.
-        pub fn take_mut<T: 'static>(&mut self) -> Option<&'w mut DenseColumn<T>> {
+        ///
+        /// Hands out only the presence set and the value accessor, never the column itself,
+        /// so a parameter cannot clear a slot or change a length during a run.
+        pub fn take_split<T: 'static>(
+            &mut self,
+        ) -> Option<(&'w HierarchicalBitSet, crate::column::ValuesMut<'w, T>)> {
             self.take(TypeId::of::<T>())
                 .and_then(|b| b.as_any_mut().downcast_mut::<DenseColumn<T>>())
+                .map(DenseColumn::split_mut)
         }
 
         /// The entity at each index.
@@ -261,7 +267,7 @@ impl<T: 'static> seal::Param for &mut T {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        let split = cx.take_mut::<T>().map(DenseColumn::split_mut);
+        let split = cx.take_split::<T>();
         if let Some((set, values)) = split {
             cx.required.push(set);
             Some(values)
@@ -336,7 +342,7 @@ impl<T: 'static> seal::Param for Option<&mut T> {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        cx.take_mut::<T>().map(|c| c.split_mut().1)
+        cx.take_split::<T>().map(|(_, values)| values)
     }
 
     #[inline]
