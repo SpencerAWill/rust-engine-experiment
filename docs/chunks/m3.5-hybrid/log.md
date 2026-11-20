@@ -58,3 +58,5 @@
 - 2026-11-20 done step 8: hybrid registered in both bench crates; compare --test prints 14 /hybrid/ lines (was 0); ci --quick and deny pass
 - 2026-11-20 done (main session) Step 8 checked: 14 `/hybrid/` Criterion ids (re-run); each `cache_bench!` hybrid line's sizes and group match the workload's `vec_aos` line; the cache bench builds; `deny` passes.
 - 2026-11-20 done (main session) Step 9: spike README row, CHANGELOG entry (predictions kept "expected, unmeasured"), roadmap title. Full `cargo xtask ci` exit 0 on 46ebaea plus these document edits (code as of 46ebaea), nothing else running cargo.
+- 2026-11-20 done simplify pass: sparse.rs `locate` shared by SparseSet::index_of and SparseMut::get; world.rs `set_index` shared by sparse_set/sparse_set_mut; no hot-path lookup counts changed
+- 2026-11-20 done (main session) Simplify pass checked (`ci --quick` exit 0); the builder ran /simplify as a single inline pass, since its session has no Agent tool.

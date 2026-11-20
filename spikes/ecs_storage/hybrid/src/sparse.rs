@@ -13,6 +13,17 @@ fn position(i: usize) -> u32 {
     u32::try_from(i).expect("a sparse set holds fewer than u32::MAX entries")
 }
 
+/// The position of `entity` in a set's `entities`, through its `sparse` index. Compares the full
+/// ID, so a stale ID whose index was reused is absent. Shared by [`SparseSet`] and [`SparseMut`].
+#[inline]
+fn locate(sparse: &[u32], entities: &[Entity], entity: Entity) -> Option<usize> {
+    let d = match sparse.get(entity.index() as usize) {
+        Some(&p) if p != EMPTY => p as usize,
+        _ => return None,
+    };
+    (entities.get(d) == Some(&entity)).then_some(d)
+}
+
 /// The values of one component type. `entities` and `data` have the same length after every
 /// operation and change only together; `sparse[i]` holds the position of the entity with index
 /// `i`, or [`EMPTY`].
@@ -35,11 +46,7 @@ impl<T> SparseSet<T> {
     /// The position of `entity`, if it has a value here. Compares the full ID, so a stale ID
     /// whose index was reused is absent.
     pub(crate) fn index_of(&self, entity: Entity) -> Option<usize> {
-        let d = match self.sparse.get(entity.index() as usize) {
-            Some(&p) if p != EMPTY => p as usize,
-            _ => return None,
-        };
-        (self.entities.get(d) == Some(&entity)).then_some(d)
+        locate(&self.sparse, &self.entities, entity)
     }
 
     /// Stores `value` for `entity` and returns the value it replaced. The caller guarantees
@@ -147,15 +154,8 @@ pub struct SparseMut<'a, T> {
 impl<T> SparseMut<'_, T> {
     /// The value of `entity`, if it has one.
     pub(crate) fn get(&mut self, entity: Entity) -> Option<&mut T> {
-        let d = match self.sparse.get(entity.index() as usize) {
-            Some(&p) if p != EMPTY => p as usize,
-            _ => return None,
-        };
-        if self.entities.get(d) == Some(&entity) {
-            Some(&mut self.data[d])
-        } else {
-            None
-        }
+        let d = locate(self.sparse, self.entities, entity)?;
+        Some(&mut self.data[d])
     }
 }
 

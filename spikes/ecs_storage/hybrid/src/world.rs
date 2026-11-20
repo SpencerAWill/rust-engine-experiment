@@ -518,21 +518,23 @@ impl World {
         self.sparse_set_mut::<T>(id).get_mut(entity)
     }
 
+    /// The index in `sparse_sets` of the set of the sparse type `id`.
+    fn set_index(&self, id: ComponentId) -> usize {
+        self.components[id.index()]
+            .sparse
+            .expect("S4: a sparse type names its set")
+    }
+
     /// The set of sparse type `T`, whose id is `id`.
     fn sparse_set<T: Component>(&self, id: ComponentId) -> &SparseSet<T> {
-        let index = self.components[id.index()]
-            .sparse
-            .expect("S4: a sparse type names its set");
-        self.sparse_sets[index]
+        self.sparse_sets[self.set_index(id)]
             .as_any()
             .downcast_ref()
             .expect("S4: a set holds the type its component id names")
     }
 
     fn sparse_set_mut<T: Component>(&mut self, id: ComponentId) -> &mut SparseSet<T> {
-        let index = self.components[id.index()]
-            .sparse
-            .expect("S4: a sparse type names its set");
+        let index = self.set_index(id);
         self.sparse_sets[index]
             .as_any_mut()
             .downcast_mut()
