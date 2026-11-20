@@ -46,6 +46,7 @@ fn clean_args() -> Vec<String> {
 const SPIKE_PACKAGES: &[&str] = &[
     "spike_ecs_harness",
     "spike_ecs_vec",
+    "spike_ecs_sparse_set",
     "spike_ecs_bench_compare",
     "spike_ecs_bench_cache",
 ];
@@ -206,6 +207,8 @@ mod tests {
                 "spike_ecs_harness",
                 "--exclude",
                 "spike_ecs_vec",
+                "--exclude",
+                "spike_ecs_sparse_set",
                 "--exclude",
                 "spike_ecs_bench_compare",
                 "--exclude",

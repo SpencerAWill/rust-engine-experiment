@@ -1,0 +1,15 @@
+[package]
+name = "spike_ecs_sparse_set"
+description = "ECS storage spike: the sparse-set backends, ungrouped and with owning groups (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+
+[lints]
+workspace = true

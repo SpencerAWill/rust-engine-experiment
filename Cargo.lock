@@ -1994,6 +1994,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_sparse_set"
+version = "0.1.0"
+dependencies = [
+ "engine",
+]
+
+[[package]]
 name = "spike_ecs_vec"
 version = "0.1.0"
 dependencies = [

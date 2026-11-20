@@ -39,7 +39,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: storage and the ungrouped `World` (R1, R2 in part, R3, R4 for S1 to S3)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/sparse_set/Cargo.toml`, `src/lib.rs`, `src/storage.rs`, `src/world.rs` (new); `xtask/src/coverage.rs` (`spike_ecs_sparse_set` in `SPIKE_PACKAGES`, spec §4.9); `Cargo.lock`.
 - **Interfaces produced:**
   - `lib.rs`: `pub struct EntityMarker;`, `pub type Entity = GenId<EntityMarker>;`, `pub use world::{InvariantViolation, World};`.
@@ -182,4 +182,7 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 
 ## 5. Deviations
 
-None yet.
+- **Step 1, coverage:** `xtask/src/coverage.rs` lists the spike packages twice; the expected `--exclude` list in `test_args_match_the_spec` also gets the name, or that test fails.
+- **Step 1, dependencies:** only `engine`; the harness, `spike_ecs_vec`, `proptest` and `agents_2d` arrive with the steps that use them (an unused dependency fails clippy).
+- **Step 1, dead code:** the storage methods that later steps use from library code (`SparseSet::{swap, split, split_mut}`, `Packed::{swap, split_mut}`, `ErasedStorage::{index_of, swap, entities}`) are `#[cfg(test)]` until then; steps 2 and 3 remove the gates. No `#[allow(dead_code)]`.
+- **Step 1, tests:** three tests beyond the plan (`erased_storage_works_through_the_trait`, `world_debug_shows_the_live_count_and_storages`, `world_reports_a_corrupt_storage`); the insert panic is "World::insert called on a despawned entity …" (testing-2), and its test expects that prefix.
