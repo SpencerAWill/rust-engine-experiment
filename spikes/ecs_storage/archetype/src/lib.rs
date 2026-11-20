@@ -17,7 +17,10 @@
 mod archetype;
 mod bundle;
 mod commands;
+pub mod frag_iter;
+pub mod heavy_compute;
 mod query;
+pub mod simple_iter;
 mod table;
 mod world;
 

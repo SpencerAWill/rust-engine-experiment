@@ -109,7 +109,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: `simple_iter`, `frag_iter` and `heavy_compute` (R9 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/simple_iter.rs`, `src/frag_iter.rs`, `src/heavy_compute.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`spike_ecs_harness`, dev `spike_ecs_vec`), `Cargo.lock`.
 - **Interfaces produced:** `simple_iter::ArchetypeSimpleIter`, `frag_iter::ArchetypeFragIter`, `heavy_compute::ArchetypeHeavyCompute` (spec §4.8). Each step query is one private function used by `step` and by a `#[cfg(test)] pub(crate) fn step_archetypes(&mut self) -> Vec<ArchetypeId>` hook (lesson ecs-1). `frag_iter` spawns `(L, Data)` through a local macro over the 26 `Letter` variants; its checksum runs one `query::<(&L, &Data)>()` per letter.
 - **Test first** (`tests.rs`): `simple_iter_archetype_matches_the_reference`, `frag_iter_archetype_matches_the_reference`, `heavy_compute_archetype_matches_the_reference`; `<workload>_archetype_layout` for each (after `setup`, `archetype_count` is 2, 27 and 2; the step query matches 1, 26 and 1 archetypes); `zero_count_is_valid` for the three (focus 9). Fails first: does not compile.
@@ -187,3 +187,4 @@ From `lessons-researcher` (2026-11-20).
 - **Step 3, filters:** archetype-level only (`seal::Filter` is a type list), since `With` and `Without` decide per archetype here.
 - **Step 3, read-only `for_each`:** the builder's first version ran `Query::for_each` through the `QueryIter` state machine; sent back under spec §4.6 step 5, it now has `QueryMut::for_each`'s per-archetype row loop.
 - **Step 3, allocations (ecs-2):** two heap allocations per query run (the `Plan`'s type list and the `Slots` vector), none per matched archetype or row, for `Query::for_each`, `Query::iter` and `QueryMut::for_each` with 1 to 5 types over three archetypes. Measured with a temporary counting `#[global_allocator]` that required lifting `forbid(unsafe_code)` in the working tree; reverted before review and never committed.
+- **Step 5, test hooks:** each workload also has a `#[cfg(test)] archetype_count()` accessor beside `step_archetypes()`, keeping the `world` field private.

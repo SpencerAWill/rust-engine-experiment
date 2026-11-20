@@ -40,3 +40,6 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 lesson? Measuring a spike's allocations needs a counting allocator, which needs `unsafe`; do it outside the crate (a scratchpad binary or bench crate depending on it, or `dhat` as #41 plans), never by lifting `forbid(unsafe_code)`, and say so in the brief.
 - 2026-11-20 done Step 4: Commands adapted from M3.3 (commands.rs, lib.rs, model-test Defer*/Apply ops); test, ci --quick pass
 - 2026-11-20 done Step 4 checked by the main session: `ci --quick` rc 0, 866 tests.
+- 2026-11-20 done step 5: simple_iter, frag_iter, heavy_compute added to the archetype backend; layout 2/27/2, step queries match 1/26/1
+- 2026-11-20 decision workload modules are pub mod (unreachable_pub lint rejects pub types in private modules; benches in step 8 need them)
+- 2026-11-20 done Step 5 checked by the main session: `ci --quick` rc 0, 873 tests.

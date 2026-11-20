@@ -1973,6 +1973,8 @@ version = "0.1.0"
 dependencies = [
  "engine",
  "proptest",
+ "spike_ecs_harness",
+ "spike_ecs_vec",
 ]
 
 [[package]]

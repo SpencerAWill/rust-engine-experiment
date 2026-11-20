@@ -285,3 +285,80 @@ proptest! {
         run(&ops);
     }
 }
+
+mod workloads {
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::frag_iter::VecFragIter;
+    use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::simple_iter::VecSimpleIter;
+
+    use crate::frag_iter::ArchetypeFragIter;
+    use crate::heavy_compute::ArchetypeHeavyCompute;
+    use crate::simple_iter::ArchetypeSimpleIter;
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    #[test]
+    fn simple_iter_archetype_matches_the_reference() {
+        check_conformance::<VecSimpleIter, ArchetypeSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_archetype_matches_the_reference() {
+        check_conformance::<VecFragIter, ArchetypeFragIter>(
+            Params {
+                count: 20,
+                seed: 42,
+            },
+            TICKS,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn heavy_compute_archetype_matches_the_reference() {
+        check_conformance::<VecHeavyCompute, ArchetypeHeavyCompute>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_archetype_layout() {
+        let mut w = ArchetypeSimpleIter::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(w.step_archetypes().len(), 1);
+    }
+
+    #[test]
+    fn frag_iter_archetype_layout() {
+        let mut w = ArchetypeFragIter::setup(Params {
+            count: 20,
+            seed: 42,
+        });
+        assert_eq!(w.archetype_count(), 27);
+        assert_eq!(w.step_archetypes().len(), 26);
+    }
+
+    #[test]
+    fn heavy_compute_archetype_layout() {
+        let mut w = ArchetypeHeavyCompute::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(w.step_archetypes().len(), 1);
+    }
+
+    fn zero_count<W: Workload>() {
+        let mut w = W::setup(Params { count: 0, seed: 7 });
+        assert_eq!(w.checksum(), 0);
+        w.step();
+        assert_eq!(w.checksum(), 0);
+    }
+
+    #[test]
+    fn zero_count_is_valid() {
+        zero_count::<ArchetypeSimpleIter>();
+        zero_count::<ArchetypeFragIter>();
+        zero_count::<ArchetypeHeavyCompute>();
+    }
+}
