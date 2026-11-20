@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use engine::genid::GenIdAllocator;
 
 use crate::archetype::{Archetype, ArchetypeId, ComponentId};
+use crate::bundle::{self, Bundle, BundleInfo};
 use crate::table::{Column, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
 
@@ -82,6 +83,8 @@ pub struct World {
     components: Vec<ComponentInfo>,
     archetypes: Vec<Archetype>,
     by_components: BTreeMap<Box<[ComponentId]>, ArchetypeId>,
+    /// One entry per bundle type spawned so far, keyed by the tuple's `TypeId`.
+    bundles: BTreeMap<TypeId, BundleInfo>,
     /// Indexed by `entity.index()`.
     locations: Vec<Location>,
     /// How many times `by_components` was read, so a test can tell a warm transition from a
@@ -104,6 +107,7 @@ impl World {
             components: Vec::new(),
             archetypes: vec![Archetype::new(empty, Table::new(Box::new([])))],
             by_components,
+            bundles: BTreeMap::new(),
             locations: Vec::new(),
             #[cfg(test)]
             lookups: 0,
@@ -130,6 +134,69 @@ impl World {
         self.set_location(entity, ArchetypeId::EMPTY, row);
         self.live += 1;
         entity
+    }
+
+    /// Creates an entity with the components of `bundle`, a flat tuple of 1 to 8 values, placed
+    /// straight into the table for exactly those types.
+    ///
+    /// # Panics
+    ///
+    /// Panics with a `World::spawn_with:` message if a type appears twice in the bundle, or if
+    /// the world holds the most entities it can (2³¹−2 entity slots in use or retired). The
+    /// world is unchanged in either case.
+    #[track_caller]
+    pub fn spawn_with<B: Bundle>(&mut self, bundle: B) -> Entity {
+        let key = TypeId::of::<B>();
+        if !self.bundles.contains_key(&key) {
+            let info = self.build_bundle_info::<B>();
+            self.bundles.insert(key, info);
+        }
+        let Some(entity) = self.entities.try_allocate() else {
+            panic!(
+                "World::spawn_with: the world holds the most entities it can (every entity slot \
+                 is in use or retired); despawn entities to free slots"
+            )
+        };
+        let info = &self.bundles[&key];
+        let archetype = info.archetype;
+        let table = &mut self.archetypes[archetype.index()].table;
+        let row = table.len();
+        table.push_bundle(entity, bundle, &info.columns);
+        self.set_location(entity, archetype, row);
+        self.live += 1;
+        entity
+    }
+
+    /// Finds or creates the archetype of bundle type `B` and records its column order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a type appears twice in `B`.
+    #[track_caller]
+    fn build_bundle_info<B: Bundle>(&mut self) -> BundleInfo {
+        let types = B::types();
+        for (k, (type_id, name)) in types.iter().enumerate() {
+            assert!(
+                types[..k].iter().all(|(other, _)| other != type_id),
+                "World::spawn_with: `{name}` appears twice in the bundle; a bundle holds each \
+                 component type once"
+            );
+        }
+        let ids = B::register(self);
+        let list = bundle::sorted(&ids);
+        let archetype = self.find_or_create(list.clone());
+        let columns = ids
+            .iter()
+            .map(|id| {
+                list.binary_search(id)
+                    .expect("the bundle's ids are in its list")
+            })
+            .collect();
+        BundleInfo {
+            archetype,
+            columns,
+            types: types.into_iter().map(|(type_id, _)| type_id).collect(),
+        }
     }
 
     /// Removes the entity and all its components. Returns `false` if it was not alive.
@@ -257,8 +324,8 @@ impl World {
         Some(archetype.table.get_mut(row as usize, col))
     }
 
-    /// Checks the table invariants (T1, T2) and the archetype invariants (A1 to A4), and returns
-    /// the first violation.
+    /// Checks the table invariants (T1, T2), the archetype invariants (A1 to A4) and the bundle
+    /// invariant (B1), and returns the first violation.
     ///
     /// # Errors
     ///
@@ -274,7 +341,46 @@ impl World {
             archetype.table.check(&types)?;
         }
         self.check_locations()?;
-        self.check_edges()
+        self.check_edges()?;
+        self.check_bundles()
+    }
+
+    /// B1.
+    fn check_bundles(&self) -> Result<(), InvariantViolation> {
+        for info in self.bundles.values() {
+            let Some(archetype) = self.archetypes.get(info.archetype.index()) else {
+                return Err(InvariantViolation::new(format!(
+                    "B1: a bundle names archetype {}, which does not exist",
+                    info.archetype.index()
+                )));
+            };
+            let type_of = |c: ComponentId| self.components[c.index()].type_id;
+            let mut want: Vec<TypeId> = info.types.to_vec();
+            want.sort_unstable();
+            let mut have: Vec<TypeId> = archetype.components.iter().map(|c| type_of(*c)).collect();
+            have.sort_unstable();
+            if want != have {
+                return Err(InvariantViolation::new(format!(
+                    "B1: a bundle of {} types is cached with archetype {}, whose types differ",
+                    info.types.len(),
+                    info.archetype.index()
+                )));
+            }
+            for (k, (type_id, col)) in info.types.iter().zip(&info.columns).enumerate() {
+                let ok = archetype
+                    .components
+                    .get(*col)
+                    .is_some_and(|c| type_of(*c) == *type_id);
+                if !ok {
+                    return Err(InvariantViolation::new(format!(
+                        "B1: element {k} of a bundle is cached at column {col} of archetype {}, \
+                         which is not its type's column",
+                        info.archetype.index()
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// A3.
@@ -823,5 +929,154 @@ mod tests {
         assert!(text.contains("live: 2"), "got: {text}");
         assert!(text.contains('A'), "got: {text}");
         assert!(World::default().is_empty());
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct Hidden;
+
+    #[test]
+    fn spawn_with_creates_exactly_one_archetype() {
+        let mut w = World::new();
+        assert_eq!(w.archetype_count(), 1);
+        let e = w.spawn_with((A(1), B(2), C(3)));
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(w.len(), 1);
+        assert_eq!(location(&w, e).archetype, ArchetypeId::new(1));
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn a_warm_spawn_with_does_not_look_up_by_components() {
+        let mut w = World::new();
+        w.spawn_with((A(1), B(2)));
+        let lookups = w.lookups;
+        assert!(lookups > 0);
+        w.spawn_with((A(3), B(4)));
+        assert_eq!(w.lookups, lookups);
+        assert_eq!(w.archetype_count(), 2);
+    }
+
+    #[test]
+    fn bundle_values_land_in_their_own_columns() {
+        let mut w = World::new();
+        // Register A, B, C in that order first, so ids ascend; then spawn in another order.
+        let seed = w.spawn();
+        w.insert(seed, A(0));
+        w.insert(seed, B(0));
+        w.insert(seed, C(0));
+        let e = w.spawn_with((C(30), A(10), B(20)));
+        assert_eq!(w.get::<A>(e), Some(&A(10)));
+        assert_eq!(w.get::<B>(e), Some(&B(20)));
+        assert_eq!(w.get::<C>(e), Some(&C(30)));
+        let f = w.spawn_with((B(2), C(3), A(1)));
+        assert_eq!(w.get::<A>(f), Some(&A(1)));
+        assert_eq!(w.get::<B>(f), Some(&B(2)));
+        assert_eq!(w.get::<C>(f), Some(&C(3)));
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn zero_sized_bundle_element_is_a_component() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1), Hidden));
+        assert_eq!(w.get::<Hidden>(e), Some(&Hidden));
+        assert_eq!(w.get::<A>(e), Some(&A(1)));
+        assert_eq!(w.remove::<Hidden>(e), Some(Hidden));
+        assert_eq!(w.get::<Hidden>(e), None);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn bundles_of_one_and_eight_types_work() {
+        macro_rules! t {
+            ($($n:ident),*) => { $( struct $n(u8); )* };
+        }
+        t!(T1, T2, T3, T4, T5, T6, T7, T8);
+        let mut w = World::new();
+        let one = w.spawn_with((T1(1),));
+        assert_eq!(w.get::<T1>(one).map(|t| t.0), Some(1));
+        let eight = w.spawn_with((T8(8), T7(7), T6(6), T5(5), T4(4), T3(3), T2(2), T1(1)));
+        let got = [
+            w.get::<T1>(eight).map(|t| t.0),
+            w.get::<T2>(eight).map(|t| t.0),
+            w.get::<T3>(eight).map(|t| t.0),
+            w.get::<T4>(eight).map(|t| t.0),
+            w.get::<T5>(eight).map(|t| t.0),
+            w.get::<T6>(eight).map(|t| t.0),
+            w.get::<T7>(eight).map(|t| t.0),
+            w.get::<T8>(eight).map(|t| t.0),
+        ];
+        assert_eq!(got, [1, 2, 3, 4, 5, 6, 7, 8].map(Some));
+        assert_eq!(w.archetype_count(), 3);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    #[should_panic(expected = "appears twice in the bundle")]
+    fn repeated_type_in_a_bundle_panics() {
+        World::new().spawn_with((A(1), B(2), A(3)));
+    }
+
+    #[test]
+    fn repeated_type_panic_names_the_method_and_type() {
+        let mut w = World::new();
+        let failed =
+            std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn_with((A(1), A(2)))));
+        let payload = failed.unwrap_err();
+        let text = message(&*payload);
+        assert!(text.starts_with("World::spawn_with:"), "got: {text}");
+        assert!(
+            text.contains("::A` appears twice in the bundle"),
+            "got: {text}"
+        );
+        assert_eq!(w.len(), 0);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn a_failed_spawn_with_leaves_len_unchanged() {
+        let mut w = World::new();
+        w.entities = GenIdAllocator::with_fixed_capacity(1);
+        w.spawn_with((A(1), B(2)));
+        let failed =
+            std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn_with((A(3), B(4)))));
+        let payload = failed.unwrap_err();
+        assert!(
+            message(&*payload).starts_with("World::spawn_with:"),
+            "got: {}",
+            message(&*payload)
+        );
+        assert_eq!(w.len(), 1);
+        assert_eq!(w.archetypes[1].table.len(), 1);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn b1_violation_is_reported() {
+        let mut w = World::new();
+        w.spawn_with((C(3), A(1), B(2)));
+        assert_eq!(w.check_invariants(), Ok(()));
+        // Swap two column indices.
+        for info in w.bundles.values_mut() {
+            info.columns.swap(0, 1);
+        }
+        assert!(violation(&w).contains("B1"), "got: {}", violation(&w));
+        // Point the bundle at another archetype.
+        let mut w = World::new();
+        w.spawn_with((A(1), B(2)));
+        w.spawn_with((A(1), C(2)));
+        let other = w
+            .bundles
+            .values()
+            .map(|i| i.archetype.index())
+            .max()
+            .unwrap();
+        let first = w
+            .bundles
+            .values_mut()
+            .find(|i| i.archetype.index() != other)
+            .unwrap();
+        first.archetype = ArchetypeId::new(other);
+        assert!(violation(&w).contains("B1"), "got: {}", violation(&w));
     }
 }

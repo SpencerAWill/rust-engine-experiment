@@ -70,7 +70,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: bundles and the model test (R2 in part, R4 for B1, R5, R6)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/bundle.rs` (new), `src/world.rs`, `src/lib.rs`, `src/tests.rs` (new), `Cargo.toml` (`proptest`), `Cargo.lock`.
 - **Interfaces produced:** `pub trait Bundle: seal::Bundle + 'static` for flat tuples of 1 to 8 `'static` types (one macro); `BundleInfo { archetype, columns }`; `World::bundles: BTreeMap<TypeId, BundleInfo>`; `World::spawn_with<B: Bundle>(&mut self, bundle: B) -> Entity` (`#[track_caller]`, `# Panics` for a repeated type and a full allocator); `check_invariants` checks B1. `pub use bundle::Bundle;`.
 - **Test first:**
@@ -181,3 +181,5 @@ From `lessons-researcher` (2026-11-20).
 - **Step 1, `ErasedColumn::new_empty`:** omitted. Spec §4.3 lists it, but `ComponentInfo::new_column` already creates a new archetype's columns, and an unused method fails clippy. `Table::columns_mut` waits for step 3, which uses it; `Table::column` is `#[cfg(test)]`.
 - **Step 1, `Table::check(&[TypeId])`:** T1 and T2 are checked inside `table.rs`, so its tests can corrupt the private fields; `World::check_invariants` checks A3 first, then T1 and T2, A1 and A2, A4.
 - **Step 1, extra tests:** `replace_and_get_mut_write_in_place`, `push_empty_on_a_table_with_columns_panics`, `world_debug_shows_the_live_count_and_archetypes`.
+- **Step 2, `BundleInfo::types`:** a third field holds the element `TypeId`s in tuple order, because B1 cannot be checked from `archetype` and `columns` alone.
+- **Step 2, row writes:** the seal's `write` takes a `RowWriter` (table.rs, private constructor) instead of the table, so `Table::push_bundle` is the only way to push a bundle row and it `assert!`s T1 afterwards. The builder's first version had separate `push_value`/`finish_row` methods, each breaking T1 alone; sent back under R3. `ComponentId` and `RowWriter` are `pub` in private modules for `private_interfaces`; `Table` stays `pub(crate)`.

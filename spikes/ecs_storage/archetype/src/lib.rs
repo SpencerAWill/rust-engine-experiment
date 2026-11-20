@@ -15,11 +15,16 @@
 //! not to be published. The spec is `docs/chunks/m3.4-archetype/spec.md`.
 
 mod archetype;
+mod bundle;
 mod table;
 mod world;
 
+#[cfg(test)]
+mod tests;
+
 use engine::genid::GenId;
 
+pub use bundle::Bundle;
 pub use world::{InvariantViolation, World};
 
 /// The marker type of [`Entity`] IDs.

@@ -4,7 +4,7 @@ use crate::table::Table;
 
 /// The dense index of a component type: the position of its `ComponentInfo` in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ComponentId(u32);
+pub struct ComponentId(u32);
 
 impl ComponentId {
     pub(crate) const fn new(index: u32) -> Self {

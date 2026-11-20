@@ -1972,6 +1972,7 @@ name = "spike_ecs_archetype"
 version = "0.1.0"
 dependencies = [
  "engine",
+ "proptest",
 ]
 
 [[package]]

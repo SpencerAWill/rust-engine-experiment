@@ -3,6 +3,7 @@
 use core::any::{Any, TypeId};
 
 use crate::archetype::ComponentId;
+use crate::bundle::Bundle;
 use crate::{Entity, InvariantViolation};
 
 /// The values of one component type in one archetype, one per row.
@@ -75,6 +76,18 @@ fn typed_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut Column<T> {
         .expect("T2: a column holds the type its component id names")
 }
 
+/// Pushes the elements of one bundle onto a table's columns. Only [`Table::push_bundle`] makes
+/// one, and it checks that the row is complete.
+#[derive(Debug)]
+pub struct RowWriter<'t>(&'t mut [Box<dyn ErasedColumn>]);
+
+impl RowWriter<'_> {
+    /// Pushes `value` onto column `col`.
+    pub(crate) fn push<T: 'static>(&mut self, col: usize, value: T) {
+        typed_mut::<T>(&mut *self.0[col]).0.push(value);
+    }
+}
+
 /// An archetype's entities and component columns. Column `i` holds the archetype's `i`-th
 /// component in ascending [`ComponentId`] order. The fields are private and every operation
 /// changes the entity list and all columns together (T1).
@@ -123,6 +136,23 @@ impl Table {
             self.columns.len()
         );
         self.entities.push(entity);
+    }
+
+    /// Adds a row from `bundle`, whose `k`-th element goes to column `columns[k]`, and the
+    /// entity. The whole row is written by this one operation (T1).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `columns` does not cover every column exactly once: the row would break T1.
+    /// Internal only.
+    pub(crate) fn push_bundle<B: Bundle>(&mut self, entity: Entity, bundle: B, columns: &[usize]) {
+        bundle.write(&mut RowWriter(&mut self.columns), columns);
+        self.entities.push(entity);
+        assert!(
+            self.columns.iter().all(|c| c.len() == self.entities.len()),
+            "Table::push_bundle left a column at a different length than the entity list (T1); \
+             this is a bug in the prototype"
+        );
     }
 
     /// Drops the row and returns the entity moved into the hole, if any.
@@ -246,6 +276,28 @@ mod tests {
 
     fn table(columns: Vec<Box<dyn ErasedColumn>>) -> Table {
         Table::new(columns.into_boxed_slice())
+    }
+
+    #[test]
+    fn push_bundle_fills_every_column() {
+        let es = entities(2);
+        let mut t = table(vec![col::<u32>(), col::<u64>()]);
+        // Tuple order (u64, u32) is the reverse of column order.
+        t.push_bundle(es[0], (7u64, 3u32), &[1, 0]);
+        t.push_bundle(es[1], (8u64, 4u32), &[1, 0]);
+        assert_eq!(t.entities(), &es[..]);
+        assert_eq!(*t.get::<u32>(1, 0), 4);
+        assert_eq!(*t.get::<u64>(0, 1), 7);
+        assert_eq!(t.column(0).len(), 2);
+        assert_eq!(t.column(1).len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "T1")]
+    fn push_bundle_with_a_missing_column_panics() {
+        let es = entities(1);
+        let mut t = table(vec![col::<u32>(), col::<u64>()]);
+        t.push_bundle(es[0], (3u32,), &[0]);
     }
 
     const ID0: ComponentId = ComponentId::new(0);
