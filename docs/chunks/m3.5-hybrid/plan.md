@@ -124,7 +124,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: `sprites` and `agents` (R10, R11)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/sprites.rs`, `src/agents.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `sprites::HybridSprites` (owns the draw list, reserved to `count` in `setup`; `Hidden` a table type in the bundle; move and draw queries each a private function with hooks) and `agents::HybridAgents` (`pub struct AgentId(pub u64)`, `Velocity(pub Vec2)`, `Ttl(pub u32)` as M3.4's, their `Component` impls in `agents.rs`; seeker change recorded before the `despawn`, as M3.4's step does; respawn with a 4- or 5-element bundle).
 - **Test first** (`tests.rs`): `sprites_hybrid_matches_the_reference`, `agents_hybrid_matches_the_reference` (1,000 agents, 1,300 ticks); `sprites_hybrid_matches_its_archetypes` (2 archetypes plus the empty one; both queries' `probed()` empty; draw matches only the archetype without `Hidden`); `agents_hybrid_matches_its_archetypes` (1 plus the empty one after setup; after one step the step query matches it and probes `Seeker` as optional); `agents_keeps_invariants_every_tick` (1,000 agents, 1,300 ticks; `archetype_count` constant); `zero_count_is_valid` for the two. Fails first: does not compile.

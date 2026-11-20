@@ -16,6 +16,7 @@
 //! published. The spec is `docs/chunks/m3.5-hybrid/spec.md`.
 
 pub mod add_remove;
+pub mod agents;
 mod archetype;
 mod bundle;
 mod commands;
@@ -27,6 +28,7 @@ pub mod heavy_compute;
 mod query;
 pub mod simple_iter;
 mod sparse;
+pub mod sprites;
 mod table;
 mod world;
 

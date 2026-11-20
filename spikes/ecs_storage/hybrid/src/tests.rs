@@ -421,18 +421,22 @@ proptest! {
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::agents::VecAgents;
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
+    use spike_ecs_vec::sprites::VecSprites;
 
     use crate::add_remove::HybridAddRemove;
+    use crate::agents::HybridAgents;
     use crate::archetype::ArchetypeId;
     use crate::entity_churn::HybridEntityChurn;
     use crate::frag_iter::HybridFragIter;
     use crate::heavy_compute::HybridHeavyCompute;
     use crate::query::seal::Role;
     use crate::simple_iter::HybridSimpleIter;
+    use crate::sprites::HybridSprites;
 
     fn ids(v: &[usize]) -> Vec<ArchetypeId> {
         v.iter().map(|&i| ArchetypeId::new(i)).collect()
@@ -447,6 +451,7 @@ mod workloads {
         seed: 42,
     };
     const TICKS: u64 = 120;
+    const AGENT_TICKS: u64 = 1_300;
 
     #[test]
     fn simple_iter_hybrid_matches_the_reference() {
@@ -562,6 +567,65 @@ mod workloads {
         }
     }
 
+    #[test]
+    fn sprites_hybrid_matches_the_reference() {
+        check_conformance::<VecSprites, HybridSprites>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn agents_hybrid_matches_the_reference() {
+        check_conformance::<VecAgents, HybridAgents>(PARAMS, AGENT_TICKS).unwrap();
+    }
+
+    #[test]
+    fn sprites_hybrid_matches_its_archetypes() {
+        let mut w = HybridSprites::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 3);
+        w.step();
+        assert_eq!(w.move_archetypes(), ids(&[1, 2]));
+        assert_eq!(w.move_probed(), []);
+        // The draw query matches the archetype without `Hidden`, the one with fewer components.
+        let visible = w
+            .world()
+            .parts()
+            .0
+            .iter()
+            .position(|a| a.components.len() == 3)
+            .unwrap();
+        assert_eq!(w.draw_archetypes(), ids(&[visible]));
+        assert_eq!(w.draw_probed(), []);
+    }
+
+    #[test]
+    fn agents_hybrid_matches_its_archetypes() {
+        let mut w = HybridAgents::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.step_archetypes(), ids(&[1]));
+        let seeker = w
+            .world()
+            .component_id_of(std::any::TypeId::of::<spike_ecs_harness::agents::Seeker>())
+            .expect("Seeker is registered by the first respawn with one");
+        assert_eq!(w.step_probed(), [(seeker, Role::Optional)]);
+    }
+
+    #[test]
+    fn agents_keeps_invariants_every_tick() {
+        let mut w = HybridAgents::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        let after_setup = w.archetype_count();
+        for _ in 0..AGENT_TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+            assert_eq!(
+                w.archetype_count(),
+                after_setup,
+                "a Seeker toggle moves no row"
+            );
+        }
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -576,5 +640,7 @@ mod workloads {
         zero_count::<HybridHeavyCompute>();
         zero_count::<HybridAddRemove>();
         zero_count::<HybridEntityChurn>();
+        zero_count::<HybridSprites>();
+        zero_count::<HybridAgents>();
     }
 }
