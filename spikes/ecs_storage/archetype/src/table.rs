@@ -18,7 +18,7 @@ impl<T> Column<T> {
 
 /// What code that does not know a column's value type can do with it. The method names avoid
 /// `Any::type_id`, which a `Box<dyn ErasedColumn>` would otherwise resolve to the box's own type.
-pub(crate) trait ErasedColumn: Any {
+pub trait ErasedColumn: Any {
     fn len(&self) -> usize;
     fn value_type_id(&self) -> TypeId;
     fn value_type_name(&self) -> &'static str;
@@ -76,6 +76,16 @@ fn typed_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut Column<T> {
         .expect("T2: a column holds the type its component id names")
 }
 
+/// The values of a column whose value type is `T`.
+pub(crate) fn column_slice<T: 'static>(column: &dyn ErasedColumn) -> &[T] {
+    &typed::<T>(column).0
+}
+
+/// The values of a column whose value type is `T`, exclusive.
+pub(crate) fn column_slice_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut [T] {
+    &mut typed_mut::<T>(column).0
+}
+
 /// Pushes the elements of one bundle onto a table's columns. Only [`Table::push_bundle`] makes
 /// one, and it checks that the row is complete.
 #[derive(Debug)]
@@ -119,9 +129,15 @@ impl Table {
         &self.entities
     }
 
-    #[cfg(test)]
     pub(crate) fn column(&self, i: usize) -> &dyn ErasedColumn {
         &*self.columns[i]
+    }
+
+    /// The entity list and the columns, the columns exclusive. The entity list is not part of
+    /// the columns, so a query can read it while it writes a column; a caller cannot change the
+    /// length of either through these borrows (T1).
+    pub(crate) fn columns_mut(&mut self) -> (&[Entity], &mut [Box<dyn ErasedColumn>]) {
+        (&self.entities, &mut self.columns)
     }
 
     /// Adds a row to a table with no columns.

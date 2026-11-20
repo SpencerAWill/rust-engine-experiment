@@ -84,6 +84,63 @@ fn get(w: &World, e: Entity, t: usize) -> Option<u32> {
     }
 }
 
+/// The sorted `to_bits` of the live entities whose model row satisfies `keep`.
+fn expected(
+    model: &Model,
+    live: &BTreeSet<u64>,
+    keep: impl Fn(&[Option<u32>; 4]) -> bool,
+) -> Vec<u64> {
+    live.iter()
+        .copied()
+        .filter(|bits| keep(&model[bits]))
+        .collect()
+}
+
+fn bits(it: impl Iterator<Item = Entity>) -> Vec<u64> {
+    let mut v: Vec<u64> = it.map(Entity::to_bits).collect();
+    v.sort_unstable();
+    v
+}
+
+/// Compares the entity sets of five queries with the model's.
+fn check_queries(w: &World, model: &Model, live: &BTreeSet<u64>) {
+    assert_eq!(
+        bits(w.query::<(Entity, &C0, &C1)>().iter().map(|(e, _, _)| e)),
+        expected(model, live, |r| r[0].is_some() && r[1].is_some()),
+        "(Entity, &C0, &C1)"
+    );
+    assert_eq!(
+        bits(
+            w.query::<(Entity, &C0)>()
+                .without::<C2>()
+                .iter()
+                .map(|(e, _)| e)
+        ),
+        expected(model, live, |r| r[0].is_some() && r[2].is_none()),
+        "(Entity, &C0) without C2"
+    );
+    assert_eq!(
+        bits(
+            w.query::<(Entity, Option<&C3>)>()
+                .with::<C1>()
+                .iter()
+                .map(|(e, _)| e)
+        ),
+        expected(model, live, |r| r[1].is_some()),
+        "(Entity, Option<&C3>) with C1"
+    );
+    assert_eq!(
+        bits(w.query::<Entity>().iter()),
+        expected(model, live, |_| true),
+        "Entity"
+    );
+    assert_eq!(
+        bits(w.query::<Entity>().without::<C0>().iter()),
+        expected(model, live, |r| r[0].is_none()),
+        "Entity without C0"
+    );
+}
+
 #[allow(clippy::many_single_char_names)] // model-test locals: w, e, t, v, k
 fn run(ops: &[Op]) {
     let mut w = World::new();
@@ -137,6 +194,7 @@ fn run(ops: &[Op]) {
         }
         assert_eq!(w.check_invariants(), Ok(()));
         assert_eq!(w.len(), live.len());
+        check_queries(&w, &model, &live);
         for e in &spawned {
             for (t, expected) in model[&e.to_bits()].iter().enumerate() {
                 assert_eq!(get(&w, *e, t), *expected, "{e:?} type {t}");

@@ -16,6 +16,7 @@
 
 mod archetype;
 mod bundle;
+mod query;
 mod table;
 mod world;
 
@@ -25,6 +26,7 @@ mod tests;
 use engine::genid::GenId;
 
 pub use bundle::Bundle;
+pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use world::{InvariantViolation, World};
 
 /// The marker type of [`Entity`] IDs.

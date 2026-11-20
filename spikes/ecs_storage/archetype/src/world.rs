@@ -8,6 +8,7 @@ use engine::genid::GenIdAllocator;
 
 use crate::archetype::{Archetype, ArchetypeId, ComponentId};
 use crate::bundle::{self, Bundle, BundleInfo};
+use crate::query::{Query, QueryMut, QueryParam, ReadOnly};
 use crate::table::{Column, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
 
@@ -324,6 +325,16 @@ impl World {
         Some(archetype.table.get_mut(row as usize, col))
     }
 
+    /// A read-only query over `Q`; see [`Query`]. Nothing runs until the query does.
+    pub fn query<Q: ReadOnly>(&self) -> Query<'_, Q> {
+        Query::new(self)
+    }
+
+    /// A query over `Q` that may write; see [`QueryMut`]. Nothing runs until the query does.
+    pub fn query_mut<Q: QueryParam>(&mut self) -> QueryMut<'_, Q> {
+        QueryMut::new(self)
+    }
+
     /// Checks the table invariants (T1, T2), the archetype invariants (A1 to A4) and the bundle
     /// invariant (B1), and returns the first violation.
     ///
@@ -492,6 +503,21 @@ impl World {
     /// The id of `T`, if it was ever registered.
     pub(crate) fn component_id<T: 'static>(&self) -> Option<ComponentId> {
         self.ids.get(&TypeId::of::<T>()).copied()
+    }
+
+    /// The id of the component type `type_id`, if it was ever registered.
+    pub(crate) fn component_id_of(&self, type_id: TypeId) -> Option<ComponentId> {
+        self.ids.get(&type_id).copied()
+    }
+
+    /// Every archetype, indexed by `ArchetypeId`.
+    pub(crate) fn archetypes(&self) -> &[Archetype] {
+        &self.archetypes
+    }
+
+    /// Every archetype, exclusive.
+    pub(crate) fn archetypes_mut(&mut self) -> &mut [Archetype] {
+        &mut self.archetypes
     }
 
     /// The id of `T`, registering it on first use.

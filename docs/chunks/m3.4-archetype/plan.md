@@ -83,7 +83,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: queries (R2 in part, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/query.rs` (new), `src/world.rs`, `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:**
   - `QueryParam`, `ReadOnly`, `Filter` (sealed, one seal each, `Item` on `seal::Param`), `With<T>`, `Without<T>` (`PhantomData<fn() -> T>`, `Debug`), `Query<'w, Q, F = ()>`, `QueryMut<'w, Q, F = ()>`, `QueryIter<'w, Q, F>` (spec §4.6; `#[must_use]`, `Debug`; `QueryIter` `FusedIterator` with exact `size_hint`); `IntoIterator` for `Query` and `&Query`; `World::query` and `World::query_mut`. `#[cfg(test)] pub(crate) fn matched_archetypes(&self) -> Vec<ArchetypeId>` on both query types, built by the same matching function the run uses.
@@ -183,3 +183,7 @@ From `lessons-researcher` (2026-11-20).
 - **Step 1, extra tests:** `replace_and_get_mut_write_in_place`, `push_empty_on_a_table_with_columns_panics`, `world_debug_shows_the_live_count_and_archetypes`.
 - **Step 2, `BundleInfo::types`:** a third field holds the element `TypeId`s in tuple order, because B1 cannot be checked from `archetype` and `columns` alone.
 - **Step 2, row writes:** the seal's `write` takes a `RowWriter` (table.rs, private constructor) instead of the table, so `Table::push_bundle` is the only way to push a bundle row and it `assert!`s T1 afterwards. The builder's first version had separate `push_value`/`finish_row` methods, each breaking T1 alone; sent back under R3. `ComponentId` and `RowWriter` are `pub` in private modules for `private_interfaces`; `Table` stays `pub(crate)`.
+- **Step 3, `columns_mut`:** returns `(&[Entity], &mut [Box<dyn ErasedColumn>])` as spec §4.3 says, since a mutable query with an `Entity` parameter needs both; `Table::column` is no longer `#[cfg(test)]`. `Archetype` and `ErasedColumn` are `pub` in private modules for `private_interfaces`.
+- **Step 3, filters:** archetype-level only (`seal::Filter` is a type list), since `With` and `Without` decide per archetype here.
+- **Step 3, read-only `for_each`:** the builder's first version ran `Query::for_each` through the `QueryIter` state machine; sent back under spec §4.6 step 5, it now has `QueryMut::for_each`'s per-archetype row loop.
+- **Step 3, allocations (ecs-2):** two heap allocations per query run (the `Plan`'s type list and the `Slots` vector), none per matched archetype or row, for `Query::for_each`, `Query::iter` and `QueryMut::for_each` with 1 to 5 types over three archetypes. Measured with a temporary counting `#[global_allocator]` that required lifting `forbid(unsafe_code)` in the working tree; reverted before review and never committed.

@@ -39,7 +39,7 @@ impl ArchetypeId {
 /// A set of component types, its table, and the cached archetypes reached by adding or
 /// removing one type.
 #[derive(Debug)]
-pub(crate) struct Archetype {
+pub struct Archetype {
     /// Strictly ascending.
     pub(crate) components: Box<[ComponentId]>,
     pub(crate) table: Table,
