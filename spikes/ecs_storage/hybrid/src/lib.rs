@@ -18,6 +18,7 @@
 mod archetype;
 mod bundle;
 mod component;
+mod query;
 mod sparse;
 mod table;
 mod world;
@@ -29,6 +30,7 @@ use engine::genid::GenId;
 
 pub use bundle::Bundle;
 pub use component::{Component, SparseStorage, Storage, TableStorage};
+pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use world::{InvariantViolation, World};
 
 /// The marker type of [`Entity`] IDs.

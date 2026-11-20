@@ -11,6 +11,7 @@ use engine::genid::GenIdAllocator;
 use crate::archetype::{Archetype, ArchetypeId, ComponentId};
 use crate::bundle::{self, Bundle, BundleInfo};
 use crate::component::{Component, StorageKind, seal};
+use crate::query::{Query, QueryMut, QueryParam, ReadOnly};
 use crate::sparse::{ErasedSparseSet, SparseSet};
 use crate::table::{Column, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
@@ -313,6 +314,59 @@ impl World {
         self.entities.free(entity);
         self.live -= 1;
         true
+    }
+
+    /// A read-only query over the entities that have every type in `Q`, of either storage
+    /// kind. Chain [`with`](Query::with) and [`without`](Query::without) for filters, then run
+    /// it with [`for_each`](Query::for_each) or [`iter`](Query::iter).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spike_ecs_hybrid::{Component, SparseStorage, TableStorage, World};
+    ///
+    /// struct Hp(u32);
+    /// struct Poisoned(u32);
+    /// impl Component for Hp { type Storage = TableStorage; }
+    /// impl Component for Poisoned { type Storage = SparseStorage; }
+    ///
+    /// let mut world = World::new();
+    /// world.spawn_with((Hp(10), Poisoned(2)));
+    /// world.spawn_with((Hp(7),));
+    ///
+    /// let mut total = 0;
+    /// world.query::<(&Hp, &Poisoned)>().for_each(|(hp, _)| total += hp.0);
+    /// assert_eq!(total, 10);
+    /// ```
+    pub fn query<Q: ReadOnly>(&self) -> Query<'_, Q> {
+        Query::new(self)
+    }
+
+    /// A query that may write: `&mut T` and `Option<&mut T>` parameters are allowed. Run it
+    /// with [`for_each`](QueryMut::for_each).
+    pub fn query_mut<Q: QueryParam>(&mut self) -> QueryMut<'_, Q> {
+        QueryMut::new(self)
+    }
+
+    /// The id of the type `type_id`, if it was ever registered.
+    pub(crate) fn component_id_of(&self, type_id: TypeId) -> Option<ComponentId> {
+        self.ids.get(&type_id).copied()
+    }
+
+    /// What the world knows about the type `id`.
+    pub(crate) fn component_info(&self, id: ComponentId) -> &ComponentInfo {
+        &self.components[id.index()]
+    }
+
+    /// The archetypes and the sparse sets, borrowed separately, for a read-only query run.
+    pub(crate) fn parts(&self) -> (&[Archetype], &[Box<dyn ErasedSparseSet>]) {
+        (&self.archetypes, &self.sparse_sets)
+    }
+
+    /// The archetypes and the sparse sets, borrowed separately and exclusively, for a mutable
+    /// query run.
+    pub(crate) fn parts_mut(&mut self) -> (&mut [Archetype], &mut [Box<dyn ErasedSparseSet>]) {
+        (&mut self.archetypes, &mut self.sparse_sets)
     }
 
     /// Whether `entity` was spawned and not despawned.

@@ -20,7 +20,7 @@ impl<T> Column<T> {
 
 /// What code that does not know a column's value type can do with it. The method names avoid
 /// `Any::type_id`, which a `Box<dyn ErasedColumn>` would otherwise resolve to the box's own type.
-pub(crate) trait ErasedColumn: Any {
+pub trait ErasedColumn: Any {
     fn len(&self) -> usize;
     fn value_type_id(&self) -> TypeId;
     fn value_type_name(&self) -> &'static str;
@@ -78,6 +78,34 @@ fn typed_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut Column<T> {
         .expect("T2: a column holds the type its component id names")
 }
 
+/// The values of a column whose value type is `T`.
+pub(crate) fn column_slice<T: 'static>(column: &dyn ErasedColumn) -> &[T] {
+    &typed::<T>(column).0
+}
+
+/// The values of a column whose value type is `T`, exclusive.
+pub(crate) fn column_slice_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut [T] {
+    &mut typed_mut::<T>(column).0
+}
+
+/// One column, borrowed exclusively, that can be read and written in place but not resized: the
+/// only methods return a slice of a type the caller names, so no code outside [`Table`] can push
+/// or remove a value and break T1 (lesson ecs-5).
+#[derive(Debug)]
+pub struct ColumnMut<'t>(&'t mut dyn ErasedColumn);
+
+impl<'t> ColumnMut<'t> {
+    /// The column's values, shared.
+    pub(crate) fn slice<T: 'static>(self) -> &'t [T] {
+        column_slice(self.0)
+    }
+
+    /// The column's values, exclusive: a slice, so its length cannot change.
+    pub(crate) fn slice_mut<T: 'static>(self) -> &'t mut [T] {
+        column_slice_mut(self.0)
+    }
+}
+
 /// Pushes the table elements of one bundle onto a table's columns. Only [`Table::push_bundle`]
 /// makes one, and it checks that the row is complete.
 #[derive(Debug)]
@@ -121,9 +149,18 @@ impl Table {
         &self.entities
     }
 
-    #[cfg(test)]
     pub(crate) fn column(&self, i: usize) -> &dyn ErasedColumn {
         &*self.columns[i]
+    }
+
+    /// The entity list and the columns, the columns exclusive. The entity list is not part of
+    /// the columns, so a query can read it while it writes a column; a caller cannot change the
+    /// length of either through these borrows (T1).
+    pub(crate) fn columns_mut(&mut self) -> (&[Entity], impl Iterator<Item = ColumnMut<'_>>) {
+        (
+            &self.entities,
+            self.columns.iter_mut().map(|c| ColumnMut(&mut **c)),
+        )
     }
 
     /// Adds a row to a table with no columns.

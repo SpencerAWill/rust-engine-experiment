@@ -51,12 +51,27 @@ pub enum StorageKind {
 
 pub(crate) mod seal {
     use super::{Component, Entity, SparseStorage, StorageKind, TableStorage, World};
+    use crate::query::seal::{SparseSlot, TableSlot};
+    use crate::sparse::{SparseMut, SparseSet};
 
     /// What a storage kind does for a component type. One call per operation, so the kind is
     /// chosen at compile time and nothing per entity branches on it.
+    ///
+    /// The `Ref` and `Mut` types are what a query run holds per parameter. `init_*` binds them
+    /// once per run (a sparse set; a table gets an empty slice), `set_*` rebinds the table
+    /// parts to a matched archetype's column, and the row functions read one row. A table fetch
+    /// ignores `entities`, so a query that names no sparse type reads no entity it does not
+    /// yield.
     pub trait Storage: 'static {
         /// The kind this marker stands for.
         const KIND: StorageKind;
+        /// Whether a row of this kind needs a membership probe: `true` for sparse sets.
+        const PROBES: bool;
+        /// A shared fetch of a `T`: a column slice, or a set.
+        type Ref<'w, T: 'static>: Copy;
+        /// An exclusive fetch of a `T`: a column slice, or a [`SparseMut`].
+        type Mut<'w, T: 'static>;
+
         /// `World::insert` for a live `entity`.
         fn insert<T: Component>(world: &mut World, entity: Entity, value: T) -> Option<T>;
         /// `World::remove`.
@@ -65,10 +80,74 @@ pub(crate) mod seal {
         fn get<T: Component>(world: &World, entity: Entity) -> Option<&T>;
         /// `World::get_mut`.
         fn get_mut<T: Component>(world: &mut World, entity: Entity) -> Option<&mut T>;
+
+        /// The shared fetch at the start of a run.
+        fn init_ref<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Ref<'_, T>;
+        /// Rebinds the shared fetch to the matched archetype's column, `len` rows.
+        fn set_ref<'w, T: 'static>(
+            fetch: &mut Self::Ref<'w, T>,
+            col: Option<TableSlot<'w>>,
+            len: usize,
+        );
+        /// The `T` of a row that must have one.
+        fn ref_row<'w, T: 'static>(
+            fetch: &Self::Ref<'w, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> &'w T;
+        /// The `T` of a row, if it has one.
+        fn ref_opt<'w, T: 'static>(
+            fetch: &Self::Ref<'w, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> Option<&'w T>;
+        /// Whether a row has a `T`; only called when `PROBES` is true.
+        fn ref_has<T: 'static>(fetch: &Self::Ref<'_, T>, row: usize, entities: &[Entity]) -> bool;
+
+        /// The exclusive fetch at the start of a run.
+        fn init_mut<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Mut<'_, T>;
+        /// Rebinds the exclusive fetch to the matched archetype's column, `len` rows.
+        fn set_mut<'w, T: 'static>(
+            fetch: &mut Self::Mut<'w, T>,
+            col: Option<TableSlot<'w>>,
+            len: usize,
+        );
+        /// The `T` of a row that must have one.
+        fn mut_row<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> &'a mut T;
+        /// The `T` of a row, if it has one.
+        fn mut_opt<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> Option<&'a mut T>;
+        /// Whether a row has a `T`; only called when `PROBES` is true.
+        fn mut_has<T: 'static>(
+            fetch: &mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> bool;
+    }
+
+    /// The panic of a required sparse fetch whose probe passed: an internal bug.
+    #[cold]
+    #[track_caller]
+    fn missing<T>(entity: Entity) -> ! {
+        panic!(
+            "hybrid query: `{}` has no value for {entity:?} although its probe passed \
+             (invariant S1)",
+            core::any::type_name::<T>()
+        )
     }
 
     impl Storage for TableStorage {
         const KIND: StorageKind = StorageKind::Table;
+        const PROBES: bool = false;
+        type Ref<'w, T: 'static> = &'w [T];
+        type Mut<'w, T: 'static> = &'w mut [T];
 
         fn insert<T: Component>(world: &mut World, entity: Entity, value: T) -> Option<T> {
             world.table_insert(entity, value)
@@ -85,10 +164,82 @@ pub(crate) mod seal {
         fn get_mut<T: Component>(world: &mut World, entity: Entity) -> Option<&mut T> {
             world.table_get_mut(entity)
         }
+
+        fn init_ref<T: 'static>(_: Option<SparseSlot<'_>>) -> Self::Ref<'_, T> {
+            &[]
+        }
+
+        #[inline]
+        fn set_ref<'w, T: 'static>(
+            fetch: &mut Self::Ref<'w, T>,
+            col: Option<TableSlot<'w>>,
+            len: usize,
+        ) {
+            *fetch = col.map_or(&[][..], |c| &c.into_ref::<T>()[..len]);
+        }
+
+        #[inline]
+        fn ref_row<'w, T: 'static>(fetch: &Self::Ref<'w, T>, row: usize, _: &[Entity]) -> &'w T {
+            &fetch[row]
+        }
+
+        #[inline]
+        fn ref_opt<'w, T: 'static>(
+            fetch: &Self::Ref<'w, T>,
+            row: usize,
+            _: &[Entity],
+        ) -> Option<&'w T> {
+            let column: &'w [T] = fetch;
+            column.get(row)
+        }
+
+        #[inline]
+        fn ref_has<T: 'static>(_: &Self::Ref<'_, T>, _: usize, _: &[Entity]) -> bool {
+            true
+        }
+
+        fn init_mut<T: 'static>(_: Option<SparseSlot<'_>>) -> Self::Mut<'_, T> {
+            &mut []
+        }
+
+        #[inline]
+        fn set_mut<'w, T: 'static>(
+            fetch: &mut Self::Mut<'w, T>,
+            col: Option<TableSlot<'w>>,
+            len: usize,
+        ) {
+            *fetch = col.map_or(&mut [][..], |c| &mut c.into_mut::<T>()[..len]);
+        }
+
+        #[inline]
+        fn mut_row<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            _: &[Entity],
+        ) -> &'a mut T {
+            &mut fetch[row]
+        }
+
+        #[inline]
+        fn mut_opt<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            _: &[Entity],
+        ) -> Option<&'a mut T> {
+            fetch.get_mut(row)
+        }
+
+        #[inline]
+        fn mut_has<T: 'static>(_: &mut Self::Mut<'_, T>, _: usize, _: &[Entity]) -> bool {
+            true
+        }
     }
 
     impl Storage for SparseStorage {
         const KIND: StorageKind = StorageKind::Sparse;
+        const PROBES: bool = true;
+        type Ref<'w, T: 'static> = Option<&'w SparseSet<T>>;
+        type Mut<'w, T: 'static> = Option<SparseMut<'w, T>>;
 
         fn insert<T: Component>(world: &mut World, entity: Entity, value: T) -> Option<T> {
             world.sparse_insert(entity, value)
@@ -104,6 +255,80 @@ pub(crate) mod seal {
 
         fn get_mut<T: Component>(world: &mut World, entity: Entity) -> Option<&mut T> {
             world.sparse_get_mut(entity)
+        }
+
+        fn init_ref<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Ref<'_, T> {
+            slot.map(SparseSlot::into_ref::<T>)
+        }
+
+        #[inline]
+        fn set_ref<'w, T: 'static>(_: &mut Self::Ref<'w, T>, _: Option<TableSlot<'w>>, _: usize) {}
+
+        #[inline]
+        fn ref_row<'w, T: 'static>(
+            fetch: &Self::Ref<'w, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> &'w T {
+            let entity = entities[row];
+            let set: Option<&'w SparseSet<T>> = *fetch;
+            set.and_then(|s| s.get(entity))
+                .unwrap_or_else(|| missing::<T>(entity))
+        }
+
+        #[inline]
+        fn ref_opt<'w, T: 'static>(
+            fetch: &Self::Ref<'w, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> Option<&'w T> {
+            let set: Option<&'w SparseSet<T>> = *fetch;
+            set.and_then(|s| s.get(entities[row]))
+        }
+
+        #[inline]
+        fn ref_has<T: 'static>(fetch: &Self::Ref<'_, T>, row: usize, entities: &[Entity]) -> bool {
+            fetch.is_some_and(|s| s.index_of(entities[row]).is_some())
+        }
+
+        fn init_mut<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Mut<'_, T> {
+            slot.map(SparseSlot::into_mut::<T>)
+        }
+
+        #[inline]
+        fn set_mut<'w, T: 'static>(_: &mut Self::Mut<'w, T>, _: Option<TableSlot<'w>>, _: usize) {}
+
+        #[inline]
+        fn mut_row<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> &'a mut T {
+            let entity = entities[row];
+            fetch
+                .as_mut()
+                .and_then(|s| s.get(entity))
+                .unwrap_or_else(|| missing::<T>(entity))
+        }
+
+        #[inline]
+        fn mut_opt<'a, T: 'static>(
+            fetch: &'a mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> Option<&'a mut T> {
+            fetch.as_mut().and_then(|s| s.get(entities[row]))
+        }
+
+        #[inline]
+        fn mut_has<T: 'static>(
+            fetch: &mut Self::Mut<'_, T>,
+            row: usize,
+            entities: &[Entity],
+        ) -> bool {
+            fetch
+                .as_mut()
+                .is_some_and(|s| s.get(entities[row]).is_some())
         }
     }
 }

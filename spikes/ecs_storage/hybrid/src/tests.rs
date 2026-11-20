@@ -169,6 +169,22 @@ fn run(ops: &[Op]) {
             }
             _ => {}
         }
+        // One mutable query: add 1 to every `T0` and every `S0` of an entity that has a `T0`.
+        w.query_mut::<(&mut T0, Option<&mut S0>)>()
+            .for_each(|(t, s)| {
+                t.0 = t.0.wrapping_add(1);
+                if let Some(s) = s {
+                    s.0 = s.0.wrapping_add(1);
+                }
+            });
+        for (_, row) in model.values_mut() {
+            if let Some(t) = row[0].as_mut() {
+                *t = t.wrapping_add(1);
+                if let Some(s) = row[2].as_mut() {
+                    *s = s.wrapping_add(1);
+                }
+            }
+        }
         assert_eq!(w.check_invariants(), Ok(()));
         assert_eq!(w.len(), model.len());
         for e in &spawned {
@@ -180,6 +196,116 @@ fn run(ops: &[Op]) {
                 assert_eq!(get(&w, *e, t), *expected, "{e:?} type {t}");
             }
         }
+        check_queries(&w, &model);
+    }
+}
+
+/// Per-index rows of the live entities, for the query checks: `(entity index, values)`.
+fn rows(model: &Model) -> Vec<(u32, [Option<u32>; 4])> {
+    model.iter().map(|(i, (_, row))| (*i, *row)).collect()
+}
+
+/// The entity sets and values of six queries, through `iter` and `for_each`, against the model.
+fn check_queries(w: &World, model: &Model) {
+    let rows = rows(model);
+    let pick = |f: &dyn Fn(&[Option<u32>; 4]) -> bool| -> Vec<u32> {
+        rows.iter().filter(|(_, r)| f(r)).map(|(i, _)| *i).collect()
+    };
+    let sorted = |mut v: Vec<u32>| {
+        v.sort_unstable();
+        v
+    };
+
+    // (Entity, &T0, &S0)
+    let want: Vec<(u32, u32, u32)> = rows
+        .iter()
+        .filter_map(|(i, r)| Some((*i, r[0]?, r[2]?)))
+        .collect();
+    let q = || w.query::<(Entity, &T0, &S0)>();
+    let mut got: Vec<_> = q().iter().map(|(e, a, b)| (e.index(), a.0, b.0)).collect();
+    got.sort_unstable();
+    assert_eq!(got, want);
+    let mut got = Vec::new();
+    q().for_each(|(e, a, b)| got.push((e.index(), a.0, b.0)));
+    got.sort_unstable();
+    assert_eq!(got, want);
+
+    // (Entity, &T0) without S1
+    let want = pick(&|r| r[0].is_some() && r[3].is_none());
+    let q = || w.query::<(Entity, &T0)>().without::<S1>();
+    let got = sorted(q().iter().map(|(e, _)| e.index()).collect());
+    assert_eq!(got, want);
+    let mut got = Vec::new();
+    q().for_each(|(e, _)| got.push(e.index()));
+    assert_eq!(sorted(got), want);
+
+    // (Entity, Option<&S1>) with T1
+    let want: Vec<(u32, Option<u32>)> = rows
+        .iter()
+        .filter(|(_, r)| r[1].is_some())
+        .map(|(i, r)| (*i, r[3]))
+        .collect();
+    let q = || w.query::<(Entity, Option<&S1>)>().with::<T1>();
+    let mut got: Vec<_> = q()
+        .iter()
+        .map(|(e, s)| (e.index(), s.map(|s| s.0)))
+        .collect();
+    got.sort_unstable();
+    assert_eq!(got, want);
+    let mut got = Vec::new();
+    q().for_each(|(e, s)| got.push((e.index(), s.map(|s| s.0))));
+    got.sort_unstable();
+    assert_eq!(got, want);
+
+    // Entity with S0, Entity, Entity without T0
+    let cases: [(Vec<u32>, Vec<u32>, Vec<u32>); 3] = [
+        (
+            sorted(
+                w.query::<Entity>()
+                    .with::<S0>()
+                    .iter()
+                    .map(Entity::index)
+                    .collect(),
+            ),
+            {
+                let mut v = Vec::new();
+                w.query::<Entity>()
+                    .with::<S0>()
+                    .for_each(|e| v.push(e.index()));
+                sorted(v)
+            },
+            pick(&|r| r[2].is_some()),
+        ),
+        (
+            sorted(w.query::<Entity>().iter().map(Entity::index).collect()),
+            {
+                let mut v = Vec::new();
+                w.query::<Entity>().for_each(|e| v.push(e.index()));
+                sorted(v)
+            },
+            pick(&|_| true),
+        ),
+        (
+            sorted(
+                w.query::<Entity>()
+                    .without::<T0>()
+                    .iter()
+                    .map(Entity::index)
+                    .collect(),
+            ),
+            {
+                let mut v = Vec::new();
+                w.query::<Entity>()
+                    .without::<T0>()
+                    .for_each(|e| v.push(e.index()));
+                sorted(v)
+            },
+            pick(&|r| r[0].is_none()),
+        ),
+    ];
+    for (by_iter, by_each, want) in cases {
+        assert_eq!(by_iter, want);
+        assert_eq!(by_each, want);
     }
 }
 

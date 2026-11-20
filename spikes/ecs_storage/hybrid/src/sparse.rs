@@ -17,7 +17,7 @@ fn position(i: usize) -> u32 {
 /// operation and change only together; `sparse[i]` holds the position of the entity with index
 /// `i`, or [`EMPTY`].
 #[derive(Debug)]
-pub(crate) struct SparseSet<T> {
+pub struct SparseSet<T> {
     sparse: Vec<u32>,
     entities: Vec<Entity>,
     data: Vec<T>,
@@ -87,7 +87,6 @@ impl<T> SparseSet<T> {
 
     /// A handle for mutable queries: it can read and write values in place but cannot insert,
     /// remove or change a length, so it cannot break S1 or S2.
-    #[cfg(test)]
     pub(crate) fn split_mut(&mut self) -> SparseMut<'_, T> {
         SparseMut {
             sparse: &self.sparse,
@@ -138,15 +137,13 @@ impl<T> SparseSet<T> {
 }
 
 /// A sparse set borrowed for a mutable query: values by entity, never a length change.
-#[cfg(test)]
 #[derive(Debug)]
-pub(crate) struct SparseMut<'a, T> {
+pub struct SparseMut<'a, T> {
     sparse: &'a [u32],
     entities: &'a [Entity],
     data: &'a mut [T],
 }
 
-#[cfg(test)]
 impl<T> SparseMut<'_, T> {
     /// The value of `entity`, if it has one.
     pub(crate) fn get(&mut self, entity: Entity) -> Option<&mut T> {
@@ -159,6 +156,36 @@ impl<T> SparseMut<'_, T> {
         } else {
             None
         }
+    }
+}
+
+/// One sparse set, borrowed exclusively for a mutable query run, whose value type the caller
+/// has yet to name. It can only become the typed [`SparseMut`] (values by entity) or a shared
+/// reference, so a query cannot reach `remove_entity` or any other length-changing method
+/// through it (lesson ecs-5).
+#[derive(Debug)]
+pub struct SparseSlotMut<'w>(&'w mut dyn ErasedSparseSet);
+
+impl<'w> SparseSlotMut<'w> {
+    pub(crate) fn new(set: &'w mut dyn ErasedSparseSet) -> Self {
+        Self(set)
+    }
+
+    /// The set as a [`SparseMut`] of `T`.
+    pub(crate) fn into_typed<T: 'static>(self) -> SparseMut<'w, T> {
+        self.0
+            .as_any_mut()
+            .downcast_mut::<SparseSet<T>>()
+            .expect("S4: a set holds the type its component id names")
+            .split_mut()
+    }
+
+    /// The set as a shared reference, for a filter that only probes membership.
+    pub(crate) fn into_shared<T: 'static>(self) -> &'w SparseSet<T> {
+        self.0
+            .as_any()
+            .downcast_ref::<SparseSet<T>>()
+            .expect("S4: a set holds the type its component id names")
     }
 }
 

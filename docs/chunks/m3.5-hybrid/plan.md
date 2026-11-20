@@ -81,7 +81,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: queries (R2 in part, R3, R8)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/query.rs` (new), `src/component.rs`, `src/sparse.rs`, `src/table.rs`, `src/world.rs`, `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `QueryParam`, `ReadOnly`, `Filter` (sealed, one seal each, `Item` on the seal, ecs-3), `With<T>`, `Without<T>` (`PhantomData<fn() -> T>`, `Debug`), `Query<'w, Q, F = ()>`, `QueryMut<'w, Q, F = ()>`, `QueryIter<'w, Q, F>` (spec §4.7; `#[must_use]`, `Debug`; `FusedIterator`; `size_hint` exact or `(0, Some(n))` per spec), `IntoIterator for Query` and `for &Query`, `World::query`, `World::query_mut`; `#[cfg(test)]` `matched_archetypes()` and `probed()` on both query types (§1). Module docs cite the tuple-query design of bevy_ecs and hecs, with no code taken (specs-5). `pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};`.
 - **Test first:**
@@ -184,3 +184,8 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 - **Step 2, cold `spawn_with` order:** the repeated-type check runs before the allocation (it registers nothing), so a repeated type uses no entity ID; then allocate, register and build the info.
 - **Step 2, visibility:** `ComponentId` and `ErasedSparseSet` are `pub` inside private modules, since the bundle seal names them (`private_interfaces`), as in M3.4.
 - **Step 2, warm `spawn_with`:** one `bundles` lookup, as M3.4's (sent back once from three; ecs-7; log.md, 2026-11-20).
+- **Step 3, sparse fetch types:** `Option<&SparseSet<T>>` and `Option<SparseMut<T>>`, not the bare types §1 names, so a never-registered optional or excluded sparse type needs no special case; a required type with no id makes the run match nothing before any slot is built.
+- **Step 3, `SparseSlotMut`:** also has `into_shared`, because a sparse `With` or `Without` in a `QueryMut` run probes through a shared set; no `&mut dyn` or `&mut Box` leaves `sparse.rs` (ecs-5).
+- **Step 3, visibility:** `Archetype`, `ErasedColumn`, `ColumnMut`, `SparseSet`, `SparseMut` and `SparseSlotMut` are `pub` inside private modules, since the seal GATs name them.
+- **Step 3, required sparse fetch:** probe then fetch, two lookups per row (spec §4.7 allows fusing them; no measured workload has one).
+- **Step 3, allocations (ecs-2):** 2 heap allocations per table-only run, 3 with a sparse `Option` or a mutable run with a sparse filter, the same with 2 and 28 registered types; none per archetype or row (log.md, 2026-11-20).
