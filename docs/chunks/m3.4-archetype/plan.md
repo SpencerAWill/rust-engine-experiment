@@ -119,7 +119,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: `add_remove` and `entity_churn` (R9 in part, R10 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/add_remove.rs`, `src/entity_churn.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `add_remove::ArchetypeAddRemove` (reused `Vec<(Entity, f32)>` and `Vec<Entity>`; read query `(Entity, &A)`, removal query `query::<Entity>().with::<B>()`, each its own private function with a test hook) and `entity_churn::ArchetypeEntityChurn` (a `Commands`, the `Prng`, `next_id` and the target; respawns with `spawn_with` after `apply` until `world.len()` is the target).
 - **Test first** (`tests.rs`): `add_remove_archetype_matches_the_reference`, `entity_churn_archetype_matches_the_reference`; `add_remove_archetype_layout` (after `setup`, 2 archetypes; after one `step`, 3, the read query matches `(A)` and `(A, B)`, the removal query matches `(A, B)` only); `entity_churn_archetype_layout` (2 archetypes after `setup` and after 120 steps; the step query matches 1); `add_remove_keeps_invariants_every_tick` and `entity_churn_keeps_invariants_every_tick` (1,000 entities, 120 ticks); `zero_count_is_valid` for the two. Fails first: does not compile.
@@ -188,3 +188,4 @@ From `lessons-researcher` (2026-11-20).
 - **Step 3, read-only `for_each`:** the builder's first version ran `Query::for_each` through the `QueryIter` state machine; sent back under spec §4.6 step 5, it now has `QueryMut::for_each`'s per-archetype row loop.
 - **Step 3, allocations (ecs-2):** two heap allocations per query run (the `Plan`'s type list and the `Slots` vector), none per matched archetype or row, for `Query::for_each`, `Query::iter` and `QueryMut::for_each` with 1 to 5 types over three archetypes. Measured with a temporary counting `#[global_allocator]` that required lifting `forbid(unsafe_code)` in the working tree; reverted before review and never committed.
 - **Step 5, test hooks:** each workload also has a `#[cfg(test)] archetype_count()` accessor beside `step_archetypes()`, keeping the `world` field private.
+- **Step 6, red check 1:** skipping `remove::<B>` did not fail `add_remove_keeps_invariants_every_tick` as the plan expected (a second insert of `B` only replaces it); that test now also asserts that no entity has `B` after a tick, and fails on the skipped removal. The conformance test failed as planned.

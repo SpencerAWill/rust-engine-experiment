@@ -288,10 +288,14 @@ proptest! {
 
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
 
+    use crate::add_remove::ArchetypeAddRemove;
+    use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
     use crate::simple_iter::ArchetypeSimpleIter;
@@ -348,6 +352,66 @@ mod workloads {
         assert_eq!(w.step_archetypes().len(), 1);
     }
 
+    #[test]
+    fn add_remove_archetype_matches_the_reference() {
+        check_conformance::<VecAddRemove, ArchetypeAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn entity_churn_archetype_matches_the_reference() {
+        check_conformance::<VecEntityChurn, ArchetypeEntityChurn>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_archetype_layout() {
+        let mut w = ArchetypeAddRemove::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.archetype_count(), 3);
+        assert_eq!(w.read_archetypes().len(), 2);
+        assert_eq!(w.remove_archetypes().len(), 1);
+    }
+
+    #[test]
+    fn entity_churn_archetype_layout() {
+        let mut w = ArchetypeEntityChurn::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(w.step_archetypes().len(), 1);
+        for _ in 0..TICKS {
+            w.step();
+        }
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(w.step_archetypes().len(), 1);
+    }
+
+    #[test]
+    fn add_remove_keeps_invariants_every_tick() {
+        let mut w = ArchetypeAddRemove::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            let mut with_b = 0;
+            w.world()
+                .query::<crate::Entity>()
+                .with::<spike_ecs_harness::add_remove::B>()
+                .for_each(|_| with_b += 1);
+            assert_eq!(with_b, 0, "every B is removed by the end of a tick");
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
+    #[test]
+    fn entity_churn_keeps_invariants_every_tick() {
+        let mut w = ArchetypeEntityChurn::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -360,5 +424,7 @@ mod workloads {
         zero_count::<ArchetypeSimpleIter>();
         zero_count::<ArchetypeFragIter>();
         zero_count::<ArchetypeHeavyCompute>();
+        zero_count::<ArchetypeAddRemove>();
+        zero_count::<ArchetypeEntityChurn>();
     }
 }

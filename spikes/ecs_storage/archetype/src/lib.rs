@@ -14,9 +14,11 @@
 //! This is a spike: it exists to be measured against the plain-`Vec` and sparse-set backends,
 //! not to be published. The spec is `docs/chunks/m3.4-archetype/spec.md`.
 
+pub mod add_remove;
 mod archetype;
 mod bundle;
 mod commands;
+pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
