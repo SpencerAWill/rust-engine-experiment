@@ -184,7 +184,7 @@ Group maintenance MUST keep G1 and G2 after every `insert`, `remove`, `despawn` 
 **Building a query.** `query` and `query_ref` MUST:
 
 1. Look up each type's `ComponentId`. If a required type has no storage, the query matches nothing.
-2. Panic, with `#[track_caller]`, if a type appears twice among the parameters and filters (for example `(&mut Position, &Position)`), with a message naming the type.
+2. Panic, with `#[track_caller]`, if a type appears twice among the parameters and filters (for example `(&mut Position, &Position)`), with a message naming the type. Panic in the same way if no parameter or filter is required (for example `query::<Entity>()`, `query::<Option<&A>>()` or `query::<Entity, Without<A>>()`), with a message saying that this prototype needs at least one `&T`, `&mut T` or `With<T>`. The correct behavior is to match every live entity that passes the filters, but nothing can drive it: the lean allocator does not list its IDs. No workload runs such a query. *(Maintainer, from the grill; the correct behavior is M4's, §4.8.)*
 3. For `query`, borrow the storages in one `iter_mut().enumerate()` pass over the storage list, handing each `&mut` to its slot. This is safe and costs O(storages) per query. (`get_disjoint_mut` needs a constant `N`, and `Q::COUNT + F::COUNT` is not a constant expression on stable Rust.)
 
 **View path.** The driver is the smallest storage among the required parameters and filters. For each position `i` of the driver: copy the entity out, probe each other parameter, check the `Without` filters, and on a full match fetch the items and call the closure. The driver's own index is `i` and is not probed.
@@ -251,6 +251,7 @@ impl Commands {
 | Chunked slice iteration for SIMD | Archetypes have the same opportunity; it is an API decision | M4 |
 | `sort_as` to realign storages | Groups already do this; one mechanism is enough to measure | Not planned |
 | Cached query state | At most a few `BTreeMap` lookups per query per tick | M4 |
+| Queries with no required type (`query::<Entity>()`): match every live entity that passes the filters | Needs a list of live entities, such as EnTT's sparse set of entities, which every spawn and despawn would pay for; no workload runs such a query, so this prototype panics (§4.5) | M4 |
 | Change-detection ticks next to each value | They add memory traffic to every storage model alike | Noted for M3.8; built in M6 |
 
 ### 4.9 Documents
@@ -318,7 +319,7 @@ impl Commands {
 | Requirement | Verified by |
 |---|---|
 | R1 | the workspace `Cargo.toml`; `cargo xtask check-unsafe` |
-| R2 | unit tests: `insert` on a despawned entity panics with the expected message; `group` after a spawn, with a type in two groups, and with a repeated type, each panics; a query with a repeated type panics; review of the `# Panics` sections |
+| R2 | unit tests: `insert` on a despawned entity panics with the expected message; `group` after a spawn, with a type in two groups, and with a repeated type, each panics; a query with a repeated type panics; a query with no required type panics; review of the `# Panics` sections |
 | R3 | review: `Packed<T>`'s fields are private to its module, and every method changes both vectors or neither |
 | R4 | unit tests in `storage.rs` and `world.rs` that corrupt one private field (test code in the same module) and check that `check_invariants` names the broken invariant, one per invariant; the model test |
 | R5 | proptest model test: random `spawn`, `despawn`, `insert`, `remove` and `apply` over four component types, with and without a group of two or three of them, compared with a `BTreeMap<Entity, components>` model (including `len`), `check_invariants` after every operation |
