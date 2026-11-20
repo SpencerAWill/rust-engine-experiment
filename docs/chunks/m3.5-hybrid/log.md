@@ -16,3 +16,4 @@
 - 2026-11-20 done Spec drafted.
 - 2026-11-20 done Grill cold read (spec-reader, dispatched by registered agent name): no question for the maintainer; three builder-level points. A scratchpad stub of §4.2's sealed storage marker, the `&T`/`&mut T`/`Option<&T>` fetches over both kinds, and §3's examples built on rustc 1.100.0.
 - 2026-11-20 decision (main session, grill) Minor calls: `StorageKind` crate-private (nothing public returns it) and `Storage` re-exported; a cold `spawn_with` failure leaves no type, archetype, set or bundle info behind (allocate first, as M3.4); a required sparse fetch MAY fuse probe and fetch; R10's matched/probed checks run after one step (`B` is unregistered after setup).
+- 2026-11-20 decision (maintainer, grill) `Component` names a sealed storage marker (`type Storage = TableStorage | SparseStorage`) instead of carrying `const STORAGE`.
