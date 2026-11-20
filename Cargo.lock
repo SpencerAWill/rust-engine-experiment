@@ -1985,6 +1985,7 @@ dependencies = [
  "spike_ecs_archetype",
  "spike_ecs_dense",
  "spike_ecs_harness",
+ "spike_ecs_hybrid",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",
 ]
@@ -1997,6 +1998,7 @@ dependencies = [
  "spike_ecs_archetype",
  "spike_ecs_dense",
  "spike_ecs_harness",
+ "spike_ecs_hybrid",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",
 ]

@@ -55,3 +55,5 @@
 - 2026-11-20 done (main session) Step 6 checked: diff limited to the step's files; red-check files identical to HEAD; `ci --quick` exit 0 (1031 tests), re-run by the main session. All four red checks fail their planned tests (red check 4 confirmed with `--no-fail-fast`).
 - 2026-11-20 done step 7: sprites.rs, agents.rs adapted from M3.4; 7 new tests pass; agents 1 table after setup (archetype_count 2), constant over 1,300 ticks
 - 2026-11-20 done (main session) Step 7 checked: diff limited to the step's files; `ci --quick` exit 0 (1036 tests), re-run by the main session.
+- 2026-11-20 done step 8: hybrid registered in both bench crates; compare --test prints 14 /hybrid/ lines (was 0); ci --quick and deny pass
+- 2026-11-20 done (main session) Step 8 checked: 14 `/hybrid/` Criterion ids (re-run); each `cache_bench!` hybrid line's sizes and group match the workload's `vec_aos` line; the cache bench builds; `deny` passes.
