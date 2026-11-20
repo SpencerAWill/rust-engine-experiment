@@ -30,7 +30,7 @@ Choices the spec leaves to implementation:
 
 - Every commit passes `cargo xtask ci --quick`. Steps 1 and 8 also pass `cargo xtask deny`, with `deny.toml` unchanged (R12).
 - The crate root has `#![forbid(unsafe_code)]`; the package has `[lints] workspace = true`. Every public item is documented (R13). Doctests are not required ([spikes/README.md](../../../spikes/README.md)).
-- Package `spike_ecs_archetype`: dependencies `engine = { workspace = true }`, `spike_ecs_harness = { path = "../harness" }` from step 5, `agents_2d = { path = "../../../examples/agents_2d" }` from step 7 (an unused dependency fails clippy); dev-dependencies `proptest = { workspace = true }` from step 2 and `spike_ecs_vec = { path = "../vec" }` from step 5.
+- Package `spike_ecs_archetype`: dependencies `engine = { workspace = true }`, `spike_ecs_harness = { path = "../harness" }` from step 5, `agents_2d = { path = "../../../examples/agents_2d" }` from step 7 (dropped in review, §5); dev-dependencies `proptest = { workspace = true }` from step 2 and `spike_ecs_vec = { path = "../vec" }` from step 5.
 - Items a later step uses from library code and nothing uses yet are `#[cfg(test)]` until then, never `#[allow(dead_code)]` (M3.3 plan §5).
 - Conformance: `Params { count: 1_000, seed: 42 }` (`count: 20` for `frag_iter`) and 120 ticks; `agents` 1,000 agents and 1,300 ticks (R9).
 - Run `cargo fmt --all` before `ci --quick`. Commits are conventional, end with ` (M3.4)` and the session's attribution line, and stage files by explicit path.
@@ -183,13 +183,11 @@ From `lessons-researcher` (2026-11-20).
 - **Step 1, extra tests:** `replace_and_get_mut_write_in_place`, `push_empty_on_a_table_with_columns_panics`, `world_debug_shows_the_live_count_and_archetypes`.
 - **Step 2, `BundleInfo::types`:** a third field holds the element `TypeId`s in tuple order, because B1 cannot be checked from `archetype` and `columns` alone.
 - **Step 2, row writes:** the seal's `write` takes a `RowWriter` (table.rs, private constructor) instead of the table, so `Table::push_bundle` is the only way to push a bundle row (log.md, 2026-11-20). `ComponentId` and `RowWriter` are `pub` in private modules for `private_interfaces`; `Table` stays `pub(crate)`.
-- **Step 3, `columns_mut`:** returns `(&[Entity], &mut [Box<dyn ErasedColumn>])` as spec §4.3 says, since a mutable query with an `Entity` parameter needs both; `Table::column` is no longer `#[cfg(test)]`. `Archetype` and `ErasedColumn` are `pub` in private modules for `private_interfaces`.
+- **Step 3, `columns_mut`:** returns the entity slice and the columns together, since a mutable query with an `Entity` parameter needs both (its column type is superseded below); `Table::column` is no longer `#[cfg(test)]`. `Archetype` and `ErasedColumn` are `pub` in private modules for `private_interfaces`.
 - **Step 3, filters:** archetype-level only (`seal::Filter` is a type list), since `With` and `Without` decide per archetype here.
 - **Step 3, allocations (ecs-2):** two heap allocations per query run, none per matched archetype or row (how it was measured: log.md, 2026-11-20).
 - **Step 5, test hooks:** each workload also has a `#[cfg(test)] archetype_count()` accessor beside `step_archetypes()`, keeping the `world` field private.
-- **Step 6, red check 1:** `add_remove_keeps_invariants_every_tick` also asserts that no entity has `B` after a tick, so it fails on a skipped removal (log.md, 2026-11-20).
-- **Step 8, id count:** 14 Criterion ids, not the 13 the plan first said (a miscount, corrected in step 8's Verify).
-- **Review, `columns_mut`:** it hands out `ColumnMut` values (typed slices only) instead of `&mut [Box<dyn ErasedColumn>]`, through which crate code could have changed a column's length; R3 now holds by type, not convention (code review). Spec §4.3's `columns_mut` signature is superseded.
-- **Review, `push_bundle`:** its T1 check is a `debug_assert!`, since `RowWriter` and `ColumnMut` enforce R3 by type and a release `assert!` added a pass over the columns to every spawn in measured steps (conditional review).
-- **Review, dependencies:** `agents_2d` is not a dependency: `agents.rs` imports what it uses from `spike_ecs_harness::agents`. Spec §4.1 lists it.
-- **Review, warm-transition cost:** beyond spec §2's "one array read plus the row move", a warm `insert` or `remove` also does a `TypeId` map lookup, a binary search in `column_of`, and one `dyn` call plus downcast per moved column. Not changed; a caveat for M3.8 with ecs-2's two allocations per query run.
+- **Step 6, red check 1:** skipping `remove::<B>` did not fail the invariant test, so it gained an assertion (log.md, 2026-11-20).
+- **Review, `columns_mut`:** `ColumnMut` replaces `&mut [Box<dyn ErasedColumn>]`; spec §4.3's signature is superseded (log.md, 2026-11-20).
+- **Review, `push_bundle`:** its T1 check is a `debug_assert!` (log.md, 2026-11-20).
+- **Review, `agents_2d`:** not a dependency, unlike spec §4.1 (log.md, 2026-11-20).
