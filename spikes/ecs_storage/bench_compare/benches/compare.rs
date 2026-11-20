@@ -15,6 +15,11 @@ use spike_ecs_archetype::{
     frag_iter::ArchetypeFragIter, heavy_compute::ArchetypeHeavyCompute,
     simple_iter::ArchetypeSimpleIter, sprites::ArchetypeSprites,
 };
+use spike_ecs_dense::{
+    add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
+    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, simple_iter::DenseSimpleIter,
+    sprites::DenseSprites,
+};
 use spike_ecs_harness::{Params, Spec, Workload};
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
@@ -79,6 +84,13 @@ fn compare(c: &mut Criterion) {
     bench::<ArchetypeEntityChurn>(c);
     bench::<ArchetypeSprites>(c);
     bench::<ArchetypeAgents>(c);
+    bench::<DenseSimpleIter>(c);
+    bench::<DenseFragIter>(c);
+    bench::<DenseHeavyCompute>(c);
+    bench::<DenseAddRemove>(c);
+    bench::<DenseEntityChurn>(c);
+    bench::<DenseSprites>(c);
+    bench::<DenseAgents>(c);
 }
 
 criterion_group!(benches, compare);

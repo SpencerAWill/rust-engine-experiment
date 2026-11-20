@@ -18,6 +18,7 @@ workspace = true
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 spike_ecs_archetype = { path = "../archetype" }
+spike_ecs_dense = { path = "../dense" }
 spike_ecs_harness = { path = "../harness" }
 spike_ecs_sparse_set = { path = "../sparse_set" }
 spike_ecs_vec = { path = "../vec" }
