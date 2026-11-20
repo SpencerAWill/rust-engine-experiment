@@ -11,7 +11,7 @@ use engine::collections::HierarchicalBitSet;
 
 /// The values of one component type, by entity index, and the set of indices that hold one.
 #[derive(Debug)]
-pub(crate) struct DenseColumn<T> {
+pub struct DenseColumn<T> {
     present: HierarchicalBitSet,
     slots: Vec<Option<T>>,
 }
@@ -60,7 +60,6 @@ impl<T> DenseColumn<T> {
     }
 
     /// The presence set and write access to the values, for a mutable query.
-    #[cfg(test)]
     pub(crate) fn split_mut(&mut self) -> (&HierarchicalBitSet, ValuesMut<'_, T>) {
         (&self.present, ValuesMut(&mut self.slots))
     }
@@ -68,11 +67,9 @@ impl<T> DenseColumn<T> {
 
 /// Write access to a column's values that cannot clear a slot or change the length (lesson
 /// ecs-5): it offers only `get`.
-#[cfg(test)]
 #[derive(Debug)]
-pub(crate) struct ValuesMut<'a, T>(&'a mut [Option<T>]);
+pub struct ValuesMut<'a, T>(&'a mut [Option<T>]);
 
-#[cfg(test)]
 impl<T> ValuesMut<'_, T> {
     /// The value at `index`, mutably, if any.
     pub(crate) fn get(&mut self, index: usize) -> Option<&mut T> {
@@ -82,7 +79,7 @@ impl<T> ValuesMut<'_, T> {
 
 /// What code that does not know a column's value type can do with it. The method names
 /// avoid `type_id`, which `Any` already has.
-pub(crate) trait ErasedColumn {
+pub trait ErasedColumn {
     /// The `TypeId` of the values.
     fn value_type_id(&self) -> TypeId;
     /// The name of the value type.

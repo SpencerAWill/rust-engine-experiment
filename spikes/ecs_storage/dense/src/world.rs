@@ -8,6 +8,7 @@ use engine::collections::HierarchicalBitSet;
 use engine::genid::GenIdAllocator;
 
 use crate::column::{DenseColumn, ErasedColumn};
+use crate::query::{Query, QueryMut, QueryParam, ReadOnly};
 use crate::{Entity, EntityMarker};
 
 /// An internal invariant of a [`World`] does not hold, which would be a bug in the prototype.
@@ -41,6 +42,14 @@ impl ComponentId {
         self.0 as usize
     }
 }
+
+/// What [`World::split_for_query`] hands a mutable query.
+pub(crate) type QueryParts<'w> = (
+    &'w BTreeMap<TypeId, ComponentId>,
+    &'w mut [Box<dyn ErasedColumn>],
+    &'w [Entity],
+    &'w HierarchicalBitSet,
+);
 
 /// Entities and their components. Each component type has its own dense column: one slot per
 /// entity index, and a hierarchical bit set of the indices that hold a value.
@@ -205,6 +214,47 @@ impl World {
         self.column_mut::<T>()?.get_mut(entity.index() as usize)
     }
 
+    /// A read-only query over the entities that have the required types of `Q`: every `&T`
+    /// and `.with::<T>()`. A query with none visits every live entity. See [`Query`].
+    pub fn query<Q: ReadOnly>(&self) -> Query<'_, Q> {
+        Query::new(self)
+    }
+
+    /// A query that may write through `&mut T` parameters. See [`QueryMut`].
+    pub fn query_mut<Q: QueryParam>(&mut self) -> QueryMut<'_, Q> {
+        QueryMut::new(self)
+    }
+
+    /// The entity at each index; read only where the index is alive (W2).
+    pub(crate) fn entities(&self) -> &[Entity] {
+        &self.entities
+    }
+
+    /// The set of live indices.
+    pub(crate) fn alive_set(&self) -> &HierarchicalBitSet {
+        &self.alive
+    }
+
+    /// The pieces a mutable query borrows separately: the type map, the columns, the entity
+    /// table and the live set.
+    pub(crate) fn split_for_query(&mut self) -> QueryParts<'_> {
+        (&self.ids, &mut self.columns, &self.entities, &self.alive)
+    }
+
+    /// The id and presence set of every column, for tests.
+    #[cfg(test)]
+    pub(crate) fn present_sets(&self) -> impl Iterator<Item = (ComponentId, &HierarchicalBitSet)> {
+        self.ids
+            .values()
+            .map(|id| (*id, self.columns[id.index()].present()))
+    }
+
+    /// The id of `T`'s column, if it has one, for tests.
+    #[cfg(test)]
+    pub(crate) fn component_id(&self, ty: TypeId) -> Option<ComponentId> {
+        self.ids.get(&ty).copied()
+    }
+
     /// Checks the column invariants (D1, D2) and the world invariants (W1, W2), and returns
     /// the first violation.
     ///
@@ -296,7 +346,7 @@ impl World {
         id
     }
 
-    fn column<T: 'static>(&self) -> Option<&DenseColumn<T>> {
+    pub(crate) fn column<T: 'static>(&self) -> Option<&DenseColumn<T>> {
         let id = self.ids.get(&TypeId::of::<T>())?;
         self.columns[id.index()].as_any().downcast_ref()
     }

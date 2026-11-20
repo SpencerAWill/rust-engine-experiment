@@ -64,7 +64,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: queries (R2 in part, R6)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/query.rs` (new), `src/column.rs`, `src/world.rs`, `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:**
   - `QueryParam`, `ReadOnly`, `Filter` (sealed, one seal each, `Item` on the seal, ecs-3), `With<T>`, `Without<T>` (`PhantomData<fn() -> T>`, `Debug`), `Query<'w, Q, F = ()>`, `QueryMut<'w, Q, F = ()>`, `QueryIter<'q, 'w, Q, F>` (spec §4.5; `#[must_use]`, `Debug`; `QueryIter` `FusedIterator`, `size_hint` as the spec); `IntoIterator for &'q Query<'w, Q, F>`; `World::query`, `World::query_mut`; `#[cfg(test)] joined()` on both query types (§1).
@@ -162,4 +162,6 @@ From `lessons-researcher` (2026-11-20).
 
 ## 5. Deviations
 
-None yet.
+- **Step 2, `ComponentId`:** stays `pub(crate)`; no sealed signature names it, and `pub` trips `unreachable_pub` (log.md, 2026-11-20).
+- **Step 2, `for` over `&Query`:** panics with its own `Query::into_iter:` prefix, a fourth beside §1's three.
+- **Step 2, `joined()`:** names each joined set by its address against the world's own sets, which tests the run's actual sets; `World::component_id` and `present_sets` are `#[cfg(test)]` helpers (log.md, 2026-11-20).

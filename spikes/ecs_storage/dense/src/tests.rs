@@ -50,6 +50,117 @@ fn remove(world: &mut World, entity: Entity, ty: usize) -> Option<u32> {
     }
 }
 
+/// The model's entity sequences for the queries the test compares, in index order.
+fn model_matches(
+    model: &Model,
+    f: impl Fn(&[Option<u32>; 4]) -> bool,
+) -> Vec<(Entity, [Option<u32>; 4])> {
+    model
+        .values()
+        .filter(|(_, v)| f(v))
+        .map(|(e, v)| (*e, *v))
+        .collect()
+}
+
+/// Runs the five read queries by `iter` and by `for_each` and compares them with the model.
+fn check_queries(world: &World, model: &Model) {
+    // (Entity, &C0, &C1)
+    let want: Vec<(Entity, u32, u32)> = model_matches(model, |v| v[0].is_some() && v[1].is_some())
+        .into_iter()
+        .map(|(e, v)| (e, v[0].unwrap(), v[1].unwrap()))
+        .collect();
+    let got: Vec<_> = world
+        .query::<(Entity, &C0, &C1)>()
+        .iter()
+        .map(|(e, a, b)| (e, a.0, b.0))
+        .collect();
+    assert_eq!(got, want, "(Entity, &C0, &C1) by iter");
+    let mut got = Vec::new();
+    world
+        .query::<(Entity, &C0, &C1)>()
+        .for_each(|(e, a, b)| got.push((e, a.0, b.0)));
+    assert_eq!(got, want, "(Entity, &C0, &C1) by for_each");
+
+    // (Entity, &C0) without C2
+    let want: Vec<(Entity, u32)> = model_matches(model, |v| v[0].is_some() && v[2].is_none())
+        .into_iter()
+        .map(|(e, v)| (e, v[0].unwrap()))
+        .collect();
+    let got: Vec<_> = world
+        .query::<(Entity, &C0)>()
+        .without::<C2>()
+        .iter()
+        .map(|(e, a)| (e, a.0))
+        .collect();
+    assert_eq!(got, want, "(Entity, &C0) without C2 by iter");
+    let mut got = Vec::new();
+    world
+        .query::<(Entity, &C0)>()
+        .without::<C2>()
+        .for_each(|(e, a)| got.push((e, a.0)));
+    assert_eq!(got, want, "(Entity, &C0) without C2 by for_each");
+
+    // (Entity, Option<&C3>) with C1
+    let want: Vec<(Entity, Option<u32>)> = model_matches(model, |v| v[1].is_some())
+        .into_iter()
+        .map(|(e, v)| (e, v[3]))
+        .collect();
+    let got: Vec<_> = world
+        .query::<(Entity, Option<&C3>)>()
+        .with::<C1>()
+        .iter()
+        .map(|(e, c)| (e, c.map(|c| c.0)))
+        .collect();
+    assert_eq!(got, want, "(Entity, Option<&C3>) with C1 by iter");
+    let mut got = Vec::new();
+    world
+        .query::<(Entity, Option<&C3>)>()
+        .with::<C1>()
+        .for_each(|(e, c)| got.push((e, c.map(|c| c.0))));
+    assert_eq!(got, want, "(Entity, Option<&C3>) with C1 by for_each");
+
+    // Entity, and Entity without C0
+    let want: Vec<Entity> = model.values().map(|(e, _)| *e).collect();
+    let got: Vec<Entity> = world.query::<Entity>().iter().collect();
+    assert_eq!(got, want, "Entity by iter");
+    let mut got = Vec::new();
+    world.query::<Entity>().for_each(|e| got.push(e));
+    assert_eq!(got, want, "Entity by for_each");
+
+    let want: Vec<Entity> = model_matches(model, |v| v[0].is_none())
+        .into_iter()
+        .map(|(e, _)| e)
+        .collect();
+    let got: Vec<Entity> = world.query::<Entity>().without::<C0>().iter().collect();
+    assert_eq!(got, want, "Entity without C0 by iter");
+    let mut got = Vec::new();
+    world
+        .query::<Entity>()
+        .without::<C0>()
+        .for_each(|e| got.push(e));
+    assert_eq!(got, want, "Entity without C0 by for_each");
+}
+
+/// Adds 1 to every `C0`, and to every `C1` that goes with one, in the world and the model.
+fn bump(world: &mut World, model: &mut Model) {
+    world
+        .query_mut::<(&mut C0, Option<&mut C1>)>()
+        .for_each(|(a, b)| {
+            a.0 = a.0.wrapping_add(1);
+            if let Some(b) = b {
+                b.0 = b.0.wrapping_add(1);
+            }
+        });
+    for (_, values) in model.values_mut() {
+        if let Some(a) = values[0].as_mut() {
+            *a = a.wrapping_add(1);
+            if let Some(b) = values[1].as_mut() {
+                *b = b.wrapping_add(1);
+            }
+        }
+    }
+}
+
 fn get(world: &World, entity: Entity, ty: usize) -> Option<u32> {
     match ty {
         0 => world.get::<C0>(entity).map(|c| c.0),
@@ -104,6 +215,9 @@ fn run(ops: &[Op]) {
         }
         assert_eq!(world.check_invariants(), Ok(()));
         assert_eq!(world.len(), model.len());
+        check_queries(&world, &model);
+        bump(&mut world, &mut model);
+        assert_eq!(world.check_invariants(), Ok(()));
         for entity in &spawned {
             let expected = match model.get(&entity.index()) {
                 Some((live, values)) if live == entity => *values,

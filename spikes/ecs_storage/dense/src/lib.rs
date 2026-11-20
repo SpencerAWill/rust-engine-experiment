@@ -14,12 +14,14 @@
 //! published. The spec is `docs/chunks/m3.19-dense-arrays/spec.md`.
 
 mod column;
+mod query;
 #[cfg(test)]
 mod tests;
 mod world;
 
 use engine::genid::GenId;
 
+pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use world::{InvariantViolation, World};
 
 /// The marker type of [`Entity`] IDs.
