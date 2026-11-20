@@ -32,7 +32,6 @@ impl<T> Packed<T> {
         (self.entities.swap_remove(i), self.data.swap_remove(i))
     }
 
-    #[cfg(test)]
     fn swap(&mut self, i: usize, j: usize) {
         self.entities.swap(i, j);
         self.data.swap(i, j);
@@ -146,7 +145,6 @@ impl<T> SparseSet<T> {
     }
 
     /// Swaps two positions and fixes both sparse slots. Group maintenance only.
-    #[cfg(test)]
     pub(crate) fn swap(&mut self, i: usize, j: usize) {
         self.packed.swap(i, j);
         let (ei, ej) = (self.packed.entities()[i], self.packed.entities()[j]);
@@ -216,14 +214,11 @@ impl<T> SparseSet<T> {
 
 /// What the `World` can do with a storage without knowing its value type.
 pub(crate) trait ErasedStorage: Any {
-    #[cfg(test)]
     fn index_of(&self, entity: Entity) -> Option<usize>;
-    #[cfg(test)]
     fn swap(&mut self, i: usize, j: usize);
     /// Removes the entity's value, dropping it. Returns whether there was one.
     fn remove_entity(&mut self, entity: Entity) -> bool;
     fn len(&self) -> usize;
-    #[cfg(test)]
     fn entities(&self) -> &[Entity];
     fn type_name(&self) -> &'static str;
     fn check(&self, is_alive: &dyn Fn(Entity) -> bool) -> Result<(), InvariantViolation>;
@@ -232,12 +227,10 @@ pub(crate) trait ErasedStorage: Any {
 }
 
 impl<T: 'static> ErasedStorage for SparseSet<T> {
-    #[cfg(test)]
     fn index_of(&self, entity: Entity) -> Option<usize> {
         SparseSet::index_of(self, entity)
     }
 
-    #[cfg(test)]
     fn swap(&mut self, i: usize, j: usize) {
         SparseSet::swap(self, i, j);
     }
@@ -250,7 +243,6 @@ impl<T: 'static> ErasedStorage for SparseSet<T> {
         SparseSet::len(self)
     }
 
-    #[cfg(test)]
     fn entities(&self) -> &[Entity] {
         self.packed.entities()
     }

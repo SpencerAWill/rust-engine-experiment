@@ -56,7 +56,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: `WorldBuilder`, owning groups and the model test (R2 in part, R4 for G1 and G2, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/world.rs`, `src/query.rs` (new: `GroupSpec` and `seal::Group` only), `src/lib.rs`, `src/tests.rs` (new).
 - **Interfaces produced:**
   - `pub trait GroupSpec: seal::Group` for tuples of 2 to 4 `'static` types (a small macro); `seal::Group` gives the members' `TypeId`s and names.
@@ -186,3 +186,6 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 1, dependencies:** only `engine`; the harness, `spike_ecs_vec`, `proptest` and `agents_2d` arrive with the steps that use them (an unused dependency fails clippy).
 - **Step 1, dead code:** the storage methods that later steps use from library code (`SparseSet::{swap, split, split_mut}`, `Packed::{swap, split_mut}`, `ErasedStorage::{index_of, swap, entities}`) are `#[cfg(test)]` until then; steps 2 and 3 remove the gates. No `#[allow(dead_code)]`.
 - **Step 1, tests:** three tests beyond the plan (`erased_storage_works_through_the_trait`, `world_debug_shows_the_live_count_and_storages`, `world_reports_a_corrupt_storage`); the insert panic is "World::insert called on a despawned entity …" (testing-2), and its test expects that prefix.
+- **Step 2, member access:** group maintenance reaches member storages one call at a time (`storages[m].index_of`, `.swap`), not with `get_disjoint_mut` as spec §4.4 says: no two member borrows are ever live at once, so the disjoint helper has nothing to do.
+- **Step 2, `ComponentId`:** `pub` inside the private `world` module (unnameable outside the crate), because `seal::Group::register` names it and `pub(crate)` trips `private_interfaces`.
+- **Step 2, `spawn` (maintainer request):** `World::spawn` increments the live count after `allocate` returns, so a failed allocation leaves `len` unchanged; tested by `a_failed_spawn_leaves_len_unchanged` (`GenIdAllocator::with_fixed_capacity(1)`), which failed first.

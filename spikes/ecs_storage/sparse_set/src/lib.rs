@@ -14,12 +14,16 @@
 //! This is a spike: it exists to be measured against the plain-`Vec` backends, not to be
 //! published. The spec is `docs/chunks/m3.3-sparse-set/spec.md`.
 
+mod query;
 mod storage;
+#[cfg(test)]
+mod tests;
 mod world;
 
 use engine::genid::GenId;
 
-pub use world::{InvariantViolation, World};
+pub use query::GroupSpec;
+pub use world::{InvariantViolation, World, WorldBuilder};
 
 /// The marker type of [`Entity`] IDs.
 #[derive(Debug)]
