@@ -123,7 +123,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: `add_remove` and `entity_churn` (R10, R11 in part, R12 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/add_remove.rs`, `src/entity_churn.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `add_remove::{AddRemoveOn, SparseSetAddRemove, GroupedAddRemove}` (reused `Vec<(Entity, f32)>` and `Vec<Entity>` in the struct; the second pass is `query::<Entity>().with::<B>()`) and `entity_churn::{EntityChurnOn, SparseSetEntityChurn, GroupedEntityChurn}` (keeps a `Commands`, the `Prng`, `next_id` and the target; respawns with `spawn` and `insert` after `apply` until `world.len()` is the target).
 - **Test first** (`tests.rs`): the four conformance tests; `zero_count_is_valid` for the four; `grouped_entity_churn_uses_the_group`; `grouped_add_remove_takes_the_view_path` (both queries report `!uses_group()`, R11); `entity_churn_keeps_invariants_every_tick` (both backends, 1,000 entities, 120 ticks). Fails first: does not compile.
@@ -198,3 +198,5 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 4, `&Query`:** `IntoIterator for &Query` replaces step 3's clippy allow on `iter`; tested by `for_item_in_a_query_reference_agrees_with_iter`.
 - **Step 5, placement:** `Commands` and `World::apply` are in a new `src/commands.rs`, because `world.rs` was already past 600 lines (709), as step 5 allowed; `Commands::capacity` is private and `#[cfg(test)]`, for the capacity test.
 - **Step 6, test hooks:** each workload type has a `#[cfg(test)] pub(crate) fn uses_group(&self)` so `tests.rs` can assert the path without making the `world` field visible; the ungrouped backends are asserted not to use a group. One `zero_count_is_valid` test covers all five implementations (and likewise in steps 7 and 8).
+- **Step 7, test first:** the builder wrote tests and code in one pass and never saw them fail. Made up for afterwards with four temporary breaks, each reverted (skip `remove::<B>`; skip `commands.despawn`; respawn one too few; flip the remove pass to a group-qualifying query), each failing the tests it should (log.md).
+- **Step 7, `add_remove` checksum:** reads `query::<(&A, Option<&B>)>()`, which spec §4.7 does not spell out; it matches the harness's `hash(a, Option<&B>)`.

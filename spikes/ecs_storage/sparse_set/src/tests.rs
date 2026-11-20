@@ -168,9 +168,13 @@ proptest! {
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
 
+    use crate::add_remove::{GroupedAddRemove, SparseSetAddRemove};
+    use crate::entity_churn::{GroupedEntityChurn, SparseSetEntityChurn};
     use crate::frag_iter::SparseSetFragIter;
     use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
+    use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
@@ -229,6 +233,62 @@ mod workloads {
         assert!(!w.uses_group());
     }
 
+    #[test]
+    fn add_remove_sparse_set_matches_the_reference() {
+        check_conformance::<VecAddRemove, SparseSetAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_grouped_matches_the_reference() {
+        check_conformance::<VecAddRemove, GroupedAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn entity_churn_sparse_set_matches_the_reference() {
+        check_conformance::<VecEntityChurn, SparseSetEntityChurn>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn entity_churn_grouped_matches_the_reference() {
+        check_conformance::<VecEntityChurn, GroupedEntityChurn>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn grouped_entity_churn_uses_the_group() {
+        let w = GroupedEntityChurn::setup(Params { count: 10, seed: 1 });
+        assert!(w.uses_group());
+        let w = SparseSetEntityChurn::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group());
+    }
+
+    #[test]
+    fn grouped_add_remove_takes_the_view_path() {
+        for count in [0, 10] {
+            let w = GroupedAddRemove::setup(Params { count, seed: 1 });
+            assert!(!w.uses_group_for_read_pass());
+            assert!(!w.uses_group_for_remove_pass());
+        }
+        let w = SparseSetAddRemove::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group_for_read_pass());
+        assert!(!w.uses_group_for_remove_pass());
+    }
+
+    fn churn_keeps_invariants<const GROUPED: bool>() {
+        let mut w = crate::entity_churn::EntityChurnOn::<GROUPED>::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
+    #[test]
+    fn entity_churn_keeps_invariants_every_tick() {
+        churn_keeps_invariants::<false>();
+        churn_keeps_invariants::<true>();
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -243,5 +303,9 @@ mod workloads {
         zero_count::<SparseSetFragIter>();
         zero_count::<SparseSetHeavyCompute>();
         zero_count::<GroupedHeavyCompute>();
+        zero_count::<SparseSetAddRemove>();
+        zero_count::<GroupedAddRemove>();
+        zero_count::<SparseSetEntityChurn>();
+        zero_count::<GroupedEntityChurn>();
     }
 }

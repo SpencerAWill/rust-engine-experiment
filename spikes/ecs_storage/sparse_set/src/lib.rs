@@ -14,7 +14,9 @@
 //! This is a spike: it exists to be measured against the plain-`Vec` backends, not to be
 //! published. The spec is `docs/chunks/m3.3-sparse-set/spec.md`.
 
+pub mod add_remove;
 mod commands;
+pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
