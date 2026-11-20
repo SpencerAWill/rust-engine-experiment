@@ -120,7 +120,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: bench registrations (R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/Cargo.toml`, `benches/compare.rs`, `spikes/ecs_storage/bench_cache/Cargo.toml`, `benches/cache.rs`, `Cargo.lock`.
 - **Test first:** n/a for registrations. The check before the change: `cargo bench -p spike_ecs_bench_compare -- --test 2>&1 | grep -c /dense/` prints 0.
 - **Change:** dev-dependency `spike_ecs_dense = { path = "../dense" }` in both bench crates. `compare.rs`: one `bench::<…>(c);` per workload (7). `cache.rs`: one `cache_bench!(<workload>_dense, <Type>, [<sizes>]);` per workload with each workload's `Spec::SIZES` (`simple_iter`, `add_remove`, `entity_churn`: `[1_000, 10_000, 100_000]`; `frag_iter`: `[20]`; `heavy_compute`: `[1_000]`; `sprites`: `[100_000]`; `agents`: `[10_000, 100_000]`), each named in its workload's group.

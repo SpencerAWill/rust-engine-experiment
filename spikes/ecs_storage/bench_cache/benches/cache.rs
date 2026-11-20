@@ -27,6 +27,11 @@ use spike_ecs_archetype::{
     frag_iter::ArchetypeFragIter, heavy_compute::ArchetypeHeavyCompute,
     simple_iter::ArchetypeSimpleIter, sprites::ArchetypeSprites,
 };
+use spike_ecs_dense::{
+    add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
+    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, simple_iter::DenseSimpleIter,
+    sprites::DenseSprites,
+};
 use spike_ecs_harness::{Params, Spec, Workload};
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
@@ -153,14 +158,25 @@ cache_bench!(
 );
 cache_bench!(sprites_archetype, ArchetypeSprites, [100_000]);
 cache_bench!(agents_archetype, ArchetypeAgents, [10_000, 100_000]);
+cache_bench!(simple_iter_dense, DenseSimpleIter, [1_000, 10_000, 100_000]);
+cache_bench!(frag_iter_dense, DenseFragIter, [20]);
+cache_bench!(heavy_compute_dense, DenseHeavyCompute, [1_000]);
+cache_bench!(add_remove_dense, DenseAddRemove, [1_000, 10_000, 100_000]);
+cache_bench!(
+    entity_churn_dense,
+    DenseEntityChurn,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(sprites_dense, DenseSprites, [100_000]);
+cache_bench!(agents_dense, DenseAgents, [10_000, 100_000]);
 
-library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped, simple_iter_archetype);
-library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set, frag_iter_archetype);
-library_benchmark_group!(name = heavy_compute; benchmarks = heavy_compute_vec_aos, heavy_compute_sparse_set, heavy_compute_sparse_set_grouped, heavy_compute_archetype);
-library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_sparse_set_grouped, add_remove_archetype);
-library_benchmark_group!(name = entity_churn; benchmarks = entity_churn_vec_aos, entity_churn_sparse_set, entity_churn_sparse_set_grouped, entity_churn_archetype);
-library_benchmark_group!(name = sprites; benchmarks = sprites_vec_aos, sprites_sparse_set, sprites_sparse_set_grouped, sprites_archetype);
-library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_soa, agents_sparse_set, agents_sparse_set_grouped, agents_archetype);
+library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped, simple_iter_archetype, simple_iter_dense);
+library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set, frag_iter_archetype, frag_iter_dense);
+library_benchmark_group!(name = heavy_compute; benchmarks = heavy_compute_vec_aos, heavy_compute_sparse_set, heavy_compute_sparse_set_grouped, heavy_compute_archetype, heavy_compute_dense);
+library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_sparse_set_grouped, add_remove_archetype, add_remove_dense);
+library_benchmark_group!(name = entity_churn; benchmarks = entity_churn_vec_aos, entity_churn_sparse_set, entity_churn_sparse_set_grouped, entity_churn_archetype, entity_churn_dense);
+library_benchmark_group!(name = sprites; benchmarks = sprites_vec_aos, sprites_sparse_set, sprites_sparse_set_grouped, sprites_archetype, sprites_dense);
+library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_soa, agents_sparse_set, agents_sparse_set_grouped, agents_archetype, agents_dense);
 
 main!(
     config = LibraryBenchmarkConfig::default().tool(Callgrind::with_args(["--cache-sim=yes"]));
