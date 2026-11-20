@@ -130,7 +130,7 @@ Choices the spec leaves to implementation:
 ### Step 7: `sprites` and `agents` (R9, R10)
 
 - [x] **Who:** builder
-- **Files:** `src/sprites.rs`, `src/agents.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`agents_2d`), `Cargo.lock`.
+- **Files:** `src/sprites.rs`, `src/agents.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`agents_2d`; dropped, §5), `Cargo.lock`.
 - **Interfaces produced:** `sprites::ArchetypeSprites` (owns the draw list, reserved to `count` in `setup`; spawns one of two bundles by `Option<Hidden>`; move and draw queries each a private function with a hook) and `agents::ArchetypeAgents` (`pub struct AgentId(pub u64)`, `Velocity(pub Vec2)`, `Ttl(pub u32)`, as M3.3's; spawns the 4- or 5-element bundle by `Option<Seeker>`; seeker change recorded before the `despawn`, as M3.3's step does).
 - **Test first** (`tests.rs`): `sprites_archetype_matches_the_reference`, `agents_archetype_matches_the_reference` (1,000 agents, 1,300 ticks); `sprites_archetype_layout` (3 archetypes after `setup`; the move query matches 2, the draw query 1); `agents_archetype_layout` (3 archetypes after `setup`; the step query matches 2); `agents_keeps_invariants_every_tick` (1,000 agents, 1,300 ticks); `zero_count_is_valid` for the two. Fails first: does not compile.
 - **Change:** as above.
