@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use proptest::prelude::*;
 
-use crate::{Entity, World};
+use crate::{Commands, Entity, World};
 
 #[derive(Debug, Clone, PartialEq)]
 struct C0(u32);
@@ -21,6 +21,18 @@ enum Op {
     Despawn(usize),
     Insert(usize, usize, u32),
     Remove(usize, usize),
+    DeferInsert(usize, usize, u32),
+    DeferRemove(usize, usize),
+    DeferDespawn(usize),
+    Apply,
+}
+
+/// One command recorded in the buffer, as the model keeps it.
+#[derive(Debug, Clone, Copy)]
+enum Recorded {
+    Insert(Entity, usize, u32),
+    Remove(Entity, usize),
+    Despawn(Entity),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -29,6 +41,11 @@ fn op() -> impl Strategy<Value = Op> {
         1 => any::<usize>().prop_map(Op::Despawn),
         5 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
         3 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
+        3 => (any::<usize>(), 0usize..4, any::<u32>())
+            .prop_map(|(k, t, v)| Op::DeferInsert(k, t, v)),
+        2 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::DeferRemove(k, t)),
+        1 => any::<usize>().prop_map(Op::DeferDespawn),
+        2 => Just(Op::Apply),
     ]
 }
 
@@ -47,6 +64,50 @@ fn remove(world: &mut World, entity: Entity, ty: usize) -> Option<u32> {
         1 => world.remove::<C1>(entity).map(|c| c.0),
         2 => world.remove::<C2>(entity).map(|c| c.0),
         _ => world.remove::<C3>(entity).map(|c| c.0),
+    }
+}
+
+fn defer_insert(commands: &mut Commands, entity: Entity, ty: usize, val: u32) {
+    match ty {
+        0 => commands.insert(entity, C0(val)),
+        1 => commands.insert(entity, C1(val)),
+        2 => commands.insert(entity, C2(val)),
+        _ => commands.insert(entity, C3(val)),
+    }
+}
+
+fn defer_remove(commands: &mut Commands, entity: Entity, ty: usize) {
+    match ty {
+        0 => commands.remove::<C0>(entity),
+        1 => commands.remove::<C1>(entity),
+        2 => commands.remove::<C2>(entity),
+        _ => commands.remove::<C3>(entity),
+    }
+}
+
+/// Applies the recorded commands to the model in order, skipping those on dead entities.
+fn apply_to_model(model: &mut Model, recorded: &mut Vec<Recorded>) {
+    for command in recorded.drain(..) {
+        let entity = match command {
+            Recorded::Insert(e, ..) | Recorded::Remove(e, _) | Recorded::Despawn(e) => e,
+        };
+        let live = model
+            .get(&entity.index())
+            .is_some_and(|(e, _)| *e == entity);
+        if !live {
+            continue;
+        }
+        match command {
+            Recorded::Insert(_, ty, val) => {
+                model.get_mut(&entity.index()).unwrap().1[ty] = Some(val);
+            }
+            Recorded::Remove(_, ty) => {
+                model.get_mut(&entity.index()).unwrap().1[ty] = None;
+            }
+            Recorded::Despawn(_) => {
+                model.remove(&entity.index());
+            }
+        }
     }
 }
 
@@ -177,6 +238,8 @@ fn run(ops: &[Op]) {
     let mut world = World::new();
     let mut spawned: Vec<Entity> = Vec::new();
     let mut model = Model::new();
+    let mut commands = Commands::new();
+    let mut recorded: Vec<Recorded> = Vec::new();
     for op in ops {
         match *op {
             Op::Spawn => {
@@ -210,6 +273,28 @@ fn run(ops: &[Op]) {
                     _ => None,
                 };
                 assert_eq!(remove(&mut world, entity, ty), old);
+            }
+            Op::DeferInsert(k, ty, val) if !spawned.is_empty() => {
+                // Unlike `World::insert`, a recorded insert on a dead entity is allowed.
+                let entity = spawned[k % spawned.len()];
+                defer_insert(&mut commands, entity, ty, val);
+                recorded.push(Recorded::Insert(entity, ty, val));
+            }
+            Op::DeferRemove(k, ty) if !spawned.is_empty() => {
+                let entity = spawned[k % spawned.len()];
+                defer_remove(&mut commands, entity, ty);
+                recorded.push(Recorded::Remove(entity, ty));
+            }
+            Op::DeferDespawn(k) if !spawned.is_empty() => {
+                let entity = spawned[k % spawned.len()];
+                commands.despawn(entity);
+                recorded.push(Recorded::Despawn(entity));
+            }
+            Op::Apply => {
+                assert_eq!(commands.len(), recorded.len());
+                world.apply(&mut commands);
+                apply_to_model(&mut model, &mut recorded);
+                assert!(commands.is_empty());
             }
             _ => {}
         }

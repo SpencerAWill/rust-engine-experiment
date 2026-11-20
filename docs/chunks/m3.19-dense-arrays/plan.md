@@ -80,7 +80,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: `Commands` (R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/commands.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `pub struct Commands` and `World::apply(&mut self, &mut Commands)` per spec §4.6 (`impl World { apply }` in `commands.rs`, as M3.3 has it). `Deferred` closures check `is_alive` first; `apply` drains so capacity is kept; `#[cfg(test)] fn capacity`. `Default` and `Debug` (the number of commands). `pub use commands::Commands;`.
 - **Test first:** `commands_run_in_recorded_order`; `command_on_a_dead_entity_is_skipped` (no panic, `check_invariants` `Ok`, `len` unchanged; focus 10); `apply_empties_the_buffer_and_keeps_its_capacity`; `commands_change_presence` (a recorded `insert` sets the bit, a recorded `remove` clears it). In `tests.rs`, `world_matches_the_model` gains `DeferInsert(k, type, value)`, `DeferRemove(k, type)`, `DeferDespawn(k)` and `Apply`, with one `Commands` buffer and a model of the recorded commands that applies them in order and skips dead entities (specs-3). Fails first: does not compile.
