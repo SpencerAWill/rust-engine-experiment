@@ -28,7 +28,7 @@ Row statuses are as for M2 below. The storage prototypes live under `spikes/` an
 | M3.1 | `engine::collections`: deterministic map and set | none | Done (PR #26) | [spec](chunks/m3.1-collections/spec.md), [plan](chunks/m3.1-collections/plan.md) |
 | M3.2 | Spike harness under `spikes/ecs_storage/`: the `Workload` interface and conformance check, seven workloads (simple and fragmented iteration, heavy compute, add/remove, entity churn, 100k 2D sprites, the M3.0 agent workload), the plain-`Vec` backends (array-of-structs, and struct-of-arrays for agents), Criterion and Gungraun cache-simulation benches | M3.0, M3.1 | Done (PR #36) | [spec](chunks/m3.2-spike-harness/spec.md), [plan](chunks/m3.2-spike-harness/plan.md) |
 | M3.3 | Sparse-set prototype (safe): views-only and owning-group backends on one minimal `World` | M3.2 | Done (PR #75) | [spec](chunks/m3.3-sparse-set/spec.md), [plan](chunks/m3.3-sparse-set/plan.md) |
-| M3.4 | Archetype prototype (safe) | M3.2 | In progress | [spec](chunks/m3.4-archetype/spec.md), [plan](chunks/m3.4-archetype/plan.md) |
+| M3.4 | Archetype prototype (safe): one table per archetype, cached transition edges, bundle spawn | M3.2 | In progress | [spec](chunks/m3.4-archetype/spec.md), [plan](chunks/m3.4-archetype/plan.md) |
 | M3.5 | Per-component hybrid prototype (safe) | M3.3, M3.4 | Planned | |
 | M3.6 | Runtime-registered components in safe byte columns, in the leading prototype | M3.3, M3.4, M3.5 | Planned | |
 | M3.7 | `unsafe` type-erased variant of the leading prototype: an ADR for a spike-scoped exception, an `unsafe-allowlist.toml` entry and Miri in CI; measures the safe and `unsafe` gap | M3.3, M3.4, M3.5 | Planned | |

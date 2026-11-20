@@ -148,7 +148,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: documents (R13)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/roadmap.md`, `spikes/ecs_storage/README.md`, `CHANGELOG.md`.
 - **Test first:** n/a for prose. The checks before the change: `grep -n "cached transition edges" docs/roadmap.md` and `grep -n "archetype/" spikes/ecs_storage/README.md` find nothing.
 - **Change:** spec §4.10: M3.4's new title; the package row in the spike README; a CHANGELOG entry. Predictions keep their "expected, unmeasured" wording (docs-3).

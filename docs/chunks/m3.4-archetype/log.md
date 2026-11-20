@@ -54,3 +54,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 done Step 7 checked by the main session: `ci --quick` rc 0, 884 tests.
 - 2026-11-20 done Step 8: Archetype* registered in compare.rs and cache.rs; listing prints 14 ids (plan said 13; sizes sum to 3+1+1+3+3+1+2=14)
 - 2026-11-20 done Step 8 checked by the main session: a script confirmed all seven `<workload>_archetype` `cache_bench!` lines use their workload's `vec_aos` sizes and sit in its group; 14 Criterion ids (the plan's 13 was a miscount, fixed).
+- 2026-11-20 done Step 9 (main session): M3.4's roadmap title, the `archetype/` row in the spike README, a CHANGELOG entry; both before-checks found nothing, both now find their text. Full `cargo xtask ci` rc 0 on e807e44 plus these documents (884 tests, doctests, doc, no_std, wasm, hack, typos, deny, bench-smoke incl. `spike/ecs/*/archetype/*`, fuzz build, check-docs).
