@@ -71,7 +71,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: bundles (R2 in part, R5 in part, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/bundle.rs` (new), `src/table.rs`, `src/world.rs`, `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `pub trait Bundle` (sealed; tuples of 1 to 8 `Component`s), `BundleInfo { archetype, columns, sparse, types }`, `World::spawn_with` (spec §4.6, §1). `pub use bundle::Bundle;`.
 - **Test first:** `spawn_with_creates_one_archetype_of_the_table_types` (`(A, S, C)` with `S` sparse on a fresh world: `archetype_count() == 2`, the archetype has `A` and `C`, `S` is in its set; R7); `mixed_bundle_values_land_in_their_own_storage` (focus 5); `sparse_only_bundle_spawns_into_the_empty_archetype`; `a_warm_spawn_with_creates_nothing` (the `lookups` counter unchanged, `archetype_count` unchanged); `repeated_type_in_a_bundle_panics` (one table, one sparse repeat); `a_failed_spawn_with_leaves_the_world_unchanged` (cold, a mixed bundle; `len`, `archetype_count`, the registered ids, the sparse set count and the bundle cache unchanged; the message starts with `"World::spawn_with:"`; ecs-4); `b1_violation_is_reported`. In `tests.rs`, `world_matches_the_model` gains `SpawnWith(bundle shape, values)` with one to three of the four types, in shapes that include out-of-order and mixed ones (specs-3). Fails first: does not compile.
@@ -181,3 +181,6 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 - **Step 1, the storage seal:** carries `KIND` and the four `World` paths only; the fetch GATs and per-row functions arrive with step 3, `register` is `World::register::<T>()` matching on `KIND` (unused items fail clippy; log.md, 2026-11-20).
 - **Step 1, `StorageKind`:** `pub` inside the private `component` module (the seal names it), so unnameable outside the crate, rather than `pub(crate)` as spec §4.2 says.
 - **Step 1, `check_invariants` order:** A3, then A5, then T1 and T2, A1 and A2, A4, S4 and S1 to S3, so A5 is reachable (sent back once; log.md, 2026-11-20).
+- **Step 2, cold `spawn_with` order:** the repeated-type check runs before the allocation (it registers nothing), so a repeated type uses no entity ID; then allocate, register and build the info.
+- **Step 2, visibility:** `ComponentId` and `ErasedSparseSet` are `pub` inside private modules, since the bundle seal names them (`private_interfaces`), as in M3.4.
+- **Step 2, warm `spawn_with`:** one `bundles` lookup, as M3.4's (sent back once from three; ecs-7; log.md, 2026-11-20).

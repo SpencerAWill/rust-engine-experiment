@@ -4,6 +4,8 @@
 use core::any::{Any, TypeId};
 
 use crate::archetype::ComponentId;
+use crate::bundle::Bundle;
+use crate::sparse::ErasedSparseSet;
 use crate::{Entity, InvariantViolation};
 
 /// The values of one component type in one archetype, one per row.
@@ -76,6 +78,18 @@ fn typed_mut<T: 'static>(column: &mut dyn ErasedColumn) -> &mut Column<T> {
         .expect("T2: a column holds the type its component id names")
 }
 
+/// Pushes the table elements of one bundle onto a table's columns. Only [`Table::push_bundle`]
+/// makes one, and it checks that the row is complete.
+#[derive(Debug)]
+pub struct RowWriter<'t>(&'t mut [Box<dyn ErasedColumn>]);
+
+impl RowWriter<'_> {
+    /// Pushes `value` onto column `col`.
+    pub(crate) fn push<T: 'static>(&mut self, col: usize, value: T) {
+        typed_mut::<T>(&mut *self.0[col]).0.push(value);
+    }
+}
+
 /// An archetype's entities and component columns. Column `i` holds the archetype's `i`-th
 /// component in ascending [`ComponentId`] order. The fields are private and every operation
 /// changes the entity list and all columns together (T1).
@@ -124,6 +138,34 @@ impl Table {
             self.columns.len()
         );
         self.entities.push(entity);
+    }
+
+    /// Adds one row from `bundle`: its table elements onto the columns `columns` names, its
+    /// sparse elements into the sets `sparse` names in `sets`.
+    ///
+    /// In debug builds, panics if `columns` does not cover every column exactly once: the row
+    /// would break T1. Internal only.
+    pub(crate) fn push_bundle<B: Bundle>(
+        &mut self,
+        entity: Entity,
+        bundle: B,
+        columns: &[usize],
+        sets: &mut [Box<dyn ErasedSparseSet>],
+        sparse: &[usize],
+    ) {
+        bundle.write(
+            entity,
+            &mut RowWriter(&mut self.columns),
+            columns,
+            sets,
+            sparse,
+        );
+        self.entities.push(entity);
+        debug_assert!(
+            self.columns.iter().all(|c| c.len() == self.entities.len()),
+            "Table::push_bundle left a column at a different length than the entity list (T1); \
+             this is a bug in the prototype"
+        );
     }
 
     /// Drops the row and returns the entity moved into the hole, if any.

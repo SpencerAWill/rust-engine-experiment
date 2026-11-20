@@ -27,6 +27,8 @@ enum Op {
     Despawn(usize),
     Insert(usize, usize, u32),
     Remove(usize, usize),
+    /// One to three distinct types, in the order given, with their values.
+    SpawnWith(Vec<(usize, u32)>),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -35,7 +37,48 @@ fn op() -> impl Strategy<Value = Op> {
         1 => any::<usize>().prop_map(Op::Despawn),
         6 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
         4 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
+        3 => prop::collection::vec((0usize..4, any::<u32>()), 1..=3).prop_map(Op::SpawnWith),
     ]
+}
+
+/// Binds the component of type index `$t` with value `$v` to `$x` and evaluates `$body`.
+macro_rules! with_value {
+    ($t:expr, $v:expr, |$x:ident| $body:expr) => {
+        match $t {
+            0 => {
+                let $x = T0($v);
+                $body
+            }
+            1 => {
+                let $x = T1($v);
+                $body
+            }
+            2 => {
+                let $x = S0($v);
+                $body
+            }
+            _ => {
+                let $x = S1($v);
+                $body
+            }
+        }
+    };
+}
+
+/// `spawn_with` of the given distinct types in the given order (one to three of them).
+fn spawn_with(w: &mut World, items: &[(usize, u32)]) -> Entity {
+    match *items {
+        [(ta, va)] => with_value!(ta, va, |a| w.spawn_with((a,))),
+        [(ta, va), (tb, vb)] => {
+            with_value!(ta, va, |a| with_value!(tb, vb, |b| w.spawn_with((a, b))))
+        }
+        [(ta, va), (tb, vb), (tc, vc)] => with_value!(ta, va, |a| with_value!(
+            tb,
+            vb,
+            |b| with_value!(tc, vc, |c| w.spawn_with((a, b, c)))
+        )),
+        _ => unreachable!("the generator makes one to three items"),
+    }
 }
 
 fn insert(w: &mut World, e: Entity, t: usize, v: u32) -> Option<u32> {
@@ -77,6 +120,23 @@ fn run(ops: &[Op]) {
                 let e = w.spawn();
                 spawned.push(e);
                 model.insert(e.index(), (e, [None; 4]));
+                live.insert(e.index());
+            }
+            Op::SpawnWith(ref items) => {
+                // A repeated type panics by design, so keep the first of each.
+                let mut distinct: Vec<(usize, u32)> = Vec::new();
+                for &(t, v) in items {
+                    if distinct.iter().all(|&(u, _)| u != t) {
+                        distinct.push((t, v));
+                    }
+                }
+                let e = spawn_with(&mut w, &distinct);
+                let mut row = [None; 4];
+                for &(t, v) in &distinct {
+                    row[t] = Some(v);
+                }
+                spawned.push(e);
+                model.insert(e.index(), (e, row));
                 live.insert(e.index());
             }
             Op::Despawn(k) if !spawned.is_empty() => {

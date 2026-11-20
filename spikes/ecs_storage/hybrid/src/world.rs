@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use engine::genid::GenIdAllocator;
 
 use crate::archetype::{Archetype, ArchetypeId, ComponentId};
+use crate::bundle::{self, Bundle, BundleInfo};
 use crate::component::{Component, StorageKind, seal};
 use crate::sparse::{ErasedSparseSet, SparseSet};
 use crate::table::{Column, ErasedColumn, Table};
@@ -92,6 +93,8 @@ pub struct World {
     ids: BTreeMap<TypeId, ComponentId>,
     components: Vec<ComponentInfo>,
     archetypes: Vec<Archetype>,
+    /// One cached [`BundleInfo`] per bundle type spawned so far.
+    bundles: BTreeMap<TypeId, BundleInfo>,
     by_components: BTreeMap<Box<[ComponentId]>, ArchetypeId>,
     /// One set per registered sparse type, indexed by `ComponentInfo::sparse`.
     sparse_sets: Vec<Box<dyn ErasedSparseSet>>,
@@ -116,6 +119,7 @@ impl World {
             ids: BTreeMap::new(),
             components: Vec::new(),
             archetypes: vec![Archetype::new(empty, Table::new(Box::new([])))],
+            bundles: BTreeMap::new(),
             by_components,
             sparse_sets: Vec::new(),
             locations: Vec::new(),
@@ -144,6 +148,151 @@ impl World {
         self.set_location(entity, ArchetypeId::EMPTY, row);
         self.live += 1;
         entity
+    }
+
+    /// Creates an entity with the components of `bundle`, of either storage kind. The table
+    /// elements go straight into the table of the bundle's own archetype (the one with exactly
+    /// its table types) as one row, and each sparse element into its set, so the entity never
+    /// passes through an intermediate archetype. A bundle of sparse types only spawns into the
+    /// empty archetype.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use spike_ecs_hybrid::{Component, SparseStorage, TableStorage, World};
+    ///
+    /// struct Name(&'static str);
+    /// struct Hp(u32);
+    /// struct Stunned;
+    /// impl Component for Name { type Storage = TableStorage; }
+    /// impl Component for Hp { type Storage = TableStorage; }
+    /// impl Component for Stunned { type Storage = SparseStorage; }
+    ///
+    /// let mut world = World::new();
+    /// let entity = world.spawn_with((Stunned, Name("ada"), Hp(3)));
+    /// assert_eq!(world.archetype_count(), 2); // the empty table and (Name, Hp)
+    /// assert_eq!(world.get::<Hp>(entity).map(|hp| hp.0), Some(3));
+    /// assert!(world.get::<Stunned>(entity).is_some());
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics with a `World::spawn_with:` message if a type appears twice in the bundle, or if
+    /// the world holds the most entities it can (2³¹−2 entity slots in use or retired). In
+    /// either case `len`, every existing entity and the set of registered types, archetypes,
+    /// sparse sets and cached bundle infos are unchanged on the first call of its kind.
+    #[track_caller]
+    pub fn spawn_with<B: Bundle>(&mut self, bundle: B) -> Entity {
+        let key = TypeId::of::<B>();
+        // Warm: one lookup, then allocate and push.
+        let (entity, archetype, row) = if let Some(info) = self.bundles.get(&key) {
+            let entity = Self::allocate(&mut self.entities);
+            let row = Self::place(
+                &mut self.archetypes,
+                &mut self.sparse_sets,
+                info,
+                entity,
+                bundle,
+            );
+            (entity, info.archetype, row)
+        } else {
+            // A repeated type is checked before the allocation, so it uses no entity id; the
+            // check registers nothing, so the allocation still comes before any registration.
+            Self::check_bundle_types::<B>();
+            let entity = Self::allocate(&mut self.entities);
+            let info = self.build_bundle_info::<B>();
+            let info = self.bundles.entry(key).or_insert(info);
+            let row = Self::place(
+                &mut self.archetypes,
+                &mut self.sparse_sets,
+                info,
+                entity,
+                bundle,
+            );
+            (entity, info.archetype, row)
+        };
+        self.set_location(entity, archetype, row);
+        self.live += 1;
+        entity
+    }
+
+    /// Allocates an entity id. Takes the field so the caller can hold a `bundles` borrow.
+    ///
+    /// # Panics
+    ///
+    /// Panics with a `World::spawn_with:` message if the allocator is full.
+    #[track_caller]
+    fn allocate(entities: &mut GenIdAllocator<EntityMarker>) -> Entity {
+        let Some(entity) = entities.try_allocate() else {
+            panic!(
+                "World::spawn_with: the world holds the most entities it can (every entity slot \
+                 is in use or retired); despawn entities to free slots"
+            )
+        };
+        entity
+    }
+
+    /// Pushes `bundle` as `entity`'s row of the table `info` names, and its sparse elements
+    /// into their sets; returns the row.
+    fn place<B: Bundle>(
+        archetypes: &mut [Archetype],
+        sparse_sets: &mut [Box<dyn ErasedSparseSet>],
+        info: &BundleInfo,
+        entity: Entity,
+        bundle: B,
+    ) -> usize {
+        let table = &mut archetypes[info.archetype.index()].table;
+        let row = table.len();
+        table.push_bundle(entity, bundle, &info.columns, sparse_sets, &info.sparse);
+        row
+    }
+
+    /// Panics if a type appears twice in `B`.
+    #[track_caller]
+    fn check_bundle_types<B: Bundle>() {
+        let types = B::types();
+        for (k, (type_id, name)) in types.iter().enumerate() {
+            assert!(
+                types[..k].iter().all(|(other, _)| other != type_id),
+                "World::spawn_with: `{name}` appears twice in the bundle; a bundle holds each \
+                 component type once"
+            );
+        }
+    }
+
+    /// Registers the bundle's types and finds or creates the archetype of its table types.
+    fn build_bundle_info<B: Bundle>(&mut self) -> BundleInfo {
+        let types = B::types();
+        let registered = B::register(self);
+        let table_ids: Vec<ComponentId> = registered
+            .iter()
+            .filter(|(_, kind)| *kind == StorageKind::Table)
+            .map(|(id, _)| *id)
+            .collect();
+        let list = bundle::sorted(&table_ids);
+        let archetype = self.find_or_create(list.clone());
+        let columns = table_ids
+            .iter()
+            .map(|id| {
+                list.binary_search(id)
+                    .expect("the bundle's table ids are in its list")
+            })
+            .collect();
+        let sparse = registered
+            .iter()
+            .filter(|(_, kind)| *kind == StorageKind::Sparse)
+            .map(|(id, _)| {
+                self.components[id.index()]
+                    .sparse
+                    .expect("S4: a sparse type names its set")
+            })
+            .collect();
+        BundleInfo {
+            archetype,
+            columns,
+            sparse,
+            types: types.into_iter().map(|(type_id, _)| type_id).collect(),
+        }
     }
 
     /// Removes the entity and all its components, of both kinds. Returns `false` if it was not
@@ -356,7 +505,8 @@ impl World {
         }
         self.check_locations()?;
         self.check_edges()?;
-        self.check_sparse_sets()
+        self.check_sparse_sets()?;
+        self.check_bundles()
     }
 
     /// A5: archetypes and edges name table types only.
@@ -421,6 +571,52 @@ impl World {
         let is_alive = |e: Entity| self.entities.is_alive(e);
         for set in &self.sparse_sets {
             set.check(&is_alive).map_err(InvariantViolation::new)?;
+        }
+        Ok(())
+    }
+
+    /// B1: each cached bundle's archetype has exactly its table element types, `columns[k]` is
+    /// the column of the `k`-th table element and `sparse[k]` the set of the `k`-th sparse one.
+    fn check_bundles(&self) -> Result<(), InvariantViolation> {
+        for info in self.bundles.values() {
+            let fail = |why: &str| {
+                Err(InvariantViolation::new(format!(
+                    "B1: a cached bundle of {} types: {why}",
+                    info.types.len()
+                )))
+            };
+            let (mut table, mut sparse) = (Vec::new(), Vec::new());
+            for type_id in &*info.types {
+                let Some(id) = self.ids.get(type_id) else {
+                    return fail("an element type is not registered");
+                };
+                match self.components[id.index()].kind {
+                    StorageKind::Table => table.push(*id),
+                    StorageKind::Sparse => sparse.push(*id),
+                }
+            }
+            let Some(archetype) = self.archetypes.get(info.archetype.index()) else {
+                return fail("its archetype does not exist");
+            };
+            if *archetype.components != *bundle::sorted(&table) {
+                return fail("its archetype is not exactly the table element types");
+            }
+            let columns_ok = info.columns.len() == table.len()
+                && table
+                    .iter()
+                    .zip(&*info.columns)
+                    .all(|(id, col)| archetype.components.get(*col) == Some(id));
+            if !columns_ok {
+                return fail("a column index is not the column of its element");
+            }
+            let sparse_ok = info.sparse.len() == sparse.len()
+                && sparse
+                    .iter()
+                    .zip(&*info.sparse)
+                    .all(|(id, set)| self.components[id.index()].sparse == Some(*set));
+            if !sparse_ok {
+                return fail("a set index is not the set of its element");
+            }
         }
         Ok(())
     }
@@ -716,6 +912,7 @@ impl fmt::Debug for World {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bundle::BundleInfo;
     use crate::component::components;
     use std::cell::Cell;
     use std::rc::Rc;
@@ -1116,5 +1313,145 @@ mod tests {
         assert!(text.contains("tests::A"), "got: {text}");
         assert!(text.contains("tests::S"), "got: {text}");
         assert!(World::default().is_empty());
+    }
+
+    #[test]
+    fn spawn_with_creates_one_archetype_of_the_table_types() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1), S(2), C(3)));
+        assert_eq!(w.archetype_count(), 2);
+        let (a, c) = (
+            w.component_id::<A>().unwrap(),
+            w.component_id::<C>().unwrap(),
+        );
+        assert_eq!(&*w.archetypes[1].components, &[a, c]);
+        assert_eq!(location(&w, e).archetype, ArchetypeId::new(1));
+        assert_eq!(w.sparse_sets.len(), 1);
+        assert_eq!(w.sparse_sets[0].len(), 1);
+        assert_eq!(w.get::<S>(e), Some(&S(2)));
+        assert_eq!(w.len(), 1);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn mixed_bundle_values_land_in_their_own_storage() {
+        let mut w = World::new();
+        // Register in one order, spawn in another, so tuple order is not column order.
+        w.register::<A>();
+        w.register::<C>();
+        w.register::<S>();
+        let e = w.spawn_with((S(1), C(2), A(3)));
+        let f = w.spawn_with((C(20), S(10), R(30), A(40)));
+        assert_eq!(w.get::<A>(e), Some(&A(3)));
+        assert_eq!(w.get::<C>(e), Some(&C(2)));
+        assert_eq!(w.get::<S>(e), Some(&S(1)));
+        assert_eq!(w.get::<R>(e), None);
+        assert_eq!(w.get::<A>(f), Some(&A(40)));
+        assert_eq!(w.get::<C>(f), Some(&C(20)));
+        assert_eq!(w.get::<S>(f), Some(&S(10)));
+        assert_eq!(w.get::<R>(f), Some(&R(30)));
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn sparse_only_bundle_spawns_into_the_empty_archetype() {
+        let mut w = World::new();
+        let e = w.spawn_with((S(1), R(2)));
+        assert_eq!(w.archetype_count(), 1);
+        assert_eq!(location(&w, e).archetype, ArchetypeId::EMPTY);
+        assert_eq!(w.get::<S>(e), Some(&S(1)));
+        assert_eq!(w.get::<R>(e), Some(&R(2)));
+        assert_eq!(w.len(), 1);
+        assert_eq!(w.check_invariants(), Ok(()));
+        assert!(w.despawn(e));
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn a_warm_spawn_with_creates_nothing() {
+        let mut w = World::new();
+        w.spawn_with((A(1), S(2)));
+        let lookups = w.lookups;
+        assert!(lookups > 0);
+        let (types, sets, bundles) = (w.components.len(), w.sparse_sets.len(), w.bundles.len());
+        w.spawn_with((A(3), S(4)));
+        assert_eq!(w.lookups, lookups);
+        assert_eq!(w.archetype_count(), 2);
+        assert_eq!(
+            (w.components.len(), w.sparse_sets.len(), w.bundles.len()),
+            (types, sets, bundles)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "World::spawn_with: `")]
+    fn repeated_table_type_in_a_bundle_panics() {
+        let mut w = World::new();
+        w.spawn_with((A(1), B(2), A(3)));
+    }
+
+    #[test]
+    #[should_panic(expected = "appears twice in the bundle")]
+    fn repeated_sparse_type_in_a_bundle_panics() {
+        let mut w = World::new();
+        w.spawn_with((S(1), A(2), S(3)));
+    }
+
+    #[test]
+    fn a_repeated_type_leaves_the_world_unchanged() {
+        let mut w = World::new();
+        let failed =
+            std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn_with((S(1), S(2)))));
+        assert!(message(&*failed.unwrap_err()).contains("S` appears twice in the bundle"));
+        assert_eq!(w.len(), 0);
+        assert!(w.components.is_empty() && w.sparse_sets.is_empty() && w.bundles.is_empty());
+        assert_eq!(w.archetype_count(), 1);
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn a_failed_spawn_with_leaves_the_world_unchanged() {
+        let mut w = World::new();
+        w.entities = GenIdAllocator::with_fixed_capacity(0);
+        let failed = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            w.spawn_with((A(1), S(2), C(3)))
+        }));
+        let payload = failed.unwrap_err();
+        assert!(
+            message(&*payload).starts_with("World::spawn_with:"),
+            "got: {}",
+            message(&*payload)
+        );
+        assert_eq!(w.len(), 0);
+        assert_eq!(w.archetype_count(), 1);
+        assert_eq!(w.archetypes[0].table.len(), 0);
+        assert!(w.ids.is_empty() && w.components.is_empty());
+        assert!(w.sparse_sets.is_empty());
+        assert!(w.bundles.is_empty());
+        assert_eq!(w.check_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn b1_violation_is_reported() {
+        let mut w = World::new();
+        w.spawn_with((A(1), S(2), C(3)));
+        assert_eq!(w.check_invariants(), Ok(()));
+        let key = *w.bundles.keys().next().unwrap();
+        let corrupt = |w: &mut World, f: &dyn Fn(&mut BundleInfo)| {
+            f(w.bundles.get_mut(&key).unwrap());
+            violation(w)
+        };
+        let mut x = World::new();
+        x.spawn_with((A(1), S(2), C(3)));
+        assert!(corrupt(&mut x, &|i| i.archetype = ArchetypeId::EMPTY).contains("B1"));
+        let mut x = World::new();
+        x.spawn_with((A(1), S(2), C(3)));
+        assert!(corrupt(&mut x, &|i| i.columns.swap(0, 1)).contains("B1"));
+        let mut x = World::new();
+        x.spawn_with((A(1), S(2), C(3)));
+        assert!(corrupt(&mut x, &|i| i.sparse[0] = 5).contains("B1"));
+        let mut x = World::new();
+        x.spawn_with((A(1), S(2), C(3)));
+        assert!(corrupt(&mut x, &|i| i.types = Box::new([])).contains("B1"));
     }
 }

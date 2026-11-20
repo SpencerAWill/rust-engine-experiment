@@ -16,6 +16,7 @@
 //! published. The spec is `docs/chunks/m3.5-hybrid/spec.md`.
 
 mod archetype;
+mod bundle;
 mod component;
 mod sparse;
 mod table;
@@ -26,6 +27,7 @@ mod tests;
 
 use engine::genid::GenId;
 
+pub use bundle::Bundle;
 pub use component::{Component, SparseStorage, Storage, TableStorage};
 pub use world::{InvariantViolation, World};
 

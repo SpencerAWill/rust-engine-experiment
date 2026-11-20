@@ -164,7 +164,7 @@ impl<T> SparseMut<'_, T> {
 
 /// What the world can do with a set without knowing its value type. The method names avoid
 /// `Any::type_id`, which a `Box<dyn ErasedSparseSet>` would otherwise resolve to the box's type.
-pub(crate) trait ErasedSparseSet: Any {
+pub trait ErasedSparseSet: Any {
     /// Removes the entity's value, dropping it, if there is one.
     fn remove_entity(&mut self, entity: Entity);
     fn len(&self) -> usize;
