@@ -267,7 +267,7 @@ As M3.3's (its spec §4.6): `Commands::{new, despawn, insert, remove, len, is_em
 - **`Vec<T>` with a filler value in absent slots.** Rejected by the maintainer: needs a `Default` (or similar) bound that the harness's component types do not all have, so it would change the harness.
 - **`Vec<Option<T>>` alone, with queries scanning the shortest required column.** Rejected by the maintainer: it does not measure `Join`, which #79 asks for, and a scan visits absent slots one by one where the hierarchy skips empty ranges.
 - **Bundle spawn, as M3.4.** Rejected by the maintainer (§2).
-- **A flat `BitSet` per type, ANDed word by word.** Not built: on these workloads, where nearly every entity has every component, a flat AND might match the hierarchy, but #79 names `HierarchicalBitSet` and `Join`, which M3.17 built for this. A flat variant would be a second backend.
+- **A flat `BitSet` per type, intersected word by word.** Not built: on these workloads, where nearly every entity has every component, a flat AND might match the hierarchy, but #79 names `HierarchicalBitSet` and `Join`, which M3.17 built for this. A flat variant would be a second backend.
 - **A per-entity component mask for despawn.** Rejected for now (§4.2, §4.8).
 - **`IntoIterator for Query` by value, with the `Join` rebuilt inside the iterator.** Not possible without `unsafe` or a `Join` that owns its sets, which would change `libs/` (§2); `iter(&self)` covers the tests.
 - **A query trait or crate shared with the other prototypes.** Rejected for M3.3's reasons (its spec §7); the hybrid (M3.5) is where one query over several storage kinds is designed (#83).

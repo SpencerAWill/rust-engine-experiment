@@ -129,7 +129,7 @@ Choices the spec leaves to implementation:
 
 ### Step 8: documents (R12)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md`, `CHANGELOG.md`.
 - **Test first:** n/a for prose. The checks before the change: `grep -n "dense/" spikes/ecs_storage/README.md` and `grep -n "spike_ecs_dense" CHANGELOG.md` find nothing.
 - **Change:** spec §4.9: the package row in the spike README; a CHANGELOG entry. Predictions keep their "expected, unmeasured" wording (docs-3). M3.8's roadmap row gains the costs found while building (step 2's allocation count and anything the reviews find) in the close-out commit, with the row's `Done`.
