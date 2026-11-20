@@ -32,4 +32,4 @@ Keep it short: a plan records the decisions a builder cannot make alone (files, 
 
 ## 5. Deviations
 
-<!-- Filled in during implementation: what differed from the plan and why. "None" if nothing did. -->
+<!-- Filled in during implementation: what differed from the plan and why, one line each. The story (sent-back versions, red checks, how something was measured) stays in log.md; point at it. "None" if nothing did. -->

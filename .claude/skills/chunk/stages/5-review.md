@@ -1,6 +1,6 @@
 # Stage 5: review
 
-1. **Simplify.** Dispatch one `builder` to run `/simplify` over `main...HEAD` (behaviour-preserving cleanups only). Check and commit its changes on their own: `refactor: simplify (<id>)`. No commit if nothing changed.
+1. **Simplify.** Dispatch one `builder` to run `/simplify` over `main...HEAD` (behaviour-preserving cleanups only), reading every changed source file in full; a report that lists files it skipped or only skimmed goes back. Check and commit its changes on their own: `refactor: simplify (<id>)`. No commit if nothing changed.
 2. **Review in parallel.** Dispatch fresh reviewers, each with the spec path, the diff range `main...HEAD` and the plan's lesson IDs, and nothing of your reasoning:
    - `review-code`, `review-security`, `review-docs`, `review-spec`, always;
    - `review-conditional`, naming which of public API, determinism, performance and portability apply (see the table in CONTRIBUTING.md, "Reviews before a pull request"); the others are `n/a: <reason>`.
