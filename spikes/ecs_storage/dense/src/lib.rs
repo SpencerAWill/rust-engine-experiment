@@ -14,6 +14,7 @@
 //! published. The spec is `docs/chunks/m3.19-dense-arrays/spec.md`.
 
 pub mod add_remove;
+pub mod agents;
 mod column;
 mod commands;
 pub mod entity_churn;
@@ -21,6 +22,7 @@ pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
 pub mod simple_iter;
+pub mod sprites;
 #[cfg(test)]
 mod tests;
 mod world;

@@ -110,7 +110,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: `sprites` and `agents` (R8, R9)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/sprites.rs`, `src/agents.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `sprites::DenseSprites` (owns the draw list, reserved to `count` in `setup`; inserts `Hidden` on hidden entities; move and draw queries each a private function with a hook) and `agents::DenseAgents` (`pub struct AgentId(pub u64)`, `Velocity(pub Vec2)`, `Ttl(pub u32)`, as M3.3's; seeker change recorded before the `despawn`, as M3.3's step does).
 - **Test first** (`tests.rs`): `sprites_dense_matches_the_reference`, `agents_dense_matches_the_reference` (1,000 agents, 1,300 ticks); `sprites_dense_joins` (move: Transform2d, Velocity2d / none; draw: Transform2d, Sprite / Hidden); `agents_dense_joins`; `agents_keeps_invariants_every_tick` (1,000 agents, 1,300 ticks); `zero_count_is_valid` for the two. Fails first: does not compile.

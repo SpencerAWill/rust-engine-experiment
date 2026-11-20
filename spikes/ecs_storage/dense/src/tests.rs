@@ -327,24 +327,29 @@ mod workloads {
 
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::agents::VecAgents;
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
+    use spike_ecs_vec::sprites::VecSprites;
 
     use crate::World;
     use crate::add_remove::DenseAddRemove;
+    use crate::agents::DenseAgents;
     use crate::entity_churn::DenseEntityChurn;
     use crate::frag_iter::DenseFragIter;
     use crate::heavy_compute::DenseHeavyCompute;
     use crate::query::Joined;
     use crate::simple_iter::DenseSimpleIter;
+    use crate::sprites::DenseSprites;
 
     const PARAMS: Params = Params {
         count: 1_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
+    const AGENT_TICKS: u64 = 1_300;
 
     /// The joined list for the component types `T`, named by the world's own ids.
     fn ids(world: &World, types: &[TypeId]) -> Vec<Joined> {
@@ -478,6 +483,61 @@ mod workloads {
         }
     }
 
+    #[test]
+    fn sprites_dense_matches_the_reference() {
+        check_conformance::<VecSprites, DenseSprites>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn agents_dense_matches_the_reference() {
+        check_conformance::<VecAgents, DenseAgents>(PARAMS, AGENT_TICKS).unwrap();
+    }
+
+    #[test]
+    fn sprites_dense_joins() {
+        use engine::prelude::Transform2d;
+        use spike_ecs_harness::sprites::{Hidden, Sprite, Velocity2d};
+        let mut w = DenseSprites::setup(Params { count: 10, seed: 1 });
+        let want = ids(
+            w.world(),
+            &[TypeId::of::<Transform2d>(), TypeId::of::<Velocity2d>()],
+        );
+        assert_eq!(w.move_joined(), (want, vec![]));
+        let want = ids(
+            w.world(),
+            &[TypeId::of::<Transform2d>(), TypeId::of::<Sprite>()],
+        );
+        let hidden = ids(w.world(), &[TypeId::of::<Hidden>()]);
+        assert_eq!(w.draw_joined(), (want, hidden));
+    }
+
+    #[test]
+    fn agents_dense_joins() {
+        use crate::agents::{Ttl, Velocity};
+        use engine::prelude::Transform2d;
+        let mut w = DenseAgents::setup(Params { count: 10, seed: 1 });
+        let want = ids(
+            w.world(),
+            &[
+                TypeId::of::<Transform2d>(),
+                TypeId::of::<Velocity>(),
+                TypeId::of::<Ttl>(),
+            ],
+        );
+        assert_eq!(w.step_joined(), (want, vec![]));
+    }
+
+    #[test]
+    fn agents_keeps_invariants_every_tick() {
+        let mut w = DenseAgents::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..AGENT_TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -492,5 +552,7 @@ mod workloads {
         zero_count::<DenseHeavyCompute>();
         zero_count::<DenseAddRemove>();
         zero_count::<DenseEntityChurn>();
+        zero_count::<DenseSprites>();
+        zero_count::<DenseAgents>();
     }
 }
