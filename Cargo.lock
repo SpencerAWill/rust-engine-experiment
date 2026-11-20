@@ -1983,6 +1983,7 @@ name = "spike_ecs_bench_cache"
 version = "0.1.0"
 dependencies = [
  "gungraun",
+ "spike_ecs_archetype",
  "spike_ecs_harness",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",
@@ -1993,6 +1994,7 @@ name = "spike_ecs_bench_compare"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "spike_ecs_archetype",
  "spike_ecs_harness",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",

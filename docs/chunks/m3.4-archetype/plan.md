@@ -139,11 +139,11 @@ Choices the spec leaves to implementation:
 
 ### Step 8: bench registrations (R11)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/Cargo.toml`, `benches/compare.rs`, `spikes/ecs_storage/bench_cache/Cargo.toml`, `benches/cache.rs`, `Cargo.lock`.
 - **Test first:** n/a for registrations. The check before the change: `cargo bench -p spike_ecs_bench_compare -- --test 2>&1 | grep -c /archetype/` prints 0.
 - **Change:** dev-dependency `spike_ecs_archetype = { path = "../archetype" }` in both bench crates. `compare.rs`: one `bench::<…>(c);` per workload (7). `cache.rs`: one `cache_bench!(<workload>_archetype, <Type>, [<sizes>]);` per workload with each workload's `Spec::SIZES` (`simple_iter`, `add_remove`, `entity_churn`: `[1_000, 10_000, 100_000]`; `frag_iter`: `[20]`; `heavy_compute`: `[1_000]`; `sprites`: `[100_000]`; `agents`: `[10_000, 100_000]`), each named in its workload's group.
-- **Verify:** the same command prints 13 (the Criterion ids, one per workload and size); `cargo build --benches -p spike_ecs_bench_cache` builds; the main session checks each new `cache_bench!` line's sizes against the workload's `vec_aos` line and its group (the cache bench's own size assertion does not run without Valgrind, #74); `cargo xtask ci --quick` passes; `cargo xtask deny` passes.
+- **Verify:** the same command prints 14 (the Criterion ids, one per workload and size: 3 + 1 + 1 + 3 + 3 + 1 + 2); `cargo build --benches -p spike_ecs_bench_cache` builds; the main session checks each new `cache_bench!` line's sizes against the workload's `vec_aos` line and its group (the cache bench's own size assertion does not run without Valgrind, #74); `cargo xtask ci --quick` passes; `cargo xtask deny` passes.
 - **Commit:** `feat(spikes): benchmark the archetype backend (M3.4)`
 
 ### Step 9: documents (R13)
@@ -189,3 +189,4 @@ From `lessons-researcher` (2026-11-20).
 - **Step 3, allocations (ecs-2):** two heap allocations per query run (the `Plan`'s type list and the `Slots` vector), none per matched archetype or row, for `Query::for_each`, `Query::iter` and `QueryMut::for_each` with 1 to 5 types over three archetypes. Measured with a temporary counting `#[global_allocator]` that required lifting `forbid(unsafe_code)` in the working tree; reverted before review and never committed.
 - **Step 5, test hooks:** each workload also has a `#[cfg(test)] archetype_count()` accessor beside `step_archetypes()`, keeping the `world` field private.
 - **Step 6, red check 1:** skipping `remove::<B>` did not fail `add_remove_keeps_invariants_every_tick` as the plan expected (a second insert of `B` only replaces it); that test now also asserts that no entity has `B` after a tick, and fails on the skipped removal. The conformance test failed as planned.
+- **Step 8, id count:** the plan said 13 Criterion ids; the sizes it lists give 14 (3 + 1 + 1 + 3 + 3 + 1 + 2), which is what the listing printed. The plan's miscount, corrected in step 8's Verify.

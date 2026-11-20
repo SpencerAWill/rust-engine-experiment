@@ -52,3 +52,5 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 done Step 7: archetype `sprites` and `agents` workloads, six tests; `cargo xtask test` (884 passed) and `ci --quick` pass.
 - 2026-11-20 decision Step 7: the archetype workloads need no `Hidden`/`Seeker` insert path: both spawn straight into a 4/5-element bundle (3 archetypes incl. the empty one); `draw_archetypes` takes `&self` as the draw query is read-only.
 - 2026-11-20 done Step 7 checked by the main session: `ci --quick` rc 0, 884 tests.
+- 2026-11-20 done Step 8: Archetype* registered in compare.rs and cache.rs; listing prints 14 ids (plan said 13; sizes sum to 3+1+1+3+3+1+2=14)
+- 2026-11-20 done Step 8 checked by the main session: a script confirmed all seven `<workload>_archetype` `cache_bench!` lines use their workload's `vec_aos` sizes and sit in its group; 14 Criterion ids (the plan's 13 was a miscount, fixed).
