@@ -121,12 +121,7 @@ pub(crate) mod seal {
                 .iter()
                 .map(|id| id.map(|c| Slot::Shared(&*storages[c.index()])))
                 .collect();
-            Self {
-                storages: slots,
-                cursor: 0,
-                direct: how.direct.clone(),
-                limit: how.limit,
-            }
+            Self::new(slots, how)
         }
 
         /// Slots that borrow the storages exclusive: one pass over the storage list hands each
@@ -141,8 +136,12 @@ pub(crate) mod seal {
                     slots[j] = Some(Slot::Mut(&mut **storage));
                 }
             }
+            Self::new(slots, how)
+        }
+
+        fn new(storages: Vec<Option<Slot<'w>>>, how: &Access) -> Self {
             Self {
-                storages: slots,
+                storages,
                 cursor: 0,
                 direct: how.direct.clone(),
                 limit: how.limit,
@@ -741,10 +740,7 @@ impl Plan {
         let required_ids: Vec<ComponentId> = required().filter_map(|(_, (_, id))| *id).collect();
         if let Some(group) = world.select_group(&required_ids) {
             // Every member is required, so it has a slot; each is read by loop index up to the
-            // group's length. The driver is any of them (their entity prefixes are equal; the
-            // first member's is the one the spec names).
-            let first = world.group_first(group);
-            debug_assert!(ids.contains(&Some(first)));
+            // group's length. The driver is any of them (their entity prefixes are equal).
             let direct = ids
                 .iter()
                 .map(|id| id.is_some_and(|c| world.group_has(group, c)))
@@ -785,6 +781,19 @@ impl Plan {
             .position(|&d| d)
             .expect("a plan has a driver")
     }
+}
+
+/// Binds the parameter and filter fetches from `slots` and returns them with the driver's
+/// entities. Shared by `Query` and `QueryMut` so the two cannot bind differently.
+fn bind_fetches<'w, Q: QueryParam, F: Filter>(
+    slots: &mut seal::Slots<'w>,
+) -> (Q::Fetch<'w>, F::Fetch<'w>, &'w [Entity]) {
+    let qf = Q::bind(slots);
+    let ff = F::bind(slots);
+    let entities = Q::driven(&qf)
+        .or_else(|| F::driven(&ff))
+        .expect("the driver is a required parameter or filter");
+    (qf, ff, entities)
 }
 
 /// A read-only query, borrowed from [`World::query`]. Add filters with [`with`](Self::with)
@@ -876,11 +885,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
             return QueryIter { state: None };
         };
         let mut slots = seal::Slots::shared(world, &plan.ids, &plan.access);
-        let qf = Q::bind(&mut slots);
-        let ff = F::bind(&mut slots);
-        let entities = Q::driven(&qf)
-            .or_else(|| F::driven(&ff))
-            .expect("the driver is a required parameter or filter");
+        let (qf, ff, entities) = bind_fetches::<Q, F>(&mut slots);
         QueryIter {
             state: Some(IterState {
                 qf,
@@ -1052,11 +1057,7 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
             return;
         };
         let mut slots = seal::Slots::exclusive(self.world, &plan.ids, &plan.access);
-        let mut qf = Q::bind(&mut slots);
-        let ff = F::bind(&mut slots);
-        let entities = Q::driven(&qf)
-            .or_else(|| F::driven(&ff))
-            .expect("the driver is a required parameter or filter");
+        let (mut qf, ff, entities) = bind_fetches::<Q, F>(&mut slots);
         for (index, &entity) in entities.iter().enumerate() {
             if F::passes(&ff, entity, index)
                 && let Some(item) = Q::get(&mut qf, entity, index)

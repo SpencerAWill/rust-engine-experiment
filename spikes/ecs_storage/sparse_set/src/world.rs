@@ -120,7 +120,7 @@ impl WorldBuilder {
             let members = (declared.register)(&mut world);
             let index = world.groups.len();
             for m in &members {
-                world.owner[m.0 as usize] = Some(index);
+                world.owner[m.index()] = Some(index);
             }
             world.groups.push(Group { members, len: 0 });
         }
@@ -244,7 +244,7 @@ impl World {
         );
         let id = self.id_or_create::<T>();
         let old = self.storage_at_mut::<T>(id).insert(entity, value);
-        if let (None, Some(g)) = (&old, self.owner[id.0 as usize]) {
+        if let (None, Some(g)) = (&old, self.owner[id.index()]) {
             self.join_group(g, entity);
         }
         old
@@ -254,7 +254,7 @@ impl World {
     /// or has none.
     pub fn remove<T: 'static>(&mut self, entity: Entity) -> Option<T> {
         let id = *self.ids.get(&TypeId::of::<T>())?;
-        if let Some(g) = self.owner[id.0 as usize] {
+        if let Some(g) = self.owner[id.index()] {
             self.leave_group(g, entity);
         }
         self.storage_at_mut::<T>(id).remove(entity)
@@ -289,16 +289,16 @@ impl World {
     }
 
     fn check_group(&self, group: &Group) -> Result<(), InvariantViolation> {
-        let first = &self.storages[group.members[0].0 as usize];
+        let first = &self.storages[group.members[0].index()];
         let names = || {
             group
                 .members
                 .iter()
-                .map(|m| self.storages[m.0 as usize].type_name())
+                .map(|m| self.storages[m.index()].type_name())
                 .collect::<Vec<_>>()
         };
         for m in &group.members {
-            let storage = &self.storages[m.0 as usize];
+            let storage = &self.storages[m.index()];
             if storage.len() < group.len {
                 return Err(InvariantViolation::new(format!(
                     "G1: the group {:?} has length {}, but the storage of {} holds only {}",
@@ -322,7 +322,7 @@ impl World {
             let has_all = group
                 .members
                 .iter()
-                .all(|m| self.storages[m.0 as usize].index_of(*entity).is_some());
+                .all(|m| self.storages[m.index()].index_of(*entity).is_some());
             if has_all != (position < group.len) {
                 return Err(InvariantViolation::new(format!(
                     "G2: in the group {:?} of length {}, {entity:?} at position {position} has every member: {has_all}",
@@ -361,11 +361,6 @@ impl World {
         self.groups[group].len
     }
 
-    /// The first member of group `group`; its entity slice is the group's driver.
-    pub(crate) fn group_first(&self, group: usize) -> ComponentId {
-        self.groups[group].members[0]
-    }
-
     /// Whether `id` is a member of group `group`.
     pub(crate) fn group_has(&self, group: usize, id: ComponentId) -> bool {
         self.groups[group].members.contains(&id)
@@ -389,39 +384,41 @@ impl World {
     /// prefix if it now has every member.
     fn join_group(&mut self, g: usize, entity: Entity) {
         let len = self.groups[g].len;
-        for m in &self.groups[g].members {
-            if self.storages[m.0 as usize].index_of(entity).is_none() {
-                return;
-            }
+        let has_all = self.groups[g]
+            .members
+            .iter()
+            .all(|m| self.storages[m.index()].index_of(entity).is_some());
+        if has_all {
+            self.swap_group_entity(g, entity, len);
+            self.groups[g].len = len + 1;
         }
-        for k in 0..self.groups[g].members.len() {
-            let m = self.groups[g].members[k].0 as usize;
-            let at = self.storages[m]
-                .index_of(entity)
-                .expect("checked above that every member has the entity");
-            self.storages[m].swap(at, len);
-        }
-        self.groups[g].len = len + 1;
     }
 
     /// Before a remove from an owned storage: moves `entity` out of the group's prefix, to
     /// position `len - 1`, if it is in it.
     fn leave_group(&mut self, g: usize, entity: Entity) {
         let len = self.groups[g].len;
-        let first = self.groups[g].members[0].0 as usize;
-        match self.storages[first].index_of(entity) {
-            Some(p) if p < len => {}
-            _ => return,
+        let first = self.groups[g].members[0].index();
+        if self.storages[first]
+            .index_of(entity)
+            .is_some_and(|p| p < len)
+        {
+            let last = len - 1;
+            self.swap_group_entity(g, entity, last);
+            self.groups[g].len = last;
         }
-        let last = len - 1;
+    }
+
+    /// Swaps `entity` to position `to` in every member storage of group `g`. The entity must
+    /// have every member.
+    fn swap_group_entity(&mut self, g: usize, entity: Entity, to: usize) {
         for k in 0..self.groups[g].members.len() {
-            let m = self.groups[g].members[k].0 as usize;
+            let m = self.groups[g].members[k].index();
             let at = self.storages[m]
                 .index_of(entity)
-                .expect("an entity in the prefix has every member");
-            self.storages[m].swap(at, last);
+                .expect("the entity has every member of the group");
+            self.storages[m].swap(at, to);
         }
-        self.groups[g].len = last;
     }
 
     pub(crate) fn id_or_create<T: 'static>(&mut self) -> ComponentId {
@@ -438,7 +435,7 @@ impl World {
     }
 
     fn storage_at_mut<T: 'static>(&mut self, id: ComponentId) -> &mut SparseSet<T> {
-        self.storages[id.0 as usize]
+        self.storages[id.index()]
             .as_any_mut()
             .downcast_mut()
             .expect("a component id names the storage of its own type")
@@ -446,7 +443,7 @@ impl World {
 
     pub(crate) fn storage<T: 'static>(&self) -> Option<&SparseSet<T>> {
         let id = self.ids.get(&TypeId::of::<T>())?;
-        self.storages[id.0 as usize].as_any().downcast_ref()
+        self.storages[id.index()].as_any().downcast_ref()
     }
 
     pub(crate) fn storage_mut<T: 'static>(&mut self) -> Option<&mut SparseSet<T>> {
