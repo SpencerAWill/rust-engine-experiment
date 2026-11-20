@@ -100,7 +100,7 @@ impl RowWriter<'_> {
 
 /// One column, borrowed exclusively, that can be read and written in place but not resized:
 /// the only methods return a slice of a type the caller names, so no code outside [`Table`] can
-/// push, remove or replace a value and break T1.
+/// push or remove a value and break T1.
 #[derive(Debug)]
 pub struct ColumnMut<'t>(&'t mut dyn ErasedColumn);
 

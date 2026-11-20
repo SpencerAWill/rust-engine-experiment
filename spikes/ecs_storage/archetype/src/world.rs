@@ -1111,8 +1111,14 @@ mod tests {
         w.entities = GenIdAllocator::with_fixed_capacity(0);
         let failed =
             std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| w.spawn_with((A(1), B(2)))));
-        assert!(failed.is_err());
+        let payload = failed.unwrap_err();
+        assert!(
+            message(&*payload).starts_with("World::spawn_with:"),
+            "got: {}",
+            message(&*payload)
+        );
         assert_eq!(w.len(), 0);
+        assert_eq!(w.archetype_count(), 2);
         assert_eq!(w.check_invariants(), Ok(()));
     }
 
