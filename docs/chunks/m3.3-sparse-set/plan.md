@@ -1,6 +1,6 @@
 # M3.3 plan: Sparse-set prototype
 
-- **Status:** Accepted (2026-11-19). Rewritten from scratch after the spec was revised and accepted; the 2026-11-14 plan is in the history at 8e093c9.
+- **Status:** Historical: executed in PR #75 (2026-11-19); the spec and the code are authoritative. Rewritten from scratch after the spec was revised and accepted; the 2026-11-14 plan is in the history at 8e093c9.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

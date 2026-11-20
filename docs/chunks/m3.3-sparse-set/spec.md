@@ -1,6 +1,6 @@
 # M3.3: Sparse-set prototype
 
-- **Status:** Accepted (2026-11-19; first drafted 2026-11-14, before M3.11 to M3.18)
+- **Status:** Implemented (PR #75, 2026-11-19; first drafted 2026-11-14, before M3.11 to M3.18)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** none (milestone tracking issue #66)
 - **Estimated size:** about 1,650 changed lines, excluding tests, lockfiles and generated files (`storage` about 250, `world` about 350, `query` about 450, the workload modules about 450, documents about 150)
@@ -373,12 +373,12 @@ impl Commands {
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally, and CI is green on all three platforms.
-- [ ] Both backends pass conformance for every workload they implement, and the invariant-under-churn and model tests pass.
-- [ ] `cargo xtask spike-bench ecs` lists both backends; its output, and a cache-bench run if the devcontainer is available, are in the pull request, labelled informal.
-- [ ] The roadmap shows M3.3's new title and M3.8's notes; the spike README and CHANGELOG are updated.
-- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
-- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
+- [ ] `cargo xtask ci` passes locally, and CI is green on all three platforms. *Local: passes on 4d37876, the last code commit (log.md); later commits are documents only. CI on PR #75: pending.*
+- [x] Both backends pass conformance for every workload they implement, and the invariant-under-churn and model tests pass. *13 conformance tests, `entity_churn_keeps_invariants_every_tick`, `agents_keeps_invariants_every_tick` and `world_matches_the_model` (with `apply`) pass on 4d37876.*
+- [x] `cargo xtask spike-bench ecs` lists both backends; its output, and a cache-bench run if the devcontainer is available, are in the pull request, labelled informal. *43 ids on 17532d2 (code as of 4d37876), table in PR #75; no cache-bench run, since neither Valgrind nor Docker is available on this Mac (said in the PR; #74).*
+- [x] The roadmap shows M3.3's new title and M3.8's notes; the spike README and CHANGELOG are updated. *0a74f54, a1e989b, 0716258.*
+- [x] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request. *Three rounds, PR #75 Reviews section.*
+- [x] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in. *This close-out commit.*
 
 ## 10. Open questions
 
