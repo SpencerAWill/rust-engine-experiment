@@ -17,6 +17,7 @@ workspace = true
 
 [dev-dependencies]
 gungraun.workspace = true
+spike_ecs_archetype = { path = "../archetype" }
 spike_ecs_harness = { path = "../harness" }
 spike_ecs_sparse_set = { path = "../sparse_set" }
 spike_ecs_vec = { path = "../vec" }

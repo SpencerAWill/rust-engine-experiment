@@ -1,0 +1,20 @@
+[package]
+name = "spike_ecs_archetype"
+description = "ECS storage spike: the archetype backend, one table per set of component types (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+spike_ecs_harness = { path = "../harness" }
+
+[dev-dependencies]
+proptest = { workspace = true }
+spike_ecs_vec = { path = "../vec" }
+
+[lints]
+workspace = true

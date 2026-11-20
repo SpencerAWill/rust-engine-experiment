@@ -10,6 +10,11 @@
 use core::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use spike_ecs_archetype::{
+    add_remove::ArchetypeAddRemove, agents::ArchetypeAgents, entity_churn::ArchetypeEntityChurn,
+    frag_iter::ArchetypeFragIter, heavy_compute::ArchetypeHeavyCompute,
+    simple_iter::ArchetypeSimpleIter, sprites::ArchetypeSprites,
+};
 use spike_ecs_harness::{Params, Spec, Workload};
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
@@ -67,6 +72,13 @@ fn compare(c: &mut Criterion) {
     bench::<GroupedSprites>(c);
     bench::<SparseSetAgents>(c);
     bench::<GroupedAgents>(c);
+    bench::<ArchetypeSimpleIter>(c);
+    bench::<ArchetypeFragIter>(c);
+    bench::<ArchetypeHeavyCompute>(c);
+    bench::<ArchetypeAddRemove>(c);
+    bench::<ArchetypeEntityChurn>(c);
+    bench::<ArchetypeSprites>(c);
+    bench::<ArchetypeAgents>(c);
 }
 
 criterion_group!(benches, compare);
