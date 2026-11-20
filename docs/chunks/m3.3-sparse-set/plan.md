@@ -93,7 +93,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: the group path (R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/query.rs`, `src/world.rs`.
 - **Interfaces produced:** `pub(crate) fn uses_group(&self) -> bool` on `Query` and `QueryMut`. Selection per spec §4.5: required types include every member; most members wins, then first declared. Member fetches are re-sliced to `..group.len` and marked `direct`; the driver is the first member's entity slice, re-sliced the same way.
 - **Test first** (`query.rs`): `exact_match_takes_the_group_path`; `superset_takes_the_group_path_and_probes_the_rest` (`(&A, &B, &C)` visits only entities with `C`); `strict_subset_takes_the_view_path`; `the_largest_qualifying_group_wins` (groups `(A, B)` and `(C, D, E)`, `query::<(&A, &B, &C, &D)>().with::<E>()` picks `(C, D, E)`, via a test-only accessor); `group_path_and_view_path_visit_the_same_entities` (proptest: one world with group `(A, B)`, one without, the same operations, the same sorted entity set from `(Entity, &A, &B)`). Fails first: does not compile (`uses_group` is not defined).
@@ -193,3 +193,6 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 3, seals:** a fourth seal, `seal::ReadOnly` (`get_shared`), lets `QueryIter` yield items with the world's lifetime; one `Slot` enum (`Shared`/`Mut`) replaces `RefSlots`; `SparseIndex`, `SparseSet` and `ErasedStorage` are `pub` in the private `storage` module for `private_interfaces`.
 - **Step 3, driver test:** `driver_is_the_smallest_required_storage` checks a `#[cfg(test)]` `Query::driver_len()` instead of a probe counter.
 - **Step 3, `iter`:** carries `#[allow(clippy::iter_without_into_iter)]`; step 4 replaces the allow with `IntoIterator for &Query` (C-ITER).
+- **Step 4, test-only accessors:** `uses_group`, `selected_group`, `Plan::group` and `Plan::driver` are `#[cfg(test)]` rather than plain `pub(crate)`, since only tests call them (clippy's dead-code check). `Plan::new` is the one selection function both query types and `uses_group` use.
+- **Step 4, driver on the group path:** every member column is direct and trimmed to the group length, and `driven` returns the first direct column in query order, not necessarily the group's first member; by G1 the prefixes are equal, so the loop is the same.
+- **Step 4, `&Query`:** `IntoIterator for &Query` replaces step 3's clippy allow on `iter`; tested by `for_item_in_a_query_reference_agrees_with_iter`.

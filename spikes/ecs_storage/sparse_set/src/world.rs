@@ -356,10 +356,33 @@ impl World {
         &mut self.storages
     }
 
-    /// The length of group `group`, for tests.
-    #[cfg(test)]
+    /// The length of group `group`.
     pub(crate) fn group_len(&self, group: usize) -> usize {
         self.groups[group].len
+    }
+
+    /// The first member of group `group`; its entity slice is the group's driver.
+    pub(crate) fn group_first(&self, group: usize) -> ComponentId {
+        self.groups[group].members[0]
+    }
+
+    /// Whether `id` is a member of group `group`.
+    pub(crate) fn group_has(&self, group: usize, id: ComponentId) -> bool {
+        self.groups[group].members.contains(&id)
+    }
+
+    /// The group a query over the `required` types iterates by prefix: among the groups whose
+    /// members are all required, the one with the most members, then the first declared.
+    pub(crate) fn select_group(&self, required: &[ComponentId]) -> Option<usize> {
+        let mut best: Option<usize> = None;
+        for (g, group) in self.groups.iter().enumerate() {
+            let qualifies = group.members.iter().all(|m| required.contains(m));
+            if qualifies && best.is_none_or(|b| group.members.len() > self.groups[b].members.len())
+            {
+                best = Some(g);
+            }
+        }
+        best
     }
 
     /// After a new insert into an owned storage: moves `entity` to the end of the group's
