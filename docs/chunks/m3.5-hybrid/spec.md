@@ -1,6 +1,6 @@
 # M3.5: Per-component hybrid prototype
 
-- **Status:** Draft (2026-11-20)
+- **Status:** Accepted (2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.3, M3.4 · **Decides:** no ADR
 - **Issue:** #82 and #83, both answered here (tracking issue #78)
 - **Estimated size:** about 2,400 changed lines, excluding tests, lockfiles and generated files (`component` about 100, `table` and `archetype` about 350, `sparse` about 250, `world` and `bundle` about 550, `query` about 650, `commands` about 150, the workload modules about 400, documents about 150)
