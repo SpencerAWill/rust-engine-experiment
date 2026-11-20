@@ -103,7 +103,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: `Commands` (R9)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/world.rs` (or a new `src/commands.rs` if `world.rs` passes about 600 lines), `src/lib.rs`.
 - **Interfaces produced:** `pub struct Commands` and `World::apply(&mut self, &mut Commands)` per spec §4.6. `Deferred` closures check `is_alive` first; `apply` drains with `Vec::drain` so capacity is kept. `Default` and `Debug` (the number of commands).
 - **Test first:** `commands_run_in_recorded_order` (insert then remove `A`: absent after `apply`); `command_on_a_dead_entity_is_skipped` (no panic, `check_invariants` `Ok`, `len` unchanged; focus 6); `apply_empties_the_buffer_and_keeps_its_capacity`; `commands_maintain_groups` (inserting `B` through `Commands` joins group `(A, B)`). Fails first: does not compile.
@@ -196,3 +196,4 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 4, test-only accessors:** `uses_group`, `selected_group`, `Plan::group` and `Plan::driver` are `#[cfg(test)]` rather than plain `pub(crate)`, since only tests call them (clippy's dead-code check). `Plan::new` is the one selection function both query types and `uses_group` use.
 - **Step 4, driver on the group path:** every member column is direct and trimmed to the group length, and `driven` returns the first direct column in query order, not necessarily the group's first member; by G1 the prefixes are equal, so the loop is the same.
 - **Step 4, `&Query`:** `IntoIterator for &Query` replaces step 3's clippy allow on `iter`; tested by `for_item_in_a_query_reference_agrees_with_iter`.
+- **Step 5, placement:** `Commands` and `World::apply` are in a new `src/commands.rs`, because `world.rs` was already past 600 lines (709), as step 5 allowed; `Commands::capacity` is private and `#[cfg(test)]`, for the capacity test.

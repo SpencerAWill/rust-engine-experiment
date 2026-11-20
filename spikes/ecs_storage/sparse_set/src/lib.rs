@@ -14,6 +14,7 @@
 //! This is a spike: it exists to be measured against the plain-`Vec` backends, not to be
 //! published. The spec is `docs/chunks/m3.3-sparse-set/spec.md`.
 
+mod commands;
 mod query;
 mod storage;
 #[cfg(test)]
@@ -22,6 +23,7 @@ mod world;
 
 use engine::genid::GenId;
 
+pub use commands::Commands;
 pub use query::{
     Filter, GroupSpec, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without,
 };

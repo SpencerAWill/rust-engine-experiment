@@ -33,3 +33,6 @@
 - 2026-11-19 decision `uses_group` and `selected_group` are `#[cfg(test)]` (no library caller until later steps' tests use them; a non-test `pub(crate)` fn is dead code under clippy). `Plan::group` and `Plan::driver` are `cfg(test)` too. `Query` and `QueryMut` share `Plan::new`, so they cannot disagree.
 - 2026-11-19 decision On the group path every direct column is trimmed, so `driven` returns the first direct column in query order, not necessarily the group's first member; the prefixes are equal (G1), so the loop is the same.
 - 2026-11-19 lesson? Clippy `nonminimal_bool` fires on test closures like `t < 2 || (t >= 2 && ...)`; and `cargo xtask ci --quick` fails on rustfmt of long fn signatures, so run `cargo fmt --all` before it.
+- 2026-11-19 done Step 5: `Commands` and `World::apply` in new `src/commands.rs` (re-exported from `lib.rs`). Four tests failed to compile first (`Commands` unresolved, no `World::apply`).
+- 2026-11-19 decision `world.rs` was already 709 lines, so `Commands` went in `src/commands.rs`; `impl World { apply }` lives there too. Test-only `Commands::capacity` is `#[cfg(test)]`.
+- 2026-11-19 surprise `cargo xtask test` and `ci --quick` each exceed the 120s foreground timeout and get backgrounded; wait for the notification rather than polling.
