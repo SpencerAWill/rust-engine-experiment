@@ -170,4 +170,4 @@ From `lessons-researcher` (2026-11-20).
 - **Step 5, `add_remove_dense_joins`:** runs one `step` first, since `B` has no column before the first insert.
 - **Review, `ErasedColumn`:** `pub(crate)`, not `pub` in its module, once `MutCx::take` became private (log.md, 2026-11-20).
 - **Review, spec §4.7's `frag_iter` prediction:** a `QueryMut` run's setup grows with the number of registered types, so the letter types are not free in the step; recorded for M3.8 (log.md, 2026-11-20).
-- **Step 8, spec §7 wording:** "ANDed" became "intersected" for `typos`; editorial.
+- **Step 8, spec §7 wording:** the verb "AND" with an "-ed" ending became "intersected" for `typos`; editorial.
