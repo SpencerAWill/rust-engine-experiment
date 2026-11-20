@@ -74,7 +74,7 @@ impl ArchetypeAgents {
         while self.world.len() < self.target {
             let agent = rules::spawn_agent(&self.prng, self.next_id);
             self.next_id += 1;
-            let base = (
+            let (id, transform, velocity, ttl) = (
                 AgentId(agent.id),
                 agent.transform,
                 Velocity(agent.velocity),
@@ -83,10 +83,10 @@ impl ArchetypeAgents {
             match agent.seeker {
                 Some(seeker) => {
                     self.world
-                        .spawn_with((base.0, base.1, base.2, base.3, seeker));
+                        .spawn_with((id, transform, velocity, ttl, seeker));
                 }
                 None => {
-                    self.world.spawn_with(base);
+                    self.world.spawn_with((id, transform, velocity, ttl));
                 }
             }
         }

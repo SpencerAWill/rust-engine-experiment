@@ -205,13 +205,11 @@ impl World {
         if !self.entities.is_alive(entity) {
             return false;
         }
-        let Location { archetype, row } = self.locations[entity.index() as usize];
+        let Location { archetype, row } = self.location_of(entity);
         let swapped = self.archetypes[archetype.index()]
             .table
             .swap_remove(row as usize);
-        if let Some(moved) = swapped {
-            self.locations[moved.index() as usize].row = row;
-        }
+        self.fix_swapped(swapped, row as usize);
         self.locations[entity.index() as usize] = Location::NONE;
         self.entities.free(entity);
         self.live -= 1;
@@ -256,7 +254,7 @@ impl World {
             "World::insert called on a despawned entity {entity:?}; spawn an entity first"
         );
         let id = self.register::<T>();
-        let Location { archetype, row } = self.locations[entity.index() as usize];
+        let Location { archetype, row } = self.location_of(entity);
         let (from, row) = (archetype.index(), row as usize);
         if let Some(col) = self.archetypes[from].column_of(id) {
             return Some(self.archetypes[from].table.replace(row, col, value));
@@ -283,7 +281,7 @@ impl World {
             return None;
         }
         let id = self.component_id::<T>()?;
-        let Location { archetype, row } = self.locations[entity.index() as usize];
+        let Location { archetype, row } = self.location_of(entity);
         let (from, row) = (archetype.index(), row as usize);
         self.archetypes[from].column_of(id)?;
         let to = self.archetype_after_removing(archetype, id).index();
@@ -307,7 +305,7 @@ impl World {
             return None;
         }
         let id = self.component_id::<T>()?;
-        let Location { archetype, row } = self.locations[entity.index() as usize];
+        let Location { archetype, row } = self.location_of(entity);
         let archetype = &self.archetypes[archetype.index()];
         let col = archetype.column_of(id)?;
         Some(archetype.table.get(row as usize, col))
@@ -319,7 +317,7 @@ impl World {
             return None;
         }
         let id = self.component_id::<T>()?;
-        let Location { archetype, row } = self.locations[entity.index() as usize];
+        let Location { archetype, row } = self.location_of(entity);
         let archetype = &mut self.archetypes[archetype.index()];
         let col = archetype.column_of(id)?;
         Some(archetype.table.get_mut(row as usize, col))
@@ -559,10 +557,20 @@ impl World {
         old_row: usize,
     ) {
         self.set_location(entity, to, new_row);
+        self.fix_swapped(swapped, old_row);
+    }
+
+    /// Records that the entity swapped into a removed row, if any, now sits at `row`.
+    fn fix_swapped(&mut self, swapped: Option<Entity>, row: usize) {
         if let Some(moved) = swapped {
             self.locations[moved.index() as usize].row =
-                u32::try_from(old_row).expect("fewer than u32::MAX rows");
+                u32::try_from(row).expect("fewer than u32::MAX rows");
         }
+    }
+
+    /// Where a live `entity` is.
+    fn location_of(&self, entity: Entity) -> Location {
+        self.locations[entity.index() as usize]
     }
 
     /// The archetype reached from `from` by adding `component`, through the cached edge or, on

@@ -64,9 +64,8 @@ impl Commands {
     pub fn remove<T: 'static>(&mut self, entity: Entity) {
         self.queue
             .push(Command::Deferred(Box::new(move |world: &mut World| {
-                if world.is_alive(entity) {
-                    world.remove::<T>(entity);
-                }
+                // `World::remove` already returns `None` for a dead entity.
+                world.remove::<T>(entity);
             })));
     }
 
