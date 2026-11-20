@@ -52,7 +52,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: tables, archetypes and the `World` (R1, R2 in part, R3, R4 for T1, T2, A1 to A4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/Cargo.toml`, `src/lib.rs`, `src/table.rs`, `src/archetype.rs`, `src/world.rs` (new); `xtask/src/coverage.rs` (`spike_ecs_archetype` in `SPIKE_PACKAGES` and in `test_args_match_the_spec`'s expected `--exclude` list, spec §4.10); `Cargo.lock`.
 - **Interfaces produced:**
   - `lib.rs`: `pub struct EntityMarker;`, `pub type Entity = GenId<EntityMarker>;`, `pub use world::{InvariantViolation, World};`. Crate docs say what the crate is, point to the spec, and cite the designs it follows (bevy_ecs's archetype tables and graph, hecs's tables; spec §11), with no code taken (specs-5).
@@ -177,3 +177,7 @@ From `lessons-researcher` (2026-11-20).
 - **specs-5** (not returned for these paths; followed anyway): steps 1 and 3 cite the bevy_ecs and hecs designs in the shipped module docs.
 
 ## 5. Deviations
+
+- **Step 1, `ErasedColumn::new_empty`:** omitted. Spec §4.3 lists it, but `ComponentInfo::new_column` already creates a new archetype's columns, and an unused method fails clippy. `Table::columns_mut` waits for step 3, which uses it; `Table::column` is `#[cfg(test)]`.
+- **Step 1, `Table::check(&[TypeId])`:** T1 and T2 are checked inside `table.rs`, so its tests can corrupt the private fields; `World::check_invariants` checks A3 first, then T1 and T2, A1 and A2, A4.
+- **Step 1, extra tests:** `replace_and_get_mut_write_in_place`, `push_empty_on_a_table_with_columns_panics`, `world_debug_shows_the_live_count_and_archetypes`.

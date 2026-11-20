@@ -1968,6 +1968,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "spike_ecs_archetype"
+version = "0.1.0"
+dependencies = [
+ "engine",
+]
+
+[[package]]
 name = "spike_ecs_bench_cache"
 version = "0.1.0"
 dependencies = [
