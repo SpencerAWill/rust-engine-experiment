@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use proptest::prelude::*;
 
-use crate::{Entity, World};
+use crate::{Commands, Entity, World};
 
 #[derive(Debug, Clone, PartialEq)]
 struct C0(u32);
@@ -25,6 +25,22 @@ enum Op {
     Despawn(usize),
     Insert(usize, usize, u32),
     Remove(usize, usize),
+    /// Records a deferred insert in the one `Commands` buffer.
+    DeferInsert(usize, usize, u32),
+    /// Records a deferred remove.
+    DeferRemove(usize, usize),
+    /// Records a deferred despawn.
+    DeferDespawn(usize),
+    /// Applies the buffer.
+    Apply,
+}
+
+/// A recorded command, in the model: the entity's bits, the type and the value.
+#[derive(Debug, Clone, Copy)]
+enum Cmd {
+    Insert(u64, usize, u32),
+    Remove(u64, usize),
+    Despawn(u64),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -34,6 +50,11 @@ fn op() -> impl Strategy<Value = Op> {
         1 => any::<usize>().prop_map(Op::Despawn),
         5 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
         3 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
+        3 => (any::<usize>(), 0usize..4, any::<u32>())
+            .prop_map(|(k, t, v)| Op::DeferInsert(k, t, v)),
+        2 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::DeferRemove(k, t)),
+        1 => any::<usize>().prop_map(Op::DeferDespawn),
+        2 => Just(Op::Apply),
     ]
 }
 
@@ -72,6 +93,24 @@ fn remove(w: &mut World, e: Entity, t: usize) -> Option<u32> {
         1 => w.remove::<C1>(e).map(|c| c.0),
         2 => w.remove::<C2>(e).map(|c| c.0),
         _ => w.remove::<C3>(e).map(|c| c.0),
+    }
+}
+
+fn defer_insert(c: &mut Commands, e: Entity, t: usize, v: u32) {
+    match t {
+        0 => c.insert(e, C0(v)),
+        1 => c.insert(e, C1(v)),
+        2 => c.insert(e, C2(v)),
+        _ => c.insert(e, C3(v)),
+    }
+}
+
+fn defer_remove(c: &mut Commands, e: Entity, t: usize) {
+    match t {
+        0 => c.remove::<C0>(e),
+        1 => c.remove::<C1>(e),
+        2 => c.remove::<C2>(e),
+        _ => c.remove::<C3>(e),
     }
 }
 
@@ -147,6 +186,8 @@ fn run(ops: &[Op]) {
     let mut spawned: Vec<Entity> = Vec::new();
     let mut model: Model = BTreeMap::new();
     let mut live: BTreeSet<u64> = BTreeSet::new();
+    let mut commands = Commands::new();
+    let mut recorded: Vec<Cmd> = Vec::new();
     for op in ops {
         match *op {
             Op::Spawn => {
@@ -189,6 +230,41 @@ fn run(ops: &[Op]) {
                     None
                 };
                 assert_eq!(remove(&mut w, e, t), old);
+            }
+            Op::DeferInsert(k, t, v) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                defer_insert(&mut commands, e, t, v);
+                recorded.push(Cmd::Insert(e.to_bits(), t, v));
+            }
+            Op::DeferRemove(k, t) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                defer_remove(&mut commands, e, t);
+                recorded.push(Cmd::Remove(e.to_bits(), t));
+            }
+            Op::DeferDespawn(k) if !spawned.is_empty() => {
+                let e = spawned[k % spawned.len()];
+                commands.despawn(e);
+                recorded.push(Cmd::Despawn(e.to_bits()));
+            }
+            Op::Apply => {
+                assert_eq!(commands.len(), recorded.len());
+                w.apply(&mut commands);
+                // In order; a command whose entity is dead when it runs is skipped.
+                for cmd in recorded.drain(..) {
+                    match cmd {
+                        Cmd::Insert(bits, t, v) if live.contains(&bits) => {
+                            model.get_mut(&bits).unwrap()[t] = Some(v);
+                        }
+                        Cmd::Remove(bits, t) if live.contains(&bits) => {
+                            model.get_mut(&bits).unwrap()[t] = None;
+                        }
+                        Cmd::Despawn(bits) if live.remove(&bits) => {
+                            model.insert(bits, [None; 4]);
+                        }
+                        _ => {}
+                    }
+                }
+                assert!(commands.is_empty());
             }
             _ => {}
         }

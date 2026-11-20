@@ -16,6 +16,7 @@
 
 mod archetype;
 mod bundle;
+mod commands;
 mod query;
 mod table;
 mod world;
@@ -26,6 +27,7 @@ mod tests;
 use engine::genid::GenId;
 
 pub use bundle::Bundle;
+pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use world::{InvariantViolation, World};
 

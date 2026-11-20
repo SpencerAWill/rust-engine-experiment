@@ -38,3 +38,5 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-20 done Step 3 checked by the main session: first version sent back (`Query::for_each` went through `QueryIter`, not spec §4.6 step 5's per-archetype loop); after the fix `ci --quick` rc 0, `lib.rs` differs from HEAD only by `mod query` and its re-export, no `unsafe` or allocator code in the crate.
 - 2026-11-20 surprise To count allocations (ecs-2) the builder lifted `#![forbid(unsafe_code)]` in the working tree for a temporary counting `#[global_allocator]`, then restored `lib.rs`. Never committed, but it edited a CI-enforced policy line the brief did not name.
 - 2026-11-20 lesson? Measuring a spike's allocations needs a counting allocator, which needs `unsafe`; do it outside the crate (a scratchpad binary or bench crate depending on it, or `dhat` as #41 plans), never by lifting `forbid(unsafe_code)`, and say so in the brief.
+- 2026-11-20 done Step 4: Commands adapted from M3.3 (commands.rs, lib.rs, model-test Defer*/Apply ops); test, ci --quick pass
+- 2026-11-20 done Step 4 checked by the main session: `ci --quick` rc 0, 866 tests.
