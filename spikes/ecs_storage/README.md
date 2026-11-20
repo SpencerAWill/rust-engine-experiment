@@ -13,6 +13,7 @@ Status: Living (2026-11-15). Added by M3.2. The rules of every workload are in t
 |---|---|---|
 | `harness/` | `spike_ecs_harness` | The `Workload` trait, the seven workloads' components, spawn, update and hash functions, `Fnv1a`, `check_conformance` |
 | `vec/` | `spike_ecs_vec` | The reference backends: `vec_aos` for every workload, `vec_soa` for `agents` |
+| `sparse_set/` | `spike_ecs_sparse_set` | The sparse-set prototype (M3.3): a minimal safe `World` with typed tuple queries and `Commands`; `sparse_set` (views only) for every workload, `sparse_set_grouped` (owning groups) for all but `frag_iter` |
 | `bench_compare/` | `spike_ecs_bench_compare` | Criterion: wall-clock time |
 | `bench_cache/` | `spike_ecs_bench_cache` | Gungraun: instructions and simulated cache misses |
 

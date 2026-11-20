@@ -152,7 +152,7 @@ Choices the spec leaves to implementation:
 
 ### Step 10: documents (R15)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/roadmap.md`, `spikes/ecs_storage/README.md`, `CHANGELOG.md`.
 - **Test first:** n/a for prose. The checks before the change: `grep -n "views-only and owning-group" docs/roadmap.md` and `grep -n sparse_set spikes/ecs_storage/README.md` find nothing.
 - **Change:** spec §4.9: M3.3's new title; M3.8's notes (measurement caveat, change-detection ticks, time alone unless #41); the package row in the spike README; a CHANGELOG entry.
