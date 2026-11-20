@@ -1,6 +1,6 @@
 # M3.19: Dense per-entity component arrays
 
-- **Status:** Draft (2026-11-20)
+- **Status:** Accepted (2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.17 · **Decides:** no ADR
 - **Issue:** #79 (tracking issue #78)
 - **Estimated size:** about 1,800 changed lines, excluding tests, lockfiles and generated files (`column` about 200, `world` about 300, `query` about 550, `commands` about 150, the workload modules about 450, documents about 150)
