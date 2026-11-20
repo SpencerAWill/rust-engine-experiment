@@ -35,12 +35,12 @@ impl DenseAddRemove {
     }
 
     /// The sets the read pass's query joins (required, excluded), for tests.
-    pub(crate) fn read_joined(&self) -> (Vec<crate::query::Joined>, Vec<crate::query::Joined>) {
+    pub(crate) fn read_joined(&self) -> crate::query::JoinedSets {
         read_query(&self.world).joined()
     }
 
     /// The sets the removal pass's query joins (required, excluded), for tests.
-    pub(crate) fn remove_joined(&self) -> (Vec<crate::query::Joined>, Vec<crate::query::Joined>) {
+    pub(crate) fn remove_joined(&self) -> crate::query::JoinedSets {
         remove_query(&self.world).joined()
     }
 }

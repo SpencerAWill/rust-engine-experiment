@@ -52,7 +52,7 @@ fn step_query(world: &mut World) -> QueryMut<'_, StepParams<'_>> {
 #[cfg(test)]
 impl DenseAgents {
     /// The sets the step's query joins (required, excluded), for tests.
-    pub(crate) fn step_joined(&mut self) -> (Vec<crate::query::Joined>, Vec<crate::query::Joined>) {
+    pub(crate) fn step_joined(&mut self) -> crate::query::JoinedSets {
         step_query(&mut self.world).joined()
     }
 

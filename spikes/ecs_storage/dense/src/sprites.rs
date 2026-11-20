@@ -38,12 +38,12 @@ impl DenseSprites {
     }
 
     /// The sets the move query joins (required, excluded), for tests.
-    pub(crate) fn move_joined(&mut self) -> (Vec<crate::query::Joined>, Vec<crate::query::Joined>) {
+    pub(crate) fn move_joined(&mut self) -> crate::query::JoinedSets {
         move_query(&mut self.world).joined()
     }
 
     /// The sets the draw query joins (required, excluded), for tests.
-    pub(crate) fn draw_joined(&self) -> (Vec<crate::query::Joined>, Vec<crate::query::Joined>) {
+    pub(crate) fn draw_joined(&self) -> crate::query::JoinedSets {
         draw_query(&self.world).joined()
     }
 }

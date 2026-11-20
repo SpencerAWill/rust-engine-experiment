@@ -25,8 +25,8 @@ use crate::world::{ComponentId, World};
 /// Implementation details of the sealed traits; unnameable outside the crate.
 pub(crate) mod seal {
     use super::{
-        BTreeMap, ComponentId, Entity, ErasedColumn, HierarchicalBitSet, TypeId, World, fmt,
-        type_name,
+        BTreeMap, ComponentId, DenseColumn, Entity, ErasedColumn, HierarchicalBitSet, TypeId,
+        World, fmt, type_name,
     };
 
     /// One component type a query mentions, for the repeated-type check.
@@ -93,6 +93,19 @@ pub(crate) mod seal {
         pub fn take(&mut self, ty: TypeId) -> Option<&'w mut Box<dyn ErasedColumn>> {
             let id = self.ids.get(&ty)?;
             self.columns[id.index()].take()
+        }
+
+        /// Takes the column of `T` for reading, if it has one and nobody took it yet.
+        pub fn take_shared<T: 'static>(&mut self) -> Option<&'w DenseColumn<T>> {
+            self.take(TypeId::of::<T>())
+                .map(|b| &**b)
+                .and_then(|b| b.as_any().downcast_ref::<DenseColumn<T>>())
+        }
+
+        /// Takes the column of `T` for writing, if it has one and nobody took it yet.
+        pub fn take_mut<T: 'static>(&mut self) -> Option<&'w mut DenseColumn<T>> {
+            self.take(TypeId::of::<T>())
+                .and_then(|b| b.as_any_mut().downcast_mut::<DenseColumn<T>>())
         }
 
         /// The entity at each index.
@@ -199,10 +212,7 @@ impl<T: 'static> seal::Param for &T {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        let column = cx
-            .take(TypeId::of::<T>())
-            .map(|b| &**b)
-            .and_then(|b| b.as_any().downcast_ref::<DenseColumn<T>>());
+        let column = cx.take_shared::<T>();
         match column {
             Some(c) => cx.required.push(c.present()),
             None => cx.empty = true,
@@ -251,10 +261,7 @@ impl<T: 'static> seal::Param for &mut T {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        let split = cx
-            .take(TypeId::of::<T>())
-            .and_then(|b| b.as_any_mut().downcast_mut::<DenseColumn<T>>())
-            .map(DenseColumn::split_mut);
+        let split = cx.take_mut::<T>().map(DenseColumn::split_mut);
         if let Some((set, values)) = split {
             cx.required.push(set);
             Some(values)
@@ -292,9 +299,7 @@ impl<T: 'static> seal::Param for Option<&T> {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        cx.take(TypeId::of::<T>())
-            .map(|b| &**b)
-            .and_then(|b| b.as_any().downcast_ref::<DenseColumn<T>>())
+        cx.take_shared::<T>()
     }
 
     #[inline]
@@ -331,9 +336,7 @@ impl<T: 'static> seal::Param for Option<&mut T> {
     }
 
     fn bind_mut<'w>(cx: &mut seal::MutCx<'w>) -> Self::Fetch<'w> {
-        cx.take(TypeId::of::<T>())
-            .and_then(|b| b.as_any_mut().downcast_mut::<DenseColumn<T>>())
-            .map(|c| c.split_mut().1)
+        cx.take_mut::<T>().map(|c| c.split_mut().1)
     }
 
     #[inline]
@@ -448,8 +451,7 @@ impl<T: 'static> seal::Filter for With<T> {
     }
 
     fn resolve_mut(cx: &mut seal::MutCx<'_>) {
-        let column = cx.take(TypeId::of::<T>()).map(|b| &**b);
-        match column {
+        match cx.take_shared::<T>() {
             Some(c) => cx.required.push(c.present()),
             None => cx.empty = true,
         }
@@ -464,7 +466,7 @@ impl<T: 'static> seal::Filter for Without<T> {
     }
 
     fn resolve_mut(cx: &mut seal::MutCx<'_>) {
-        if let Some(c) = cx.take(TypeId::of::<T>()).map(|b| &**b) {
+        if let Some(c) = cx.take_shared::<T>() {
             cx.excluded.push(c.present());
         }
     }
@@ -520,6 +522,10 @@ pub(crate) enum Joined {
     /// The presence set of a component.
     Component(ComponentId),
 }
+
+/// The required and excluded sets a query joins, for tests.
+#[cfg(test)]
+pub(crate) type JoinedSets = (Vec<Joined>, Vec<Joined>);
 
 /// The world's own sets by address, to name the sets of a join.
 #[cfg(test)]
@@ -684,7 +690,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
     /// required) and the excluded ones. A query that matches nothing reports the sets
     /// resolved so far.
     #[cfg(test)]
-    pub(crate) fn joined(&self) -> (Vec<Joined>, Vec<Joined>) {
+    pub(crate) fn joined(&self) -> JoinedSets {
         let table = label_table(self.world);
         let (required, excluded) = self.join_lists();
         (labelled(&table, required), labelled(&table, excluded))
@@ -844,7 +850,7 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
 
     /// The sets a run would join, for tests (as [`Query::joined`]).
     #[cfg(test)]
-    pub(crate) fn joined(&mut self) -> (Vec<Joined>, Vec<Joined>) {
+    pub(crate) fn joined(&mut self) -> JoinedSets {
         // The table is taken before the run borrows the columns mutably.
         let table = label_table(self.world);
         let (_fetch, cx) = resolve_mut::<Q, F>(&mut *self.world);

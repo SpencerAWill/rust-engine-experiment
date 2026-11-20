@@ -51,21 +51,25 @@ impl Commands {
     /// Records an insert of `value` as the `T` component of `entity`. Skipped if the entity is
     /// dead when the command runs.
     pub fn insert<T: 'static>(&mut self, entity: Entity, value: T) {
-        self.queue
-            .push(Command::Deferred(Box::new(move |world: &mut World| {
-                if world.is_alive(entity) {
-                    world.insert(entity, value);
-                }
-            })));
+        self.defer(entity, move |world| {
+            world.insert(entity, value);
+        });
     }
 
     /// Records a removal of the `T` component of `entity`. Skipped if the entity is dead when
     /// the command runs.
     pub fn remove<T: 'static>(&mut self, entity: Entity) {
+        self.defer(entity, move |world| {
+            world.remove::<T>(entity);
+        });
+    }
+
+    /// Records `run`, which acts on `entity` and is skipped if the entity is dead when it runs.
+    fn defer(&mut self, entity: Entity, run: impl FnOnce(&mut World) + 'static) {
         self.queue
             .push(Command::Deferred(Box::new(move |world: &mut World| {
                 if world.is_alive(entity) {
-                    world.remove::<T>(entity);
+                    run(world);
                 }
             })));
     }
