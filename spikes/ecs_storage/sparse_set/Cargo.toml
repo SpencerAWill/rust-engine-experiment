@@ -10,9 +10,11 @@ publish.workspace = true
 
 [dependencies]
 engine = { workspace = true }
+spike_ecs_harness = { path = "../harness" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+spike_ecs_vec = { path = "../vec" }
 
 [lints]
 workspace = true

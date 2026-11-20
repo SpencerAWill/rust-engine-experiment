@@ -164,3 +164,84 @@ proptest! {
         }
     }
 }
+
+mod workloads {
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+
+    use crate::frag_iter::SparseSetFragIter;
+    use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
+    use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
+    use spike_ecs_vec::frag_iter::VecFragIter;
+    use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::simple_iter::VecSimpleIter;
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    #[test]
+    fn simple_iter_sparse_set_matches_the_reference() {
+        check_conformance::<VecSimpleIter, SparseSetSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_grouped_matches_the_reference() {
+        check_conformance::<VecSimpleIter, GroupedSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_sparse_set_matches_the_reference() {
+        check_conformance::<VecFragIter, SparseSetFragIter>(
+            Params {
+                count: 20,
+                seed: 42,
+            },
+            TICKS,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn heavy_compute_sparse_set_matches_the_reference() {
+        check_conformance::<VecHeavyCompute, SparseSetHeavyCompute>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn heavy_compute_grouped_matches_the_reference() {
+        check_conformance::<VecHeavyCompute, GroupedHeavyCompute>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn grouped_simple_iter_uses_the_group() {
+        let w = GroupedSimpleIter::setup(Params { count: 10, seed: 1 });
+        assert!(w.uses_group());
+        let w = SparseSetSimpleIter::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group());
+    }
+
+    #[test]
+    fn grouped_heavy_compute_uses_the_group() {
+        let w = GroupedHeavyCompute::setup(Params { count: 10, seed: 1 });
+        assert!(w.uses_group());
+        let w = SparseSetHeavyCompute::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group());
+    }
+
+    fn zero_count<W: Workload>() {
+        let mut w = W::setup(Params { count: 0, seed: 7 });
+        assert_eq!(w.checksum(), 0);
+        w.step();
+        assert_eq!(w.checksum(), 0);
+    }
+
+    #[test]
+    fn zero_count_is_valid() {
+        zero_count::<SparseSetSimpleIter>();
+        zero_count::<GroupedSimpleIter>();
+        zero_count::<SparseSetFragIter>();
+        zero_count::<SparseSetHeavyCompute>();
+        zero_count::<GroupedHeavyCompute>();
+    }
+}

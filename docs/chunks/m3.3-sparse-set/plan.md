@@ -113,7 +113,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: `simple_iter`, `frag_iter` and `heavy_compute` (R10, R11 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/simple_iter.rs`, `src/frag_iter.rs`, `src/heavy_compute.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `simple_iter::{SimpleIterOn, SparseSetSimpleIter, GroupedSimpleIter}`, `frag_iter::SparseSetFragIter`, `heavy_compute::{HeavyComputeOn, SparseSetHeavyCompute, GroupedHeavyCompute}` (spec §4.7, §1). `frag_iter` inserts each letter as its own type via a local macro over the 26 `Letter` variants; its checksum runs one `query::<(&L, &Data)>()` per letter and hashes `Letter::from_index(index, l.0)`.
 - **Test first** (`tests.rs`): one `<workload>_<backend>_matches_the_reference` per implementation (five); `grouped_simple_iter_uses_the_group`; `grouped_heavy_compute_uses_the_group`; `zero_count_is_valid` for each of the five (focus 5). Fails first: does not compile.
@@ -197,3 +197,4 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 4, driver on the group path:** every member column is direct and trimmed to the group length, and `driven` returns the first direct column in query order, not necessarily the group's first member; by G1 the prefixes are equal, so the loop is the same.
 - **Step 4, `&Query`:** `IntoIterator for &Query` replaces step 3's clippy allow on `iter`; tested by `for_item_in_a_query_reference_agrees_with_iter`.
 - **Step 5, placement:** `Commands` and `World::apply` are in a new `src/commands.rs`, because `world.rs` was already past 600 lines (709), as step 5 allowed; `Commands::capacity` is private and `#[cfg(test)]`, for the capacity test.
+- **Step 6, test hooks:** each workload type has a `#[cfg(test)] pub(crate) fn uses_group(&self)` so `tests.rs` can assert the path without making the `world` field visible; the ungrouped backends are asserted not to use a group. One `zero_count_is_valid` test covers all five implementations (and likewise in steps 7 and 8).

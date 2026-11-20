@@ -36,3 +36,6 @@
 - 2026-11-19 done Step 5: `Commands` and `World::apply` in new `src/commands.rs` (re-exported from `lib.rs`). Four tests failed to compile first (`Commands` unresolved, no `World::apply`).
 - 2026-11-19 decision `world.rs` was already 709 lines, so `Commands` went in `src/commands.rs`; `impl World { apply }` lives there too. Test-only `Commands::capacity` is `#[cfg(test)]`.
 - 2026-11-19 surprise `cargo xtask test` and `ci --quick` each exceed the 120s foreground timeout and get backgrounded; wait for the notification rather than polling.
+- 2026-11-19 done step 6: simple_iter, frag_iter, heavy_compute (SimpleIterOn/HeavyComputeOn const-generic, SparseSetFragIter); 5 conformance, 2 group-path, zero_count tests pass; xtask test and ci --quick pass.
+- 2026-11-19 decision tests reach the workload's World through a #[cfg(test)] uses_group() method on each workload type, keeping fields private.
+- 2026-11-19 decision setup inserts all four harness components (Matrix, Position, Rotation, Velocity) in spawn order for simple_iter and heavy_compute; frag_iter inserts the letter via a local per_letter! macro, then Data.
