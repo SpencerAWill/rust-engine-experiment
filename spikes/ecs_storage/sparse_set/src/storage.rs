@@ -53,7 +53,6 @@ impl<T> Packed<T> {
         &mut self.data
     }
 
-    #[cfg(test)]
     fn split_mut(&mut self) -> (&[Entity], &mut [T]) {
         (&self.entities, &mut self.data)
     }
@@ -61,7 +60,7 @@ impl<T> Packed<T> {
 
 /// Maps an entity's index to a position in the packed arrays.
 #[derive(Debug)]
-pub(crate) struct SparseIndex(Vec<u32>);
+pub struct SparseIndex(Vec<u32>);
 
 impl SparseIndex {
     pub(crate) fn new() -> Self {
@@ -101,7 +100,7 @@ fn position(i: usize) -> u32 {
 
 /// The values of one component type, with a sparse index from entity to position.
 #[derive(Debug)]
-pub(crate) struct SparseSet<T> {
+pub struct SparseSet<T> {
     sparse: SparseIndex,
     packed: Packed<T>,
 }
@@ -162,13 +161,11 @@ impl<T> SparseSet<T> {
     }
 
     /// The fields of the storage, borrowed separately.
-    #[cfg(test)]
     pub(crate) fn split(&self) -> (&SparseIndex, &[Entity], &[T]) {
         (&self.sparse, self.packed.entities(), self.packed.data())
     }
 
     /// The fields of the storage, borrowed separately, with the values mutable.
-    #[cfg(test)]
     pub(crate) fn split_mut(&mut self) -> (&SparseIndex, &[Entity], &mut [T]) {
         let (entities, data) = self.packed.split_mut();
         (&self.sparse, entities, data)
@@ -213,7 +210,7 @@ impl<T> SparseSet<T> {
 }
 
 /// What the `World` can do with a storage without knowing its value type.
-pub(crate) trait ErasedStorage: Any {
+pub trait ErasedStorage: Any {
     fn index_of(&self, entity: Entity) -> Option<usize>;
     fn swap(&mut self, i: usize, j: usize);
     /// Removes the entity's value, dropping it. Returns whether there was one.

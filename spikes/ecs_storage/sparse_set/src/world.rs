@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use engine::genid::GenIdAllocator;
 
-use crate::query::GroupSpec;
+use crate::query::{GroupSpec, Query, QueryMut, QueryParam, ReadOnly};
 use crate::storage::{ErasedStorage, SparseSet};
 use crate::{Entity, EntityMarker};
 
@@ -35,6 +35,13 @@ impl std::error::Error for InvariantViolation {}
 /// because a sealed trait mentions it; `world` is a private module, so it cannot be named.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentId(u32);
+
+impl ComponentId {
+    /// The position of the component's storage in the world.
+    pub(crate) fn index(self) -> usize {
+        self.0 as usize
+    }
+}
 
 /// An owning group: member storages whose first `len` entries are the same entities in the
 /// same order (G1) and are exactly the entities that have every member (G2).
@@ -325,6 +332,28 @@ impl World {
             }
         }
         Ok(())
+    }
+
+    /// A read-only query over the entities that have the required types of `Q`.
+    pub fn query<Q: ReadOnly>(&self) -> Query<'_, Q> {
+        Query::new(self)
+    }
+
+    /// A query that may write through `&mut T` parameters.
+    pub fn query_mut<Q: QueryParam>(&mut self) -> QueryMut<'_, Q> {
+        QueryMut::new(self)
+    }
+
+    pub(crate) fn component_id(&self, ty: TypeId) -> Option<ComponentId> {
+        self.ids.get(&ty).copied()
+    }
+
+    pub(crate) fn storages(&self) -> &[Box<dyn ErasedStorage>] {
+        &self.storages
+    }
+
+    pub(crate) fn storages_mut(&mut self) -> &mut [Box<dyn ErasedStorage>] {
+        &mut self.storages
     }
 
     /// The length of group `group`, for tests.

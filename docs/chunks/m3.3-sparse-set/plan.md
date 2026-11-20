@@ -74,7 +74,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: queries on the view path (R2 in part, R6, R8)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/query.rs`, `src/world.rs`, `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:**
   - `pub trait QueryParam: seal::Param { type Item<'w>; }` for `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `Entity` and tuples of 1 to 4 (one `macro_rules!` over `P0 P1 P2 P3`, also generating `ReadOnly`); `pub trait ReadOnly: QueryParam`; `pub trait Filter: seal::Filter` for `()`, `With<T>`, `Without<T>` and `(F, G)`. `seal::Param` and `seal::Filter` carry the type lists, fetch, probe and match functions (§1).
@@ -189,3 +189,7 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 2, member access:** group maintenance reaches member storages one call at a time (`storages[m].index_of`, `.swap`), not with `get_disjoint_mut` as spec §4.4 says: no two member borrows are ever live at once, so the disjoint helper has nothing to do.
 - **Step 2, `ComponentId`:** `pub` inside the private `world` module (unnameable outside the crate), because `seal::Group::register` names it and `pub(crate)` trips `private_interfaces`.
 - **Step 2, `spawn` (maintainer request):** `World::spawn` increments the live count after `allocate` returns, so a failed allocation leaves `len` unchanged; tested by `a_failed_spawn_leaves_len_unchanged` (`GenIdAllocator::with_fixed_capacity(1)`), which failed first.
+- **Step 3, where `Item` lives:** `type Item<'w>` is on `seal::Param`, not on `QueryParam` as spec §4.5 and step 3 say; with it on `QueryParam`, rustc 1.100 failed to normalize the seal's other associated types in impls (E0053, E0599). `Q::Item<'w>` still resolves through the supertrait; rustdoc shows it as `<Q as Param>::Item`, which callers cannot name but closures infer.
+- **Step 3, seals:** a fourth seal, `seal::ReadOnly` (`get_shared`), lets `QueryIter` yield items with the world's lifetime; one `Slot` enum (`Shared`/`Mut`) replaces `RefSlots`; `SparseIndex`, `SparseSet` and `ErasedStorage` are `pub` in the private `storage` module for `private_interfaces`.
+- **Step 3, driver test:** `driver_is_the_smallest_required_storage` checks a `#[cfg(test)]` `Query::driver_len()` instead of a probe counter.
+- **Step 3, `iter`:** carries `#[allow(clippy::iter_without_into_iter)]`; step 4 replaces the allow with `IntoIterator for &Query` (C-ITER).

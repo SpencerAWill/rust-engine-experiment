@@ -22,7 +22,9 @@ mod world;
 
 use engine::genid::GenId;
 
-pub use query::GroupSpec;
+pub use query::{
+    Filter, GroupSpec, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without,
+};
 pub use world::{InvariantViolation, World, WorldBuilder};
 
 /// The marker type of [`Entity`] IDs.

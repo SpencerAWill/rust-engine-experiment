@@ -68,6 +68,43 @@ fn build(setup: usize) -> World {
     }
 }
 
+fn bits(ids: impl Iterator<Item = Entity>) -> Vec<u64> {
+    let mut v: Vec<u64> = ids.map(Entity::to_bits).collect();
+    v.sort_unstable();
+    v
+}
+
+/// The entities the model says match, as sorted bits.
+fn expected(
+    model: &BTreeMap<u64, [Option<u32>; 4]>,
+    want: impl Fn(&[Option<u32>; 4]) -> bool,
+) -> Vec<u64> {
+    model
+        .iter()
+        .filter(|(_, c)| want(c))
+        .map(|(k, _)| *k)
+        .collect()
+}
+
+fn check_queries(w: &World, model: &BTreeMap<u64, [Option<u32>; 4]>) {
+    let got = bits(w.query::<(Entity, &C0, &C1)>().iter().map(|(e, _, _)| e));
+    assert_eq!(got, expected(model, |c| c[0].is_some() && c[1].is_some()));
+    let got = bits(
+        w.query::<(Entity, &C0)>()
+            .without::<C2>()
+            .iter()
+            .map(|(e, _)| e),
+    );
+    assert_eq!(got, expected(model, |c| c[0].is_some() && c[2].is_none()));
+    let got = bits(
+        w.query::<(Entity, Option<&C3>)>()
+            .with::<C1>()
+            .iter()
+            .map(|(e, _)| e),
+    );
+    assert_eq!(got, expected(model, |c| c[1].is_some()));
+}
+
 #[allow(clippy::many_single_char_names)] // model-test locals: w, e, t, v, k
 fn run(setup: usize, ops: &[Op]) {
     let mut w = build(setup);
@@ -110,6 +147,7 @@ fn run(setup: usize, ops: &[Op]) {
         }
         assert_eq!(w.check_invariants(), Ok(()));
         assert_eq!(w.len(), live.len());
+        check_queries(&w, &model);
         for e in &spawned {
             for (t, expected) in model[&e.to_bits()].iter().enumerate() {
                 assert_eq!(get(&w, *e, t), *expected, "{e:?} type {t}");
