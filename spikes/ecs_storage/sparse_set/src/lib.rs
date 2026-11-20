@@ -15,12 +15,14 @@
 //! published. The spec is `docs/chunks/m3.3-sparse-set/spec.md`.
 
 pub mod add_remove;
+pub mod agents;
 mod commands;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
 pub mod simple_iter;
+pub mod sprites;
 mod storage;
 #[cfg(test)]
 mod tests;

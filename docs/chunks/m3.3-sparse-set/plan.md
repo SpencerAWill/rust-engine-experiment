@@ -133,7 +133,7 @@ Choices the spec leaves to implementation:
 
 ### Step 8: `sprites` and `agents` (R10, R11, R12)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/sprites.rs`, `src/agents.rs` (new), `src/lib.rs`, `src/tests.rs`, `Cargo.toml` (`agents_2d`), `Cargo.lock`.
 - **Interfaces produced:** `sprites::{SpritesOn, SparseSetSprites, GroupedSprites}` (owns the draw list, reserved to `count` in `setup`; draw is `query::<(&Transform2d, &Sprite)>().without::<Hidden>()`) and `agents::{AgentsOn, SparseSetAgents, GroupedAgents}` (`pub struct AgentId(pub u64)`, `Velocity(pub Vec2)`, `Ttl(pub u32)`; keeps a `Commands`, the `Prng`, `next_id`, `tick` and the target; respawns until `world.len()` reaches it). Within one agent's closure the seeker change is recorded before the `despawn`, so a caught-and-expired agent's `remove` runs first.
 - **Test first** (`tests.rs`): the four conformance tests (`agents`: 1,000 agents, 1,300 ticks); `zero_count_is_valid` for the four; `grouped_sprites_moves_on_the_group_path_and_draws_on_the_view_path`; `grouped_agents_uses_the_group`; `agents_keeps_invariants_every_tick` (both backends, 1,000 agents, 1,300 ticks). Fails first: does not compile.
@@ -200,3 +200,4 @@ From `lessons-researcher` (2026-11-19). `spikes/ecs_storage/**` matches no lesso
 - **Step 6, test hooks:** each workload type has a `#[cfg(test)] pub(crate) fn uses_group(&self)` so `tests.rs` can assert the path without making the `world` field visible; the ungrouped backends are asserted not to use a group. One `zero_count_is_valid` test covers all five implementations (and likewise in steps 7 and 8).
 - **Step 7, test first:** the builder wrote tests and code in one pass and never saw them fail. Made up for afterwards with four temporary breaks, each reverted (skip `remove::<B>`; skip `commands.despawn`; respawn one too few; flip the remove pass to a group-qualifying query), each failing the tests it should (log.md).
 - **Step 7, `add_remove` checksum:** reads `query::<(&A, Option<&B>)>()`, which spec §4.7 does not spell out; it matches the harness's `hash(a, Option<&B>)`.
+- **Step 8, skip rule:** `agents` never reaches §4.6's skip rule: each agent's seeker command comes from its own closure and is recorded before its despawn, so no command follows the despawn of its entity. The rule stays covered by step 5's `command_on_a_dead_entity_is_skipped`. The `agents` checksum nests its tuple (`(&AgentId, &Transform2d, (&Velocity, &Ttl, Option<&Seeker>))`) to stay within four parameters.

@@ -169,21 +169,26 @@ mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
 
     use crate::add_remove::{GroupedAddRemove, SparseSetAddRemove};
+    use crate::agents::{GroupedAgents, SparseSetAgents};
     use crate::entity_churn::{GroupedEntityChurn, SparseSetEntityChurn};
     use crate::frag_iter::SparseSetFragIter;
     use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
+    use crate::sprites::{GroupedSprites, SparseSetSprites};
     use spike_ecs_vec::add_remove::VecAddRemove;
+    use spike_ecs_vec::agents::VecAgents;
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
+    use spike_ecs_vec::sprites::VecSprites;
 
     const PARAMS: Params = Params {
         count: 1_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
+    const AGENT_TICKS: u64 = 1_300;
 
     #[test]
     fn simple_iter_sparse_set_matches_the_reference() {
@@ -289,6 +294,62 @@ mod workloads {
         churn_keeps_invariants::<true>();
     }
 
+    #[test]
+    fn sprites_sparse_set_matches_the_reference() {
+        check_conformance::<VecSprites, SparseSetSprites>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn sprites_grouped_matches_the_reference() {
+        check_conformance::<VecSprites, GroupedSprites>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn agents_sparse_set_matches_the_reference() {
+        check_conformance::<VecAgents, SparseSetAgents>(PARAMS, AGENT_TICKS).unwrap();
+    }
+
+    #[test]
+    fn agents_grouped_matches_the_reference() {
+        check_conformance::<VecAgents, GroupedAgents>(PARAMS, AGENT_TICKS).unwrap();
+    }
+
+    #[test]
+    fn grouped_sprites_moves_on_the_group_path_and_draws_on_the_view_path() {
+        for count in [0, 10] {
+            let w = GroupedSprites::setup(Params { count, seed: 1 });
+            assert!(w.uses_group_for_move());
+            assert!(!w.uses_group_for_draw());
+        }
+        let w = SparseSetSprites::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group_for_move());
+        assert!(!w.uses_group_for_draw());
+    }
+
+    #[test]
+    fn grouped_agents_uses_the_group() {
+        let w = GroupedAgents::setup(Params { count: 10, seed: 1 });
+        assert!(w.uses_group());
+        let w = SparseSetAgents::setup(Params { count: 10, seed: 1 });
+        assert!(!w.uses_group());
+    }
+
+    fn agents_keep_invariants<const GROUPED: bool>() {
+        let mut w = crate::agents::AgentsOn::<GROUPED>::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        for _ in 0..AGENT_TICKS {
+            w.step();
+            w.world().check_invariants().unwrap();
+            assert_eq!(w.world().len(), PARAMS.count);
+        }
+    }
+
+    #[test]
+    fn agents_keeps_invariants_every_tick() {
+        agents_keep_invariants::<false>();
+        agents_keep_invariants::<true>();
+    }
+
     fn zero_count<W: Workload>() {
         let mut w = W::setup(Params { count: 0, seed: 7 });
         assert_eq!(w.checksum(), 0);
@@ -307,5 +368,9 @@ mod workloads {
         zero_count::<GroupedAddRemove>();
         zero_count::<SparseSetEntityChurn>();
         zero_count::<GroupedEntityChurn>();
+        zero_count::<SparseSetSprites>();
+        zero_count::<GroupedSprites>();
+        zero_count::<SparseSetAgents>();
+        zero_count::<GroupedAgents>();
     }
 }
