@@ -357,6 +357,13 @@ use crate::component::seal::Storage as StorageImpl;
 use seal::Binder;
 use seal::Role;
 
+/// Whether a run probes every row: the one gate the row loops, `size_hint` and the test hooks
+/// share. A type-level constant, so it folds away.
+#[inline]
+const fn row_gate<Q: seal::Param, F: seal::Filter>() -> bool {
+    Q::PROBES || F::PROBES
+}
+
 /// One parameter of a query: `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>` (`T: Component`),
 /// [`Entity`], or a tuple of 1 to 4 parameters (tuples nest). Sealed.
 pub trait QueryParam: seal::Param {}
@@ -885,7 +892,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
             let entities = &binder.entities()[..len];
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
-                if (Q::PROBES || F::PROBES)
+                if row_gate::<Q, F>()
                     && !(Q::passes(&mut qf, row, entities) && F::passes(&mut ff, row, entities))
                 {
                     continue;
@@ -953,7 +960,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
     #[cfg(test)]
     #[allow(clippy::unused_self)] // the gate is a type-level constant; `self` fixes `Q` and `F`
     pub(crate) fn row_probes(&self) -> bool {
-        Q::PROBES || F::PROBES
+        row_gate::<Q, F>()
     }
 }
 
@@ -1039,7 +1046,7 @@ impl<'w, Q: ReadOnly, F: Filter> Iterator for QueryIter<'w, Q, F> {
                 let row = self.row;
                 self.row += 1;
                 self.remaining -= 1;
-                if (Q::PROBES || F::PROBES)
+                if row_gate::<Q, F>()
                     && !(Q::passes(&mut self.qf, row, self.entities)
                         && F::passes(&mut self.ff, row, self.entities))
                 {
@@ -1056,7 +1063,7 @@ impl<'w, Q: ReadOnly, F: Filter> Iterator for QueryIter<'w, Q, F> {
     /// Exact for a query with no required or excluded sparse type; otherwise `(0, Some(n))`
     /// with `n` the rows of the matched archetypes not yet visited.
     fn size_hint(&self) -> (usize, Option<usize>) {
-        if Q::PROBES || F::PROBES {
+        if row_gate::<Q, F>() {
             (0, Some(self.remaining))
         } else {
             (self.remaining, Some(self.remaining))
@@ -1155,7 +1162,7 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
             let entities = &binder.entities()[..len];
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
-                if (Q::PROBES || F::PROBES)
+                if row_gate::<Q, F>()
                     && !(Q::passes(&mut qf, row, entities) && F::passes(&mut ff, row, entities))
                 {
                     continue;
@@ -1182,7 +1189,7 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
     #[cfg(test)]
     #[allow(clippy::unused_self)] // the gate is a type-level constant; `self` fixes `Q` and `F`
     pub(crate) fn row_probes(&self) -> bool {
-        Q::PROBES || F::PROBES
+        row_gate::<Q, F>()
     }
 }
 

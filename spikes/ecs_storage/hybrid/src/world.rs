@@ -367,7 +367,8 @@ impl World {
     /// query run.
     ///
     /// Both come as iterators of narrow views, so the query module cannot remove an entity from
-    /// a set, replace one, or change a table (lesson ecs-5).
+    /// a set, replace one, change a table's length or column list, or change a sparse set's
+    /// membership (lesson ecs-5).
     pub(crate) fn parts_mut(
         &mut self,
     ) -> (
