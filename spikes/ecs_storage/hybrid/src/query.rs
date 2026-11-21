@@ -1321,6 +1321,35 @@ mod tests {
     }
 
     #[test]
+    fn option_mut_table_is_none_on_archetypes_without_it() {
+        let (mut w, e) = fixture();
+        let mut got = Vec::new();
+        w.query_mut::<(&A, Option<&mut B>)>().for_each(|(a, b)| {
+            got.push((a.0, b.map(|b| b.0)));
+        });
+        assert_eq!(
+            sorted(got),
+            [
+                (1, None),
+                (2, Some(20)),
+                (3, None),
+                (5, Some(50)),
+                (6, Some(60))
+            ]
+        );
+        w.query_mut::<(Entity, Option<&mut B>)>()
+            .for_each(|(_, b)| {
+                if let Some(b) = b {
+                    b.0 += 1;
+                }
+            });
+        assert_eq!(w.get::<B>(e[2]), Some(&B(21)));
+        assert_eq!(w.get::<B>(e[5]), Some(&B(51)));
+        assert_eq!(w.get::<B>(e[6]), Some(&B(61)));
+        assert_eq!(w.get::<B>(e[1]), None);
+    }
+
+    #[test]
     fn sparse_option_is_none_when_absent() {
         let (mut w, _) = fixture();
         // A registered set the entity is not in, and a type never registered.
