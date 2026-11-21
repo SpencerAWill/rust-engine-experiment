@@ -89,6 +89,11 @@ impl HybridFragIter {
         step_query(&mut self.world).probed()
     }
 
+    /// Whether the step query probes every row, for tests.
+    pub(crate) fn step_row_probes(&mut self) -> bool {
+        step_query(&mut self.world).row_probes()
+    }
+
     /// The number of archetypes in the world, for tests.
     pub(crate) fn archetype_count(&self) -> usize {
         self.world.archetype_count()

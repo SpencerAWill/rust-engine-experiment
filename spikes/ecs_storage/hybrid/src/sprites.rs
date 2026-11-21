@@ -42,11 +42,21 @@ impl HybridSprites {
         move_query(&mut self.world).probed()
     }
 
+    /// Whether the move query probes every row, for tests.
+    pub(crate) fn move_row_probes(&mut self) -> bool {
+        move_query(&mut self.world).row_probes()
+    }
+
     /// The component types the draw query probes per row, for tests.
     pub(crate) fn draw_probed(
         &self,
     ) -> Vec<(crate::archetype::ComponentId, crate::query::seal::Role)> {
         draw_query(&self.world).probed()
+    }
+
+    /// Whether the draw query probes every row, for tests.
+    pub(crate) fn draw_row_probes(&self) -> bool {
+        draw_query(&self.world).row_probes()
     }
 
     /// The archetypes the draw query matches, for tests.

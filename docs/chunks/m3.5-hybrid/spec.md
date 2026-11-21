@@ -353,6 +353,7 @@ None. The items of §4.10 are deferred to the chunks named there.
 Designs only; no code is taken from any of them ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)).
 
 - [bevy_ecs](https://docs.rs/bevy_ecs/): per-component storage chosen on the `Component` trait (table by default, sparse set opt-in), archetype tables with cached add and remove edges, bundles spawned straight into their table, tuple queries with `With` and `Without`. Its archetype/table split, where sparse types are part of the archetype, is the alternative of §7.
+- [hecs](https://docs.rs/hecs/): a small archetype ECS whose tables hold one column per type and whose queries are tuples of references; the table and query design M3.4 followed and this crate keeps. *(Added in review: the shipped module docs cite it.)*
 - skypjack, [ECS back and forth, part 10: hybrid storage](https://skypjack.github.io/2021-02-27-ecs-baf-part-10): the argument that hybrid schemes "look better than they are", which the five non-toggling workloads test.
 - Unity Entities, enableable components: the enable-bit design of #82 (§7).
 - [M3.3 spec](../m3.3-sparse-set/spec.md) and [M3.4 spec](../m3.4-archetype/spec.md): the sparse-set storage, the tables, the shared query surface, `Commands`, `check_invariants` and the backend conventions this chunk combines.

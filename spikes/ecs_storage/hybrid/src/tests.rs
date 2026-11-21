@@ -475,6 +475,7 @@ mod workloads {
         w.step();
         assert_eq!(w.step_archetypes(), ids(&[1]));
         assert_eq!(w.step_probed(), []);
+        assert!(!w.step_row_probes());
     }
 
     #[test]
@@ -484,6 +485,7 @@ mod workloads {
         w.step();
         assert_eq!(w.step_archetypes(), ids(&(1..=26).collect::<Vec<_>>()));
         assert_eq!(w.step_probed(), []);
+        assert!(!w.step_row_probes());
     }
 
     #[test]
@@ -493,6 +495,7 @@ mod workloads {
         w.step();
         assert_eq!(w.step_archetypes(), ids(&[1]));
         assert_eq!(w.step_probed(), []);
+        assert!(!w.step_row_probes());
     }
 
     #[test]
@@ -514,6 +517,7 @@ mod workloads {
         assert_eq!(w.archetype_count(), 2);
         assert_eq!(w.read_archetypes(), ids(&[1]));
         assert_eq!(w.read_probed(), []);
+        assert!(!w.read_row_probes());
         // The removal query requires only a sparse type, so it walks every archetype.
         assert_eq!(w.remove_archetypes(), ids(&[0, 1]));
         let b = w
@@ -521,6 +525,7 @@ mod workloads {
             .component_id_of(std::any::TypeId::of::<spike_ecs_harness::add_remove::B>())
             .expect("B is registered after the first insert");
         assert_eq!(w.remove_probed(), [(b, Role::Required)]);
+        assert!(w.remove_row_probes());
     }
 
     #[test]
@@ -530,6 +535,7 @@ mod workloads {
         w.step();
         assert_eq!(w.step_archetypes(), ids(&[1]));
         assert_eq!(w.step_probed(), []);
+        assert!(!w.step_row_probes());
         for _ in 0..TICKS {
             w.step();
         }
@@ -584,6 +590,7 @@ mod workloads {
         w.step();
         assert_eq!(w.move_archetypes(), ids(&[1, 2]));
         assert_eq!(w.move_probed(), []);
+        assert!(!w.move_row_probes());
         // The draw query matches the archetype without `Hidden`, the one with fewer components.
         let visible = w
             .world()
@@ -594,6 +601,7 @@ mod workloads {
             .unwrap();
         assert_eq!(w.draw_archetypes(), ids(&[visible]));
         assert_eq!(w.draw_probed(), []);
+        assert!(!w.draw_row_probes());
     }
 
     #[test]
@@ -607,6 +615,8 @@ mod workloads {
             .component_id_of(std::any::TypeId::of::<spike_ecs_harness::agents::Seeker>())
             .expect("Seeker is registered by the first respawn with one");
         assert_eq!(w.step_probed(), [(seeker, Role::Optional)]);
+        // An optional sparse type is looked up in `get`, not gated per row: no row probe.
+        assert!(!w.step_row_probes());
     }
 
     #[test]

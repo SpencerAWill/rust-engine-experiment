@@ -8,11 +8,11 @@ use std::collections::BTreeMap;
 
 use engine::genid::GenIdAllocator;
 
-use crate::archetype::{Archetype, ArchetypeId, ComponentId};
+use crate::archetype::{Archetype, ArchetypeId, ArchetypeMut, ComponentId};
 use crate::bundle::{self, Bundle, BundleInfo};
 use crate::component::{Component, StorageKind, seal};
 use crate::query::{Query, QueryMut, QueryParam, ReadOnly};
-use crate::sparse::{ErasedSparseSet, SparseSet};
+use crate::sparse::{ErasedSparseSet, SparseSet, SparseSlotMut};
 use crate::table::{Column, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
 
@@ -365,8 +365,21 @@ impl World {
 
     /// The archetypes and the sparse sets, borrowed separately and exclusively, for a mutable
     /// query run.
-    pub(crate) fn parts_mut(&mut self) -> (&mut [Archetype], &mut [Box<dyn ErasedSparseSet>]) {
-        (&mut self.archetypes, &mut self.sparse_sets)
+    ///
+    /// Both come as iterators of narrow views, so the query module cannot remove an entity from
+    /// a set, replace one, or change a table (lesson ecs-5).
+    pub(crate) fn parts_mut(
+        &mut self,
+    ) -> (
+        impl Iterator<Item = ArchetypeMut<'_>>,
+        impl Iterator<Item = SparseSlotMut<'_>>,
+    ) {
+        (
+            self.archetypes.iter_mut().map(Archetype::view_mut),
+            self.sparse_sets
+                .iter_mut()
+                .map(|set| SparseSlotMut::new(&mut **set)),
+        )
     }
 
     /// Whether `entity` was spawned and not despawned.

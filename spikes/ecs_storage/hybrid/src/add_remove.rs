@@ -1,7 +1,8 @@
 //! The `add_remove` workload on the hybrid `World`.
 //!
 //! The passes run outside any query, so they use `World::insert` and `World::remove` directly
-//! rather than a command buffer (spec section 4.7).
+//! rather than a command buffer, for M3.3's reason (its spec section 4.7, which this spec's
+//! section 4.9 cites).
 
 use engine::prelude::Prng;
 use spike_ecs_harness::add_remove::{self as rules, A, AddRemove, B};
@@ -42,11 +43,21 @@ impl HybridAddRemove {
         read_query(&self.world).probed()
     }
 
+    /// Whether the read query probes every row, for tests.
+    pub(crate) fn read_row_probes(&self) -> bool {
+        read_query(&self.world).row_probes()
+    }
+
     /// The sparse types the removal pass's query probes per row, for tests.
     pub(crate) fn remove_probed(
         &self,
     ) -> Vec<(crate::archetype::ComponentId, crate::query::seal::Role)> {
         remove_query(&self.world).probed()
+    }
+
+    /// Whether the remove query probes every row, for tests.
+    pub(crate) fn remove_row_probes(&self) -> bool {
+        remove_query(&self.world).row_probes()
     }
 
     /// The archetypes the removal pass's query matches, for tests.
@@ -83,7 +94,8 @@ impl Workload for HybridAddRemove {
     }
 
     fn step(&mut self) {
-        // Two separate passes: every insert happens before the first removal (spec 4.4.4).
+        // Two separate passes: every insert happens before the first removal (section 4.4.4
+        // of the M3.2 spec).
         self.with_a.clear();
         let with_a = &mut self.with_a;
         read_query(&self.world).for_each(|(e, a)| with_a.push((e, a.0)));

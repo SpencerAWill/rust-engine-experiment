@@ -1,7 +1,8 @@
 //! Archetypes: one table per distinct set of table component types, with cached transition
 //! edges. Adapted from the archetype prototype's (M3.4); sparse types never appear here (A5).
 
-use crate::table::Table;
+use crate::Entity;
+use crate::table::{ColumnMut, Table};
 
 /// The dense index of a component type: the position of its `ComponentInfo` in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -62,7 +63,19 @@ impl Archetype {
 
     /// The index of `component`'s column, by binary search.
     pub(crate) fn column_of(&self, component: ComponentId) -> Option<usize> {
-        self.components.binary_search(&component).ok()
+        column_in(&self.components, component)
+    }
+
+    /// A view of this archetype for a mutable query run: its component list, row count,
+    /// entities and column handles, and nothing that changes a length (lesson ecs-5).
+    pub(crate) fn view_mut(&mut self) -> ArchetypeMut<'_> {
+        let Self {
+            components, table, ..
+        } = self;
+        ArchetypeMut {
+            components: &components[..],
+            table,
+        }
     }
 
     pub(crate) fn add_edge(&self, component: ComponentId) -> Option<ArchetypeId> {
@@ -89,6 +102,38 @@ impl Archetype {
     /// Every recorded remove edge as `(component, target)`.
     pub(crate) fn remove_edges(&self) -> impl Iterator<Item = (ComponentId, ArchetypeId)> + '_ {
         edges(&self.remove)
+    }
+}
+
+/// The index of `component`'s column in an archetype whose ascending component list is
+/// `components`, by binary search.
+pub(crate) fn column_in(components: &[ComponentId], component: ComponentId) -> Option<usize> {
+    components.binary_search(&component).ok()
+}
+
+/// One archetype, borrowed exclusively for a mutable query run. It offers the component list,
+/// the row count, the entities and the column handles, so a query cannot add or remove a row,
+/// replace the component list or reach an edge (lesson ecs-5).
+#[derive(Debug)]
+pub struct ArchetypeMut<'w> {
+    components: &'w [ComponentId],
+    table: &'w mut Table,
+}
+
+impl<'w> ArchetypeMut<'w> {
+    /// The archetype's component ids, strictly ascending.
+    pub(crate) fn components(&self) -> &'w [ComponentId] {
+        self.components
+    }
+
+    /// The row count.
+    pub(crate) fn len(&self) -> usize {
+        self.table.len()
+    }
+
+    /// The entities, and one handle per column in component order.
+    pub(crate) fn into_parts(self) -> (&'w [Entity], impl Iterator<Item = ColumnMut<'w>>) {
+        self.table.columns_mut()
     }
 }
 

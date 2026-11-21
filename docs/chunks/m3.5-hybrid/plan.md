@@ -192,3 +192,9 @@ From `lessons-researcher` (2026-11-20), plus three it skipped that match these p
 - **Step 4, `commands_reach_each_storage`:** checks `archetype_count` rather than the location (`Location` is private to `world.rs`); `sparse_toggle_keeps_the_location` covers the location through `World::insert`, which the command calls.
 - **Step 6, `add_remove` hooks:** `read_archetypes`/`read_probed` and `remove_archetypes`/`remove_probed`, one pair per query.
 - **Step 6, red checks:** run with `cargo nextest run -p spike_ecs_hybrid --no-fail-fast`, since `cargo xtask test` stops at the first failure and hid red check 4's planned tests on the first try (log.md, 2026-11-20).
+- **Step 5, shared types:** `heavy_compute` re-exports `simple_iter`'s component types, so one `Component` impl each covers both workloads.
+- **Steps 6 and 7, hook names:** a workload with two queries has one hook pair per query (`read_*` and `remove_*` in `add_remove`, `move_*` and `draw_*` in `sprites`) instead of §1's `step_*`.
+- **Step 3, table `Option` parameters:** bound to the column's slice, or an empty slice when the archetype lacks the type, then read with `get(row)`, rather than `Option<&[T]>` per table as spec §4.7 step 4 says; the results are the same (review-code).
+- **Review, `parts_mut`:** yields `ArchetypeMut` views (component ids, row count, entities and `ColumnMut` only) and `SparseSlotMut`s built in `world.rs`, so `query.rs` names no `&mut Box`, `&mut dyn`, `&mut Archetype` or `&mut Table` (R4, ecs-5; review-code and review-conditional).
+- **Review, `row_probes()`:** a test hook reading the loop's own `Q::PROBES || F::PROBES` gate, asserted per step query; `agents`' step query is `false`, since an `Option` sparse parameter probes inside its fetch, not at the row gate. It carries a reasoned `#[allow(clippy::unused_self)]` (test-only).
+- **Review, row loop:** `entities` re-sliced to `..len`, as M3.4's.

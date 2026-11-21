@@ -19,7 +19,7 @@ use core::iter::FusedIterator;
 use core::marker::PhantomData;
 
 use crate::Entity;
-use crate::archetype::Archetype;
+use crate::archetype::{Archetype, ComponentId};
 use crate::component::Component;
 use crate::world::World;
 
@@ -28,7 +28,7 @@ pub(crate) mod seal {
     use core::any::TypeId;
 
     use crate::Entity;
-    use crate::archetype::{Archetype, ComponentId};
+    use crate::archetype::{Archetype, ArchetypeMut, ComponentId, column_in};
     use crate::component::{Component, StorageKind, seal::Storage};
     use crate::sparse::{ErasedSparseSet, SparseMut, SparseSet, SparseSlotMut};
     use crate::table::{ColumnMut, ErasedColumn, column_slice};
@@ -76,13 +76,13 @@ pub(crate) mod seal {
 
         /// Whether `archetype` passes this entry: it has a required table type and lacks an
         /// excluded one. Sparse types play no part in matching; their rows are probed.
-        pub fn passes(&self, archetype: &Archetype) -> bool {
+        pub fn passes(&self, components: &[ComponentId]) -> bool {
             if self.kind == StorageKind::Sparse {
                 return true;
             }
             let has = self
                 .component
-                .is_some_and(|c| archetype.column_of(c).is_some());
+                .is_some_and(|c| column_in(components, c).is_some());
             match self.role {
                 Role::Required => has,
                 Role::Optional => true,
@@ -208,16 +208,16 @@ pub(crate) mod seal {
         /// hands each `&mut` to its slot, so no two slots alias and no `unsafe` is needed.
         pub fn fill_sparse_exclusive(
             &mut self,
-            sets: &'w mut [Box<dyn ErasedSparseSet>],
+            sets: impl Iterator<Item = SparseSlotMut<'w>>,
             entries: &[TypeEntry],
         ) {
             if !Self::any_sparse(entries) {
                 return;
             }
             self.sparse.resize_with(entries.len(), || None);
-            for (k, set) in sets.iter_mut().enumerate() {
+            for (k, set) in sets.enumerate() {
                 if let Some(j) = entries.iter().position(|e| e.set == Some(k)) {
-                    self.sparse[j] = Some(SparseSlot::Mut(SparseSlotMut::new(&mut **set)));
+                    self.sparse[j] = Some(SparseSlot::Mut(set));
                 }
             }
             self.cursor = 0;
@@ -251,15 +251,13 @@ pub(crate) mod seal {
         /// list hands each `&mut` to its slot.
         pub fn fill_tables_exclusive(
             &mut self,
-            archetype: &'w mut Archetype,
+            archetype: ArchetypeMut<'w>,
             entries: &[TypeEntry],
             params: usize,
         ) {
-            let Archetype {
-                components, table, ..
-            } = archetype;
-            self.len = table.len();
-            let (entities, columns) = table.columns_mut();
+            let components = archetype.components();
+            self.len = archetype.len();
+            let (entities, columns) = archetype.into_parts();
             self.entities = entities;
             self.tables.clear();
             self.tables.resize_with(params, || None);
@@ -774,8 +772,8 @@ impl Plan {
 
     /// Whether the archetype has every required table type and none of the excluded ones. Both
     /// query types and `matched_archetypes` use this one function.
-    fn matches(&self, archetype: &Archetype) -> bool {
-        !self.dead && self.entries.iter().all(|e| e.passes(archetype))
+    fn matches(&self, components: &[ComponentId]) -> bool {
+        !self.dead && self.entries.iter().all(|e| e.passes(components))
     }
 
     /// The sparse types the run probes per row, with their roles: the ones a row consults,
@@ -796,7 +794,7 @@ fn matched(archetypes: &[Archetype], plan: &Plan) -> Vec<crate::archetype::Arche
     archetypes
         .iter()
         .enumerate()
-        .filter(|(_, a)| plan.matches(a))
+        .filter(|(_, a)| plan.matches(&a.components))
         .map(|(i, _)| crate::archetype::ArchetypeId::new(i))
         .collect()
 }
@@ -879,11 +877,12 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
         let mut qf = Q::init(&mut binder);
         let mut ff = F::init(&mut binder);
         for archetype in archetypes {
-            if archetype.table.len() == 0 || !plan.matches(archetype) {
+            if archetype.table.len() == 0 || !plan.matches(&archetype.components) {
                 continue;
             }
             binder.fill_tables_shared(archetype, &plan.entries, plan.params);
-            let (entities, len) = (binder.entities(), binder.len());
+            let len = binder.len();
+            let entities = &binder.entities()[..len];
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
                 if (Q::PROBES || F::PROBES)
@@ -914,7 +913,7 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
         let (archetypes, sets) = world.parts();
         let remaining = archetypes
             .iter()
-            .filter(|a| plan.matches(a))
+            .filter(|a| plan.matches(&a.components))
             .map(|a| a.table.len())
             .sum();
         let mut binder = Binder::new();
@@ -948,6 +947,13 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
     #[cfg(test)]
     pub(crate) fn probed(&self) -> Vec<(crate::archetype::ComponentId, Role)> {
         Plan::new::<Q, F>(self.world, "Query::probed").probed()
+    }
+
+    /// Whether a run probes every row: the gate the row loop reads, for tests.
+    #[cfg(test)]
+    #[allow(clippy::unused_self)] // the gate is a type-level constant; `self` fixes `Q` and `F`
+    pub(crate) fn row_probes(&self) -> bool {
+        Q::PROBES || F::PROBES
     }
 }
 
@@ -1010,11 +1016,11 @@ impl<Q: ReadOnly, F: Filter> QueryIter<'_, Q, F> {
     fn open_next(&mut self) -> bool {
         while let Some(archetype) = self.archetypes.get(self.next_archetype) {
             self.next_archetype += 1;
-            if archetype.table.len() > 0 && self.plan.matches(archetype) {
+            if archetype.table.len() > 0 && self.plan.matches(&archetype.components) {
                 self.binder
                     .fill_tables_shared(archetype, &self.plan.entries, self.plan.params);
-                self.entities = self.binder.entities();
                 self.len = self.binder.len();
+                self.entities = &self.binder.entities()[..self.len];
                 self.row = 0;
                 Q::set_table(&mut self.qf, &mut self.binder);
                 return true;
@@ -1141,11 +1147,12 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
         let mut qf = Q::init(&mut binder);
         let mut ff = F::init(&mut binder);
         for archetype in archetypes {
-            if archetype.table.len() == 0 || !plan.matches(archetype) {
+            if archetype.len() == 0 || !plan.matches(archetype.components()) {
                 continue;
             }
             binder.fill_tables_exclusive(archetype, &plan.entries, plan.params);
-            let (entities, len) = (binder.entities(), binder.len());
+            let len = binder.len();
+            let entities = &binder.entities()[..len];
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
                 if (Q::PROBES || F::PROBES)
@@ -1169,6 +1176,13 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
     #[cfg(test)]
     pub(crate) fn probed(&self) -> Vec<(crate::archetype::ComponentId, Role)> {
         Plan::new::<Q, F>(self.world, "QueryMut::probed").probed()
+    }
+
+    /// Whether a run probes every row: the gate the row loop reads, for tests.
+    #[cfg(test)]
+    #[allow(clippy::unused_self)] // the gate is a type-level constant; `self` fixes `Q` and `F`
+    pub(crate) fn row_probes(&self) -> bool {
+        Q::PROBES || F::PROBES
     }
 }
 
