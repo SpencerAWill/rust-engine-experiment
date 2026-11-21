@@ -83,11 +83,14 @@ pub(crate) mod seal {
 
         /// The shared fetch at the start of a run.
         fn init_ref<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Ref<'_, T>;
-        /// Rebinds the shared fetch to the matched archetype's column, `len` rows.
+        /// Rebinds the shared fetch to the matched archetype's column, `len` rows. `required` is
+        /// a constant at each call: a required table parameter always gets a column, and the
+        /// fetch then has exactly `len` rows, a length the optimizer can see.
         fn set_ref<'w, T: 'static>(
             fetch: &mut Self::Ref<'w, T>,
             col: Option<TableSlot<'w>>,
             len: usize,
+            required: bool,
         );
         /// The `T` of a row that must have one.
         fn ref_row<'w, T: 'static>(
@@ -106,11 +109,13 @@ pub(crate) mod seal {
 
         /// The exclusive fetch at the start of a run.
         fn init_mut<T: 'static>(slot: Option<SparseSlot<'_>>) -> Self::Mut<'_, T>;
-        /// Rebinds the exclusive fetch to the matched archetype's column, `len` rows.
+        /// Rebinds the exclusive fetch to the matched archetype's column, `len` rows; see
+        /// [`set_ref`](Self::set_ref) for `required`.
         fn set_mut<'w, T: 'static>(
             fetch: &mut Self::Mut<'w, T>,
             col: Option<TableSlot<'w>>,
             len: usize,
+            required: bool,
         );
         /// The `T` of a row that must have one.
         fn mut_row<'a, T: 'static>(
@@ -143,6 +148,9 @@ pub(crate) mod seal {
         )
     }
 
+    const MISSING: &str =
+        "hybrid query: a matched archetype has a column for every required table type";
+
     impl Storage for TableStorage {
         const KIND: StorageKind = StorageKind::Table;
         const PROBES: bool = false;
@@ -174,8 +182,16 @@ pub(crate) mod seal {
             fetch: &mut Self::Ref<'w, T>,
             col: Option<TableSlot<'w>>,
             len: usize,
+            required: bool,
         ) {
-            *fetch = col.map_or(&[][..], |c| &c.into_ref::<T>()[..len]);
+            // No `None` arm that yields an empty slice for a required column: that would make
+            // the fetch's length `len` or 0, and the row loop could not be vectorized.
+            *fetch = if let Some(c) = col {
+                &c.into_ref::<T>()[..len]
+            } else {
+                assert!(!required, "{MISSING}");
+                &[]
+            };
         }
 
         #[inline]
@@ -207,8 +223,14 @@ pub(crate) mod seal {
             fetch: &mut Self::Mut<'w, T>,
             col: Option<TableSlot<'w>>,
             len: usize,
+            required: bool,
         ) {
-            *fetch = col.map_or(&mut [][..], |c| &mut c.into_mut::<T>()[..len]);
+            *fetch = if let Some(c) = col {
+                &mut c.into_mut::<T>()[..len]
+            } else {
+                assert!(!required, "{MISSING}");
+                &mut []
+            };
         }
 
         #[inline]
@@ -262,7 +284,13 @@ pub(crate) mod seal {
         }
 
         #[inline]
-        fn set_ref<'w, T: 'static>(_: &mut Self::Ref<'w, T>, _: Option<TableSlot<'w>>, _: usize) {}
+        fn set_ref<'w, T: 'static>(
+            _: &mut Self::Ref<'w, T>,
+            _: Option<TableSlot<'w>>,
+            _: usize,
+            _: bool,
+        ) {
+        }
 
         #[inline]
         fn ref_row<'w, T: 'static>(
@@ -296,7 +324,13 @@ pub(crate) mod seal {
         }
 
         #[inline]
-        fn set_mut<'w, T: 'static>(_: &mut Self::Mut<'w, T>, _: Option<TableSlot<'w>>, _: usize) {}
+        fn set_mut<'w, T: 'static>(
+            _: &mut Self::Mut<'w, T>,
+            _: Option<TableSlot<'w>>,
+            _: usize,
+            _: bool,
+        ) {
+        }
 
         #[inline]
         fn mut_row<'a, T: 'static>(

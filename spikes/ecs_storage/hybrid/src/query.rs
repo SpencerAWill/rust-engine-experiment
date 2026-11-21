@@ -408,7 +408,7 @@ impl<T: Component> seal::Param for &T {
     #[inline]
     fn set_table<'w>(fetch: &mut Self::Fetch<'w>, binder: &mut Binder<'w>) {
         let (col, len) = (binder.take_table(), binder.len());
-        <T::Storage as StorageImpl>::set_ref::<T>(fetch, col, len);
+        <T::Storage as StorageImpl>::set_ref::<T>(fetch, col, len, true);
     }
 
     #[inline]
@@ -457,7 +457,7 @@ impl<T: Component> seal::Param for &mut T {
     #[inline]
     fn set_table<'w>(fetch: &mut Self::Fetch<'w>, binder: &mut Binder<'w>) {
         let (col, len) = (binder.take_table(), binder.len());
-        <T::Storage as StorageImpl>::set_mut::<T>(fetch, col, len);
+        <T::Storage as StorageImpl>::set_mut::<T>(fetch, col, len, true);
     }
 
     #[inline]
@@ -493,7 +493,7 @@ impl<T: Component> seal::Param for Option<&T> {
     #[inline]
     fn set_table<'w>(fetch: &mut Self::Fetch<'w>, binder: &mut Binder<'w>) {
         let (col, len) = (binder.take_table(), binder.len());
-        <T::Storage as StorageImpl>::set_ref::<T>(fetch, col, len);
+        <T::Storage as StorageImpl>::set_ref::<T>(fetch, col, len, false);
     }
 
     #[inline]
@@ -542,7 +542,7 @@ impl<T: Component> seal::Param for Option<&mut T> {
     #[inline]
     fn set_table<'w>(fetch: &mut Self::Fetch<'w>, binder: &mut Binder<'w>) {
         let (col, len) = (binder.take_table(), binder.len());
-        <T::Storage as StorageImpl>::set_mut::<T>(fetch, col, len);
+        <T::Storage as StorageImpl>::set_mut::<T>(fetch, col, len, false);
     }
 
     #[inline]
@@ -889,7 +889,9 @@ impl<'w, Q: ReadOnly, F: Filter> Query<'w, Q, F> {
             }
             binder.fill_tables_shared(archetype, &plan.entries, plan.params);
             let len = binder.len();
-            let entities = &binder.entities()[..len];
+            // Not cut to `len`: a probed row's `entities[row]` keeps its bounds check, which
+            // measured faster for `agents` than a slice the optimizer knows is `len` long.
+            let entities = binder.entities();
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
                 if row_gate::<Q, F>()
@@ -1159,7 +1161,9 @@ impl<'w, Q: QueryParam, F: Filter> QueryMut<'w, Q, F> {
             }
             binder.fill_tables_exclusive(archetype, &plan.entries, plan.params);
             let len = binder.len();
-            let entities = &binder.entities()[..len];
+            // Not cut to `len`: a probed row's `entities[row]` keeps its bounds check, which
+            // measured faster for `agents` than a slice the optimizer knows is `len` long.
+            let entities = binder.entities();
             Q::set_table(&mut qf, &mut binder);
             for row in 0..len {
                 if row_gate::<Q, F>()
