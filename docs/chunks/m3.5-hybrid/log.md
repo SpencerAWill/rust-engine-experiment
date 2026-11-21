@@ -1,6 +1,6 @@
 # M3.5 log: Per-component hybrid prototype
 
-- **Status:** Living (2026-11-20)
+- **Status:** Historical: PR #89 (2026-11-20)
 
 - 2026-11-20 decision Next chunk is M3.5: M3.19's spec names no Followed by chunk, and M3.5 is the first Planned M3 row (table order) whose dependencies (M3.3, M3.4) are Done. M3.10 is also eligible but comes later in the table.
 - 2026-11-20 done The row cites no issue, but #82 (enable bits) and #83 (one query and command API over several storage kinds) are both "answered by M3.5's spec" and are Project items: both set to Scheduled. Tracking issue #78.
@@ -96,3 +96,4 @@
 - 2026-11-20 done Compound, second pass: ecs-9 added (required-column fetches at exactly the row count; compare the first informal iteration numbers with the sibling backend). The reviewer's "fallback flag needs a test per non-panicking impl" candidate not kept: specs-3 (one test per row of a table) already covers it.
 - 2026-11-20 done Informal run 2 (the one the PR quotes): `cargo xtask spike-bench ecs --save m3.5-informal-2` on d0e1d0a plus uncommitted log and lesson edits (code as of d0e1d0a), MacBook (Apple silicon), AC power, `caffeinate -i`, 1-minute load 2.45 at the start, 20:37:49 to 20:45:06, 85 ids; `pmset -g log` shows no sleep, wake or battery events in the window. One run, no noise floor: informal. Hybrid against archetype at the largest size: `simple_iter` 24.3 µs (24.3), `frag_iter` 202 ns (195), `heavy_compute` 1.58 ms (1.58), `entity_churn` 249 µs (247), `sprites` 236 µs (200), `add_remove` 1.06 ms (2.22; sparse_set 1.18), `agents` 735 µs (288; sparse_set 829).
 - 2026-11-20 surprise After the fix, four of the five table-only workloads are within a few percent of `archetype`, but `sprites` stays about 18% slower (236 against 200 µs) with no probe in either query: unexplained, left as a caveat for M3.8 rather than another fix round. `agents` is 2.55 times `archetype`'s time: at this toggle rate a per-row probe of a sparse `Seeker` costs more than the row moves it saves, against spec §4.9's prediction ("at or below archetype").
+- 2026-11-20 done Close-out: spec Implemented (PR #89), plan and log Historical, roadmap `Done (PR #89)` with the M3.8 caveats, CHANGELOG's `agents` expectation corrected; done-when ticked except CI on PR #89 (pending).

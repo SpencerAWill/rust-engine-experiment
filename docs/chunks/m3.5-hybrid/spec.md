@@ -1,6 +1,6 @@
 # M3.5: Per-component hybrid prototype
 
-- **Status:** Accepted (2026-11-20)
+- **Status:** Implemented (PR #89, 2026-11-20)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.3, M3.4 · **Decides:** no ADR
 - **Issue:** #82 and #83, both answered here (tracking issue #78)
 - **Estimated size:** about 2,400 changed lines, excluding tests, lockfiles and generated files (`component` about 100, `table` and `archetype` about 350, `sparse` about 250, `world` and `bundle` about 550, `query` about 650, `commands` about 150, the workload modules about 400, documents about 150)
@@ -336,13 +336,13 @@ As M3.4's (its spec §4.7, after M3.3's §4.6): `Commands::{new, despawn, insert
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms.
-- [ ] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass.
-- [ ] `cargo xtask spike-bench ecs` lists the `hybrid` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal.
-- [ ] The roadmap shows M3.5's new title and the M3.8 caveats; the spike README, CHANGELOG and coverage list are updated.
-- [ ] #82 and #83 are closed by the pull request; the enable-bits follow-up issue exists under #78, and #84 has the comment of §4.12.
-- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
-- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
+- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms. *Local: passes on d0e1d0a, the final code commit (log.md). CI on PR #89: pending.*
+- [x] The backend passes conformance for all seven workloads, and the invariant-under-churn and model tests pass. *Seven `*_hybrid_matches_the_reference` tests, the `entity_churn`, `add_remove` and `agents` invariant tests and `world_matches_the_model` pass on d0e1d0a.*
+- [x] `cargo xtask spike-bench ecs` lists the `hybrid` backend; its output, and a cache-bench run if a Valgrind host is available, are in the pull request, labelled informal. *85 ids (14 `hybrid`) on the code as of d0e1d0a, table in PR #89; no cache-bench run, since neither Valgrind nor Docker is available on this Mac (#74).*
+- [x] The roadmap shows M3.5's new title and the M3.8 caveats; the spike README, CHANGELOG and coverage list are updated. *72e583a (title, README, CHANGELOG), acd25a2 (coverage), this close-out commit (M3.8 caveats).*
+- [x] #82 and #83 are closed by the pull request; the enable-bits follow-up issue exists under #78, and #84 has the comment of §4.12. *PR #89 says "Closes #82" and "Closes #83"; #88 is a sub-issue of #78; #84 comment 7054890853.*
+- [x] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request. *Three rounds, PR #89 Reviews section.*
+- [x] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in. *This close-out commit.*
 
 ## 10. Open questions
 

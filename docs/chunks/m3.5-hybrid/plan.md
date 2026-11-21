@@ -1,6 +1,6 @@
 # M3.5 plan: Per-component hybrid prototype
 
-- **Status:** Accepted (2026-11-20)
+- **Status:** Historical: executed in PR #89 (2026-11-20); the spec and the code are authoritative.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach
