@@ -1,6 +1,6 @@
 # M3.20 log: Planning state on GitHub
 
-- **Status:** Living (2026-11-23)
+- **Status:** Historical: PR #99 (2026-11-23); the rollout entries of stage 7 are appended before the merge
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>

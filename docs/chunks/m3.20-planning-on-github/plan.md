@@ -1,6 +1,6 @@
 # M3.20 plan: Planning state on GitHub
 
-- **Status:** Accepted (2026-11-23)
+- **Status:** Historical: executed in PR #99 (2026-11-23); the spec and the code are authoritative (step 8, the rollout, runs before the merge go-ahead and is recorded in log.md)
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

@@ -1,6 +1,6 @@
 # M3.20: Planning state on GitHub
 
-- **Status:** Accepted (2026-11-23); amended three times on 2026-11-23 (§4.2 chunk IDs, authorship and other authors' issues, §4.4 in-flight chunks; maintainer, after the review rounds)
+- **Status:** Implemented (PR #99, 2026-11-23); accepted 2026-11-23 and amended three times on 2026-11-23 (§4.2 chunk IDs, authorship and other authors' issues, §4.4 in-flight chunks; maintainer, after the review rounds)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.18 · **Decides:** no ADR (process and documentation, as M3.18; the Project and the GitHub writes are configuration, see §4.8)
 - **Issue:** #97, created in the first migration step (§4.8); the pull request closes it (tracking issue #66 until the migration closes it)
 - **Estimated size:** about 450 changed lines of Markdown, about 40 lines in `infra/github/index.ts`
@@ -167,9 +167,9 @@ If the pull request is abandoned instead of merged, every write above is undone:
 
 ## 9. Done when
 
-- [ ] R1 to R8 and R11 have their evidence; `cargo xtask ci` passes.
-- [ ] The maintainer has run `pulumi preview` and `pulumi up` from the branch (R5 in `log.md`).
-- [ ] R9 and R10 have their evidence in `log.md`, pushed before the merge go-ahead.
+- [x] R1 to R8 and R11 have their evidence (log.md; R4's dry run, R7's grep lists); `cargo xtask ci` passes on 4d36f5f.
+- [ ] The maintainer has run `pulumi preview` and `pulumi up` from the branch (R5 in `log.md`). Pending: the rollout, before the merge go-ahead.
+- [ ] R9 and R10 have their evidence in `log.md`, pushed before the merge go-ahead. Pending: after `pulumi up` (R9's first part, #97 and the Order field, is in `log.md`).
 
 ## 10. Open questions
 
