@@ -128,7 +128,7 @@ Choices the spec leaves to implementation:
 
 ### Step 9: documents
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (the `archetype/` row names the raw components and the two backends; the backend list for the three workloads), `docs/chunks/m3.6-runtime-components/log.md`.
 - **Check that fails before:** the README row does not mention `archetype_bytes_copy`; `cargo xtask check-docs` passes after.
 - **Verify:** `cargo xtask check-docs` passes.
