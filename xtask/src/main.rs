@@ -307,7 +307,8 @@ fn run_bench(args: &[String], allow_battery: bool) -> Result<(), String> {
 }
 
 /// The spike topics `spike-bench` knows: the short name in `spike_<topic>_bench_compare`. A later
-/// spike adds one entry here, one to each package list below and one to `coverage::SPIKE_PACKAGES`.
+/// spike adds one entry here, one to each package list below, and every one of its packages to
+/// `coverage::SPIKE_PACKAGES`.
 pub(crate) const SPIKE_TOPICS: &[&str] = &["ecs"];
 
 /// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves out every

@@ -128,8 +128,8 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 - **`spikes/README.md`, Rules:** one line saying that a spike's baseline crate may depend on a competing library for measurement, and that `deny.toml` names each such crate.
 - **`CONTRIBUTING.md`, "Licence and originality", the line on other crates:** add "or as the dependency of a spike's baseline crate that `deny.toml` names".
 - **`xtask/src/coverage.rs`:** both packages join `SPIKE_PACKAGES` and the expected `--exclude` list of `test_args_match_the_spec`.
-- **`xtask/src/main.rs`, `bench_args`:** `cargo xtask bench` excludes every package in `SPIKE_PACKAGES`, not only the two spike bench packages. `hecs` 0.11.2 turns on `hashbrown`'s `inline-more` and `default-hasher` unconditionally, and feature unification over `--workspace` gave the `libs/` benchmarks' `hashbrown` 0.17.1 (under `engine::collections`) both features, where on `main` it has neither (performance review; checked with `cargo tree -e features,normal -i hashbrown@0.17.1` on both). `bench-build` is unchanged: it only compiles, and it builds the spike Criterion package *(maintainer, amendment after review)*.
-- **`spikes/ecs_storage/README.md`, "Running the benchmarks":** one sentence that spike rows from before M3.10 were built without `hashbrown`'s `inline-more` and `default-hasher` (from `hecs`) and `indexmap`'s and `foldhash`'s `std` (from `bevy_ecs`), so rows are compared within one run.
+- **`xtask/src/main.rs`, `bench_args`:** `cargo xtask bench` excludes every package in `SPIKE_PACKAGES`, not only the two spike bench packages. `hecs` 0.11.2 turns on `hashbrown`'s `inline-more` and `default-hasher` unconditionally, and feature unification over `--workspace` gave the `libs/` benchmarks' `hashbrown` 0.17.1 (under `engine::collections`) both features, where on `main` it has neither (performance review; checked with `cargo tree -e features,normal,dev -i hashbrown@0.17.1` on both, as in §8). `bench-build` is unchanged: it only compiles, and it builds the spike Criterion package *(maintainer, amendment after review)*.
+- **`spikes/ecs_storage/README.md`, "Running the benchmarks":** one sentence that spike rows from before M3.10 were built without `hashbrown`'s `inline-more` and `default-hasher` (from `hecs`) and `indexmap`'s and `foldhash`'s `std` (from `bevy_ecs`), the changed features of crates the spike code calls (on Linux and Windows `bevy_ecs` also turns on `std` features of `log` and `bitflags` and two `windows-sys` API features, which no measured path uses), so rows are compared within one run.
 - **`CHANGELOG.md`:** an entry.
 - **Each crate's `lib.rs` docs:** say that the crate is a measurement baseline on `bevy_ecs` (or `hecs`), with no code taken from it (ADR 0002), and give its version.
 
@@ -145,7 +145,7 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 - **M3.10-R8** `cargo xtask ci` MUST pass, and CI MUST be green on Ubuntu, macOS and Windows without workflow changes.
 - **M3.10-R9** Every public item MUST be documented, and the documents and tooling of §4.7 MUST be updated as described.
 - **M3.10-R10** The pull request MUST show one informal `cargo xtask spike-bench ecs` run, under the benchmark run protocol and labelled informal, with the baseline rows beside `archetype`, `sparse_set` and `hybrid`.
-- **M3.10-R11** `cargo xtask bench` MUST build `engine` and its dependencies with the same features as on `main`: its command excludes every spike package, and `cargo tree` over its package selection shows no feature of `hashbrown` 0.17.1 turned on.
+- **M3.10-R11** `cargo xtask bench` MUST build `engine` and its normal dependencies with the same features as on `main`: its command excludes every spike package, and `cargo tree` over its package selection shows no feature of `hashbrown` 0.17.1 turned on.
 
 ## 6. Cross-cutting concerns
 
