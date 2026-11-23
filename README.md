@@ -4,7 +4,7 @@ A high-performance, real-time game and simulation engine in Rust, built as a set
 
 ## Status
 
-Experimental. All packages are `0.x`, `publish = false`, and their APIs are explicitly unstable. M0+M1 (workspace, policy and the foundation modules) is done; what comes next is in [docs/roadmap.md](docs/roadmap.md). The design lives in `docs/chunks/` and `docs/README.md`, and decisions are recorded as ADRs in `docs/adr/`.
+Experimental. All packages are `0.x`, `publish = false`, and their APIs are explicitly unstable. M0+M1 (workspace, policy and the foundation modules) is done; the milestone goals are in [docs/roadmap.md](docs/roadmap.md), and the scheduled work is on GitHub (issues, milestones and the "Engine backlog" Project). The design lives in `docs/chunks/` and `docs/README.md`, and decisions are recorded as ADRs in `docs/adr/`.
 
 ## Module map
 

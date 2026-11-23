@@ -1,6 +1,6 @@
 ## Chunk
 
-<!-- Roadmap work: the chunk ID and links (see docs/roadmap.md). Otherwise "None", for example for a dependency update or a small fix. The title ends with the chunk ID, for example "(M2.1)". -->
+<!-- A chunk: its ID, its issue ("Closes #N") and links. A chore: "None (chore, #N)" and "Closes #N". Otherwise "None", for example for a dependency update. The title ends with the chunk ID, for example "(M2.1)", or for a chore with its issue number, "(#76)". -->
 
 - Chunk:
 - Spec:
@@ -39,4 +39,4 @@
 - [ ] No code was copied from another project (see ADR 0002). If an AI assistant was used, I say so here.
 - [ ] Performance claims come with a saved baseline and the noise floor (`cargo xtask bench-report`).
 - [ ] User-visible changes are in `CHANGELOG.md`.
-- [ ] For a chunk: the spec is `Implemented`, the plan and log are `Historical` with the plan's Deviations filled in, and the roadmap row is `Done`.
+- [ ] For a chunk: the spec is `Implemented`, the plan and log are `Historical` with the plan's Deviations filled in, and the description says `Closes #<chunk issue>`.
