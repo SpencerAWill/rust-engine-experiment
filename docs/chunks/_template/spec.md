@@ -2,7 +2,7 @@
 
 - **Status:** Template (2026-11-12). Copy into the chunk folder; do not edit in place for a chunk. Spec statuses: `Draft (date)`, `Accepted (date)`, `Implemented (PR #n, date; set in the chunk's own pull request, in the close-out commit pushed as soon as the PR is open)`, `Superseded by <link> (date)`, `Dropped (reason, date)`.
 - **Milestone:** M<N> (<milestone goal>) · **Depends on:** M<N>.<k>, or none · **Decides:** ADR NNNN, or "no ADR"
-- **Issue:** #N (tracking issue #M), or none
+- **Issue:** #N, the chunk issue (required; its title is `M<N>.<n>: <title>`, and the pull request closes it)
 - **Estimated size:** about <n> changed lines, excluding tests, lockfiles and generated files
 
 Keep it as short as the change allows: write what a builder needs and cannot find in the code, and link instead of copying. For a small chunk, sections 3, 7 and 11 are optional.

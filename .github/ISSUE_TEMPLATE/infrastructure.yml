@@ -60,7 +60,7 @@ body:
     id: dependencies
     attributes:
       label: Depends on
-      description: Issues or roadmap chunks (for example `#40`, `M3.8`) that must land first.
+      description: Issues or chunks (for example `#40`, `M3.8`) that must land first.
 
   - type: checkboxes
     id: assistant

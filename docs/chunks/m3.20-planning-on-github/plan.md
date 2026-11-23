@@ -47,7 +47,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 5: entry documents and templates (R7, R8, R11)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `AGENTS.md` (the planned-work pointer; the loop line; the chore commit-message exception), `CONTRIBUTING.md`, `README.md`, `docs/README.md` (the roadmap row of the index), `docs/chunks/README.md`, `.claude/README.md`, `.github/PULL_REQUEST_TEMPLATE.md` (chunk issue; chores), `.github/ISSUE_TEMPLATE/feature_request.yml` and `infrastructure.yml` ("Depends on" hint), `docs/chunks/_template/spec.md` (Issue line required; no "Followed by").
 - **Verify:** `git grep -n -i roadmap` over these files, each remaining hit checked against §4.7; `cargo xtask check-docs` 0 problems (AGENTS.md under 80 lines).
 - **Commit:** `docs: point the entry documents and templates at GitHub planning (M3.20)`
