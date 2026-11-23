@@ -22,7 +22,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 2: milestones in Pulumi (R5)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `infra/github/index.ts`.
 - **Change:** one `github.RepositoryMilestone` per milestone M3 to M9 (owner, repository `repo.name`, title, description: the goal in one line and `docs/roadmap.md#milestones`, `state: "open"`), each with `{ ignoreChanges: ["state"] }`, declared from one array as the labels are.
 - **Check that fails before:** `grep -c RepositoryMilestone infra/github/index.ts` is 0.
@@ -92,4 +92,4 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ## 5. Deviations
 
-None yet.
+- Step 2 also updated `infra/github/README.md` (it lists what `index.ts` declares), which the plan did not name.

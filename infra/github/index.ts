@@ -216,6 +216,37 @@ const labels: { name: string; color: string; description: string }[] = [
 new github.IssueLabels("labels", { repository: repo.name, labels });
 
 // ---------------------------------------------------------------------------------------------
+// Milestones (M3.20): one per open roadmap milestone. Goals and exit criteria are documents and
+// stay in docs/roadmap.md; a milestone holds the issues that belong to it. Pulumi creates them
+// and then ignores `state`, so a milestone is closed at its boundary with one command
+// (docs/maintainers.md, "When a milestone completes"), not a change here.
+// ---------------------------------------------------------------------------------------------
+
+const milestones: { title: string; goal: string }[] = [
+    { title: "M3", goal: "ECS storage decision" },
+    { title: "M4", goal: "ECS core" },
+    { title: "M5", goal: "Reflection and persistence" },
+    { title: "M6", goal: "Change tracking and edits" },
+    { title: "M7", goal: "Scheduler" },
+    { title: "M8", goal: "C ABI and C#" },
+    { title: "M9", goal: "Diagnostics and tooling" },
+];
+
+for (const { title, goal } of milestones) {
+    new github.RepositoryMilestone(
+        `milestone-${title.toLowerCase()}`,
+        {
+            owner: new pulumi.Config("github").require("owner"),
+            repository: repo.name,
+            title,
+            description: `${goal}. Goal and exit criteria: docs/roadmap.md#milestones`,
+            state: "open",
+        },
+        { ignoreChanges: ["state"] },
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // GitHub Actions
 // ---------------------------------------------------------------------------------------------
 
