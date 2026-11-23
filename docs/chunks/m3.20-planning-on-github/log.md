@@ -1,0 +1,16 @@
+# M3.20 log: Planning state on GitHub
+
+- **Status:** Living (2026-11-23)
+
+<!-- Append-only. One or two lines per entry, written when it happens, not at the end:
+- <date> <tag> <text>
+Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 6; see docs/lessons/README.md). -->
+
+- 2026-11-23 decision The maintainer named this chunk ("start that process chunk now") ahead of M3.10, after asking whether to use GitHub issues, milestones and Projects for everything the roadmap and the Project now split. ID M3.20: the next unused M3 ID (M3.12 is reserved by #41).
+- 2026-11-23 done `gh` 2.102.0 supports `gh issue edit --add-blocked-by` and `--milestone`; the REST endpoints `issues/{n}/dependencies/blocked_by` and `milestones` answer (0 entries today).
+- 2026-11-23 decision Roadmap file (maintainer): `docs/roadmap.md` shrinks to the milestone goals and exit criteria plus the Done chunk tables frozen as history, so the historical links still resolve; open rows (M3.7, M3.8, M3.10, M3.20) move to GitHub, and new chunks never get a row.
+- 2026-11-23 decision Order (maintainer): "blocked by" links replace the Depends-on column, and a numeric Order field in the Project orders scheduled chunks; next = the open, scheduled item of the current milestone with no open blocker and the lowest Order.
+- 2026-11-23 decision Milestones (maintainer): GitHub milestones declared in `infra/github/index.ts` (Pulumi), as the labels are; the milestone tracking issues #66 and #67 close, their sub-issues taking the milestone instead; the maintainer runs `pulumi up` after the merge.
+- 2026-11-23 decision Chunk issues (maintainer): every chunk has exactly one issue, titled `M<N>.<n>: <title>`, carrying its Status, milestone and Order; scheduling an issue gives it the chunk ID, the milestone, Status Scheduled and an Order; a chunk with no issue gets one when it is scheduled.
+- 2026-11-23 decision Small work (maintainer): a chore lane. A scheduled issue without a chunk ID is a chore, done as a plain pull request (conventional commit, CI, a review if not trivial), not the seven-stage loop; `/chunk next` names the next chunk and lists the scheduled chores beside it.
+- 2026-11-23 decision My calls in the draft spec (to grill): no "In progress" Status; a reorder gets a one-line issue comment; Orders spaced by 10, ties by chunk ID; Priority ranks unscheduled work and Order scheduled work; M3.8's caveats move to its issue body with log links; the later milestones' rough lists stay in the roadmap file; the spec template's Issue line becomes required and "Followed by" goes; GitHub writes split into two before the pull request (this chunk's issue, the Order field) and a checklist after the merge and `pulumi up`; milestone membership by tracking issue (#66 to M3, #67 to M4), otherwise only at scheduling; no ADR.
