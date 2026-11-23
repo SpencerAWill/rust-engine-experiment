@@ -1,6 +1,6 @@
 # M3.10: bevy_ecs and hecs baselines as harness backends
 
-- **Status:** Draft (2026-11-23)
+- **Status:** Accepted (2026-11-23)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** #100
 - **Estimated size:** about 1,300 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_bevy` about 650 with its sparse variant, `spike_ecs_hecs` about 450, bench registration about 60, `deny.toml`, xtask and documents about 120)
