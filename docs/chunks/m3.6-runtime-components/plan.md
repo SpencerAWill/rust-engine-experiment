@@ -81,7 +81,7 @@ Choices the spec leaves to implementation:
 
 ### Step 4: codecs and the `simple_iter` backends (R7, R11 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/codec.rs` (new), `src/bytes_simple_iter.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Change:** `Codec` and its impls for `Matrix`, `Position`, `Rotation`, `Velocity`; `RawVec3`, `RawMat4`; `BytesCopySimpleIter` and `BytesCastSimpleIter` (§4.7). The copy step: `pos.rows_mut().zip(vel.rows())`, decode, `rules::update`, encode. The cast step: `cast_mut::<RawVec3>()` and `cast::<RawVec3>()` once per table, then per row convert to `Position`/`Velocity`, `rules::update`, write back.
 - **Test first:** `codec_round_trips_*` proptests per type over arbitrary `u32` bit patterns per field, comparing `to_bits` (R7); `simple_iter_bytes_copy_matches_the_reference`, `simple_iter_bytes_cast_matches_the_reference` (R11); `simple_iter_bytes_*_has_the_typed_archetype_count` (after setup and after one step, against `ArchetypeSimpleIter`); `zero_count_is_valid_bytes_simple_iter`. The conformance tests fail to compile first; as a red check, swap the order of two fields in `Position::encode` and see the round-trip and conformance tests fail.
@@ -163,3 +163,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 - Step 1: `cast` and `cast_mut` map `bytemuck`'s cast error, which the size and alignment checks make impossible, to `CastError::SizeMismatch` through `unreachable_cast` rather than `expect`, so the public casts stay panic-free (clippy `missing_panics_doc`). The views also offer `len`, `is_empty` and `layout`.
 - Step 2: `Table::check` gained a third invariant, T3 (no nonzero byte past a byte column's values), for the spec's zero tail; the `check_invariants_*` red-check tests corrupt columns in `table.rs`'s tests, where the columns are reachable (ecs-6). `insert_raw` and `remove_raw` do no map lookup (the kind check is an array index), against one `BTreeMap` lookup in `insert::<T>` and `remove::<T>`.
 - Step 3: runs borrow the query (`RawRun<'w, 'q>`, `RawRunMut<'w, 'q>`) rather than cloning it, so a run's one allocation is its slot buffer; the runs are public types (`RawRun`, `RawRunMut`). `Table` gained `raw_columns` and `raw_columns_mut`, which hand out views of byte columns only, so the query module never holds `&mut dyn ErasedColumn` and skips a mixed table's typed columns.
+- Step 4: `RawRunMut` also has a `#[cfg(test)] matched_archetypes()`, since the step's query writes and a read run rejects it. The backends build their step and checksum queries once at setup and keep them; `codec.rs` holds a `const fn layout` helper and the `f32` read and write helpers (`as_chunks`, per clippy).

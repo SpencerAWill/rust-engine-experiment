@@ -1065,3 +1065,126 @@ mod workloads {
         zero_count::<ArchetypeAgents>();
     }
 }
+
+mod bytes_simple_iter {
+    use engine::prelude::{Mat4, Vec3};
+    use proptest::prelude::*;
+    use spike_ecs_harness::simple_iter::{Matrix, Position, Rotation, Velocity};
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::simple_iter::VecSimpleIter;
+
+    use crate::Codec;
+    use crate::archetype::ArchetypeId;
+    use crate::bytes_simple_iter::{BytesCastSimpleIter, BytesCopySimpleIter};
+    use crate::simple_iter::ArchetypeSimpleIter;
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    fn vec3_bits(v: Vec3) -> [u32; 3] {
+        v.to_array().map(f32::to_bits)
+    }
+
+    fn vec3_from_bits(bits: [u32; 3]) -> Vec3 {
+        Vec3::from_array(bits.map(f32::from_bits))
+    }
+
+    fn round_trip<T: Codec>(value: &T) -> T {
+        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
+        value.encode(&mut bytes);
+        T::decode(&bytes)
+    }
+
+    proptest! {
+        #[test]
+        fn codec_round_trips_position(bits in any::<[u32; 3]>()) {
+            let value = Position(vec3_from_bits(bits));
+            prop_assert_eq!(vec3_bits(round_trip(&value).0), bits);
+        }
+
+        #[test]
+        fn codec_round_trips_rotation(bits in any::<[u32; 3]>()) {
+            let value = Rotation(vec3_from_bits(bits));
+            prop_assert_eq!(vec3_bits(round_trip(&value).0), bits);
+        }
+
+        #[test]
+        fn codec_round_trips_velocity(bits in any::<[u32; 3]>()) {
+            let value = Velocity(vec3_from_bits(bits));
+            prop_assert_eq!(vec3_bits(round_trip(&value).0), bits);
+        }
+
+        #[test]
+        fn codec_round_trips_matrix(bits in any::<[u32; 16]>()) {
+            let value = Matrix(Mat4::from_cols_array(&bits.map(f32::from_bits)));
+            let back = round_trip(&value);
+            prop_assert_eq!(back.0.to_cols_array().map(f32::to_bits), bits);
+        }
+    }
+
+    #[test]
+    fn codec_layouts_are_the_field_sizes() {
+        assert_eq!(Position::LAYOUT.size(), 12);
+        assert_eq!(Position::LAYOUT.align(), 4);
+        assert_eq!(Matrix::LAYOUT.size(), 64);
+        assert_eq!(Matrix::LAYOUT.align(), 4);
+    }
+
+    #[test]
+    fn codec_writes_fields_in_declaration_order() {
+        let mut bytes = [0_u8; 12];
+        Position(Vec3::new(1.0, 2.0, 3.0)).encode(&mut bytes);
+        let mut expected = Vec::new();
+        for v in [1.0_f32, 2.0, 3.0] {
+            expected.extend_from_slice(&v.to_le_bytes());
+        }
+        assert_eq!(bytes.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn simple_iter_bytes_copy_matches_the_reference() {
+        check_conformance::<VecSimpleIter, BytesCopySimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_bytes_cast_matches_the_reference() {
+        check_conformance::<VecSimpleIter, BytesCastSimpleIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn simple_iter_bytes_copy_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeSimpleIter::setup(PARAMS);
+        let mut bytes = BytesCopySimpleIter::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.step_archetypes(), vec![ArchetypeId::new(1)]);
+    }
+
+    #[test]
+    fn simple_iter_bytes_cast_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeSimpleIter::setup(PARAMS);
+        let mut bytes = BytesCastSimpleIter::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.step_archetypes(), vec![ArchetypeId::new(1)]);
+    }
+
+    #[test]
+    fn zero_count_is_valid_bytes_simple_iter() {
+        fn zero_count<W: Workload>() {
+            let mut w = W::setup(Params { count: 0, seed: 7 });
+            assert_eq!(w.checksum(), 0);
+            w.step();
+            assert_eq!(w.checksum(), 0);
+        }
+        zero_count::<BytesCopySimpleIter>();
+        zero_count::<BytesCastSimpleIter>();
+    }
+}

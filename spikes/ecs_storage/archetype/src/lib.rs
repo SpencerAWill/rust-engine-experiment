@@ -18,6 +18,8 @@ pub mod add_remove;
 pub mod agents;
 mod archetype;
 mod bundle;
+pub mod bytes_simple_iter;
+mod codec;
 mod commands;
 pub mod entity_churn;
 pub mod frag_iter;
@@ -37,6 +39,7 @@ use engine::genid::GenId;
 
 pub use archetype::ComponentId;
 pub use bundle::Bundle;
+pub use codec::Codec;
 pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};

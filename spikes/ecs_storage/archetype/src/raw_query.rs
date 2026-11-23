@@ -262,6 +262,12 @@ pub struct RawRunMut<'w, 'q> {
 }
 
 impl<'w> RawRunMut<'w, '_> {
+    /// The ids of the archetypes the run matches, rows or not, for tests.
+    #[cfg(test)]
+    pub(crate) fn matched_archetypes(&self) -> Vec<crate::archetype::ArchetypeId> {
+        matched(self.archetypes, self.query)
+    }
+
     /// Calls `f` once for each matching archetype that has rows, in creation order.
     pub fn for_each_table(self, mut f: impl FnMut(RawTable<'_, 'w>)) {
         let Self {
