@@ -307,11 +307,12 @@ fn run_bench(args: &[String], allow_battery: bool) -> Result<(), String> {
 }
 
 /// The spike topics `spike-bench` knows: the short name in `spike_<topic>_bench_compare`. A later
-/// spike adds one entry here and one to each package list below.
+/// spike adds one entry here, one to each package list below and one to `coverage::SPIKE_PACKAGES`.
 pub(crate) const SPIKE_TOPICS: &[&str] = &["ecs"];
 
-/// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves them out so the
-/// M1 suite and the baselines `bench-doc` reads do not change.
+/// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves out every
+/// package in `coverage::SPIKE_PACKAGES`, these included, so the M1 suite and the baselines
+/// `bench-doc` reads do not change.
 pub(crate) const SPIKE_COMPARE_PACKAGES: &[&str] = &["spike_ecs_bench_compare"];
 
 /// The Gungraun packages of the spikes. They are run by hand under Valgrind, so `bench` and
