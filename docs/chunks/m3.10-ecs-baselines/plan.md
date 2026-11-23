@@ -69,7 +69,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 6: documents (R9)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md`, `spikes/README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`.
 - **Test first:** `grep -n "bevy/" spikes/ecs_storage/README.md` and `grep -n "M3.10" CHANGELOG.md` find nothing.
 - **Change:** spec §4.7. The rule that a baseline crate may take a competing library is written once, in `spikes/README.md` Rules. `CONTRIBUTING.md` links to it instead of restating it (docs-1). Before writing, grep `docs/` and `.claude/` for "dev-dependencies" to find other copies of the ADR 0002 wording. The CHANGELOG entry keeps spec §4.5's expectations as "expected, unmeasured" (docs-3).

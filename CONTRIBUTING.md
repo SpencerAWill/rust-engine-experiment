@@ -33,7 +33,7 @@ The rules that make that safe are in [ADR 0002](docs/adr/0002-originality-and-de
 
 - **Do not copy code from other projects**, including other engines. You may study designs, papers, talks, and blog posts, and cite them. Reading another crate's source to understand its behaviour is fine; transcribing it is not.
 - Published algorithms are implemented from their papers and specifications; their published test vectors may be used as golden values.
-- Other crates may be used as test oracles or benchmark dev-dependencies, but a new dependency must pass `cargo xtask deny` (allowed licences, no unknown registries or git sources).
+- Other crates may be used as test oracles or benchmark dev-dependencies, or by a spike's baseline crate that `deny.toml` names ([spikes/README.md](spikes/README.md#rules)), but a new dependency must pass `cargo xtask deny` (allowed licences, no unknown registries or git sources).
 - If you used an AI assistant, say so in the pull request. The same rule applies: write from specifications, never paste code from other repositories.
 
 ## Setting up
