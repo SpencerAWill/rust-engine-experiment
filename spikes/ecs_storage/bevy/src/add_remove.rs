@@ -87,10 +87,8 @@ impl Workload for BevyAddRemove {
     }
 }
 
-/// The read pass's query of the sparse variant.
-type SparseReadQuery = QueryState<(Entity, &'static Table<A>)>;
-
-/// The remove pass's query of the sparse variant.
+/// The remove pass's query of the sparse variant. Its read pass reuses [`ReadQuery`], because `A`
+/// stays in table storage.
 type SparseRemoveQuery = QueryState<Entity, With<Sparse<B>>>;
 
 /// `add_remove` on a `bevy_ecs` [`World`] with `B` in `SparseSet` storage: every tick adds and
@@ -98,7 +96,7 @@ type SparseRemoveQuery = QueryState<Entity, With<Sparse<B>>>;
 #[derive(Debug)]
 pub struct BevySparseAddRemove {
     world: World,
-    read: SparseReadQuery,
+    read: ReadQuery,
     with_b: SparseRemoveQuery,
     with_a_list: Vec<(Entity, A)>,
     with_b_list: Vec<Entity>,

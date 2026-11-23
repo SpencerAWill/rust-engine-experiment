@@ -10,12 +10,12 @@
 //!
 //! The backend named `bevy_ecs` stores every component type in table storage. The backend named
 //! `bevy_ecs_sparse` (`add_remove` and `agents` only) stores `B` and `Seeker` in `SparseSet`
-//! storage, as `hybrid` does, and every other type in a table. Each workload
-//! drives its `World` directly and on one thread, with no scheduler, no systems and no
-//! application object, and no batch spawn or insert: structural changes go one entity at a
-//! time, as in the prototypes. Every query a step runs is a `QueryState` built in `setup`. Changes decided inside a query are
-//! recorded in a reused `Vec` and applied after the iteration, in recorded order. Every `step`
-//! ends with `World::clear_trackers`, because without a schedule nothing else clears the
+//! storage, as `hybrid` does, and every other type in a table. Each workload drives its `World`
+//! directly and on one thread, with no scheduler, no systems and no application object, and no
+//! batch spawn or insert: structural changes go one entity at a time, as in the prototypes.
+//! Every query a step runs is a `QueryState` built in `setup`. Changes decided inside a query
+//! are recorded in a reused `Vec` and applied after the iteration, in recorded order. Every
+//! `step` ends with `World::clear_trackers`, because without a schedule nothing else clears the
 //! removal buffers that `remove` and `despawn` write.
 //!
 //! A bevy `World` holds an entity of its own, so a backend keeps its own count of live
