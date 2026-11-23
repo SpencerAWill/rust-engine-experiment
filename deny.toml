@@ -10,6 +10,9 @@ multiple-versions = "warn"
 deny = [
     { crate = "bevy_ecs", wrappers = ["spike_ecs_bevy"] },
     { crate = "hecs", wrappers = ["spike_ecs_hecs"] },
+    # A wrappers ban checks direct parents only, so the wrapper crates are banned too.
+    { crate = "spike_ecs_bevy", wrappers = ["spike_ecs_bench_compare", "spike_ecs_bench_cache"] },
+    { crate = "spike_ecs_hecs", wrappers = ["spike_ecs_bench_compare", "spike_ecs_bench_cache"] },
 ]
 [sources]
 unknown-registry = "deny"
