@@ -161,7 +161,6 @@ pub(crate) struct ByteColumn {
 }
 
 impl ByteColumn {
-    #[cfg(test)]
     pub(crate) fn new(layout: RawLayout) -> Self {
         Self {
             layout,
@@ -206,7 +205,6 @@ impl ByteColumn {
     }
 
     /// Replaces the value at `row`.
-    #[cfg(test)]
     pub(crate) fn overwrite(&mut self, row: usize, bytes: &[u8]) {
         debug_assert_eq!(
             bytes.len(),
@@ -218,11 +216,22 @@ impl ByteColumn {
     }
 
     /// Whether every byte past the last value is zero, and no block is unused.
-    #[cfg(test)]
     pub(crate) fn tail_is_zero(&self) -> bool {
         let used = self.len * self.layout.size;
         self.blocks.len() == used.div_ceil(BLOCK)
             && self.all_bytes()[used..].iter().all(|b| *b == 0)
+    }
+
+    /// Writes a nonzero byte past the last value, or appends a nonzero block when the values
+    /// fill their blocks exactly. For tests of `check_invariants`.
+    #[cfg(test)]
+    pub(crate) fn dirty_the_tail(&mut self) {
+        let used = self.len * self.layout.size;
+        if used < self.blocks.len() * BLOCK {
+            self.all_bytes_mut()[used] = 0xFF;
+        } else {
+            self.blocks.push(Block([0xFF; 16]));
+        }
     }
 
     /// The column behind `column`.
@@ -230,7 +239,6 @@ impl ByteColumn {
     /// # Panics
     ///
     /// Panics if `column` is a typed column: a raw component id names a byte column (T2).
-    #[cfg(test)]
     pub(crate) fn from_erased(column: &dyn ErasedColumn) -> &Self {
         column
             .as_any()
@@ -342,7 +350,6 @@ fn unreachable_cast<T>(layout: RawLayout) -> CastError {
 pub struct RawColumn<'t>(&'t ByteColumn);
 
 impl<'t> RawColumn<'t> {
-    #[cfg(test)]
     pub(crate) fn new(column: &'t ByteColumn) -> Self {
         Self(column)
     }

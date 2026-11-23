@@ -56,7 +56,7 @@ Choices the spec leaves to implementation:
 
 ### Step 2: identity and the raw `World` operations (R2, R3, R4, R5, R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/world.rs`, `src/world/raw.rs` (new), `src/table.rs`, `src/archetype.rs` (`ComponentId` public), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `World::register_raw(&mut self, name: impl Into<Box<str>>, layout: RawLayout) -> ComponentId`; `spawn_raw(&mut self, &[(ComponentId, &[u8])]) -> Result<Entity, RawError>`; `insert_raw(&mut self, Entity, ComponentId, &[u8]) -> Result<bool, RawError>`; `remove_raw(&mut self, Entity, ComponentId) -> Result<bool, RawError>`; `get_raw(&self, Entity, ComponentId) -> Option<&[u8]>`; `RawError::{DeadEntity(Entity), UnknownId(ComponentId), NotRaw(ComponentId), WrongSize { id, expected, got }, Duplicate(ComponentId)}`. `spawn_raw` keeps `spawn`'s capacity panic (documented, `#[track_caller]`, `World::spawn_raw:` prefix), checked before the archetype lookup (ecs-4).
 - **Test first:**
@@ -161,3 +161,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 ## 5. Deviations
 
 - Step 1: `cast` and `cast_mut` map `bytemuck`'s cast error, which the size and alignment checks make impossible, to `CastError::SizeMismatch` through `unreachable_cast` rather than `expect`, so the public casts stay panic-free (clippy `missing_panics_doc`). The views also offer `len`, `is_empty` and `layout`.
+- Step 2: `Table::check` gained a third invariant, T3 (no nonzero byte past a byte column's values), for the spec's zero tail; the `check_invariants_*` red-check tests corrupt columns in `table.rs`'s tests, where the columns are reachable (ecs-6). `insert_raw` and `remove_raw` do no map lookup (the kind check is an array index), against one `BTreeMap` lookup in `insert::<T>` and `remove::<T>`.

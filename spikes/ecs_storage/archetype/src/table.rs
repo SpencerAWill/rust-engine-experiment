@@ -4,7 +4,7 @@ use core::any::{Any, TypeId};
 
 use crate::archetype::ComponentId;
 use crate::bundle::Bundle;
-use crate::raw::RawLayout;
+use crate::raw::{ByteColumn, RawColumn, RawLayout};
 use crate::{Entity, InvariantViolation};
 
 /// The values of one component type in one archetype, one per row.
@@ -268,6 +268,87 @@ impl Table {
         (value, src.entities.get(row).copied())
     }
 
+    /// Adds a row whose `k`-th value, in ascending component order, is `values[k].1`, and the
+    /// entity. Every column is a byte column and the table has exactly `values.len()` of them.
+    /// The whole row is written by this one operation (T1).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `values` does not cover every column exactly once, or a column is typed.
+    /// Internal only.
+    pub(crate) fn push_raw_row(&mut self, entity: Entity, values: &[(ComponentId, &[u8])]) {
+        assert_eq!(
+            values.len(),
+            self.columns.len(),
+            "Table::push_raw_row got {} values for {} columns (T1); this is a bug in the prototype",
+            values.len(),
+            self.columns.len()
+        );
+        for (column, (_, bytes)) in self.columns.iter_mut().zip(values) {
+            ByteColumn::from_erased_mut(&mut **column).push(bytes);
+        }
+        self.entities.push(entity);
+    }
+
+    /// [`Table::move_row_adding`] for a byte column: moves `src`'s row to `dst`, which has
+    /// `src`'s components plus one raw component, and stores `bytes` as its value.
+    pub(crate) fn move_row_adding_raw(
+        src: &mut Table,
+        src_ids: &[ComponentId],
+        row: usize,
+        dst: &mut Table,
+        dst_ids: &[ComponentId],
+        bytes: &[u8],
+    ) -> Option<Entity> {
+        debug_assert_eq!(dst_ids.len(), src_ids.len() + 1);
+        let mut added = dst_ids.len() - 1;
+        let mut j = 0;
+        for (i, id) in src_ids.iter().enumerate() {
+            while dst_ids[j] != *id {
+                added = j;
+                j += 1;
+            }
+            src.columns[i].swap_remove_into(row, &mut *dst.columns[j]);
+            j += 1;
+        }
+        ByteColumn::from_erased_mut(&mut *dst.columns[added]).push(bytes);
+        dst.entities.push(src.entities.swap_remove(row));
+        src.entities.get(row).copied()
+    }
+
+    /// [`Table::move_row_removing`] for a byte column: moves `src`'s row to `dst`, which has
+    /// `src`'s components minus one raw component, and drops that value.
+    pub(crate) fn move_row_removing_raw(
+        src: &mut Table,
+        src_ids: &[ComponentId],
+        row: usize,
+        dst: &mut Table,
+        dst_ids: &[ComponentId],
+    ) -> Option<Entity> {
+        debug_assert_eq!(src_ids.len(), dst_ids.len() + 1);
+        let mut j = 0;
+        for (i, id) in src_ids.iter().enumerate() {
+            if dst_ids.get(j) == Some(id) {
+                src.columns[i].swap_remove_into(row, &mut *dst.columns[j]);
+                j += 1;
+            } else {
+                src.columns[i].swap_remove_drop(row);
+            }
+        }
+        dst.entities.push(src.entities.swap_remove(row));
+        src.entities.get(row).copied()
+    }
+
+    /// Stores `bytes` in place of the value at (`row`, `col`) of a byte column.
+    pub(crate) fn overwrite_raw(&mut self, row: usize, col: usize, bytes: &[u8]) {
+        ByteColumn::from_erased_mut(&mut *self.columns[col]).overwrite(row, bytes);
+    }
+
+    /// The bytes of the value at (`row`, `col`) of a byte column.
+    pub(crate) fn raw_value(&self, row: usize, col: usize) -> Option<&[u8]> {
+        RawColumn::new(ByteColumn::from_erased(&*self.columns[col])).get(row)
+    }
+
     pub(crate) fn get<T: 'static>(&self, row: usize, col: usize) -> &T {
         &typed::<T>(&*self.columns[col]).0[row]
     }
@@ -281,9 +362,9 @@ impl Table {
         core::mem::replace(self.get_mut(row, col), value)
     }
 
-    /// Checks T1 (every column as long as the entity list) and T2 (column `i` holds
-    /// `types[i]`).
-    pub(crate) fn check(&self, types: &[TypeId]) -> Result<(), InvariantViolation> {
+    /// Checks T1 (every column as long as the entity list), T2 (column `i` is what
+    /// `expected[i]` says) and T3 (a byte column has no nonzero byte past its values).
+    pub(crate) fn check(&self, expected: &[ColumnDesc]) -> Result<(), InvariantViolation> {
         for (i, column) in self.columns.iter().enumerate() {
             if column.len() != self.entities.len() {
                 return Err(InvariantViolation::new(format!(
@@ -293,17 +374,27 @@ impl Table {
                     self.entities.len()
                 )));
             }
-            if types.get(i).map(|t| ColumnDesc::Typed(*t)) != Some(column.describe()) {
+            let desc = column.describe();
+            if expected.get(i) != Some(&desc) {
                 return Err(InvariantViolation::new(format!(
-                    "T2: column {i} holds {}, which is not the type of the archetype's component {i}",
+                    "T2: column {i} holds {}, which is not the type or layout of the archetype's \
+                     component {i}",
                     column.value_type_name()
                 )));
             }
+            if matches!(desc, ColumnDesc::Raw(_))
+                && !ByteColumn::from_erased(&**column).tail_is_zero()
+            {
+                return Err(InvariantViolation::new(format!(
+                    "T3: the byte column {i} has a nonzero byte past its {} values",
+                    column.len()
+                )));
+            }
         }
-        if types.len() != self.columns.len() {
+        if expected.len() != self.columns.len() {
             return Err(InvariantViolation::new(format!(
                 "T2: the archetype has {} components but its table has {} columns",
-                types.len(),
+                expected.len(),
                 self.columns.len()
             )));
         }
@@ -380,8 +471,11 @@ mod tests {
         ac
     }
 
-    fn types_ac() -> [TypeId; 2] {
-        [TypeId::of::<u32>(), TypeId::of::<u64>()]
+    fn types_ac() -> [ColumnDesc; 2] {
+        [
+            ColumnDesc::Typed(TypeId::of::<u32>()),
+            ColumnDesc::Typed(TypeId::of::<u64>()),
+        ]
     }
 
     #[test]
@@ -511,5 +605,82 @@ mod tests {
         t.columns.swap(0, 1);
         let err = t.check(&types_ac()).unwrap_err();
         assert!(err.to_string().contains("T2"), "got: {err}");
+    }
+
+    fn lay(size: usize, align: usize) -> RawLayout {
+        RawLayout::new(size, align).unwrap()
+    }
+
+    fn raw_col(size: usize, align: usize) -> Box<dyn ErasedColumn> {
+        Box::new(ByteColumn::new(lay(size, align)))
+    }
+
+    /// A table of one 12-byte column holding `n` rows.
+    fn raw_table(n: usize) -> (Table, Vec<Entity>) {
+        let es = entities(n);
+        let mut t = table(vec![raw_col(12, 4)]);
+        for e in &es {
+            t.push_raw_row(*e, &[(ID0, &[7u8; 12][..])]);
+        }
+        (t, es)
+    }
+
+    #[test]
+    fn check_invariants_reports_a_wrong_layout() {
+        let (t, _) = raw_table(1);
+        assert_eq!(t.check(&[ColumnDesc::Raw(lay(12, 4))]), Ok(()));
+        let err = t.check(&[ColumnDesc::Raw(lay(12, 2))]).unwrap_err();
+        assert!(err.to_string().contains("T2"), "got: {err}");
+        let err = t.check(&[ColumnDesc::Raw(lay(16, 4))]).unwrap_err();
+        assert!(err.to_string().contains("T2"), "got: {err}");
+        let err = t
+            .check(&[ColumnDesc::Typed(TypeId::of::<u32>())])
+            .unwrap_err();
+        assert!(err.to_string().contains("T2"), "got: {err}");
+    }
+
+    #[test]
+    fn check_invariants_reports_a_dirty_tail() {
+        let (mut t, _) = raw_table(2);
+        assert_eq!(t.check(&[ColumnDesc::Raw(lay(12, 4))]), Ok(()));
+        ByteColumn::from_erased_mut(&mut *t.columns[0]).dirty_the_tail();
+        let err = t.check(&[ColumnDesc::Raw(lay(12, 4))]).unwrap_err();
+        assert!(err.to_string().contains("T3"), "got: {err}");
+    }
+
+    #[test]
+    fn check_invariants_reports_a_short_raw_column() {
+        let (mut t, _) = raw_table(2);
+        t.columns[0].swap_remove_drop(0);
+        let err = t.check(&[ColumnDesc::Raw(lay(12, 4))]).unwrap_err();
+        assert!(err.to_string().contains("T1"), "got: {err}");
+    }
+
+    #[test]
+    fn raw_moves_pair_columns_by_id() {
+        let es = entities(2);
+        let mut src = table(vec![raw_col(4, 4), raw_col(12, 4)]);
+        let ids = [ID0, ID2];
+        for (i, e) in es.iter().enumerate() {
+            let i = u8::try_from(i).unwrap();
+            src.push_raw_row(*e, &[(ID0, &[i; 4][..]), (ID2, &[i + 10; 12][..])]);
+        }
+        let mut mid = table(vec![raw_col(4, 4), raw_col(2, 2), raw_col(12, 4)]);
+        let swapped =
+            Table::move_row_adding_raw(&mut src, &ids, 0, &mut mid, &[ID0, ID1, ID2], &[5, 6]);
+        assert_eq!(swapped, Some(es[1]));
+        assert_eq!(mid.raw_value(0, 0), Some(&[0u8; 4][..]));
+        assert_eq!(mid.raw_value(0, 1), Some(&[5u8, 6][..]));
+        assert_eq!(mid.raw_value(0, 2), Some(&[10u8; 12][..]));
+        assert_eq!(src.raw_value(0, 0), Some(&[1u8; 4][..]));
+        let mut back = table(vec![raw_col(4, 4), raw_col(12, 4)]);
+        let swapped = Table::move_row_removing_raw(&mut mid, &[ID0, ID1, ID2], 0, &mut back, &ids);
+        assert_eq!(swapped, None);
+        assert_eq!(back.entities(), [es[0]]);
+        assert_eq!(back.raw_value(0, 1), Some(&[10u8; 12][..]));
+        assert_eq!(mid.len(), 0);
+        let descs = [ColumnDesc::Raw(lay(4, 4)), ColumnDesc::Raw(lay(12, 4))];
+        assert_eq!(back.check(&descs), Ok(()));
+        assert_eq!(src.check(&descs), Ok(()));
     }
 }

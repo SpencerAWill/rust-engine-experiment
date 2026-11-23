@@ -286,6 +286,194 @@ proptest! {
     }
 }
 
+/// A model over both kinds of components: typed `C0` to `C3` and raw components of three
+/// layouts, in one world.
+mod raw_model {
+    use std::collections::BTreeMap;
+
+    use proptest::prelude::*;
+
+    use super::{get, insert, remove, spawn_with};
+    use crate::{ComponentId, Entity, RawError, RawLayout, World};
+
+    /// The size and alignment of raw component `r`.
+    const LAYOUTS: [(usize, usize); 3] = [(4, 4), (12, 4), (16, 16)];
+
+    /// The bytes of raw component `r` for value `v`.
+    fn bytes(r: usize, v: u32) -> Vec<u8> {
+        (0..LAYOUTS[r].0)
+            .map(|i| v.to_le_bytes()[i % 4] ^ u8::try_from(i).unwrap())
+            .collect()
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct Row {
+        typed: [Option<u32>; 4],
+        raw: [Option<Vec<u8>>; 3],
+    }
+
+    #[derive(Debug, Clone)]
+    enum Op {
+        Spawn,
+        SpawnWith(usize, [u32; 3]),
+        /// The raw components in the bit mask, listed in reverse order if the flag is set.
+        SpawnRaw(u8, bool, [u32; 3]),
+        Despawn(usize),
+        Insert(usize, usize, u32),
+        Remove(usize, usize),
+        InsertRaw(usize, usize, u32),
+        RemoveRaw(usize, usize),
+    }
+
+    fn op() -> impl Strategy<Value = Op> {
+        prop_oneof![
+            2 => Just(Op::Spawn),
+            2 => (0usize..4, any::<[u32; 3]>()).prop_map(|(s, v)| Op::SpawnWith(s, v)),
+            3 => (0u8..8, any::<bool>(), any::<[u32; 3]>())
+                .prop_map(|(m, r, v)| Op::SpawnRaw(m, r, v)),
+            1 => any::<usize>().prop_map(Op::Despawn),
+            3 => (any::<usize>(), 0usize..4, any::<u32>()).prop_map(|(k, t, v)| Op::Insert(k, t, v)),
+            2 => (any::<usize>(), 0usize..4).prop_map(|(k, t)| Op::Remove(k, t)),
+            5 => (any::<usize>(), 0usize..3, any::<u32>())
+                .prop_map(|(k, r, v)| Op::InsertRaw(k, r, v)),
+            3 => (any::<usize>(), 0usize..3).prop_map(|(k, r)| Op::RemoveRaw(k, r)),
+        ]
+    }
+
+    /// The id of raw component `r`, registered on first use so raw and typed ids interleave.
+    fn raw_id(w: &mut World, ids: &mut [Option<ComponentId>; 3], r: usize) -> ComponentId {
+        *ids[r].get_or_insert_with(|| {
+            let (size, align) = LAYOUTS[r];
+            w.register_raw(format!("raw{r}"), RawLayout::new(size, align).unwrap())
+        })
+    }
+
+    /// Spawns the raw components in `mask` (listed in reverse order if `reverse`) and returns the
+    /// entity with the row the model expects.
+    fn spawn_raw(
+        world: &mut World,
+        ids: &mut [Option<ComponentId>; 3],
+        mask: u8,
+        reverse: bool,
+        values: [u32; 3],
+    ) -> (Entity, Row) {
+        let mut chosen: Vec<usize> = (0..3).filter(|r| mask & (1 << r) != 0).collect();
+        if reverse {
+            chosen.reverse();
+        }
+        let entries: Vec<(ComponentId, Vec<u8>)> = chosen
+            .iter()
+            .map(|&r| (raw_id(world, ids, r), bytes(r, values[r])))
+            .collect();
+        let slices: Vec<(ComponentId, &[u8])> =
+            entries.iter().map(|(id, b)| (*id, b.as_slice())).collect();
+        let entity = world.spawn_raw(&slices).unwrap();
+        let mut row = Row::default();
+        for &r in &chosen {
+            row.raw[r] = Some(bytes(r, values[r]));
+        }
+        (entity, row)
+    }
+
+    fn run(ops: &[Op]) {
+        let mut world = World::new();
+        let mut ids: [Option<ComponentId>; 3] = [None; 3];
+        let mut spawned: Vec<Entity> = Vec::new();
+        let mut model: BTreeMap<u64, Row> = BTreeMap::new();
+        let mut live: Vec<u64> = Vec::new();
+        for op in ops {
+            match *op {
+                Op::Spawn => {
+                    let e = world.spawn();
+                    spawned.push(e);
+                    model.insert(e.to_bits(), Row::default());
+                    live.push(e.to_bits());
+                }
+                Op::SpawnWith(shape, v) => {
+                    let (e, values) = spawn_with(&mut world, shape, v);
+                    let mut row = Row::default();
+                    for (t, value) in values {
+                        row.typed[t] = Some(value);
+                    }
+                    spawned.push(e);
+                    model.insert(e.to_bits(), row);
+                    live.push(e.to_bits());
+                }
+                Op::SpawnRaw(mask, reverse, v) => {
+                    let (e, row) = spawn_raw(&mut world, &mut ids, mask, reverse, v);
+                    spawned.push(e);
+                    model.insert(e.to_bits(), row);
+                    live.push(e.to_bits());
+                }
+                Op::Despawn(k) if !spawned.is_empty() => {
+                    let e = spawned[k % spawned.len()];
+                    let was_live = live.contains(&e.to_bits());
+                    assert_eq!(world.despawn(e), was_live);
+                    if was_live {
+                        live.retain(|b| *b != e.to_bits());
+                        model.insert(e.to_bits(), Row::default());
+                    }
+                }
+                Op::Insert(k, t, v) if !spawned.is_empty() => {
+                    // Inserting on a dead entity panics by design, so the generator skips it.
+                    let e = spawned[k % spawned.len()];
+                    if live.contains(&e.to_bits()) {
+                        let old = model.get_mut(&e.to_bits()).unwrap().typed[t].replace(v);
+                        assert_eq!(insert(&mut world, e, t, v), old);
+                    }
+                }
+                Op::Remove(k, t) if !spawned.is_empty() => {
+                    let e = spawned[k % spawned.len()];
+                    let old = model.get_mut(&e.to_bits()).unwrap().typed[t].take();
+                    assert_eq!(remove(&mut world, e, t), old);
+                }
+                Op::InsertRaw(k, r, v) if !spawned.is_empty() => {
+                    let e = spawned[k % spawned.len()];
+                    let id = raw_id(&mut world, &mut ids, r);
+                    let result = world.insert_raw(e, id, &bytes(r, v));
+                    if live.contains(&e.to_bits()) {
+                        let old = model.get_mut(&e.to_bits()).unwrap().raw[r].replace(bytes(r, v));
+                        assert_eq!(result, Ok(old.is_some()));
+                    } else {
+                        assert_eq!(result, Err(RawError::DeadEntity(e)));
+                    }
+                }
+                Op::RemoveRaw(k, r) if !spawned.is_empty() => {
+                    let e = spawned[k % spawned.len()];
+                    let id = raw_id(&mut world, &mut ids, r);
+                    let result = world.remove_raw(e, id);
+                    if live.contains(&e.to_bits()) {
+                        let old = model.get_mut(&e.to_bits()).unwrap().raw[r].take();
+                        assert_eq!(result, Ok(old.is_some()));
+                    } else {
+                        assert_eq!(result, Err(RawError::DeadEntity(e)));
+                    }
+                }
+                _ => {}
+            }
+            assert_eq!(world.check_invariants(), Ok(()));
+            assert_eq!(world.len(), live.len());
+            for e in &spawned {
+                let row = &model[&e.to_bits()];
+                for (t, expected) in row.typed.iter().enumerate() {
+                    assert_eq!(get(&world, *e, t), *expected, "{e:?} type {t}");
+                }
+                for (r, expected) in row.raw.iter().enumerate() {
+                    let got = ids[r].and_then(|id| world.get_raw(*e, id));
+                    assert_eq!(got, expected.as_deref(), "{e:?} raw {r}");
+                }
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn raw_and_typed_operations_match_the_model(ops in prop::collection::vec(op(), 0..64)) {
+            run(&ops);
+        }
+    }
+}
+
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;

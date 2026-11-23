@@ -34,11 +34,12 @@ mod tests;
 
 use engine::genid::GenId;
 
+pub use archetype::ComponentId;
 pub use bundle::Bundle;
 pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};
-pub use world::{InvariantViolation, World};
+pub use world::{InvariantViolation, RawError, World};
 
 /// The marker type of [`Entity`] IDs.
 #[derive(Debug)]
