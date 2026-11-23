@@ -1,6 +1,6 @@
 # M3.20: Planning state on GitHub
 
-- **Status:** Draft (2026-11-23)
+- **Status:** Accepted (2026-11-23)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.18 · **Decides:** no ADR (process and documentation, as M3.18; the Project and the GitHub writes are configuration, see §4.8)
 - **Issue:** none yet; this chunk's own issue is created in its first migration step (§4.8), and its pull request closes it
 - **Estimated size:** about 450 changed lines of Markdown, about 40 lines in `infra/github/index.ts`
