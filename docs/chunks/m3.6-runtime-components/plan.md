@@ -155,7 +155,7 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 - **specs-3** followed: steps 2 and 3 name one test per §4.5 row, per `RawError` and `RawQueryError` variant and per misuse panic, and step 2's model test lists its operations.
 - **specs-4** followed: step 8's entries name their commit; a later code change means re-running or saying so in the pull request.
 - **docs-1** followed: the README links to the spec rather than restating the raw API.
-- **docs-2** followed: after any change to a count (backends, archetypes, tests), grep the plan and spec for the old count.
+- **docs-2** followed: at close-out the backend count (six), archetype counts (27 in `frag_iter`) and test counts are checked against spec §4.7 and this plan.
 - **docs-3** followed: the spec's "expected, unmeasured" predictions keep that wording if the close-out copies them into the M3.8 row.
 
 ## 5. Deviations
@@ -167,3 +167,5 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 - Step 5: the implementation was written before the tests (not test-first); the tests' first failure was a compile error, and the behavioural red check (the remove pass skipped in both backends) failed both conformance tests. The remove pass collects a table's entities with `extend_from_slice`, where the typed backend pushes per row.
 - Step 6: letters are registered A to Z (ids 0 to 25), then `Data` (26); the typed backend's ids interleave (A, Data, B, ...), but archetypes are created in the same spawn order, so both worlds have 27 and the step matches archetypes 1 to 26.
 - Step 8 (fix after R14's first read, log.md): the codec helpers cut their slice to `4 * N` once, and the byte column moves values of 4, 8, 12 and 16 bytes through constant-size copies (`by_size_class!` in `raw.rs`), other sizes through the general `copy_from_slice`; both removed libc calls per value. The design (blocks, zero tail, checks, little-endian codecs) is unchanged.
+- Steps 2, 3 and 4 touched files outside their lists, each minimal and logged: `world/raw.rs` (`raw_layout` made `pub(crate)`), `raw.rs` (`into_shared`, constructors used), `table.rs` (`raw_columns`, `raw_columns_mut`), `raw_query.rs` (`RawRunMut::matched_archetypes` for tests).
+- Simplify (3a0225a): five behaviour-preserving cleanups (log.md); it changed measured code (`ByteColumn::push`'s `reserve`, the read run's slot fill, the codecs), so R13 and R14 were re-run on the final code (log.md).
