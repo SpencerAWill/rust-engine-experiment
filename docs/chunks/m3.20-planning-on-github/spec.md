@@ -1,6 +1,6 @@
 # M3.20: Planning state on GitHub
 
-- **Status:** Accepted (2026-11-23); amended 2026-11-23 (§4.2 chunk IDs, §4.4 in-flight chunks; maintainer, after review)
+- **Status:** Accepted (2026-11-23); amended twice on 2026-11-23 (§4.2 chunk IDs and authorship, §4.4 in-flight chunks; maintainer, after the review rounds)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.18 · **Decides:** no ADR (process and documentation, as M3.18; the Project and the GitHub writes are configuration, see §4.8)
 - **Issue:** #97, created in the first migration step (§4.8); the pull request closes it (tracking issue #66 until the migration closes it)
 - **Estimated size:** about 450 changed lines of Markdown, about 40 lines in `infra/github/index.ts`
@@ -55,7 +55,7 @@ Priority ranks unscheduled work; Order ranks scheduled work. Neither is read for
 
 ### 4.2 Chunk issues
 
-- Every chunk MUST have exactly one issue, its chunk issue, titled `M<N>.<n>: <title>`. A chunk is scheduled by: giving its issue the next unused chunk ID of the milestone, one above the highest ID in the titles of issues authored by the maintainer's account (open or closed; agents file through it, and anyone can open an issue on the public repository), chunk folders (`docs/chunks/m<N>.<n>-*`) or frozen roadmap rows *(amended 2026-11-23)* (IDs are never reused; #41, which reserves M3.12, is retitled `M3.12: ...` in the migration so the rule sees it) *(main session's call)*, the milestone, Status Scheduled, an Order, and its "blocked by" links.
+- Every chunk MUST have exactly one issue, its chunk issue, titled `M<N>.<n>: <title>` and authored by the maintainer's account (agents file through it). Another author's issue is never retitled: scheduling it as a chunk opens a chunk issue that links it, and the pull request closes both *(second amendment, 2026-11-23: other authors can edit their own titles)*. A chunk is scheduled by: giving its issue the next unused chunk ID of the milestone, one above the highest ID in the titles of issues authored by the maintainer's account (open or closed; agents file through it, and anyone can open an issue on the public repository), chunk folders (`docs/chunks/m<N>.<n>-*`) or frozen roadmap rows *(amended 2026-11-23)* (IDs are never reused; #41, which reserves M3.12, is retitled `M3.12: ...` in the migration so the rule sees it) *(main session's call)*, the milestone, Status Scheduled, an Order, and its "blocked by" links.
 - A chunk issue's body meets the Definition of Ready. Text a later chunk must read (such as the caveats in M3.8's roadmap row) goes in its body, linking the logs it comes from.
 - The spec's header `**Issue:**` line names the chunk issue and is no longer optional; the template's "Followed by" convention is replaced by a "blocked by" link or the Order.
 - When the maintainer names work for `/chunk` that is not yet a scheduled chunk issue, naming it is the scheduling: stage 1 gives the issue (creating it if there is none) its chunk ID, the current milestone, Status Scheduled and an Order below the current lowest, and says what it wrote. Otherwise stage 1 writes no Project field: Status Scheduled covers queued and in-flight chunks, and the branch shows which *(main session's call)*.
@@ -72,7 +72,7 @@ A chore is a scheduled issue without a chunk ID, scheduled into the current mile
 - A hard dependency is a "blocked by" link (`gh issue edit <n> --add-blocked-by <m>`); it replaces the roadmap's Depends-on column.
 - Changing an Order or a dependency of a scheduled item SHOULD come with a one-line comment on the issue saying why, since Project fields have no history *(my call)*.
 - **Current milestone:** the open GitHub milestone with the lowest number in its title (`M3` before `M4`).
-- **Next chunk:** among the open issues in the current milestone whose title has a chunk ID and whose Status is Scheduled, those not in flight and with no open "blocked by" issue, lowest Order. A chunk is in flight when a branch `m<N>.<n>-*` exists on origin or an open pull request will close its issue; `/chunk next` lists in-flight chunks separately *(amended 2026-11-23: as approved, the rule selected the chunk being worked on, since Status Scheduled covers both)*. If none is eligible, `/chunk next` says so, names the milestone-boundary checklist in `docs/maintainers.md` if every chunk of the milestone is closed, and waits, as today.
+- **Next chunk:** among the open issues in the current milestone whose title has a chunk ID and whose Status is Scheduled, those not in flight and with no open "blocked by" issue, lowest Order. A chunk is in flight when a branch `m<N>.<n>-*` exists on origin (stage 1 pushes the branch as soon as it creates it) or an open pull request from this repository, not a fork, will close its issue; only issues authored by the maintainer's account are candidates *(second amendment, 2026-11-23)*; `/chunk next` lists in-flight chunks separately *(amended 2026-11-23: as approved, the rule selected the chunk being worked on, since Status Scheduled covers both)*. If none is eligible, `/chunk next` says so, names the milestone-boundary checklist in `docs/maintainers.md` if every chunk of the milestone is closed, and waits, as today.
 - A Scheduled issue in the current milestone with no Order, or a Scheduled issue with no milestone, is not eligible; `/chunk next` lists each such issue as needing a field before it can be next. Scheduled items of later milestones are ignored *(main session's call)*.
 - Every read goes through `gh` (`gh project item-list --limit 1000`, `gh issue view --json`, `gh api --method GET .../dependencies/blocked_by`).
 
@@ -108,7 +108,7 @@ These writes change GitHub, not the repository. They roll out before the merge, 
   4. #66 and #67 closed as completed, each with a comment that milestones replace them.
   5. The "Next up" view: created by the maintainer in the browser (views are not settable through `gh`), as `docs/maintainers.md` describes.
 
-If the pull request is abandoned instead of merged, every write above is undone: the three chunk issues closed as not planned, the milestones removed from the issues and from `index.ts` (`pulumi up`), #41's title restored, #66 and #67 reopened, the Order field deleted.
+If the pull request is abandoned instead of merged, every write above is undone: the three chunk issues closed as not planned, the milestones removed from the issues, then from `index.ts` with a `pulumi up` (which, under `retainOnDelete`, only drops them from Pulumi's state) and from GitHub with `gh api --method DELETE repos/SpencerAWill/rust-engine-experiment/milestones/<number>` each (numbers looked up by title), #41's title restored, #66 and #67 reopened, the Order field deleted.
 
 ## 5. Requirements
 
