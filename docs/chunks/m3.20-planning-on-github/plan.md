@@ -15,7 +15,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 1: this chunk's issue and the Order field (R9, first part)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Do:** `gh issue create` with title `M3.20: Planning state on GitHub`, the Definition of Ready headings (problem, proposal, done when, how verified, depends on M3.18), labels `infrastructure` and `ai-assisted`; once auto-added, set Status Scheduled, Priority Now, Size M; `gh project field-create 6 --owner SpencerAWill --name Order --data-type NUMBER`; set this issue's Order to 5 (it runs before M3.10). Put the issue number in the spec header's `**Issue:**` line.
 - **Read back:** `gh issue view`, `gh project item-list --format json` (the item's `status`, `priority`, `size`, `order`), `gh project field-list` (Order, NUMBER); recorded in `log.md`.
 - **Commit:** `docs: link the M3.20 issue (M3.20)`

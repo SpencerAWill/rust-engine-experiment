@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-11-23)
 - **Milestone:** M3 (not part of its exit criteria) · **Depends on:** M3.18 · **Decides:** no ADR (process and documentation, as M3.18; the Project and the GitHub writes are configuration, see §4.8)
-- **Issue:** none yet; this chunk's own issue is created in its first migration step (§4.8), and its pull request closes it
+- **Issue:** #97, created in the first migration step (§4.8); the pull request closes it (tracking issue #66 until the migration closes it)
 - **Estimated size:** about 450 changed lines of Markdown, about 40 lines in `infra/github/index.ts`
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
