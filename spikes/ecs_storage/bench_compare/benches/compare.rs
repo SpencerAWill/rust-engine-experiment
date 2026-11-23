@@ -22,12 +22,22 @@ use spike_ecs_archetype::{
     simple_iter::ArchetypeSimpleIter,
     sprites::ArchetypeSprites,
 };
+use spike_ecs_bevy::{
+    add_remove::BevyAddRemove, add_remove::BevySparseAddRemove, agents::BevyAgents,
+    agents::BevySparseAgents, entity_churn::BevyEntityChurn, frag_iter::BevyFragIter,
+    heavy_compute::BevyHeavyCompute, simple_iter::BevySimpleIter, sprites::BevySprites,
+};
 use spike_ecs_dense::{
     add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
     frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, simple_iter::DenseSimpleIter,
     sprites::DenseSprites,
 };
 use spike_ecs_harness::{Params, Spec, Workload};
+use spike_ecs_hecs::{
+    add_remove::HecsAddRemove, agents::HecsAgents, entity_churn::HecsEntityChurn,
+    frag_iter::HecsFragIter, heavy_compute::HecsHeavyCompute, simple_iter::HecsSimpleIter,
+    sprites::HecsSprites,
+};
 use spike_ecs_hybrid::{
     add_remove::HybridAddRemove, agents::HybridAgents, entity_churn::HybridEntityChurn,
     frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, simple_iter::HybridSimpleIter,
@@ -116,6 +126,22 @@ fn compare(c: &mut Criterion) {
     bench::<HybridEntityChurn>(c);
     bench::<HybridSprites>(c);
     bench::<HybridAgents>(c);
+    bench::<BevySimpleIter>(c);
+    bench::<BevyFragIter>(c);
+    bench::<BevyHeavyCompute>(c);
+    bench::<BevyAddRemove>(c);
+    bench::<BevyEntityChurn>(c);
+    bench::<BevySprites>(c);
+    bench::<BevyAgents>(c);
+    bench::<BevySparseAddRemove>(c);
+    bench::<BevySparseAgents>(c);
+    bench::<HecsSimpleIter>(c);
+    bench::<HecsFragIter>(c);
+    bench::<HecsHeavyCompute>(c);
+    bench::<HecsAddRemove>(c);
+    bench::<HecsEntityChurn>(c);
+    bench::<HecsSprites>(c);
+    bench::<HecsAgents>(c);
 }
 
 criterion_group!(benches, compare);

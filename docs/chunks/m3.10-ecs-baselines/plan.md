@@ -60,7 +60,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 5: bench registration (R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/Cargo.toml`, `benches/compare.rs`, `spikes/ecs_storage/bench_cache/Cargo.toml`, `benches/cache.rs`; `Cargo.lock`.
 - **Test first:** n/a: registration has no behaviour of its own. Before the change, `cargo bench -p spike_ecs_bench_compare --bench compare -- --list 2>/dev/null | grep -cE '/(bevy_ecs|bevy_ecs_sparse|hecs)/'` prints 0.
 - **Change:** dev-dependencies on both crates in both bench crates. Add 16 `bench::<…>(c);` lines in `compare.rs`. In `cache.rs`, add 16 `cache_bench!` lines named `<workload>_bevy_ecs`, `<workload>_bevy_ecs_sparse` and `<workload>_hecs`, with each workload's `Spec::SIZES` (as M3.19's plan step 7 lists them), each named in its workload's group.

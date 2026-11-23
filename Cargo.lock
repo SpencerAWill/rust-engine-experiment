@@ -2353,8 +2353,10 @@ version = "0.1.0"
 dependencies = [
  "gungraun",
  "spike_ecs_archetype",
+ "spike_ecs_bevy",
  "spike_ecs_dense",
  "spike_ecs_harness",
+ "spike_ecs_hecs",
  "spike_ecs_hybrid",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",
@@ -2366,8 +2368,10 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "spike_ecs_archetype",
+ "spike_ecs_bevy",
  "spike_ecs_dense",
  "spike_ecs_harness",
+ "spike_ecs_hecs",
  "spike_ecs_hybrid",
  "spike_ecs_sparse_set",
  "spike_ecs_vec",
