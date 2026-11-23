@@ -117,7 +117,7 @@ Choices the spec leaves to implementation:
 
 ### Step 8: measurements (R13, R14, R15)
 
-- [ ] **Who:** builder for R13's count (a scratch crate outside the repository, ecs-2); main session for R15's code review against the parent commit, the two benchmark runs under `/bench-run`, and the `log.md` entries.
+- [x] **Who:** builder for R13's count (a scratch crate outside the repository, ecs-2); main session for R15's code review against the parent commit, the two benchmark runs under `/bench-run`, and the `log.md` entries.
 - **Files:** `docs/chunks/m3.6-runtime-components/log.md`.
 - **Change:**
   1. R13 (builder): a scratch crate in the session's scratchpad with its own `[workspace]`, a `rust-toolchain.toml` copied from the repository, a path dependency on `spike_ecs_archetype`, and a counting `#[global_allocator]`. It reports allocations per `step` for the six new backends and the three typed ones at their smallest and largest size, per query run for a raw query at 2 and at 28 registered types (whether setup grows with registered types), and per `spawn_raw`. The commit it ran on is named (specs-4).
