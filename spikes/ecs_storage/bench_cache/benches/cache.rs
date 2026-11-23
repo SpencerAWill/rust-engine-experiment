@@ -23,9 +23,16 @@ use gungraun::{
     Callgrind, LibraryBenchmarkConfig, library_benchmark, library_benchmark_group, main,
 };
 use spike_ecs_archetype::{
-    add_remove::ArchetypeAddRemove, agents::ArchetypeAgents, entity_churn::ArchetypeEntityChurn,
-    frag_iter::ArchetypeFragIter, heavy_compute::ArchetypeHeavyCompute,
-    simple_iter::ArchetypeSimpleIter, sprites::ArchetypeSprites,
+    add_remove::ArchetypeAddRemove,
+    agents::ArchetypeAgents,
+    bytes_add_remove::{BytesCastAddRemove, BytesCopyAddRemove},
+    bytes_frag_iter::{BytesCastFragIter, BytesCopyFragIter},
+    bytes_simple_iter::{BytesCastSimpleIter, BytesCopySimpleIter},
+    entity_churn::ArchetypeEntityChurn,
+    frag_iter::ArchetypeFragIter,
+    heavy_compute::ArchetypeHeavyCompute,
+    simple_iter::ArchetypeSimpleIter,
+    sprites::ArchetypeSprites,
 };
 use spike_ecs_dense::{
     add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
@@ -163,6 +170,28 @@ cache_bench!(
 );
 cache_bench!(sprites_archetype, ArchetypeSprites, [100_000]);
 cache_bench!(agents_archetype, ArchetypeAgents, [10_000, 100_000]);
+cache_bench!(
+    simple_iter_archetype_bytes_copy,
+    BytesCopySimpleIter,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(
+    simple_iter_archetype_bytes_cast,
+    BytesCastSimpleIter,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(frag_iter_archetype_bytes_copy, BytesCopyFragIter, [20]);
+cache_bench!(frag_iter_archetype_bytes_cast, BytesCastFragIter, [20]);
+cache_bench!(
+    add_remove_archetype_bytes_copy,
+    BytesCopyAddRemove,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(
+    add_remove_archetype_bytes_cast,
+    BytesCastAddRemove,
+    [1_000, 10_000, 100_000]
+);
 cache_bench!(simple_iter_dense, DenseSimpleIter, [1_000, 10_000, 100_000]);
 cache_bench!(frag_iter_dense, DenseFragIter, [20]);
 cache_bench!(heavy_compute_dense, DenseHeavyCompute, [1_000]);
@@ -190,10 +219,10 @@ cache_bench!(
 cache_bench!(sprites_hybrid, HybridSprites, [100_000]);
 cache_bench!(agents_hybrid, HybridAgents, [10_000, 100_000]);
 
-library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped, simple_iter_archetype, simple_iter_dense, simple_iter_hybrid);
-library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set, frag_iter_archetype, frag_iter_dense, frag_iter_hybrid);
+library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped, simple_iter_archetype, simple_iter_archetype_bytes_copy, simple_iter_archetype_bytes_cast, simple_iter_dense, simple_iter_hybrid);
+library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set, frag_iter_archetype, frag_iter_archetype_bytes_copy, frag_iter_archetype_bytes_cast, frag_iter_dense, frag_iter_hybrid);
 library_benchmark_group!(name = heavy_compute; benchmarks = heavy_compute_vec_aos, heavy_compute_sparse_set, heavy_compute_sparse_set_grouped, heavy_compute_archetype, heavy_compute_dense, heavy_compute_hybrid);
-library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_sparse_set_grouped, add_remove_archetype, add_remove_dense, add_remove_hybrid);
+library_benchmark_group!(name = add_remove; benchmarks = add_remove_vec_aos, add_remove_sparse_set, add_remove_sparse_set_grouped, add_remove_archetype, add_remove_archetype_bytes_copy, add_remove_archetype_bytes_cast, add_remove_dense, add_remove_hybrid);
 library_benchmark_group!(name = entity_churn; benchmarks = entity_churn_vec_aos, entity_churn_sparse_set, entity_churn_sparse_set_grouped, entity_churn_archetype, entity_churn_dense, entity_churn_hybrid);
 library_benchmark_group!(name = sprites; benchmarks = sprites_vec_aos, sprites_sparse_set, sprites_sparse_set_grouped, sprites_archetype, sprites_dense, sprites_hybrid);
 library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_soa, agents_sparse_set, agents_sparse_set_grouped, agents_archetype, agents_dense, agents_hybrid);

@@ -108,7 +108,7 @@ Choices the spec leaves to implementation:
 
 ### Step 7: bench registrations (R12)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/benches/compare.rs`, `spikes/ecs_storage/bench_cache/benches/cache.rs`.
 - **Change:** `bench::<…>(c);` for the six backends; six `cache_bench!` lines with each workload's `Spec::SIZES` (`[1_000, 10_000, 100_000]`, `[1_000, 10_000, 100_000]`, `[20]`) and their names in the `simple_iter`, `add_remove` and `frag_iter` groups.
 - **Test first:** none possible without Valgrind (#74); the check is `cargo xtask bench-smoke` and a `cargo bench -p spike_ecs_bench_compare -- --list` that shows the six ids `spike/ecs/<workload>/archetype_bytes_{copy,cast}/<count>`.
