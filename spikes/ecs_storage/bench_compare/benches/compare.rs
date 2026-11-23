@@ -21,6 +21,11 @@ use spike_ecs_dense::{
     sprites::DenseSprites,
 };
 use spike_ecs_harness::{Params, Spec, Workload};
+use spike_ecs_hybrid::{
+    add_remove::HybridAddRemove, agents::HybridAgents, entity_churn::HybridEntityChurn,
+    frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, simple_iter::HybridSimpleIter,
+    sprites::HybridSprites,
+};
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
     agents::{GroupedAgents, SparseSetAgents},
@@ -91,6 +96,13 @@ fn compare(c: &mut Criterion) {
     bench::<DenseEntityChurn>(c);
     bench::<DenseSprites>(c);
     bench::<DenseAgents>(c);
+    bench::<HybridSimpleIter>(c);
+    bench::<HybridFragIter>(c);
+    bench::<HybridHeavyCompute>(c);
+    bench::<HybridAddRemove>(c);
+    bench::<HybridEntityChurn>(c);
+    bench::<HybridSprites>(c);
+    bench::<HybridAgents>(c);
 }
 
 criterion_group!(benches, compare);
