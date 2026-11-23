@@ -54,7 +54,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 6: the roadmap file (R6)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/roadmap.md`.
 - **Change:** per spec §4.6: new introduction and status line; the milestone table's Status column replaced by a pointer to the GitHub milestones; the M3 table keeps its done rows and M3.20's (row updated at close-out), the open rows M3.7, M3.8 and M3.10 removed with a line saying chunks are issues from M3.20 on; M2 table, "Later milestones" and the numbering note unchanged.
 - **Before removing the rows:** copy their full text into `log.md` (it is the source for step 8's issue bodies).
