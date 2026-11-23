@@ -72,7 +72,7 @@ Typed components keep their API: an entity with a typed `Matrix` and a runtime `
 
 ### 4.1 Where it goes
 
-The code goes in `spike_ecs_archetype`: a module for the layout and the byte column, the raw operations on `World`, a module for the raw query, and one workload module per workload holding both backends. The typed paths of M3.4 MUST keep their behaviour; the typed `archetype` backend is the baseline both new backends are read against.
+The code goes in `spike_ecs_archetype`: a module for the layout and the byte column, the raw operations on `World`, a module for the raw query, and one workload module per workload holding both backends. The typed paths of M3.4 MUST keep their behaviour and their cost, since the typed `archetype` backend is the baseline both new backends are read against: typed `insert`, `remove`, `spawn_with`, `despawn` and query runs MUST NOT gain a lookup, a branch on the component kind or an allocation per call (the kind is needed only when a column is created and by the raw operations), and the informal run (R14) MUST show `archetype` within noise of the same filter run on the parent commit *(main session's call)*.
 
 `bytemuck` (exact version `=1.25.2`, already in `Cargo.lock` through the example crates, licence `Zlib OR Apache-2.0 OR MIT`) with its `derive` feature becomes a dependency of `spike_ecs_archetype` only, and MUST pass `cargo xtask deny`. Its derives compile under `#![forbid(unsafe_code)]` (checked in a scratch crate, 2026-11-22: the lint skips code an external macro generates). Library code (`libs/`) gets no new dependency, and glam's `bytemuck` feature stays off, so the `Pod` types are mirror types the backend defines (§4.4) (my call: turning the glam feature on would change `engine`'s dependency graph in every workspace build that includes the spike).
 
@@ -121,15 +121,17 @@ The workload code for each path MUST call the harness's `update` and `hash` func
 
 ### 4.6 The raw query
 
-`RawQuery::new()` is built with `.read(id)`, `.write(id)`, `.with(id)` and `.without(id)`. `World::query_raw(&self, &RawQuery)` for queries that only read, and `query_raw_mut(&mut self, &RawQuery)` for queries that write, return `Result<_, RawQueryError>`. They MUST reject an id that is unknown or not raw, and an id named twice in any combination of fetches and filters, before visiting any table.
+`RawQuery::new()` is built with `.read(id)`, `.write(id)`, `.with(id)` and `.without(id)`; fetch `k` is the `k`-th `read` or `write` call. `World::query_raw(&self, &RawQuery)` for queries that only read, and `query_raw_mut(&mut self, &RawQuery)` for queries that may write, return `Result<_, RawQueryError>`. Before visiting any table they MUST reject an id that is unknown or not raw, an id named twice in any combination of fetches and filters, and, in `query_raw`, a `write` fetch (`RawQueryError::WriteInReadQuery`).
 
 A run matches the archetypes that contain every fetched and every `with` id and no `without` id, in archetype creation order, and calls `for_each_table` once per matching archetype with at least one row. The table view offers:
 
 - `entities() -> &[Entity]`;
-- `column(k)`, the `k`-th fetch, as a shared view, for a `read` or a `write` fetch;
-- `column_mut(k)`, the `k`-th fetch, as an exclusive view, only for a `write` fetch (otherwise a panic naming the fetch, since it is a bug in the workload).
+- `column(k) -> RawColumn<'t>`, the `k`-th fetch, only for a `read` fetch;
+- `column_mut(k) -> RawColumnMut<'t>`, the `k`-th fetch, only for a `write` fetch, at most once per table.
 
-A column view offers `len()`, `get(row) -> &[u8]`, `rows()` (each value's bytes) and `cast`; the exclusive view adds `get_mut`, `rows_mut` and `cast_mut`. Neither view, nor anything it returns, can push, remove or resize: the views are newtypes built in the module that owns the column, never `&mut dyn ErasedColumn` or `&mut` to the column itself (lesson ecs-5). Two exclusive views of different fetches of one table MUST be usable at once.
+Both return views that live as long as the table borrow, not the call, so a workload holds several at once (`let (pos, vel) = (table.column_mut(0), table.column(1));`). `column` on a write fetch, `column_mut` on a read fetch, and a second `column_mut(k)` on one table each panic with a message naming the fetch and the rule, since each is a bug in the workload; each panic has its own test *(main session's call: a shared view of a write fetch cannot outlive the call in safe code, as a stub of this API showed, 2026-11-22)*. The slots the views are taken from MUST live in one buffer per run, cleared for each table, so a run allocates nothing per table.
+
+A column view offers `len()`, `get(row) -> &[u8]`, `rows()` (each value's bytes) and `cast`; the exclusive view adds `get_mut`, `rows_mut` and `cast_mut`. Neither view, nor anything it returns, can push, remove or resize: the views are newtypes built in the module that owns the column, never `&mut dyn ErasedColumn` or `&mut` to the column itself (lesson ecs-5). The view types implement `Debug`; `RawError`, `RawQueryError`, `LayoutError` and `CastError` implement `Display` and `Error`.
 
 Fetches are by table, not by row, so each access path loops over a whole column with no per-row call into the query (my call: a per-row callback would add the same overhead to both paths and hide the difference between them). A raw query ignores a table's typed columns, and a typed query ignores its raw columns, beyond matching on the ids it names.
 
@@ -156,13 +158,14 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 - **M3.6-R5** `insert_raw` and `remove_raw` MUST use the typed operations' edge cache, with no extra lookups beyond the kind check (§4.5).
 - **M3.6-R6** `cast` and `cast_mut` MUST return slices of exactly the row count and MUST reject a size or alignment mismatch with `CastError` (§4.4).
 - **M3.6-R7** Each codec MUST round-trip its type bit for bit, `NaN` payloads included (§4.4).
-- **M3.6-R8** `query_raw` and `query_raw_mut` MUST reject unknown, non-raw and repeated ids before visiting a table, and MUST visit exactly the matching non-empty archetypes in creation order (§4.6).
+- **M3.6-R8** `query_raw` and `query_raw_mut` MUST reject unknown, non-raw and repeated ids, and `query_raw` a write fetch, before visiting a table; they MUST visit exactly the matching non-empty archetypes in creation order; the table view's three misuse panics (§4.6) MUST each fire with their own message.
 - **M3.6-R9** The column views MUST NOT offer any way to change a column's length (§4.6).
 - **M3.6-R10** An entity holding both kinds MUST be seen by a typed query on its Rust types and by a raw query on its raw ids, and a mixed world MUST pass `check_invariants` after inserts, removes and despawns of both kinds.
 - **M3.6-R11** The six new backends MUST pass `check_conformance` against `vec_aos` (§4.7).
 - **M3.6-R12** The six new backends MUST appear in `bench_compare` and `bench_cache`, the latter with the workload's `Spec::SIZES`.
 - **M3.6-R13** The per-run allocations and lookups of the raw query, as built, MUST be recorded in `log.md` (§4.6).
 - **M3.6-R14** One informal `cargo xtask spike-bench ecs` run under the benchmark run protocol MUST be recorded in `log.md` and quoted, labelled informal, in the pull request, with the cast and copy paths read against `archetype`.
+- **M3.6-R15** The typed paths MUST keep their cost (§4.1).
 
 ## 6. Cross-cutting concerns
 
@@ -198,17 +201,18 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 | R5 | Code review against `insert::<T>` and `remove::<T>` (lesson ecs-7); a test that a toggle cycle creates no archetype after the first |
 | R6 | Tests: `cast` and `cast_mut` lengths equal the row count; a size mismatch and an alignment mismatch return `CastError` |
 | R7 | Proptest per codec over arbitrary bit patterns, comparing `to_bits` |
-| R8 | Tests: each rejection before any table is visited (a counting closure stays at 0); a world with matching, non-matching and empty archetypes visits the matching non-empty ones in creation order |
+| R8 | Tests: each rejection before any table is visited (a counting closure stays at 0); a world with matching, non-matching and empty archetypes visits the matching non-empty ones in creation order; one `should_panic` test per table-view misuse, asserting its message |
 | R9 | Code review of the view types' methods (lesson ecs-5) |
 | R10 | A mixed-world test, and a proptest model over `insert`, `remove`, `insert_raw`, `remove_raw` and `despawn` checking `check_invariants` and `get`/`get_raw` against a model after each operation |
 | R11 | Six conformance tests in `spike_ecs_archetype`'s tests |
 | R12 | The bench crates' source; `cargo xtask bench-smoke`; the cache bench's size assertion (on a Valgrind host, since #74 is open) |
 | R13 | `log.md` entry with the counts and the commit they ran on, measured from a scratch crate (lesson ecs-2) |
 | R14 | `log.md` entry and the pull request (`/bench-run` protocol) |
+| R15 | Code review of the typed paths against the parent commit (lesson ecs-7); an informal `spike-bench` run of `archetype` on the parent commit, saved as a baseline and compared with R14's run, in `log.md` |
 
 ## 9. Done when
 
-- [ ] R1 to R14 have their evidence.
+- [ ] R1 to R15 have their evidence.
 - [ ] `cargo xtask ci` passes on the final commit.
 - [ ] `spikes/ecs_storage/README.md` updated; the M3.8 roadmap row carries this chunk's caveats; the roadmap row reads `Done (PR #n)`.
 
