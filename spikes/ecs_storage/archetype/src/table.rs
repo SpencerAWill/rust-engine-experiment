@@ -4,6 +4,7 @@ use core::any::{Any, TypeId};
 
 use crate::archetype::ComponentId;
 use crate::bundle::Bundle;
+use crate::raw::RawLayout;
 use crate::{Entity, InvariantViolation};
 
 /// The values of one component type in one archetype, one per row.
@@ -16,11 +17,20 @@ impl<T> Column<T> {
     }
 }
 
+/// What a column holds, as `Table::check` compares it with what the archetype expects (T2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnDesc {
+    /// A `Column<T>` of the Rust type with this `TypeId`.
+    Typed(TypeId),
+    /// A byte column of this layout.
+    Raw(RawLayout),
+}
+
 /// What code that does not know a column's value type can do with it. The method names avoid
 /// `Any::type_id`, which a `Box<dyn ErasedColumn>` would otherwise resolve to the box's own type.
 pub trait ErasedColumn: Any {
     fn len(&self) -> usize;
-    fn value_type_id(&self) -> TypeId;
+    fn describe(&self) -> ColumnDesc;
     fn value_type_name(&self) -> &'static str;
     /// Removes the value at `row` by swapping the last value into its place, and drops it.
     fn swap_remove_drop(&mut self, row: usize);
@@ -36,8 +46,8 @@ impl<T: 'static> ErasedColumn for Column<T> {
         self.0.len()
     }
 
-    fn value_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
+    fn describe(&self) -> ColumnDesc {
+        ColumnDesc::Typed(TypeId::of::<T>())
     }
 
     fn value_type_name(&self) -> &'static str {
@@ -283,7 +293,7 @@ impl Table {
                     self.entities.len()
                 )));
             }
-            if types.get(i) != Some(&column.value_type_id()) {
+            if types.get(i).map(|t| ColumnDesc::Typed(*t)) != Some(column.describe()) {
                 return Err(InvariantViolation::new(format!(
                     "T2: column {i} holds {}, which is not the type of the archetype's component {i}",
                     column.value_type_name()

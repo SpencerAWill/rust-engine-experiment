@@ -20,3 +20,8 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-22 decision Spec approved by the maintainer ("approved, go ahead"); status Accepted, roadmap row Accepted.
 - 2026-11-22 done Lessons (`lessons-researcher`, dispatched by name): ecs-1 to ecs-9, specs-2 to specs-4, docs-1 to docs-3; recorded in plan §4 (ecs-3 and ecs-8 n/a).
 - 2026-11-22 done Plan written and Accepted: nine steps (byte column, raw `World` operations, raw query, three workloads, benches, measurements, documents); roadmap row `In progress`.
+- 2026-11-23 done Step 1: `src/raw.rs` (RawLayout, LayoutError, CastError, ByteColumn, RawColumn, RawColumnMut), `ColumnDesc`/`describe` in `table.rs`, bytemuck workspace dependency; 18 `raw::` tests, `deny` and `ci --quick` pass.
+- 2026-11-23 decision Step 1: `value_type_id` replaced by `describe() -> ColumnDesc` now (a byte column has no TypeId); `Table::check` still takes `&[TypeId]` and compares `Typed`, step 2 widens it with world.rs.
+- 2026-11-23 decision Step 1: `cast`/`cast_mut` map the impossible bytemuck error to `SizeMismatch` via `unreachable_cast`, since `expect` trips clippy `missing_panics_doc` on a public fn.
+- 2026-11-23 lesson? macOS `sed -i` with a pattern containing `\n` fails here; use python for multi-line edits. `ci --quick` exceeds the 120s tool timeout; run it in the background.
+- 2026-11-23 done Step 1 checked by the main session: diff read; `cargo nextest run -p spike_ecs_archetype raw::` 18 passed, `cargo xtask deny` ok, `cargo xtask ci --quick` exit 0 (builder dispatched by name).

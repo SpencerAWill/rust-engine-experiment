@@ -23,6 +23,7 @@ pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
+mod raw;
 pub mod simple_iter;
 pub mod sprites;
 mod table;
@@ -36,6 +37,7 @@ use engine::genid::GenId;
 pub use bundle::Bundle;
 pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
+pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};
 pub use world::{InvariantViolation, World};
 
 /// The marker type of [`Entity`] IDs.

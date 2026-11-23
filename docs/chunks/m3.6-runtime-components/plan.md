@@ -47,7 +47,7 @@ Choices the spec leaves to implementation:
 
 ### Step 1: layout, byte column and column views (R1, R3 in part, R6, R9 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `Cargo.toml` (workspace dependency), `Cargo.lock`, `spikes/ecs_storage/archetype/Cargo.toml`, `src/raw.rs` (new), `src/lib.rs`, `src/table.rs` (`ByteColumn` implements `ErasedColumn`; the `describe` change if needed here, else step 2).
 - **Interfaces produced:** `RawLayout::new(size, align) -> Result<RawLayout, LayoutError>` (`const fn`), `size()`, `align()`; `LayoutError::{ZeroSize, AlignNotPowerOfTwo { align }, AlignTooLarge { align }, SizeNotMultipleOfAlign { size, align }}`; `ByteColumn` (crate-private) with `new(layout)`, `len`, `push`, `overwrite`, `from_erased`, `from_erased_mut`, and `ErasedColumn`; `RawColumn`, `RawColumnMut`, `CastError::{SizeMismatch { expected, got }, AlignTooLarge { column, requested }}`.
 - **Test first:** in `raw.rs`: `zero_size_is_rejected`, `non_power_of_two_align_is_rejected`, `align_above_16_is_rejected`, `size_not_a_multiple_of_align_is_rejected`, `align_16_is_accepted` (R1); `cast_succeeds_at_every_alignment` (1, 2, 4, 8, 16), `cast_rejects_a_size_mismatch`, `cast_rejects_a_larger_alignment`, `cast_lengths_are_the_row_count` (R6); `swap_remove_drop_zeroes_the_tail`, `swap_remove_into_moves_the_bytes_and_zeroes_the_tail`, `swap_remove_into_a_typed_column_panics` (asserting the message), `push_grows_by_doubling` (capacity in blocks after 1,000 pushes is under twice the need, and `push` count of reallocations is logarithmic, read from `blocks.capacity()` changes) (R3). They fail to compile before `raw.rs` exists.
@@ -160,4 +160,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 
 ## 5. Deviations
 
-None yet.
+- Step 1: `cast` and `cast_mut` map `bytemuck`'s cast error, which the size and alignment checks make impossible, to `CastError::SizeMismatch` through `unreachable_cast` rather than `expect`, so the public casts stay panic-free (clippy `missing_panics_doc`). The views also offer `len`, `is_empty` and `layout`.
