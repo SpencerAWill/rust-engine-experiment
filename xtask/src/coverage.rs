@@ -50,6 +50,7 @@ const SPIKE_PACKAGES: &[&str] = &[
     "spike_ecs_archetype",
     "spike_ecs_dense",
     "spike_ecs_hybrid",
+    "spike_ecs_bevy",
     "spike_ecs_bench_compare",
     "spike_ecs_bench_cache",
 ];
@@ -218,6 +219,8 @@ mod tests {
                 "spike_ecs_dense",
                 "--exclude",
                 "spike_ecs_hybrid",
+                "--exclude",
+                "spike_ecs_bevy",
                 "--exclude",
                 "spike_ecs_bench_compare",
                 "--exclude",
