@@ -4,7 +4,7 @@
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.3, M3.4, M3.5 · **Decides:** no ADR
 - **Followed by:** M3.10, the bevy_ecs and hecs baselines (maintainer, 2026-11-22)
 - **Issue:** none (tracking issue #66)
-- **Estimated size:** about 1,400 changed lines, excluding tests, lockfiles and generated files (`raw` layout and column about 350, `World` raw operations about 200, the raw query about 300, codecs and mirror types about 150, the workload modules about 300, documents about 100)
+- **Estimated size:** about 1,500 changed lines, excluding tests, lockfiles and generated files (`raw` layout and column about 350, `World` raw operations about 280, the raw query about 300, codecs and mirror types about 150, the workload modules about 300, documents about 100)
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
@@ -25,7 +25,7 @@ This chunk lets the archetype prototype (`spike_ecs_archetype`, M3.4) store comp
 **Non-goals**
 
 - No drop or clone hooks: a runtime component is plain data, copied bitwise (maintainer). Values that own resources wait for M3.7 or M8.
-- No zero-sized runtime components (tags), no spawn of several runtime components in one call, no runtime components in `Commands`, no optional runtime fetch: none of the three workloads needs them (my call; M4 takes or rejects each).
+- No zero-sized runtime components (tags), no runtime components in `Commands`, no optional runtime fetch: none of the three workloads needs them (my call; M4 takes or rejects each).
 - No typed query over runtime ids and no raw query over Rust types (§4.6).
 - No lookup of a runtime component by name: the name is for `Debug` and error messages (my call; a name registry is M4's).
 - No change to the sparse-set, dense or hybrid prototypes, and no runtime backend for `heavy_compute`, `entity_churn`, `sprites` or `agents` (maintainer: the three chosen workloads isolate row access, row moves and matching; the others repeat those costs).
@@ -40,9 +40,7 @@ let mut world = World::new();
 let position = world.register_raw("Position", RawLayout::new(12, 4)?);
 let velocity = world.register_raw("Velocity", RawLayout::new(12, 4)?);
 
-let e = world.spawn();
-world.insert_raw(e, position, &bytes_of_position)?;
-world.insert_raw(e, velocity, &bytes_of_velocity)?;
+let e = world.spawn_raw(&[(position, &bytes_of_position[..]), (velocity, &bytes_of_velocity[..])])?;
 ```
 
 A system that knows the layout runs a raw query and gets one table at a time. With the copy path it decodes each row, works on the value and encodes it back:
@@ -111,11 +109,12 @@ The workload code for each path MUST call the harness's `update` and `hash` func
 
 | Operation | Behaviour |
 |---|---|
+| `spawn_raw(components: &[(ComponentId, &[u8])]) -> Result<Entity, RawError>` | Spawns an entity straight into the archetype of exactly these ids, found through `by_components` or created once, writing each value into its column in one operation (T1), as `spawn_with` does for a bundle. An empty list spawns into the empty archetype. No intermediate archetype is created. |
 | `insert_raw(entity, id, bytes: &[u8]) -> Result<bool, RawError>` | Writes the value; moves the entity through the cached add edge if it lacks `id`, replaces the value in place if it has it. `Ok(true)` if it replaced a value. |
 | `remove_raw(entity, id) -> Result<bool, RawError>` | Moves the entity through the cached remove edge and drops the bytes. `Ok(false)` if the entity lacks `id`. |
 | `get_raw(entity, id) -> Option<&[u8]>` | The value's bytes, `None` for a dead entity, an unknown or non-raw id, or a missing component. |
 
-`RawError` MUST have a variant each for a dead entity, an unknown id, a Rust type's id (`NotRaw`) and a byte slice whose length is not the layout's size (`WrongSize { expected, got }`). On any error the world MUST be unchanged, including on the first call of its kind, before any edge is cached (lesson ecs-4). `despawn` MUST drop an entity's raw values with its row, as it does typed ones.
+`RawError` MUST have a variant each for a dead entity, an unknown id, a Rust type's id (`NotRaw`), a byte slice whose length is not the layout's size (`WrongSize { expected, got }`) and an id listed twice in one `spawn_raw` (`Duplicate`). `spawn_raw` MUST validate every entry before it looks up or creates an archetype or allocates an entity. On any error the world MUST be unchanged, including on the first call of its kind, before any edge is cached (lesson ecs-4). `despawn` MUST drop an entity's raw values with its row, as it does typed ones.
 
 `insert_raw` and `remove_raw` MUST use the same edge cache as `insert::<T>` and `remove::<T>` and MUST NOT do more lookups per call than they do, apart from the kind check on the id (lesson ecs-7).
 
@@ -139,7 +138,7 @@ The heap allocations and lookups per query run, as built, MUST be counted before
 
 ### 4.7 Workload backends
 
-For each of `simple_iter`, `add_remove` and `frag_iter`, the chunk adds two `Workload` impls with `BACKEND` names `archetype_bytes_copy` and `archetype_bytes_cast`. Setup registers every component the workload uses as a raw component (four in `simple_iter`, two in `add_remove`, 27 in `frag_iter`), spawns entities `0..n` with the harness's `spawn` function, and inserts each component with `insert_raw`. The steps mirror the typed `archetype` backend's:
+For each of `simple_iter`, `add_remove` and `frag_iter`, the chunk adds two `Workload` impls with `BACKEND` names `archetype_bytes_copy` and `archetype_bytes_cast`. Setup registers every component the workload uses as a raw component (four in `simple_iter`, two in `add_remove`, 27 in `frag_iter`) and spawns entities `0..n` from the harness's `spawn` function with one `spawn_raw` each, so the world has the same archetypes as the typed `archetype` backend's after setup and after every step (maintainer, 2026-11-22: one insert per component would leave empty intermediate archetypes, 53 against 27 in `frag_iter`, which every query run scans and M3.8 would read as a cost of byte columns). `spawn_raw` is not on any measured path, so a scratch allocation per call to sort the ids is allowed and recorded with R13's counts. The steps mirror the typed `archetype` backend's:
 
 - `simple_iter`: one `query_raw_mut` writing `Position` and reading `Velocity`.
 - `add_remove`: the same two passes as `archetype` (spec M3.4 §4.7): collect the entities with `A`, `insert_raw` a `B` into each; collect the entities with `B`, `remove_raw` it from each. The checksum reads `A` without `B`, then `A` and `B` with `B`.
@@ -154,14 +153,14 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 - **M3.6-R1** `RawLayout::new` MUST reject the three invalid layouts of §4.3, each with its own error.
 - **M3.6-R2** `register_raw` MUST return a new id on every call; a raw id and a Rust type's id MUST NOT coincide; every raw operation and raw query given a Rust type's id MUST fail with `NotRaw` and change nothing (§4.2).
 - **M3.6-R3** The byte column MUST keep values aligned to their layout, zero the bytes past its values, and move and remove rows as §4.3 says; `check_invariants` MUST cover raw columns.
-- **M3.6-R4** `insert_raw`, `remove_raw` and `get_raw` MUST behave as the table in §4.5 says, and MUST leave the world unchanged on each `RawError` variant, tested on the cold path.
+- **M3.6-R4** `spawn_raw`, `insert_raw`, `remove_raw` and `get_raw` MUST behave as the table in §4.5 says, and MUST leave the world unchanged on each `RawError` variant, tested on the cold path.
 - **M3.6-R5** `insert_raw` and `remove_raw` MUST use the typed operations' edge cache, with no extra lookups beyond the kind check (§4.5).
 - **M3.6-R6** `cast` and `cast_mut` MUST return slices of exactly the row count and MUST reject a size or alignment mismatch with `CastError` (§4.4).
 - **M3.6-R7** Each codec MUST round-trip its type bit for bit, `NaN` payloads included (§4.4).
 - **M3.6-R8** `query_raw` and `query_raw_mut` MUST reject unknown, non-raw and repeated ids, and `query_raw` a write fetch, before visiting a table; they MUST visit exactly the matching non-empty archetypes in creation order; the table view's three misuse panics (§4.6) MUST each fire with their own message.
 - **M3.6-R9** The column views MUST NOT offer any way to change a column's length (§4.6).
 - **M3.6-R10** An entity holding both kinds MUST be seen by a typed query on its Rust types and by a raw query on its raw ids, and a mixed world MUST pass `check_invariants` after inserts, removes and despawns of both kinds.
-- **M3.6-R11** The six new backends MUST pass `check_conformance` against `vec_aos` (§4.7).
+- **M3.6-R11** The six new backends MUST pass `check_conformance` against `vec_aos`, and each MUST have the same archetype count as the typed `archetype` backend for its workload after setup and after a step (§4.7).
 - **M3.6-R12** The six new backends MUST appear in `bench_compare` and `bench_cache`, the latter with the workload's `Spec::SIZES`.
 - **M3.6-R13** The per-run allocations and lookups of the raw query, as built, MUST be recorded in `log.md` (§4.6).
 - **M3.6-R14** One informal `cargo xtask spike-bench ecs` run under the benchmark run protocol MUST be recorded in `log.md` and quoted, labelled informal, in the pull request, with the cast and copy paths read against `archetype`.
@@ -197,14 +196,14 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 | R1 | One unit test per `LayoutError` variant, plus a valid layout at alignment 16 |
 | R2 | Tests: two registrations with one name and layout get different ids; each raw operation and both raw queries given a typed id return `NotRaw`, and the world is unchanged (`check_invariants` and archetype count) |
 | R3 | Byte-column unit tests: a `cast` at the layout's alignment succeeds for each alignment 1 to 16; after `swap_remove_drop` and `swap_remove_into` the tail bytes are zero and the moved values are intact; `check_invariants` fails on a corrupted raw column (a red check in the storage's own tests, lesson ecs-6) |
-| R4 | One test per row of §4.5 and per `RawError` variant, each on a fresh world (cold path) asserting the error value and an unchanged world |
+| R4 | One test per row of §4.5 and per `RawError` variant, each on a fresh world (cold path) asserting the error value and an unchanged world (entity count, archetype count, `check_invariants`); a test that `spawn_raw` creates exactly one archetype for a new id set and none for a known one |
 | R5 | Code review against `insert::<T>` and `remove::<T>` (lesson ecs-7); a test that a toggle cycle creates no archetype after the first |
 | R6 | Tests: `cast` and `cast_mut` lengths equal the row count; a size mismatch and an alignment mismatch return `CastError` |
 | R7 | Proptest per codec over arbitrary bit patterns, comparing `to_bits` |
 | R8 | Tests: each rejection before any table is visited (a counting closure stays at 0); a world with matching, non-matching and empty archetypes visits the matching non-empty ones in creation order; one `should_panic` test per table-view misuse, asserting its message |
 | R9 | Code review of the view types' methods (lesson ecs-5) |
-| R10 | A mixed-world test, and a proptest model over `insert`, `remove`, `insert_raw`, `remove_raw` and `despawn` checking `check_invariants` and `get`/`get_raw` against a model after each operation |
-| R11 | Six conformance tests in `spike_ecs_archetype`'s tests |
+| R10 | A mixed-world test, and a proptest model over `insert`, `remove`, `spawn_raw`, `insert_raw`, `remove_raw` and `despawn` checking `check_invariants` and `get`/`get_raw` against a model after each operation |
+| R11 | Six conformance tests in `spike_ecs_archetype`'s tests; six tests comparing `archetype_count()` with the typed backend's after setup and after one step |
 | R12 | The bench crates' source; `cargo xtask bench-smoke`; the cache bench's size assertion (on a Valgrind host, since #74 is open) |
 | R13 | `log.md` entry with the counts and the commit they ran on, measured from a scratch crate (lesson ecs-2) |
 | R14 | `log.md` entry and the pull request (`/bench-run` protocol) |
@@ -218,7 +217,7 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 
 ## 10. Open questions
 
-None. Deferred: drop and clone hooks (M3.7 or M8); zero-sized runtime components, multi-component raw spawn, raw `Commands`, optional raw fetches and lookup by name (M4).
+None. Deferred: drop and clone hooks (M3.7 or M8); zero-sized runtime components, raw `Commands`, optional raw fetches and lookup by name (M4).
 
 ## 11. Prior art and sources
 
