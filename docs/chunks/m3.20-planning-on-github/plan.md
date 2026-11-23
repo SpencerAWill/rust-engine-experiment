@@ -31,7 +31,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 3: workflow and maintainer documents (R1, R7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/workflow.md` ("From issue to chunk", "Who is the source of truth", the cardinality table, scheduling, chores), `docs/maintainers.md` ("Issue tracking": the Order field, the "Next up" view and how to create it, how to schedule a chunk and a chore; "When a milestone completes": close the milestone with `gh api --method PATCH`, move open chores, no tracking issue).
 - **Check that fails before:** `git grep -n "adding a chunk row" docs/workflow.md docs/maintainers.md` finds the old scheduling rule.
 - **Verify:** that grep finds nothing; `cargo xtask check-docs` 0 problems.
