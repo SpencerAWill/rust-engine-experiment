@@ -187,11 +187,12 @@ impl World {
     }
 }
 
-/// Whether column `index` of an archetype with these `components` is one of `query`'s fetches.
-/// Only fetched columns are downcast, so an unfetched typed column is never touched.
-fn is_fetched(components: &[ComponentId], query: &RawQuery, index: usize) -> bool {
+/// The fetch that column `index` of an archetype with these `components` serves, if any. Each
+/// column belongs to at most one fetch, since a query names an id once. Only fetched columns
+/// are downcast, so an unfetched typed column is never touched.
+fn fetch_of(components: &[ComponentId], query: &RawQuery, index: usize) -> Option<usize> {
     let id = components[index];
-    query.fetches.iter().any(|(fetched, _)| *fetched == id)
+    query.fetches.iter().position(|(fetched, _)| *fetched == id)
 }
 
 /// One fetch's column for the table being visited.
@@ -226,15 +227,11 @@ impl<'w> RawRun<'w, '_> {
             }
             let (entities, columns) = archetype
                 .table
-                .raw_columns(|i| is_fetched(&archetype.components, query, i));
+                .raw_columns(|i| fetch_of(&archetype.components, query, i));
             slots.clear();
             slots.resize_with(query.fetches.len(), || Slot::Vacant);
-            for (index, view) in columns {
-                let id = archetype.components[index];
-                // Each column belongs to at most one fetch, since a query names an id once.
-                if let Some(k) = query.fetches.iter().position(|(fetched, _)| *fetched == id) {
-                    slots[k] = Slot::Read(view);
-                }
+            for (k, view) in columns {
+                slots[k] = Slot::Read(view);
             }
             f(RawTable {
                 entities,
@@ -290,18 +287,14 @@ impl<'w> RawRunMut<'w, '_> {
             let components = &archetype.components;
             let (entities, columns) = archetype
                 .table
-                .raw_columns_mut(|i| is_fetched(components, query, i));
+                .raw_columns_mut(|i| fetch_of(components, query, i));
             slots.clear();
             slots.resize_with(query.fetches.len(), || Slot::Vacant);
-            // Each column belongs to at most one fetch, since a query names an id once.
-            for (index, view) in columns {
-                let id = components[index];
-                if let Some(k) = query.fetches.iter().position(|(fetched, _)| *fetched == id) {
-                    slots[k] = match query.fetches[k].1 {
-                        Access::Read => Slot::Read(view.into_shared()),
-                        Access::Write => Slot::Write(Some(view)),
-                    };
-                }
+            for (k, view) in columns {
+                slots[k] = match query.fetches[k].1 {
+                    Access::Read => Slot::Read(view.into_shared()),
+                    Access::Write => Slot::Write(Some(view)),
+                };
             }
             f(RawTable {
                 entities,

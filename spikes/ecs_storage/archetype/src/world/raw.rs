@@ -73,8 +73,8 @@ impl World {
     ///
     /// # Panics
     ///
-    /// Panics if the world already holds `u32::MAX` registered components. Unreachable in
-    /// practice.
+    /// Panics if the world already holds `u32::MAX + 1` component ids, that is, after more than
+    /// `u32::MAX` registrations. Unreachable in practice.
     #[track_caller]
     pub fn register_raw(&mut self, name: impl Into<Box<str>>, layout: RawLayout) -> ComponentId {
         let id = self.next_component_id();

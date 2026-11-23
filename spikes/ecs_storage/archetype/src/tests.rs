@@ -860,7 +860,14 @@ mod raw_query {
 
     #[test]
     fn a_mixed_table_hands_out_only_the_fetched_columns() {
-        let (mut w, [ida, idb, _, idd]) = world4();
+        let mut w = World::new();
+        let ida = w.register_raw("a", lay(4, 4));
+        // Registering u32 here, between the raw ids, puts its column between theirs.
+        let probe = w.spawn();
+        w.insert(probe, 0_u32);
+        w.despawn(probe);
+        let idb = w.register_raw("b", lay(8, 4));
+        let idd = w.register_raw("d", lay(4, 4));
         // Columns in id order: raw a (unfetched), typed u32 (unfetched), raw b, raw d.
         let e = w.spawn();
         w.insert_raw(e, ida, &word(1)).unwrap();
@@ -1310,7 +1317,7 @@ mod bytes_frag_iter {
     proptest! {
         #[test]
         fn codec_round_trips_every_letter(bits in any::<u32>()) {
-            for index in 0..26u8 {
+            for index in 0..spike_ecs_harness::frag_iter::LETTERS {
                 let letter = spike_ecs_harness::frag_iter::Letter::from_index(
                     index,
                     f32::from_bits(bits),

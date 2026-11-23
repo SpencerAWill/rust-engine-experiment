@@ -582,10 +582,16 @@ impl World {
     }
 
     /// The id the next registered component gets.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the world already holds `u32::MAX + 1` component ids.
+    #[track_caller]
     fn next_component_id(&self) -> ComponentId {
-        ComponentId::new(
-            u32::try_from(self.components.len()).expect("fewer than u32::MAX component types"),
-        )
+        ComponentId::new(u32::try_from(self.components.len()).expect(
+            "World: the world holds the most component ids it can \
+             (u32::MAX + 1 registered components); register fewer components",
+        ))
     }
 
     /// The id of `T`, registering it on first use.

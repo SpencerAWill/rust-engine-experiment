@@ -316,6 +316,21 @@ impl ByteColumn {
         }
     }
 
+    /// Writes a nonzero byte at `at` of the whole block storage, and returns whether `at` lies
+    /// in a spare block (past the last block the values use). For tests of `check_invariants`.
+    #[cfg(test)]
+    pub(crate) fn dirty_byte(&mut self, at: usize) -> bool {
+        let in_use = (self.len * self.layout.size).div_ceil(BLOCK) * BLOCK;
+        self.all_bytes_mut()[at] = 0xFF;
+        at >= in_use
+    }
+
+    /// The last byte of the block storage, spare blocks included. For tests.
+    #[cfg(test)]
+    pub(crate) fn last_storage_byte(&self) -> usize {
+        self.blocks.len() * BLOCK - 1
+    }
+
     /// Whether the column holds blocks its values do not need. For tests.
     #[cfg(test)]
     pub(crate) fn has_spare_blocks(&self) -> bool {
@@ -666,18 +681,22 @@ mod tests {
     fn cast_lengths_are_the_row_count() {
         let mut c = ByteColumn::new(layout(12, 4));
         assert_eq!(RawColumn::new(&c).cast::<[f32; 3]>().unwrap().len(), 0);
-        for i in 0..5u8 {
-            c.push(&[i; 12]);
-            let n = usize::from(i) + 1;
-            assert_eq!(RawColumn::new(&c).cast::<[f32; 3]>().unwrap().len(), n);
+        let check = |c: &mut ByteColumn, n: usize| {
+            assert_eq!(RawColumn::new(c).cast::<[f32; 3]>().unwrap().len(), n);
             assert_eq!(
-                RawColumnMut::new(&mut c)
-                    .cast_mut::<[f32; 3]>()
-                    .unwrap()
-                    .len(),
+                RawColumnMut::new(c).cast_mut::<[f32; 3]>().unwrap().len(),
                 n
             );
-            assert_eq!(RawColumn::new(&c).rows().len(), n);
+            assert_eq!(RawColumn::new(c).rows().len(), n);
+        };
+        for i in 0..5u8 {
+            c.push(&[i; 12]);
+            check(&mut c, usize::from(i) + 1);
+        }
+        for n in (0..5).rev() {
+            c.swap_remove_drop(0);
+            assert!(c.has_spare_blocks() || n == 4);
+            check(&mut c, n);
         }
     }
 
@@ -786,7 +805,8 @@ mod tests {
         assert_eq!(c.len(), 1);
         assert!(c.has_spare_blocks(), "removal keeps the blocks");
         assert!(c.tail_is_zero());
-        c.dirty_the_tail();
+        let last = c.last_storage_byte();
+        assert!(c.dirty_byte(last), "the byte is in a spare block");
         assert!(!c.tail_is_zero());
     }
 

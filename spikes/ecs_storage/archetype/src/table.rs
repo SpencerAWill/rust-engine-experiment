@@ -176,35 +176,35 @@ impl Table {
         )
     }
 
-    /// The entity list and the byte columns whose index `wanted` accepts, each with its column
-    /// index. Only those columns are downcast, once each, so `wanted` must accept byte columns
+    /// The entity list and the byte columns whose index `wanted` maps to `Some(tag)`, each with
+    /// its tag. Only those columns are downcast, once each, so `wanted` must accept byte columns
     /// only. The views cannot push, remove or resize (T1).
     pub(crate) fn raw_columns(
         &self,
-        wanted: impl Fn(usize) -> bool,
+        wanted: impl Fn(usize) -> Option<usize>,
     ) -> (&[Entity], impl Iterator<Item = (usize, RawColumn<'_>)>) {
         (
             &self.entities,
             self.columns
                 .iter()
                 .enumerate()
-                .filter(move |(i, _)| wanted(*i))
-                .map(|(i, c)| (i, RawColumn::new(ByteColumn::from_erased(&**c)))),
+                .filter_map(move |(i, c)| Some((wanted(i)?, c)))
+                .map(|(k, c)| (k, RawColumn::new(ByteColumn::from_erased(&**c)))),
         )
     }
 
     /// As [`Table::raw_columns`], the views exclusive; several can be held at once.
     pub(crate) fn raw_columns_mut(
         &mut self,
-        wanted: impl Fn(usize) -> bool,
+        wanted: impl Fn(usize) -> Option<usize>,
     ) -> (&[Entity], impl Iterator<Item = (usize, RawColumnMut<'_>)>) {
         (
             &self.entities,
             self.columns
                 .iter_mut()
                 .enumerate()
-                .filter(move |(i, _)| wanted(*i))
-                .map(|(i, c)| (i, RawColumnMut::new(ByteColumn::from_erased_mut(&mut **c)))),
+                .filter_map(move |(i, c)| Some((wanted(i)?, c)))
+                .map(|(k, c)| (k, RawColumnMut::new(ByteColumn::from_erased_mut(&mut **c)))),
         )
     }
 
@@ -690,8 +690,9 @@ mod tests {
         // One 12-byte value uses 1 of the 3 blocks the four values needed.
         assert_eq!(t.check(&descs), Ok(()));
         let col = ByteColumn::from_erased_mut(&mut *t.columns[0]);
-        col.dirty_the_tail();
         assert!(col.has_spare_blocks());
+        let last = col.last_storage_byte();
+        assert!(col.dirty_byte(last), "the byte is in a spare block");
         let err = t.check(&descs).unwrap_err();
         assert!(err.to_string().contains("T3"), "got: {err}");
     }
