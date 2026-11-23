@@ -187,6 +187,13 @@ impl World {
     }
 }
 
+/// Whether column `index` of an archetype with these `components` is one of `query`'s fetches.
+/// Only fetched columns are downcast, so an unfetched typed column is never touched.
+fn is_fetched(components: &[ComponentId], query: &RawQuery, index: usize) -> bool {
+    let id = components[index];
+    query.fetches.iter().any(|(fetched, _)| *fetched == id)
+}
+
 /// One fetch's column for the table being visited.
 #[derive(Debug)]
 enum Slot<'w> {
@@ -217,7 +224,9 @@ impl<'w> RawRun<'w, '_> {
             if archetype.table.len() == 0 || !query.matches(archetype) {
                 continue;
             }
-            let (entities, columns) = archetype.table.raw_columns();
+            let (entities, columns) = archetype
+                .table
+                .raw_columns(|i| is_fetched(&archetype.components, query, i));
             slots.clear();
             slots.resize_with(query.fetches.len(), || Slot::Vacant);
             for (index, view) in columns {
@@ -279,7 +288,9 @@ impl<'w> RawRunMut<'w, '_> {
                 continue;
             }
             let components = &archetype.components;
-            let (entities, columns) = archetype.table.raw_columns_mut();
+            let (entities, columns) = archetype
+                .table
+                .raw_columns_mut(|i| is_fetched(components, query, i));
             slots.clear();
             slots.resize_with(query.fetches.len(), || Slot::Vacant);
             // Each column belongs to at most one fetch, since a query names an id once.

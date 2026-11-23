@@ -226,11 +226,20 @@ struct Block([u8; 16]);
 const BLOCK: usize = 16;
 
 /// `len` values of one layout back to back. Bytes past `len * size` are zero.
-#[derive(Debug)]
 pub(crate) struct ByteColumn {
     layout: RawLayout,
     len: usize,
     blocks: Vec<Block>,
+}
+
+impl fmt::Debug for ByteColumn {
+    /// The layout and length only, not the bytes.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ByteColumn")
+            .field("layout", &self.layout)
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ByteColumn {
@@ -288,11 +297,11 @@ impl ByteColumn {
         copy_value(&mut self.bytes_mut()[row * size..(row + 1) * size], bytes);
     }
 
-    /// Whether every byte past the last value is zero, and no block is unused.
+    /// Whether every byte past the last value is zero. The column may hold more blocks than its
+    /// values need, since removing values keeps them.
     pub(crate) fn tail_is_zero(&self) -> bool {
         let used = self.len * self.layout.size;
-        self.blocks.len() == used.div_ceil(BLOCK)
-            && self.all_bytes()[used..].iter().all(|b| *b == 0)
+        self.all_bytes()[used..].iter().all(|b| *b == 0)
     }
 
     /// Writes a nonzero byte past the last value, or appends a nonzero block when the values
@@ -305,6 +314,12 @@ impl ByteColumn {
         } else {
             self.blocks.push(Block([0xFF; 16]));
         }
+    }
+
+    /// Whether the column holds blocks its values do not need. For tests.
+    #[cfg(test)]
+    pub(crate) fn has_spare_blocks(&self) -> bool {
+        self.blocks.len() > (self.len * self.layout.size).div_ceil(BLOCK)
     }
 
     /// The column behind `column`.
@@ -327,13 +342,24 @@ impl ByteColumn {
             .expect("T2: a raw component id names a byte column")
     }
 
-    /// Drops the last value after zeroing it, and releases blocks past the new end.
+    /// Drops the last value after zeroing it. The blocks stay, so a column that shrinks and
+    /// grows again does not reallocate.
     fn pop_last(&mut self) {
         let size = self.layout.size;
         let last = self.len - 1;
         zero_value(&mut self.all_bytes_mut()[last * size..(last + 1) * size]);
         self.len = last;
-        self.blocks.truncate((last * size).div_ceil(BLOCK));
+    }
+
+    /// Removes the value at `row` by moving the last value into its place. The caller has
+    /// checked `row < len`.
+    fn remove_checked(&mut self, row: usize) {
+        let size = self.layout.size;
+        let last = self.len - 1;
+        if row != last {
+            copy_value_within(self.all_bytes_mut(), last * size, row * size, size);
+        }
+        self.pop_last();
     }
 }
 
@@ -356,12 +382,7 @@ impl ErasedColumn for ByteColumn {
             "ByteColumn::swap_remove_drop: row {row} is out of range for {} values",
             self.len
         );
-        let size = self.layout.size;
-        let last = self.len - 1;
-        if row != last {
-            copy_value_within(self.all_bytes_mut(), last * size, row * size, size);
-        }
-        self.pop_last();
+        self.remove_checked(row);
     }
 
     fn swap_remove_into(&mut self, row: usize, dst: &mut dyn ErasedColumn) {
@@ -377,7 +398,7 @@ impl ErasedColumn for ByteColumn {
         );
         let size = self.layout.size;
         dst.push(&self.bytes()[row * size..(row + 1) * size]);
-        self.swap_remove_drop(row);
+        self.remove_checked(row);
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -752,6 +773,21 @@ mod tests {
         );
         assert!(changes <= 12, "{changes} reallocations");
         assert!(c.tail_is_zero());
+    }
+
+    #[test]
+    fn removed_values_leave_blocks_that_are_zero() {
+        let mut c = column_of(12, 4, &[vec![1; 12], vec![2; 12], vec![3; 12], vec![4; 12]]);
+        let blocks = c.blocks.len();
+        assert_eq!(blocks, 3);
+        c.swap_remove_drop(0);
+        c.swap_remove_drop(0);
+        c.swap_remove_drop(0);
+        assert_eq!(c.len(), 1);
+        assert!(c.has_spare_blocks(), "removal keeps the blocks");
+        assert!(c.tail_is_zero());
+        c.dirty_the_tail();
+        assert!(!c.tail_is_zero());
     }
 
     #[test]

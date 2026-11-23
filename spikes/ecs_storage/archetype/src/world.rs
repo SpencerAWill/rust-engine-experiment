@@ -395,7 +395,7 @@ impl World {
         QueryMut::new(self)
     }
 
-    /// Checks the table invariants (T1, T2), the archetype invariants (A1 to A4) and the bundle
+    /// Checks the table invariants (T1, T2, T3), the archetype invariants (A1 to A4) and the bundle
     /// invariant (B1), and returns the first violation.
     ///
     /// # Errors

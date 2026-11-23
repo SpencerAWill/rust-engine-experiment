@@ -70,6 +70,12 @@ impl World {
     /// Registers a component known only by its layout and returns its id. Every call returns a
     /// new id, even for a name and layout already registered; `name` is for `Debug` output and
     /// is not looked up.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the world already holds `u32::MAX` registered components. Unreachable in
+    /// practice.
+    #[track_caller]
     pub fn register_raw(&mut self, name: impl Into<Box<str>>, layout: RawLayout) -> ComponentId {
         let id = self.next_component_id();
         self.components.push(ComponentInfo {
@@ -109,9 +115,10 @@ impl World {
     ///
     /// # Errors
     ///
-    /// Returns [`RawError::UnknownId`], [`RawError::NotRaw`], [`RawError::WrongSize`] or
-    /// [`RawError::Duplicate`] for the first entry that is wrong. Every entry is checked before
-    /// an archetype is looked up or an entity allocated, so the world is unchanged.
+    /// Returns [`RawError::UnknownId`], [`RawError::NotRaw`] or [`RawError::WrongSize`] for the
+    /// first entry, in list order, that is wrong; if every entry is fine on its own, returns
+    /// [`RawError::Duplicate`] for an id listed twice. Every entry is checked before an
+    /// archetype is looked up or an entity allocated, so the world is unchanged.
     ///
     /// # Panics
     ///

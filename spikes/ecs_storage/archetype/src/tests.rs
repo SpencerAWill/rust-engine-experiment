@@ -859,6 +859,36 @@ mod raw_query {
     }
 
     #[test]
+    fn a_mixed_table_hands_out_only_the_fetched_columns() {
+        let (mut w, [ida, idb, _, idd]) = world4();
+        // Columns in id order: raw a (unfetched), typed u32 (unfetched), raw b, raw d.
+        let e = w.spawn();
+        w.insert_raw(e, ida, &word(1)).unwrap();
+        w.insert(e, 5_u32);
+        w.insert_raw(e, idb, &[2; 8]).unwrap();
+        w.insert_raw(e, idd, &word(4)).unwrap();
+        // A fetch order that differs from the column order.
+        let q = RawQuery::new().read(idd).write(idb);
+        let mut seen = Vec::new();
+        w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+            let (rd, mut wb) = (t.column(0), t.column_mut(1));
+            seen.push((rd.get(0).unwrap().to_vec(), wb.get(0).unwrap().to_vec()));
+            wb.get_mut(0).unwrap().fill(9);
+        });
+        assert_eq!(seen, vec![(word(4).to_vec(), vec![2; 8])]);
+        assert_eq!(w.get_raw(e, idb), Some(&[9; 8][..]));
+        let mut read = Vec::new();
+        w.query_raw(&RawQuery::new().read(ida).read(idb))
+            .unwrap()
+            .for_each_table(|t| {
+                read.push((t.column(0).get(0).unwrap().to_vec(), t.column(1).len()));
+            });
+        assert_eq!(read, vec![(word(1).to_vec(), 1)]);
+        assert_eq!(w.get::<u32>(e), Some(&5));
+        w.check_invariants().unwrap();
+    }
+
+    #[test]
     fn typed_query_ignores_raw_columns() {
         let (mut w, [ida, ..]) = world4();
         let e = w.spawn();
@@ -1278,6 +1308,20 @@ mod bytes_frag_iter {
     const TICKS: u64 = 120;
 
     proptest! {
+        #[test]
+        fn codec_round_trips_every_letter(bits in any::<u32>()) {
+            for index in 0..26u8 {
+                let letter = spike_ecs_harness::frag_iter::Letter::from_index(
+                    index,
+                    f32::from_bits(bits),
+                );
+                let bytes = crate::bytes_frag_iter::encode_letter(&letter);
+                let back = crate::bytes_frag_iter::decode_letter(index, &bytes);
+                prop_assert_eq!(back.index(), index);
+                prop_assert_eq!(back.value().to_bits(), bits);
+            }
+        }
+
         #[test]
         fn codec_round_trips_data(bits in any::<u32>()) {
             prop_assert_eq!(round_trip(&Data(f32::from_bits(bits))).0.to_bits(), bits);

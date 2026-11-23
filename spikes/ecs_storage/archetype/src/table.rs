@@ -176,29 +176,34 @@ impl Table {
         )
     }
 
-    /// The entity list and the byte columns, each with its column index. A typed column is
-    /// skipped. The views cannot push, remove or resize (T1).
-    pub(crate) fn raw_columns(&self) -> (&[Entity], impl Iterator<Item = (usize, RawColumn<'_>)>) {
+    /// The entity list and the byte columns whose index `wanted` accepts, each with its column
+    /// index. Only those columns are downcast, once each, so `wanted` must accept byte columns
+    /// only. The views cannot push, remove or resize (T1).
+    pub(crate) fn raw_columns(
+        &self,
+        wanted: impl Fn(usize) -> bool,
+    ) -> (&[Entity], impl Iterator<Item = (usize, RawColumn<'_>)>) {
         (
             &self.entities,
             self.columns
                 .iter()
                 .enumerate()
-                .filter(|(_, c)| matches!(c.describe(), ColumnDesc::Raw(_)))
+                .filter(move |(i, _)| wanted(*i))
                 .map(|(i, c)| (i, RawColumn::new(ByteColumn::from_erased(&**c)))),
         )
     }
 
-    /// As [`Table::raw_columns`], the views exclusive.
+    /// As [`Table::raw_columns`], the views exclusive; several can be held at once.
     pub(crate) fn raw_columns_mut(
         &mut self,
+        wanted: impl Fn(usize) -> bool,
     ) -> (&[Entity], impl Iterator<Item = (usize, RawColumnMut<'_>)>) {
         (
             &self.entities,
             self.columns
                 .iter_mut()
                 .enumerate()
-                .filter(|(_, c)| matches!(c.describe(), ColumnDesc::Raw(_)))
+                .filter(move |(i, _)| wanted(*i))
                 .map(|(i, c)| (i, RawColumnMut::new(ByteColumn::from_erased_mut(&mut **c)))),
         )
     }
@@ -672,6 +677,22 @@ mod tests {
         assert_eq!(t.check(&[ColumnDesc::Raw(lay(12, 4))]), Ok(()));
         ByteColumn::from_erased_mut(&mut *t.columns[0]).dirty_the_tail();
         let err = t.check(&[ColumnDesc::Raw(lay(12, 4))]).unwrap_err();
+        assert!(err.to_string().contains("T3"), "got: {err}");
+    }
+
+    #[test]
+    fn check_invariants_allows_spare_blocks_but_not_a_dirty_byte_in_them() {
+        let (mut t, _) = raw_table(4);
+        let descs = [ColumnDesc::Raw(lay(12, 4))];
+        t.swap_remove(0);
+        t.swap_remove(0);
+        t.swap_remove(0);
+        // One 12-byte value uses 1 of the 3 blocks the four values needed.
+        assert_eq!(t.check(&descs), Ok(()));
+        let col = ByteColumn::from_erased_mut(&mut *t.columns[0]);
+        col.dirty_the_tail();
+        assert!(col.has_spare_blocks());
+        let err = t.check(&descs).unwrap_err();
         assert!(err.to_string().contains("T3"), "got: {err}");
     }
 

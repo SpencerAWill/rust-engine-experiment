@@ -2,7 +2,8 @@
 
 use crate::table::Table;
 
-/// The dense index of a component type: the position of its `ComponentInfo` in the world.
+/// The dense index of a registered component, a Rust type or a runtime-registered one: the
+/// position of its `ComponentInfo` in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ComponentId(u32);
 

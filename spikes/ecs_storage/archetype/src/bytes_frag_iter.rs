@@ -24,7 +24,7 @@ macro_rules! per_letter {
         f32_codec!(Data, $($name),+);
 
         /// The letter's payload encoded through its [`Codec`].
-        fn encode_letter(letter: &Letter) -> [u8; 4] {
+        pub(crate) fn encode_letter(letter: &Letter) -> [u8; 4] {
             let mut bytes = [0; 4];
             match letter {
                 $(Letter::$name(x) => x.encode(&mut bytes),)+
@@ -33,7 +33,7 @@ macro_rules! per_letter {
         }
 
         /// The letter with the given index, decoded through its [`Codec`].
-        fn decode_letter(index: u8, bytes: &[u8]) -> Letter {
+        pub(crate) fn decode_letter(index: u8, bytes: &[u8]) -> Letter {
             match index {
                 $($index => Letter::$name($name::decode(bytes)),)+
                 _ => panic!("letter index {index} is not below {LETTERS}"),
