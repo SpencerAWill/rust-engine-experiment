@@ -1,6 +1,6 @@
 # M3.10: bevy_ecs and hecs baselines as harness backends
 
-- **Status:** Accepted (2026-11-23); amended 2026-11-23 after review (§4.2 and R2: the wrapper crates are banned too; §4.4: hecs applies deferred changes through `World`, not `CommandBuffer`)
+- **Status:** Accepted (2026-11-23); amended 2026-11-23 after review (§4.2 and R2: the wrapper crates are banned too; §4.4: hecs applies deferred changes through `World`, not `CommandBuffer`; §4.7 and R11: `cargo xtask bench` excludes the spike packages)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** #100
 - **Estimated size:** about 1,300 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_bevy` about 650 with its sparse variant, `spike_ecs_hecs` about 450, bench registration about 60, `deny.toml`, xtask and documents about 120)
@@ -89,7 +89,7 @@ With cargo-deny 0.20, a ban with `wrappers` fails `cargo deny check bans` when a
 
 ### 4.4 Driving the world
 
-- Each `Workload` owns its `World` and any buffers it reuses between steps (entity lists, a command buffer), allocated in `setup` and cleared, not reallocated, in `step`.
+- Each `Workload` owns its `World` and any buffers it reuses between steps (entity lists, a change list), allocated in `setup` with the capacity a step can need (`params.count`) and cleared, not reallocated, in `step`.
 - **bevy_ecs:** every query a step runs MUST be a `QueryState` built in `setup` and kept in the workload, not a `world.query()` call per step. That is bevy's documented way to run a query repeatedly outside a system. Structural changes go through `World` (`entity_mut(e).insert(..)`, `.remove::<..>()`, `despawn(e)`, `spawn(..)`) outside any query iteration. Changes decided inside a query (the `agents` seeker changes and despawns, the `entity_churn` despawns) are collected into a reused `Vec` and applied after the iteration, in the order they were recorded *(my call: bevy's `Commands` needs a `CommandQueue` and a world borrow that conflicts with the running query)*.
 - **bevy_ecs, end of step:** `step` MUST end with `World::clear_trackers()`. Without it, the removal buffers that `remove` and `despawn` write grow across steps, because a schedule is what normally clears them: in the grill's stub, `World::removed::<B>()` held 10, 20, then 30 entities after three `add_remove`-like steps on 10 entities without the call, and none after each step with it. `check_change_ticks` is not called, because nothing reads change detection.
 - **hecs:** queries are `world.query_mut::<Q>()` (or `query::<Q>()` for reads) per step. With `std`, hecs 0.11.2 caches each query type's archetype matches in the `World` (`query_cache`, an `RwLock` over a type map) until the archetypes change, and also offers a workload-held `PreparedQuery<Q>`. The backend MUST NOT use `PreparedQuery`: plain queries are hecs's documented idiom, so each baseline takes its library's recommended path for a repeated query *(maintainer, from the grill)*. A steady-state query run then pays a lock, a type lookup, a downcast and an `Arc` clone, a caveat M3.8 reads the `hecs` rows with. Changes decided inside a query (the `agents` seeker changes and despawns, the `entity_churn` despawns) are collected into a reused `Vec` and applied after the iteration with `World::insert_one`, `remove_one` and `despawn`, in recorded order, as in the bevy backends. Not `hecs::CommandBuffer`: in 0.11.2 a buffered insert is applied as a dynamic bundle with no key, so it skips hecs's cached insert edges and recomputes the target archetype, allocating, on every insert, which is a cost of the buffer and not of the storage (performance review: about 10 inserts per tick at 10,000 agents, 102 at 100,000) *(maintainer, amendment after review)*. Changes outside a query use `World` directly.
@@ -128,6 +128,8 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 - **`spikes/README.md`, Rules:** one line saying that a spike's baseline crate may depend on a competing library for measurement, and that `deny.toml` names each such crate.
 - **`CONTRIBUTING.md`, "Licence and originality", the line on other crates:** add "or as the dependency of a spike's baseline crate that `deny.toml` names".
 - **`xtask/src/coverage.rs`:** both packages join `SPIKE_PACKAGES` and the expected `--exclude` list of `test_args_match_the_spec`.
+- **`xtask/src/main.rs`, `bench_args`:** `cargo xtask bench` excludes every package in `SPIKE_PACKAGES`, not only the two spike bench packages. `hecs` 0.11.2 turns on `hashbrown`'s `inline-more` and `default-hasher` unconditionally, and feature unification over `--workspace` gave the `libs/` benchmarks' `hashbrown` 0.17.1 (under `engine::collections`) both features, where on `main` it has neither (performance review; checked with `cargo tree -e features,normal -i hashbrown@0.17.1` on both). `bench-build` is unchanged: it only compiles, and it builds the spike Criterion package *(maintainer, amendment after review)*.
+- **`spikes/ecs_storage/README.md`, "Running the benchmarks":** one sentence that spike rows from before M3.10 were built without those `hashbrown` features, so rows are compared within one run.
 - **`CHANGELOG.md`:** an entry.
 - **Each crate's `lib.rs` docs:** say that the crate is a measurement baseline on `bevy_ecs` (or `hecs`), with no code taken from it (ADR 0002), and give its version.
 
@@ -143,6 +145,7 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 - **M3.10-R8** `cargo xtask ci` MUST pass, and CI MUST be green on Ubuntu, macOS and Windows without workflow changes.
 - **M3.10-R9** Every public item MUST be documented, and the documents and tooling of §4.7 MUST be updated as described.
 - **M3.10-R10** The pull request MUST show one informal `cargo xtask spike-bench ecs` run, under the benchmark run protocol and labelled informal, with the baseline rows beside `archetype`, `sparse_set` and `hybrid`.
+- **M3.10-R11** `cargo xtask bench` MUST build the `libs/` benchmarks with the same features as on `main`: its command excludes every spike package, and `cargo tree` over its package selection shows no feature of `hashbrown` 0.17.1 turned on.
 
 ## 6. Cross-cutting concerns
 
@@ -184,6 +187,7 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 | R8 | `cargo xtask ci`; the pull request's CI run |
 | R9 | the `review-docs` review; `cargo xtask doc` |
 | R10 | the pull request body; the run's power log in `log.md` |
+| R11 | an xtask unit test that `bench_args` excludes every package in `SPIKE_PACKAGES`; `cargo tree --workspace` with `bench_args`' excludes, `-e features,normal -i hashbrown@0.17.1`, shows no `inline-more` or `default-hasher` (output in `log.md`) |
 
 ## 9. Done when
 
