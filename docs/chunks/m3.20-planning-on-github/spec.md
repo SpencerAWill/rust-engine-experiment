@@ -55,15 +55,16 @@ Priority ranks unscheduled work; Order ranks scheduled work. Neither is read for
 
 ### 4.2 Chunk issues
 
-- Every chunk MUST have exactly one issue, its chunk issue, titled `M<N>.<n>: <title>`. A chunk is scheduled by: giving its issue the next unused chunk ID of the milestone (IDs are never reused; an ID named anywhere, such as M3.12 in #41, counts as used), the milestone, Status Scheduled, an Order, and its "blocked by" links.
+- Every chunk MUST have exactly one issue, its chunk issue, titled `M<N>.<n>: <title>`. A chunk is scheduled by: giving its issue the next unused chunk ID of the milestone, one above the highest ID in any issue title (open or closed), chunk folder (`docs/chunks/m<N>.<n>-*`) or frozen roadmap row (IDs are never reused; #41, which reserves M3.12, is retitled `M3.12: ...` in the migration so the rule sees it) *(main session's call)*, the milestone, Status Scheduled, an Order, and its "blocked by" links.
 - A chunk issue's body meets the Definition of Ready. Text a later chunk must read (such as the caveats in M3.8's roadmap row) goes in its body, linking the logs it comes from.
 - The spec's header `**Issue:**` line names the chunk issue and is no longer optional; the template's "Followed by" convention is replaced by a "blocked by" link or the Order.
+- When the maintainer names work for `/chunk` that is not yet a scheduled chunk issue, naming it is the scheduling: stage 1 gives the issue (creating it if there is none) its chunk ID, the current milestone, Status Scheduled and an Order below the current lowest, and says what it wrote. Otherwise stage 1 writes no Project field: Status Scheduled covers queued and in-flight chunks, and the branch shows which *(main session's call)*.
 - The pull request says `Closes #<chunk issue>`.
 - Sub-issues stay for grouping (an epic such as #78); a tracking issue per milestone is no longer used.
 
 ### 4.3 Chores
 
-A chore is a scheduled issue without a chunk ID: Size S, done as a plain pull request (conventional commit, CI, `Chunk: None (chore, #N)` in the template, a review if not trivial, `Closes #N`), not the seven stages. It has an Order like a chunk. `/chunk next` lists scheduled chores beside the next chunk, and the maintainer picks; an issue bigger than S is scheduled as a chunk.
+A chore is a scheduled issue without a chunk ID, scheduled into the current milestone *(main session's call)*: Size S, done as a plain pull request (conventional commit, CI, `Chunk: None (chore, #N)` in the template, a review if not trivial, `Closes #N`), not the seven stages. It has an Order like a chunk. `/chunk next` lists the current milestone's scheduled chores beside the next chunk, and the maintainer picks; an issue bigger than S is scheduled as a chunk. At a milestone boundary, open chores move to the next milestone (`docs/maintainers.md` checklist).
 
 ### 4.4 Order, dependencies and "next"
 
@@ -72,11 +73,12 @@ A chore is a scheduled issue without a chunk ID: Size S, done as a plain pull re
 - Changing an Order or a dependency of a scheduled item SHOULD come with a one-line comment on the issue saying why, since Project fields have no history *(my call)*.
 - **Current milestone:** the open GitHub milestone with the lowest number in its title (`M3` before `M4`).
 - **Next chunk:** among the open issues in the current milestone whose title has a chunk ID and whose Status is Scheduled, those with no open "blocked by" issue, lowest Order. If none is eligible, `/chunk next` says so, names the milestone-boundary checklist in `docs/maintainers.md` if every chunk of the milestone is closed, and waits, as today.
+- A Scheduled issue in the current milestone with no Order, or a Scheduled issue with no milestone, is not eligible; `/chunk next` lists each such issue as needing a field before it can be next. Scheduled items of later milestones are ignored *(main session's call)*.
 - Every read goes through `gh` (`gh project item-list --limit 1000`, `gh issue view --json`, `gh api --method GET .../dependencies/blocked_by`).
 
 ### 4.5 Milestones in Pulumi
 
-`infra/github/index.ts` declares one `github.RepositoryMilestone` per open milestone, M3 to M9: title `M<N>`, description the milestone's goal in one line plus a link to `docs/roadmap.md#milestones`, state `open`. Done milestones (M0+M1, M2) are not created. A milestone is closed by changing its `state` to `closed` in the milestone-boundary checklist. The maintainer runs `pulumi up` after the merge, as for labels.
+`infra/github/index.ts` declares one `github.RepositoryMilestone` per open milestone, M3 to M9: title `M<N>`, description the milestone's goal in one line plus a link to `docs/roadmap.md#milestones`, state `open`. Done milestones (M0+M1, M2) are not created. Pulumi creates them and ignores later changes to `state` (`ignoreChanges: ["state"]`), so closing a milestone at its boundary is one command in the checklist (`gh api --method PATCH repos/<owner>/<repo>/milestones/<number> -f state=closed`), not a pull request *(main session's call)*. The maintainer runs `pulumi up`, as for labels (§4.8).
 
 ### 4.6 The roadmap file
 
@@ -100,10 +102,11 @@ These writes change GitHub, not the repository, so they are not in the pull requ
 
 - **Before the pull request** (so the pull request can close it): this chunk's own issue, `M3.20: Planning state on GitHub`, created with the Definition of Ready headings and added to the Project; and the `Order` number field created on the Project (`gh project field-create`).
 - **After the merge**, once the maintainer has run `pulumi up` (milestones exist), as one checklist in the plan, each item checked by reading it back:
-  1. Chunk issues for M3.10, M3.7 and M3.8, their bodies from their roadmap rows (M3.8's caveats with their log links), Status Scheduled, milestone M3, Orders 10 (M3.10), 20 (M3.7), 30 (M3.8), and M3.8 blocked by the other two.
+  1. Chunk issues for M3.10, M3.7 and M3.8, their bodies in the Definition of Ready headings: the problem and proposal from the roadmap row's text (M3.8's caveats with their log links), the outcome and verification from the row and the M3 exit criteria, the dependencies from the row; no design beyond the row *(main session's call)*; Status Scheduled, milestone M3, Orders 10 (M3.10), 20 (M3.7), 30 (M3.8), and M3.8 blocked by the other two.
   2. Milestone M3 on every open direct sub-issue of #66, milestone M4 on every open direct sub-issue of #67, and M3 on this chunk's issue; any other issue gets a milestone only when it is scheduled. A milestone says where an issue belongs; only Status Scheduled makes it eligible to be next.
-  3. #66 and #67 closed as completed, each with a comment that milestones replace them.
-  4. The "Next up" view: created by the maintainer in the browser (views are not settable through `gh`), as `docs/maintainers.md` describes.
+  3. #41 retitled `M3.12: ...` (§4.2), unscheduled.
+  4. #66 and #67 closed as completed, each with a comment that milestones replace them.
+  5. The "Next up" view: created by the maintainer in the browser (views are not settable through `gh`), as `docs/maintainers.md` describes.
 
 If the pull request is abandoned, only the two "before" writes exist, and both are removed.
 
@@ -113,7 +116,7 @@ If the pull request is abandoned, only the two "before" writes exist, and both a
 - **M3.20-R2** `/chunk next` MUST select the next chunk by §4.4 from GitHub, list the scheduled chores, and stop with the milestone checklist when none is eligible.
 - **M3.20-R3** No stage of `/chunk` and no skill MUST read or write the roadmap file for order or status.
 - **M3.20-R4** `/triage`'s field check MUST include `Order` as a number field, and `/triage` MUST still never set Status Scheduled or Order.
-- **M3.20-R5** `infra/github/index.ts` MUST declare milestones M3 to M9 (§4.5), and `pulumi preview` MUST show seven milestones to create and nothing else changing.
+- **M3.20-R5** `infra/github/index.ts` MUST declare milestones M3 to M9 (§4.5), and `pulumi preview` MUST show seven milestones to create; any other difference it shows is recorded in `log.md`, not fixed by this chunk.
 - **M3.20-R6** `docs/roadmap.md` MUST have the shape of §4.6, with every heading anchor that existing documents link to still resolving.
 - **M3.20-R7** Every file of §4.7 MUST name GitHub, not the roadmap, as the place of scheduled work, order and status; historical documents MUST be unchanged.
 - **M3.20-R8** The spec template's `**Issue:**` line MUST be required, and the PR template MUST name chores.
