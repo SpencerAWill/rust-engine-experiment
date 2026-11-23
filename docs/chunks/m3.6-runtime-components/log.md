@@ -1,6 +1,6 @@
 # M3.6 log: Runtime-registered components in safe byte columns
 
-- **Status:** Living (2026-11-22)
+- **Status:** Historical: PR #94 (2026-11-23)
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>

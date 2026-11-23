@@ -1,6 +1,6 @@
 # M3.6 plan: Runtime-registered components in safe byte columns
 
-- **Status:** Accepted (2026-11-22)
+- **Status:** Historical: executed in PR #94 (2026-11-23); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

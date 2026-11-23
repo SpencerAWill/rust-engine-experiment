@@ -1,6 +1,6 @@
 # M3.6: Runtime-registered components in safe byte columns
 
-- **Status:** Accepted (2026-11-22)
+- **Status:** Implemented (PR #94, 2026-11-23)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.3, M3.4, M3.5 · **Decides:** no ADR
 - **Followed by:** M3.10, the bevy_ecs and hecs baselines (maintainer, 2026-11-22)
 - **Issue:** none (tracking issue #66)
@@ -211,9 +211,9 @@ Each backend MUST pass `check_conformance` against `vec_aos` with the ticks the 
 
 ## 9. Done when
 
-- [ ] R1 to R15 have their evidence.
-- [ ] `cargo xtask ci` passes on the final commit.
-- [ ] `spikes/ecs_storage/README.md` updated; the M3.8 roadmap row carries this chunk's caveats; the roadmap row reads `Done (PR #n)`.
+- [x] R1 to R15 have their evidence (log.md; R12's cache-bench size assertion needs Valgrind, #74; R14 quoted in PR #94).
+- [x] `cargo xtask ci` passes on the final code commit (ee25b7f, code as of 4056036; log.md). CI on the pull request: pending.
+- [x] `spikes/ecs_storage/README.md` updated; the M3.8 roadmap row carries this chunk's caveats; the roadmap row reads `Done (PR #94)`.
 
 ## 10. Open questions
 
