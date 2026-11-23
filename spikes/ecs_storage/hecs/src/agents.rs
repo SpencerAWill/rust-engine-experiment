@@ -83,7 +83,7 @@ impl Workload for HecsAgents {
     fn setup(params: Params) -> Self {
         let mut w = Self {
             world: World::new(),
-            changes: Vec::new(),
+            changes: Vec::with_capacity(params.count),
             prng: Prng::from_seed(params.seed),
             next_id: 0,
             tick: 0,

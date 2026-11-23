@@ -44,7 +44,7 @@ impl Workload for HecsEntityChurn {
     fn setup(params: Params) -> Self {
         let mut w = Self {
             world: World::new(),
-            despawns: Vec::new(),
+            despawns: Vec::with_capacity(params.count),
             prng: Prng::from_seed(params.seed),
             next_id: 0,
             count: params.count,

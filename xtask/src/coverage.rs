@@ -43,7 +43,7 @@ fn clean_args() -> Vec<String> {
 
 /// The packages of the spikes (`spikes/`): prototypes and their harness, not engine code. Their
 /// tests are conformance checks, which CI runs without instrumentation.
-const SPIKE_PACKAGES: &[&str] = &[
+pub(crate) const SPIKE_PACKAGES: &[&str] = &[
     "spike_ecs_harness",
     "spike_ecs_vec",
     "spike_ecs_sparse_set",
