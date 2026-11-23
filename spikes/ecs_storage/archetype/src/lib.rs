@@ -18,11 +18,17 @@ pub mod add_remove;
 pub mod agents;
 mod archetype;
 mod bundle;
+pub mod bytes_add_remove;
+pub mod bytes_frag_iter;
+pub mod bytes_simple_iter;
+mod codec;
 mod commands;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
+mod raw;
+mod raw_query;
 pub mod simple_iter;
 pub mod sprites;
 mod table;
@@ -33,10 +39,14 @@ mod tests;
 
 use engine::genid::GenId;
 
+pub use archetype::ComponentId;
 pub use bundle::Bundle;
+pub use codec::Codec;
 pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
-pub use world::{InvariantViolation, World};
+pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};
+pub use raw_query::{RawQuery, RawQueryError, RawRun, RawRunMut, RawTable};
+pub use world::{InvariantViolation, RawError, World};
 
 /// The marker type of [`Entity`] IDs.
 #[derive(Debug)]

@@ -9,8 +9,13 @@ use engine::genid::GenIdAllocator;
 use crate::archetype::{Archetype, ArchetypeId, ComponentId};
 use crate::bundle::{self, Bundle, BundleInfo};
 use crate::query::{Query, QueryMut, QueryParam, ReadOnly};
-use crate::table::{Column, ErasedColumn, Table};
+use crate::raw::{ByteColumn, RawLayout};
+use crate::table::{Column, ColumnDesc, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
+
+mod raw;
+
+pub use raw::RawError;
 
 /// An internal invariant of a [`World`] does not hold, which would be a bug in the prototype.
 /// Returned by [`World::check_invariants`].
@@ -48,13 +53,50 @@ impl Location {
     };
 }
 
-/// What the world knows about one component type.
+/// Which kind of component an id names, and what that kind needs to make and check a column.
+#[derive(Debug)]
+pub(crate) enum ComponentKind {
+    /// A Rust type, found by its `TypeId`.
+    Rust {
+        type_id: TypeId,
+        /// Creates an empty column of this type, for a new archetype that has it.
+        new_column: fn() -> Box<dyn ErasedColumn>,
+    },
+    /// A runtime-registered component of this layout, stored in a byte column.
+    Raw(RawLayout),
+}
+
+/// What the world knows about one component.
 #[derive(Debug)]
 pub(crate) struct ComponentInfo {
-    pub(crate) type_id: TypeId,
-    pub(crate) name: &'static str,
-    /// Creates an empty column of this type, for a new archetype that has it.
-    pub(crate) new_column: fn() -> Box<dyn ErasedColumn>,
+    pub(crate) kind: ComponentKind,
+    pub(crate) name: Box<str>,
+}
+
+impl ComponentInfo {
+    /// An empty column for a new archetype that has this component.
+    fn new_column(&self) -> Box<dyn ErasedColumn> {
+        match &self.kind {
+            ComponentKind::Rust { new_column, .. } => new_column(),
+            ComponentKind::Raw(layout) => Box::new(ByteColumn::new(*layout)),
+        }
+    }
+
+    /// The `TypeId` of a Rust type's component, `None` for a raw one.
+    fn type_id(&self) -> Option<TypeId> {
+        match &self.kind {
+            ComponentKind::Rust { type_id, .. } => Some(*type_id),
+            ComponentKind::Raw(_) => None,
+        }
+    }
+
+    /// What this component's column must report (T2).
+    fn desc(&self) -> ColumnDesc {
+        match &self.kind {
+            ComponentKind::Rust { type_id, .. } => ColumnDesc::Typed(*type_id),
+            ComponentKind::Raw(layout) => ColumnDesc::Raw(*layout),
+        }
+    }
 }
 
 /// Entities and their components. Each distinct set of component types has its own table, and
@@ -353,7 +395,7 @@ impl World {
         QueryMut::new(self)
     }
 
-    /// Checks the table invariants (T1, T2), the archetype invariants (A1 to A4) and the bundle
+    /// Checks the table invariants (T1, T2, T3), the archetype invariants (A1 to A4) and the bundle
     /// invariant (B1), and returns the first violation.
     ///
     /// # Errors
@@ -362,12 +404,12 @@ impl World {
     pub fn check_invariants(&self) -> Result<(), InvariantViolation> {
         self.check_identity()?;
         for archetype in &self.archetypes {
-            let types: Vec<TypeId> = archetype
+            let descs: Vec<ColumnDesc> = archetype
                 .components
                 .iter()
-                .map(|c| self.components[c.index()].type_id)
+                .map(|c| self.components[c.index()].desc())
                 .collect();
-            archetype.table.check(&types)?;
+            archetype.table.check(&descs)?;
         }
         self.check_locations()?;
         self.check_edges()?;
@@ -383,10 +425,11 @@ impl World {
                     info.archetype.index()
                 )));
             };
-            let type_of = |c: ComponentId| self.components[c.index()].type_id;
-            let mut want: Vec<TypeId> = info.types.to_vec();
+            let type_of = |c: ComponentId| self.components[c.index()].type_id();
+            let mut want: Vec<Option<TypeId>> = info.types.iter().map(|t| Some(*t)).collect();
             want.sort_unstable();
-            let mut have: Vec<TypeId> = archetype.components.iter().map(|c| type_of(*c)).collect();
+            let mut have: Vec<Option<TypeId>> =
+                archetype.components.iter().map(|c| type_of(*c)).collect();
             have.sort_unstable();
             if want != have {
                 return Err(InvariantViolation::new(format!(
@@ -399,7 +442,7 @@ impl World {
                 let ok = archetype
                     .components
                     .get(*col)
-                    .is_some_and(|c| type_of(*c) == *type_id);
+                    .is_some_and(|c| type_of(*c) == Some(*type_id));
                 if !ok {
                     return Err(InvariantViolation::new(format!(
                         "B1: element {k} of a bundle is cached at column {col} of archetype {}, \
@@ -538,18 +581,31 @@ impl World {
         &mut self.archetypes
     }
 
+    /// The id the next registered component gets.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the world already holds `u32::MAX + 1` component ids.
+    #[track_caller]
+    fn next_component_id(&self) -> ComponentId {
+        ComponentId::new(u32::try_from(self.components.len()).expect(
+            "World: the world holds the most component ids it can \
+             (u32::MAX + 1 registered components); register fewer components",
+        ))
+    }
+
     /// The id of `T`, registering it on first use.
     pub(crate) fn register<T: 'static>(&mut self) -> ComponentId {
         if let Some(id) = self.component_id::<T>() {
             return id;
         }
-        let id = ComponentId::new(
-            u32::try_from(self.components.len()).expect("fewer than u32::MAX component types"),
-        );
+        let id = self.next_component_id();
         self.components.push(ComponentInfo {
-            type_id: TypeId::of::<T>(),
-            name: core::any::type_name::<T>(),
-            new_column: || Box::new(Column::<T>::new()),
+            kind: ComponentKind::Rust {
+                type_id: TypeId::of::<T>(),
+                new_column: || Box::new(Column::<T>::new()),
+            },
+            name: core::any::type_name::<T>().into(),
         });
         self.ids.insert(TypeId::of::<T>(), id);
         id
@@ -639,7 +695,7 @@ impl World {
         }
         let columns: Box<[Box<dyn ErasedColumn>]> = components
             .iter()
-            .map(|c| (self.components[c.index()].new_column)())
+            .map(|c| self.components[c.index()].new_column())
             .collect();
         let id = ArchetypeId::new(self.archetypes.len());
         self.archetypes
@@ -679,7 +735,7 @@ impl fmt::Debug for World {
                 let names = a
                     .components
                     .iter()
-                    .map(|c| self.components[c.index()].name)
+                    .map(|c| &*self.components[c.index()].name)
                     .collect();
                 (names, a.table.len())
             })

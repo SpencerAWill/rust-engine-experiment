@@ -20,6 +20,7 @@ indexmap = { version = "2.14", default-features = false }  # the backend of engi
 foldhash = { version = "0.2", default-features = false }  # fixed-seed hasher of engine::collections only
 proptest = { version = "1", default-features = false, features = ["std"] }  # no fork/timeout: WASI (spec §4.7)
 gungraun = { version = "=0.20.0", default-features = true }  # exact pin: gungraun-runner must match the library version (M2.4 spec §4.1)
+bytemuck = { version = "=1.25.2", features = ["derive"] }  # `Pod` casts for the M3.6 byte columns, spike only
 
 [workspace.lints.rust]
 unsafe_code = "deny"

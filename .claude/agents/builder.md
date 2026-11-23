@@ -12,6 +12,7 @@ You build one step of a chunk. The main session gives you: the plan step, the sp
 - **Verify.** Run the step's verification command and read its output. Report what it printed, not what you expect.
 - **Do not commit, push or rewrite history**, and do not `git stash`, `reset` or `checkout` files: the working tree is shared, and the main session may have uncommitted work in it. To compare with the last commit, use `git diff HEAD` or `git show HEAD:<path>`. The main session checks and commits.
 - **Log as you go.** Append to the chunk's `log.md`, one or two lines each, `- <date> <tag> <text>`, tag one of `done`, `decision`, `surprise`, `dead-end`, `lesson?`. Write a `lesson?` line when something non-obvious would bite the next agent.
+- **Shell.** Never run a command that waits on stdin (`cat > file` with no input): a hung shell can hold a queued heredoc that later overwrites your work. Write and edit files with the Write and Edit tools, not `sed -i` (macOS BSD `sed` breaks on `\n` and `/` in patterns). Redirect long commands such as `cargo xtask ci --quick` to a file in the scratchpad (they outlast the tool's two-minute timeout) and read the exit status. Before you report, check that none of your shells is still running (`pgrep -fl "cat$|python3 -$"`). (M3.6)
 - **Lessons.** Follow the lessons you were given; if you deviate, say which and why in your report and in `log.md`.
 
 Report (under 300 words): what changed (files), the verification output, deviations from the step, and your `log.md` lines.

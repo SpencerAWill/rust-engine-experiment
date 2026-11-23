@@ -11,9 +11,16 @@ use core::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use spike_ecs_archetype::{
-    add_remove::ArchetypeAddRemove, agents::ArchetypeAgents, entity_churn::ArchetypeEntityChurn,
-    frag_iter::ArchetypeFragIter, heavy_compute::ArchetypeHeavyCompute,
-    simple_iter::ArchetypeSimpleIter, sprites::ArchetypeSprites,
+    add_remove::ArchetypeAddRemove,
+    agents::ArchetypeAgents,
+    bytes_add_remove::{BytesCastAddRemove, BytesCopyAddRemove},
+    bytes_frag_iter::{BytesCastFragIter, BytesCopyFragIter},
+    bytes_simple_iter::{BytesCastSimpleIter, BytesCopySimpleIter},
+    entity_churn::ArchetypeEntityChurn,
+    frag_iter::ArchetypeFragIter,
+    heavy_compute::ArchetypeHeavyCompute,
+    simple_iter::ArchetypeSimpleIter,
+    sprites::ArchetypeSprites,
 };
 use spike_ecs_dense::{
     add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
@@ -89,6 +96,12 @@ fn compare(c: &mut Criterion) {
     bench::<ArchetypeEntityChurn>(c);
     bench::<ArchetypeSprites>(c);
     bench::<ArchetypeAgents>(c);
+    bench::<BytesCopySimpleIter>(c);
+    bench::<BytesCastSimpleIter>(c);
+    bench::<BytesCopyFragIter>(c);
+    bench::<BytesCastFragIter>(c);
+    bench::<BytesCopyAddRemove>(c);
+    bench::<BytesCastAddRemove>(c);
     bench::<DenseSimpleIter>(c);
     bench::<DenseFragIter>(c);
     bench::<DenseHeavyCompute>(c);
