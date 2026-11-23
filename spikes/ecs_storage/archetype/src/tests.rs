@@ -279,6 +279,21 @@ fn run(ops: &[Op]) {
     }
 }
 
+/// `value` encoded into a buffer pre-filled with junk, then decoded.
+fn round_trip<T: crate::Codec>(value: &T) -> T {
+    let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
+    value.encode(&mut bytes);
+    T::decode(&bytes)
+}
+
+/// A workload with no entities checksums to 0 and survives a step.
+fn zero_count<W: spike_ecs_harness::Workload>() {
+    let mut w = W::setup(spike_ecs_harness::Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
 proptest! {
     #[test]
     fn world_matches_the_model(ops in prop::collection::vec(op(), 0..64)) {
@@ -1047,12 +1062,7 @@ mod workloads {
         }
     }
 
-    fn zero_count<W: Workload>() {
-        let mut w = W::setup(Params { count: 0, seed: 7 });
-        assert_eq!(w.checksum(), 0);
-        w.step();
-        assert_eq!(w.checksum(), 0);
-    }
+    use super::zero_count;
 
     #[test]
     fn zero_count_is_valid() {
@@ -1073,6 +1083,7 @@ mod bytes_simple_iter {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::simple_iter::VecSimpleIter;
 
+    use super::{round_trip, zero_count};
     use crate::Codec;
     use crate::archetype::ArchetypeId;
     use crate::bytes_simple_iter::{BytesCastSimpleIter, BytesCopySimpleIter};
@@ -1090,12 +1101,6 @@ mod bytes_simple_iter {
 
     fn vec3_from_bits(bits: [u32; 3]) -> Vec3 {
         Vec3::from_array(bits.map(f32::from_bits))
-    }
-
-    fn round_trip<T: Codec>(value: &T) -> T {
-        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
-        value.encode(&mut bytes);
-        T::decode(&bytes)
     }
 
     proptest! {
@@ -1178,12 +1183,6 @@ mod bytes_simple_iter {
 
     #[test]
     fn zero_count_is_valid_bytes_simple_iter() {
-        fn zero_count<W: Workload>() {
-            let mut w = W::setup(Params { count: 0, seed: 7 });
-            assert_eq!(w.checksum(), 0);
-            w.step();
-            assert_eq!(w.checksum(), 0);
-        }
         zero_count::<BytesCopySimpleIter>();
         zero_count::<BytesCastSimpleIter>();
     }
@@ -1195,7 +1194,7 @@ mod bytes_add_remove {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;
 
-    use crate::Codec;
+    use super::{round_trip, zero_count};
     use crate::add_remove::ArchetypeAddRemove;
     use crate::archetype::ArchetypeId;
     use crate::bytes_add_remove::{BytesCastAddRemove, BytesCopyAddRemove};
@@ -1205,12 +1204,6 @@ mod bytes_add_remove {
         seed: 42,
     };
     const TICKS: u64 = 120;
-
-    fn round_trip<T: Codec>(value: &T) -> T {
-        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
-        value.encode(&mut bytes);
-        T::decode(&bytes)
-    }
 
     proptest! {
         #[test]
@@ -1262,12 +1255,6 @@ mod bytes_add_remove {
 
     #[test]
     fn zero_count_is_valid_bytes_add_remove() {
-        fn zero_count<W: Workload>() {
-            let mut w = W::setup(Params { count: 0, seed: 7 });
-            assert_eq!(w.checksum(), 0);
-            w.step();
-            assert_eq!(w.checksum(), 0);
-        }
         zero_count::<BytesCopyAddRemove>();
         zero_count::<BytesCastAddRemove>();
     }
@@ -1279,7 +1266,7 @@ mod bytes_frag_iter {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::frag_iter::VecFragIter;
 
-    use crate::Codec;
+    use super::{round_trip, zero_count};
     use crate::archetype::ArchetypeId;
     use crate::bytes_frag_iter::{BytesCastFragIter, BytesCopyFragIter};
     use crate::frag_iter::ArchetypeFragIter;
@@ -1289,12 +1276,6 @@ mod bytes_frag_iter {
         seed: 42,
     };
     const TICKS: u64 = 120;
-
-    fn round_trip<T: Codec>(value: &T) -> T {
-        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
-        value.encode(&mut bytes);
-        T::decode(&bytes)
-    }
 
     proptest! {
         #[test]
@@ -1350,12 +1331,6 @@ mod bytes_frag_iter {
 
     #[test]
     fn zero_count_is_valid_bytes_frag_iter() {
-        fn zero_count<W: Workload>() {
-            let mut w = W::setup(Params { count: 0, seed: 7 });
-            assert_eq!(w.checksum(), 0);
-            w.step();
-            assert_eq!(w.checksum(), 0);
-        }
         zero_count::<BytesCopyFragIter>();
         zero_count::<BytesCastFragIter>();
     }

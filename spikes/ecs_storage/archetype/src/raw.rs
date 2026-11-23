@@ -267,12 +267,12 @@ impl ByteColumn {
             "ByteColumn::push got a value of the wrong size; this is a bug in the prototype"
         );
         let start = self.len * self.layout.size;
-        let need = (start + self.layout.size).div_ceil(BLOCK);
+        let end = start + self.layout.size;
+        let need = end.div_ceil(BLOCK);
         if need > self.blocks.len() {
-            self.blocks.reserve(need - self.blocks.len());
+            // `resize` grows the capacity amortized, so no separate `reserve`.
             self.blocks.resize(need, Block::zeroed());
         }
-        let end = start + self.layout.size;
         copy_value(&mut self.all_bytes_mut()[start..end], bytes);
         self.len += 1;
     }

@@ -222,10 +222,9 @@ impl<'w> RawRun<'w, '_> {
             slots.resize_with(query.fetches.len(), || Slot::Vacant);
             for (index, view) in columns {
                 let id = archetype.components[index];
-                for (k, (fetched, _)) in query.fetches.iter().enumerate() {
-                    if *fetched == id {
-                        slots[k] = Slot::Read(view);
-                    }
+                // Each column belongs to at most one fetch, since a query names an id once.
+                if let Some(k) = query.fetches.iter().position(|(fetched, _)| *fetched == id) {
+                    slots[k] = Slot::Read(view);
                 }
             }
             f(RawTable {

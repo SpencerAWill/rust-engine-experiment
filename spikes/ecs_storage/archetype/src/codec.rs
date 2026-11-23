@@ -33,6 +33,28 @@ pub(crate) const fn layout(size: usize, align: usize) -> RawLayout {
     }
 }
 
+/// The layout of a newtype over one `f32`.
+pub(crate) const F32_LAYOUT: RawLayout = layout(4, 4);
+
+/// Implements [`Codec`] for each newtype over one `f32`.
+macro_rules! f32_codec {
+    ($($name:ty),* $(,)?) => {$(
+        impl $crate::codec::Codec for $name {
+            const LAYOUT: $crate::raw::RawLayout = $crate::codec::F32_LAYOUT;
+
+            fn encode(&self, out: &mut [u8]) {
+                $crate::codec::write_f32s(&[self.0], out);
+            }
+
+            fn decode(bytes: &[u8]) -> Self {
+                let [value] = $crate::codec::read_f32s(bytes);
+                Self(value)
+            }
+        }
+    )*};
+}
+pub(crate) use f32_codec;
+
 /// Writes `values` as little-endian `f32`s into the first `4 * N` bytes of `out`.
 ///
 /// The slice is cut to its exact length once, so the copy loop has a constant trip count and

@@ -581,14 +581,19 @@ impl World {
         &mut self.archetypes
     }
 
+    /// The id the next registered component gets.
+    fn next_component_id(&self) -> ComponentId {
+        ComponentId::new(
+            u32::try_from(self.components.len()).expect("fewer than u32::MAX component types"),
+        )
+    }
+
     /// The id of `T`, registering it on first use.
     pub(crate) fn register<T: 'static>(&mut self) -> ComponentId {
         if let Some(id) = self.component_id::<T>() {
             return id;
         }
-        let id = ComponentId::new(
-            u32::try_from(self.components.len()).expect("fewer than u32::MAX component types"),
-        );
+        let id = self.next_component_id();
         self.components.push(ComponentInfo {
             kind: ComponentKind::Rust {
                 type_id: TypeId::of::<T>(),

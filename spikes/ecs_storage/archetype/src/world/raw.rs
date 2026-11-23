@@ -79,13 +79,6 @@ impl World {
         id
     }
 
-    /// The id the next registered component gets.
-    fn next_component_id(&self) -> ComponentId {
-        ComponentId::new(
-            u32::try_from(self.components.len()).expect("fewer than u32::MAX component types"),
-        )
-    }
-
     /// The layout of raw component `id`.
     pub(crate) fn raw_layout(&self, id: ComponentId) -> Result<RawLayout, RawError> {
         match self.components.get(id.index()).map(|c| &c.kind) {

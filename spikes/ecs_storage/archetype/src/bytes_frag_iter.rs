@@ -14,43 +14,14 @@ use spike_ecs_harness::frag_iter::{
 };
 use spike_ecs_harness::{Params, Workload};
 
-use crate::codec::{Codec, layout, read_f32s, write_f32s};
-use crate::raw::RawLayout;
+use crate::codec::{Codec, F32_LAYOUT, f32_codec};
 use crate::{ComponentId, RawQuery, RawTable, World};
 
-const F32_LAYOUT: RawLayout = layout(4, 4);
-
-/// Implements [`Codec`] for a newtype over one `f32`, and defines the two functions that need
-/// one arm per letter type.
+/// Implements [`Codec`] for `Data` and each letter type, and defines the two functions that
+/// need one arm per letter type.
 macro_rules! per_letter {
     ($($name:ident = $index:literal),+ $(,)?) => {
-        impl Codec for Data {
-            const LAYOUT: RawLayout = F32_LAYOUT;
-
-            fn encode(&self, out: &mut [u8]) {
-                write_f32s(&[self.0], out);
-            }
-
-            fn decode(bytes: &[u8]) -> Self {
-                let [value] = read_f32s(bytes);
-                Self(value)
-            }
-        }
-
-        $(
-            impl Codec for $name {
-                const LAYOUT: RawLayout = F32_LAYOUT;
-
-                fn encode(&self, out: &mut [u8]) {
-                    write_f32s(&[self.0], out);
-                }
-
-                fn decode(bytes: &[u8]) -> Self {
-                    let [value] = read_f32s(bytes);
-                    Self(value)
-                }
-            }
-        )+
+        f32_codec!(Data, $($name),+);
 
         /// The letter's payload encoded through its [`Codec`].
         fn encode_letter(letter: &Letter) -> [u8; 4] {
