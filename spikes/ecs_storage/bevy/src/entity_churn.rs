@@ -78,12 +78,14 @@ impl Workload for BevyEntityChurn {
     fn step(&mut self) {
         self.expired.clear();
         let expired = &mut self.expired;
-        for (e, mut position, velocity, mut lifetime) in self.step.iter_mut(&mut self.world) {
-            rules::update(&mut position.0, &velocity.0, &mut lifetime.0);
-            if rules::is_expired(&lifetime.0) {
-                expired.push(e);
-            }
-        }
+        self.step.iter_mut(&mut self.world).for_each(
+            |(e, mut position, velocity, mut lifetime)| {
+                rules::update(&mut position.0, &velocity.0, &mut lifetime.0);
+                if rules::is_expired(&lifetime.0) {
+                    expired.push(e);
+                }
+            },
+        );
         for &e in &self.expired {
             self.world.despawn(e);
         }

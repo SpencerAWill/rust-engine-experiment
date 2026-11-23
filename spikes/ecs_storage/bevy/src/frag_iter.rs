@@ -93,9 +93,9 @@ impl Workload for BevyFragIter {
     }
 
     fn step(&mut self) {
-        for mut data in self.step.iter_mut(&mut self.world) {
-            rules::update(&mut data.0);
-        }
+        self.step
+            .iter_mut(&mut self.world)
+            .for_each(|mut data| rules::update(&mut data.0));
         self.world.clear_trackers();
     }
 

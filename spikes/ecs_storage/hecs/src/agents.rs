@@ -87,35 +87,38 @@ impl Workload for HecsAgents {
         let cursor = Input::scripted(self.tick).cursor;
         let dt = self.dt;
         let commands = &mut self.commands;
-        for (e, transform, velocity, ttl, seeker) in self.world.query_mut::<(
-            Entity,
-            &mut Transform2d,
-            &mut Velocity,
-            &mut Ttl,
-            Option<&mut Seeker>,
-        )>() {
-            let before = seeker.as_deref().copied();
-            let mut local = before;
-            rules::update(
-                transform,
-                &mut velocity.0,
-                &mut ttl.0,
-                &mut local,
-                cursor,
-                dt,
-            );
-            // The seeker change is recorded before the despawn, so an agent caught and
-            // expired in the same tick has its removal run first and the despawn last.
-            match (before, local, seeker) {
-                (Some(_), Some(new), Some(slot)) => *slot = new,
-                (Some(_), None, _) => commands.remove_one::<Seeker>(e),
-                (None, Some(new), _) => commands.insert_one(e, new),
-                _ => {}
-            }
-            if ttl.0 == 0 {
-                commands.despawn(e);
-            }
-        }
+        self.world
+            .query_mut::<(
+                Entity,
+                &mut Transform2d,
+                &mut Velocity,
+                &mut Ttl,
+                Option<&mut Seeker>,
+            )>()
+            .into_iter()
+            .for_each(|(e, transform, velocity, ttl, seeker)| {
+                let before = seeker.as_deref().copied();
+                let mut local = before;
+                rules::update(
+                    transform,
+                    &mut velocity.0,
+                    &mut ttl.0,
+                    &mut local,
+                    cursor,
+                    dt,
+                );
+                // The seeker change is recorded before the despawn, so an agent caught and
+                // expired in the same tick has its removal run first and the despawn last.
+                match (before, local, seeker) {
+                    (Some(_), Some(new), Some(slot)) => *slot = new,
+                    (Some(_), None, _) => commands.remove_one::<Seeker>(e),
+                    (None, Some(new), _) => commands.insert_one(e, new),
+                    _ => {}
+                }
+                if ttl.0 == 0 {
+                    commands.despawn(e);
+                }
+            });
         self.commands.run_on(&mut self.world);
         self.respawn();
         self.tick += 1;

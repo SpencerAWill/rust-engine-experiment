@@ -45,9 +45,11 @@ impl Workload for HecsAddRemove {
     fn step(&mut self) {
         // Two separate passes: every insert happens before the first removal (spec 4.4.4).
         self.with_a.clear();
-        for (e, a) in self.world.query_mut::<(Entity, &A)>() {
-            self.with_a.push((e, *a));
-        }
+        let with_a = &mut self.with_a;
+        self.world
+            .query_mut::<(Entity, &A)>()
+            .into_iter()
+            .for_each(|(e, a)| with_a.push((e, *a)));
         for &(e, a) in &self.with_a {
             self.world
                 .insert_one(e, rules::make_b(&a))
@@ -55,8 +57,12 @@ impl Workload for HecsAddRemove {
         }
 
         self.with_b.clear();
-        self.with_b
-            .extend(self.world.query_mut::<Entity>().with::<&B>());
+        let with_b = &mut self.with_b;
+        self.world
+            .query_mut::<Entity>()
+            .with::<&B>()
+            .into_iter()
+            .for_each(|e| with_b.push(e));
         for &e in &self.with_b {
             self.world.remove_one::<B>(e).expect("the entity has a B");
         }

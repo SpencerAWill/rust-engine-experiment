@@ -62,14 +62,16 @@ impl Workload for BevySprites {
 
     fn step(&mut self) {
         let dt = self.dt;
-        for (mut transform, velocity) in self.moves.iter_mut(&mut self.world) {
-            rules::update(&mut transform.0, &velocity.0, dt);
-        }
+        self.moves
+            .iter_mut(&mut self.world)
+            .for_each(|(mut transform, velocity)| {
+                rules::update(&mut transform.0, &velocity.0, dt);
+            });
         self.draw_list.clear();
-        for (transform, sprite) in self.draw.iter(&self.world) {
-            self.draw_list
-                .push(rules::draw_item(&transform.0, &sprite.0));
-        }
+        let draw_list = &mut self.draw_list;
+        self.draw.iter(&self.world).for_each(|(transform, sprite)| {
+            draw_list.push(rules::draw_item(&transform.0, &sprite.0));
+        });
         self.world.clear_trackers();
     }
 

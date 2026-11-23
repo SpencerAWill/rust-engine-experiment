@@ -135,30 +135,31 @@ impl Workload for BevyAgents {
         let dt = self.dt;
         self.changes.clear();
         let changes = &mut self.changes;
-        for (e, mut transform, mut velocity, mut ttl, seeker) in self.step.iter_mut(&mut self.world)
-        {
-            let before = seeker.as_deref().map(|s| s.0);
-            let mut local = before;
-            rules::update(
-                &mut transform.0,
-                &mut velocity.0.0,
-                &mut ttl.0.0,
-                &mut local,
-                cursor,
-                dt,
-            );
-            // The seeker change is recorded before the despawn, so an agent caught and
-            // expired in the same tick has its removal applied first and the despawn last.
-            match (before, local, seeker) {
-                (Some(_), Some(new), Some(mut slot)) => slot.0 = new,
-                (Some(_), None, _) => changes.push(Change::RemoveSeeker(e)),
-                (None, Some(new), _) => changes.push(Change::InsertSeeker(e, new)),
-                _ => {}
-            }
-            if ttl.0.0 == 0 {
-                changes.push(Change::Despawn(e));
-            }
-        }
+        self.step.iter_mut(&mut self.world).for_each(
+            |(e, mut transform, mut velocity, mut ttl, seeker)| {
+                let before = seeker.as_deref().map(|s| s.0);
+                let mut local = before;
+                rules::update(
+                    &mut transform.0,
+                    &mut velocity.0.0,
+                    &mut ttl.0.0,
+                    &mut local,
+                    cursor,
+                    dt,
+                );
+                // The seeker change is recorded before the despawn, so an agent caught and
+                // expired in the same tick has its removal applied first and the despawn last.
+                match (before, local, seeker) {
+                    (Some(_), Some(new), Some(mut slot)) => slot.0 = new,
+                    (Some(_), None, _) => changes.push(Change::RemoveSeeker(e)),
+                    (None, Some(new), _) => changes.push(Change::InsertSeeker(e, new)),
+                    _ => {}
+                }
+                if ttl.0.0 == 0 {
+                    changes.push(Change::Despawn(e));
+                }
+            },
+        );
         for &change in &self.changes {
             match change {
                 Change::RemoveSeeker(e) => {
@@ -309,30 +310,31 @@ impl Workload for BevySparseAgents {
         let dt = self.dt;
         self.changes.clear();
         let changes = &mut self.changes;
-        for (e, mut transform, mut velocity, mut ttl, seeker) in self.step.iter_mut(&mut self.world)
-        {
-            let before = seeker.as_deref().map(|s| s.0);
-            let mut local = before;
-            rules::update(
-                &mut transform.0,
-                &mut velocity.0.0,
-                &mut ttl.0.0,
-                &mut local,
-                cursor,
-                dt,
-            );
-            // The seeker change is recorded before the despawn, so an agent caught and
-            // expired in the same tick has its removal applied first and the despawn last.
-            match (before, local, seeker) {
-                (Some(_), Some(new), Some(mut slot)) => slot.0 = new,
-                (Some(_), None, _) => changes.push(Change::RemoveSeeker(e)),
-                (None, Some(new), _) => changes.push(Change::InsertSeeker(e, new)),
-                _ => {}
-            }
-            if ttl.0.0 == 0 {
-                changes.push(Change::Despawn(e));
-            }
-        }
+        self.step.iter_mut(&mut self.world).for_each(
+            |(e, mut transform, mut velocity, mut ttl, seeker)| {
+                let before = seeker.as_deref().map(|s| s.0);
+                let mut local = before;
+                rules::update(
+                    &mut transform.0,
+                    &mut velocity.0.0,
+                    &mut ttl.0.0,
+                    &mut local,
+                    cursor,
+                    dt,
+                );
+                // The seeker change is recorded before the despawn, so an agent caught and
+                // expired in the same tick has its removal applied first and the despawn last.
+                match (before, local, seeker) {
+                    (Some(_), Some(new), Some(mut slot)) => slot.0 = new,
+                    (Some(_), None, _) => changes.push(Change::RemoveSeeker(e)),
+                    (None, Some(new), _) => changes.push(Change::InsertSeeker(e, new)),
+                    _ => {}
+                }
+                if ttl.0.0 == 0 {
+                    changes.push(Change::Despawn(e));
+                }
+            },
+        );
         for &change in &self.changes {
             match change {
                 Change::RemoveSeeker(e) => {

@@ -49,17 +49,17 @@ impl Workload for HecsSprites {
 
     fn step(&mut self) {
         let dt = self.dt;
-        for (transform, velocity) in self.world.query_mut::<(&mut Transform2d, &Velocity2d)>() {
-            rules::update(transform, velocity, dt);
-        }
+        self.world
+            .query_mut::<(&mut Transform2d, &Velocity2d)>()
+            .into_iter()
+            .for_each(|(transform, velocity)| rules::update(transform, velocity, dt));
         self.draw_list.clear();
-        for (transform, sprite) in self
-            .world
+        let draw_list = &mut self.draw_list;
+        self.world
             .query_mut::<(&Transform2d, &Sprite)>()
             .without::<&Hidden>()
-        {
-            self.draw_list.push(rules::draw_item(transform, sprite));
-        }
+            .into_iter()
+            .for_each(|(transform, sprite)| draw_list.push(rules::draw_item(transform, sprite)));
     }
 
     fn checksum(&self) -> u64 {

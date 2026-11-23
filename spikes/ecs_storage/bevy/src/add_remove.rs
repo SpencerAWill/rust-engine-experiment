@@ -60,15 +60,17 @@ impl Workload for BevyAddRemove {
     fn step(&mut self) {
         // Two separate passes: every insert happens before the first removal (spec 4.4.4).
         self.with_a_list.clear();
-        for (e, a) in self.read.iter(&self.world) {
-            self.with_a_list.push((e, a.0));
-        }
+        let pairs = &mut self.with_a_list;
+        self.read
+            .iter(&self.world)
+            .for_each(|(e, a)| pairs.push((e, a.0)));
         for &(e, a) in &self.with_a_list {
             self.world.entity_mut(e).insert(Table(rules::make_b(&a)));
         }
 
         self.with_b_list.clear();
-        self.with_b_list.extend(self.with_b.iter(&self.world));
+        let removals = &mut self.with_b_list;
+        self.with_b.iter(&self.world).for_each(|e| removals.push(e));
         for &e in &self.with_b_list {
             self.world.entity_mut(e).remove::<Table<B>>();
         }
@@ -139,15 +141,17 @@ impl Workload for BevySparseAddRemove {
     fn step(&mut self) {
         // Two separate passes: every insert happens before the first removal (spec 4.4.4).
         self.with_a_list.clear();
-        for (e, a) in self.read.iter(&self.world) {
-            self.with_a_list.push((e, a.0));
-        }
+        let pairs = &mut self.with_a_list;
+        self.read
+            .iter(&self.world)
+            .for_each(|(e, a)| pairs.push((e, a.0)));
         for &(e, a) in &self.with_a_list {
             self.world.entity_mut(e).insert(Sparse(rules::make_b(&a)));
         }
 
         self.with_b_list.clear();
-        self.with_b_list.extend(self.with_b.iter(&self.world));
+        let removals = &mut self.with_b_list;
+        self.with_b.iter(&self.world).for_each(|e| removals.push(e));
         for &e in &self.with_b_list {
             self.world.entity_mut(e).remove::<Sparse<B>>();
         }

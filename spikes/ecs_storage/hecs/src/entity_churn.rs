@@ -55,15 +55,15 @@ impl Workload for HecsEntityChurn {
 
     fn step(&mut self) {
         let commands = &mut self.commands;
-        for (e, position, velocity, lifetime) in
-            self.world
-                .query_mut::<(Entity, &mut Position, &Velocity, &mut Lifetime)>()
-        {
-            rules::update(position, velocity, lifetime);
-            if rules::is_expired(lifetime) {
-                commands.despawn(e);
-            }
-        }
+        self.world
+            .query_mut::<(Entity, &mut Position, &Velocity, &mut Lifetime)>()
+            .into_iter()
+            .for_each(|(e, position, velocity, lifetime)| {
+                rules::update(position, velocity, lifetime);
+                if rules::is_expired(lifetime) {
+                    commands.despawn(e);
+                }
+            });
         self.commands.run_on(&mut self.world);
         self.respawn();
     }

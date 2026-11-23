@@ -101,3 +101,4 @@ Choices the spec leaves to implementation, fixed here:
 ## 5. Deviations
 
 - Step 2: the sparse twins are written out in full, not shared through a generic, so the committed table backends' step code is unchanged (plan §1 allowed either). `bevy_storage_is_table_for_every_type` checks the `add_remove` and `agents` types only; every other `bevy_ecs` type is a `Table<T>`, whose storage is fixed by its derive.
+- Final verification item 1 (ecs-7) found the baselines' step loops written as `for` loops, which skip both libraries' specialized `fold`; they now use `for_each`, as the prototypes do (fix commit after step 6; log.md).

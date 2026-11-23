@@ -43,9 +43,11 @@ impl Workload for BevyHeavyCompute {
     }
 
     fn step(&mut self) {
-        for (mut matrix, mut position, rotation) in self.step.iter_mut(&mut self.world) {
-            rules::update(&mut matrix.0, &mut position.0, &rotation.0);
-        }
+        self.step
+            .iter_mut(&mut self.world)
+            .for_each(|(mut matrix, mut position, rotation)| {
+                rules::update(&mut matrix.0, &mut position.0, &rotation.0);
+            });
         self.world.clear_trackers();
     }
 

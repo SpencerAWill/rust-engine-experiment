@@ -93,9 +93,10 @@ impl Workload for HecsFragIter {
     }
 
     fn step(&mut self) {
-        for data in self.world.query_mut::<&mut Data>() {
-            rules::update(data);
-        }
+        self.world
+            .query_mut::<&mut Data>()
+            .into_iter()
+            .for_each(rules::update);
     }
 
     fn checksum(&self) -> u64 {

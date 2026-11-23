@@ -39,9 +39,9 @@ impl Workload for BevySimpleIter {
     }
 
     fn step(&mut self) {
-        for (mut position, velocity) in self.step.iter_mut(&mut self.world) {
-            rules::update(&mut position.0, &velocity.0);
-        }
+        self.step
+            .iter_mut(&mut self.world)
+            .for_each(|(mut position, velocity)| rules::update(&mut position.0, &velocity.0));
         self.world.clear_trackers();
     }
 

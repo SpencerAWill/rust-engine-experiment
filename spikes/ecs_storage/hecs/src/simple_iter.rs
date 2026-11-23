@@ -33,9 +33,10 @@ impl Workload for HecsSimpleIter {
     }
 
     fn step(&mut self) {
-        for (position, velocity) in self.world.query_mut::<(&mut Position, &Velocity)>() {
-            rules::update(position, velocity);
-        }
+        self.world
+            .query_mut::<(&mut Position, &Velocity)>()
+            .into_iter()
+            .for_each(|(position, velocity)| rules::update(position, velocity));
     }
 
     fn checksum(&self) -> u64 {

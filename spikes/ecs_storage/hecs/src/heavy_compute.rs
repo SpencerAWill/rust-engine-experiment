@@ -33,12 +33,10 @@ impl Workload for HecsHeavyCompute {
     }
 
     fn step(&mut self) {
-        for (matrix, position, rotation) in self
-            .world
+        self.world
             .query_mut::<(&mut Matrix, &mut Position, &Rotation)>()
-        {
-            rules::update(matrix, position, rotation);
-        }
+            .into_iter()
+            .for_each(|(matrix, position, rotation)| rules::update(matrix, position, rotation));
     }
 
     fn checksum(&self) -> u64 {
