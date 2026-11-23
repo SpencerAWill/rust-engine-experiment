@@ -1,6 +1,6 @@
 # M3.10: bevy_ecs and hecs baselines as harness backends
 
-- **Status:** Accepted (2026-11-23)
+- **Status:** Accepted (2026-11-23); amended 2026-11-23 after review (§4.2 and R2: the wrapper crates are banned too; §4.4: hecs applies deferred changes through `World`, not `CommandBuffer`)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** #100
 - **Estimated size:** about 1,300 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_bevy` about 650 with its sparse variant, `spike_ecs_hecs` about 450, bench registration about 60, `deny.toml`, xtask and documents about 120)
@@ -72,10 +72,14 @@ The backend names (`Workload::BACKEND`) are `"bevy_ecs"`, `"bevy_ecs_sparse"` an
 deny = [
     { crate = "bevy_ecs", wrappers = ["spike_ecs_bevy"] },
     { crate = "hecs", wrappers = ["spike_ecs_hecs"] },
+    { crate = "spike_ecs_bevy", wrappers = ["spike_ecs_bench_compare", "spike_ecs_bench_cache"] },
+    { crate = "spike_ecs_hecs", wrappers = ["spike_ecs_bench_compare", "spike_ecs_bench_cache"] },
 ]
 ```
 
-With cargo-deny 0.20, a ban with `wrappers` fails `cargo deny check bans` when any direct parent of the banned crate other than a wrapper depends on it (checked in the brainstorm: a non-matching wrapper gave `error[banned]: crate 'hecs = 0.11.2' is explicitly banned`). The new dependency trees MUST pass the existing licence, source and advisory rules with no other change to `deny.toml`. The brainstorm probe passed licences and sources, with duplicate-version warnings for `hashbrown` and `syn`. Duplicates stay warnings.
+A `wrappers` ban checks only the banned crate's direct parents, so the first two entries alone would let any workspace crate reach a baseline through its wrapper: the security review added `spike_ecs_bevy` to `examples/fixed_step_sim`'s dependencies and `cargo deny check bans` printed `bans ok`. The last two entries close that path *(maintainer, amendment after review)*.
+
+With cargo-deny 0.20, a ban with `wrappers` fails `cargo deny check bans` when any direct parent of the banned crate other than a wrapper depends on it (checked in the brainstorm: a non-matching wrapper gave `error[banned]: crate 'hecs = 0.11.2' is explicitly banned`). The new dependency trees MUST pass the existing licence, source and advisory rules with no change to `deny.toml` beyond these four entries. The brainstorm probe passed licences and sources, with duplicate-version warnings for `hashbrown` and `syn`. Duplicates stay warnings.
 
 ### 4.3 Components
 
@@ -88,7 +92,7 @@ With cargo-deny 0.20, a ban with `wrappers` fails `cargo deny check bans` when a
 - Each `Workload` owns its `World` and any buffers it reuses between steps (entity lists, a command buffer), allocated in `setup` and cleared, not reallocated, in `step`.
 - **bevy_ecs:** every query a step runs MUST be a `QueryState` built in `setup` and kept in the workload, not a `world.query()` call per step. That is bevy's documented way to run a query repeatedly outside a system. Structural changes go through `World` (`entity_mut(e).insert(..)`, `.remove::<..>()`, `despawn(e)`, `spawn(..)`) outside any query iteration. Changes decided inside a query (the `agents` seeker changes and despawns, the `entity_churn` despawns) are collected into a reused `Vec` and applied after the iteration, in the order they were recorded *(my call: bevy's `Commands` needs a `CommandQueue` and a world borrow that conflicts with the running query)*.
 - **bevy_ecs, end of step:** `step` MUST end with `World::clear_trackers()`. Without it, the removal buffers that `remove` and `despawn` write grow across steps, because a schedule is what normally clears them: in the grill's stub, `World::removed::<B>()` held 10, 20, then 30 entities after three `add_remove`-like steps on 10 entities without the call, and none after each step with it. `check_change_ticks` is not called, because nothing reads change detection.
-- **hecs:** queries are `world.query_mut::<Q>()` (or `query::<Q>()` for reads) per step. With `std`, hecs 0.11.2 caches each query type's archetype matches in the `World` (`query_cache`, an `RwLock` over a type map) until the archetypes change, and also offers a workload-held `PreparedQuery<Q>`. The backend MUST NOT use `PreparedQuery`: plain queries are hecs's documented idiom, so each baseline takes its library's recommended path for a repeated query *(maintainer, from the grill)*. A steady-state query run then pays a lock, a type lookup, a downcast and an `Arc` clone, a caveat M3.8 reads the `hecs` rows with. Changes decided inside a query use a `hecs::CommandBuffer` kept in the workload and run with `run_on` after the iteration; `run_on` applies commands in recorded order. Changes outside a query use `World` directly.
+- **hecs:** queries are `world.query_mut::<Q>()` (or `query::<Q>()` for reads) per step. With `std`, hecs 0.11.2 caches each query type's archetype matches in the `World` (`query_cache`, an `RwLock` over a type map) until the archetypes change, and also offers a workload-held `PreparedQuery<Q>`. The backend MUST NOT use `PreparedQuery`: plain queries are hecs's documented idiom, so each baseline takes its library's recommended path for a repeated query *(maintainer, from the grill)*. A steady-state query run then pays a lock, a type lookup, a downcast and an `Arc` clone, a caveat M3.8 reads the `hecs` rows with. Changes decided inside a query (the `agents` seeker changes and despawns, the `entity_churn` despawns) are collected into a reused `Vec` and applied after the iteration with `World::insert_one`, `remove_one` and `despawn`, in recorded order, as in the bevy backends. Not `hecs::CommandBuffer`: in 0.11.2 a buffered insert is applied as a dynamic bundle with no key, so it skips hecs's cached insert edges and recomputes the target archetype, allocating, on every insert, which is a cost of the buffer and not of the storage (performance review: about 10 inserts per tick at 10,000 agents, 102 at 100,000) *(maintainer, amendment after review)*. Changes outside a query use `World` directly.
 - **Alive count:** where a step respawns up to a target (`entity_churn`, `agents`), `hecs` MAY use `hecs::World::len`. The bevy backends MUST keep their own counter, because a bevy `World` holds an entity of its own: `world.entities().count_spawned()` is 1 for a new world in 0.20.1. For the same reason a bevy query MUST NOT consist of `Entity` alone without a component term or filter. Either count MUST equal the number of workload entities alive after the step.
 
 ### 4.5 Workloads
@@ -130,10 +134,10 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 ## 5. Requirements
 
 - **M3.10-R1** `spikes/ecs_storage/bevy` and `spikes/ecs_storage/hecs` MUST be workspace members named `spike_ecs_bevy` and `spike_ecs_hecs`. Each crate root MUST carry `#![forbid(unsafe_code)]`, and each MUST depend on its baseline as §4.1 says.
-- **M3.10-R2** `deny.toml` MUST ban `bevy_ecs` and `hecs` except through their wrapper crates as §4.2 says, and `cargo xtask deny` MUST pass with no other change to `deny.toml`.
+- **M3.10-R2** `deny.toml` MUST ban `bevy_ecs` and `hecs` except through their wrapper crates, and the wrapper crates except through the two bench crates, as §4.2 says, and `cargo xtask deny` MUST pass with no other change to `deny.toml`.
 - **M3.10-R3** `bevy_ecs` and `hecs` MUST each implement all seven workloads, and `bevy_ecs_sparse` MUST implement `add_remove` and `agents`, with the components of §4.3 and the steps of §4.5. Each MUST pass `check_conformance` against `vec_aos`: 1,000 entities (20 per letter for `frag_iter`) over 120 ticks, and 1,000 agents over 1,300 ticks for `agents`.
 - **M3.10-R4** The bevy backends MUST run every step query through a `QueryState` built in `setup`, MUST apply changes decided inside a query after the iteration in recorded order, and MUST end every `step` with `World::clear_trackers()`.
-- **M3.10-R5** `bevy_ecs_sparse` MUST store `B` and `Seeker` with `SparseSet` storage, and every other type with table storage. `bevy_ecs` MUST use table storage for every type. The `hecs` backend MUST NOT use `PreparedQuery`.
+- **M3.10-R5** `bevy_ecs_sparse` MUST store `B` and `Seeker` with `SparseSet` storage, and every other type with table storage. `bevy_ecs` MUST use table storage for every type. The `hecs` backend MUST NOT use `PreparedQuery` or `CommandBuffer`.
 - **M3.10-R6** A backend MUST NOT use a schedule, a system, an `App` or a batch spawn or insert API.
 - **M3.10-R7** Both bench crates MUST register every implementation of R3 as §4.6 says.
 - **M3.10-R8** `cargo xtask ci` MUST pass, and CI MUST be green on Ubuntu, macOS and Windows without workflow changes.
@@ -159,6 +163,8 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 - **Systems in a `Schedule`, with bevy's `Commands`.** Rejected by the maintainer: closer to real bevy use, but it adds scheduler and command-flush costs the prototypes do not have, so a row would not isolate storage.
 - **Both a direct and a schedule variant of bevy.** Rejected by the maintainer: more code and rows for a question (scheduler cost) M3 does not ask.
 - **Table storage only for bevy.** Rejected by the maintainer: `hybrid` then has no external sparse baseline. The grill found that bevy's sparse components are part of archetype identity, unlike `hybrid`'s. The maintainer kept the variant, with that difference as a caveat and a test (§4.5, R5), because it is the design difference M3.8 weighs.
+- **hecs's `CommandBuffer`** for changes decided inside a query, its own deferral idiom. Chosen at first, replaced after review by the maintainer: its inserts skip hecs's cached insert edges (§4.4).
+- **Softening the docs instead of banning the wrapper crates** (§4.2). Rejected by the maintainer after review: the guard would then not hold what the spikes README says.
 - **`PreparedQuery` for hecs**, like-for-like with bevy's `QueryState`. Rejected by the maintainer in the grill: hecs's docs recommend plain queries, and its `World` already caches archetype matches.
 - **The baseline `Workload` impls inside the bench crates, the libraries as dev-dependencies.** Rejected: the impls would be written twice (two bench crates), and the conformance tests would have to live in a bench crate.
 - **Amending ADR 0002.** Rejected by the maintainer: the bans enforce the reading in §6, and the ADR's intent is unchanged.
@@ -169,10 +175,10 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 | Requirement | Verified by |
 |---|---|
 | R1 | the workspace members (`cargo metadata`); `cargo xtask check-unsafe`; the manifests |
-| R2 | `cargo xtask deny`; a check in the plan that temporarily adds `hecs` to a non-wrapper crate's manifest, sees `cargo deny check bans` fail with `banned`, and reverts (output in `log.md`) |
+| R2 | `cargo xtask deny`; a check in the plan that temporarily adds `hecs` to a non-wrapper crate's manifest, sees `cargo deny check bans` fail with `banned`, and reverts; the same with `spike_ecs_bevy` added to a crate other than the bench crates (outputs in `log.md`) |
 | R3 | conformance tests in each crate's `tests.rs`, one per implementation (16) |
 | R4 | review of each bevy workload against §4.4; a unit test that `step` leaves the removed-components buffer of `B` (`add_remove`) empty of the previous step's removals after `clear_trackers` (through bevy's public `World::removed`, or `removed_components()`) |
-| R5 | a unit test per bevy backend that reads the storage type of each registered component through bevy's public component info (`World::components()` and `ComponentInfo::storage_type`); a `bevy_ecs_sparse` test that inserting `Sparse<B>` leaves the table count (`World::storages().tables.len()`) unchanged and changes the entity's archetype, so the §4.5 caveat stays true of the code *(maintainer, from the grill)*; `grep` finds no `PreparedQuery` in `spike_ecs_hecs` |
+| R5 | a unit test per bevy backend that reads the storage type of each registered component through bevy's public component info (`World::components()` and `ComponentInfo::storage_type`); a `bevy_ecs_sparse` test that inserting `Sparse<B>` leaves the table count (`World::storages().tables.len()`) unchanged and changes the entity's archetype, so the §4.5 caveat stays true of the code *(maintainer, from the grill)*; `grep` finds no `PreparedQuery` or `CommandBuffer` in `spikes/ecs_storage/hecs/src`; a test per `add_remove` backend that, after a step, the other wrapper of `B` (`Sparse<B>` for `bevy_ecs`, `Table<B>` for `bevy_ecs_sparse`) is not registered (code review) |
 | R6 | review; `grep` for `Schedule`, `IntoSystem`, `App`, `insert_batch` and `spawn_batch` in both crates finds nothing |
 | R7 | `cargo xtask bench-smoke` (Criterion ids); `cargo build --benches -p spike_ecs_bench_cache`; the `prepared` assertion on sizes |
 | R8 | `cargo xtask ci`; the pull request's CI run |
@@ -198,6 +204,6 @@ None yet.
 Used only as measurement baselines. No code is taken from either ([ADR 0002](../../adr/0002-originality-and-dependency-licensing.md)).
 
 - [bevy_ecs 0.20 documentation](https://docs.rs/bevy_ecs/0.20.1/bevy_ecs/): `World`, `QueryState`, `World::clear_trackers`, `#[component(storage = "SparseSet")]`.
-- [hecs 0.11 documentation](https://docs.rs/hecs/0.11.2/hecs/): `World::query_mut`, `CommandBuffer`.
+- [hecs 0.11 documentation](https://docs.rs/hecs/0.11.2/hecs/): `World::query_mut`, `World::insert_one`.
 - [M3.2 spec](../m3.2-spike-harness/spec.md): the harness, the workloads and the conformance check.
 - [M3.5 spec](../m3.5-hybrid/spec.md): `hybrid`'s sparse choice of `B` and `Seeker`, which `bevy_ecs_sparse` mirrors.
