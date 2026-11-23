@@ -6,4 +6,4 @@ Goal: `plan.md`, from `docs/chunks/_template/plan.md`, with one step per commit.
 2. Write the plan. Record only what a builder cannot decide alone: files, names and signatures, the test that fails first and how, the verify command and its expected output, the commit message. Do not restate the spec. Order steps so paths are final before files are written at them.
 3. For each step, say who does it: `builder` for product and test code and scripts; main session for documentation, skills, agent files and configuration.
 4. Self-check against the spec: every requirement in §5 has a step; every step's verify can fail.
-5. Set the plan `Accepted (<date>)`, the roadmap row `In progress`; log; commit (`docs: add the <title> plan (<id>)`). Go to [stage 4](4-work.md).
+5. Set the plan `Accepted (<date>)`; log; commit (`docs: add the <title> plan (<id>)`). Go to [stage 4](4-work.md).

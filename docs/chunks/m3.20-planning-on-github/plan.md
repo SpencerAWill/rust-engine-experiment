@@ -39,7 +39,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 4: the chunk and triage skills (R2, R3, R4, R11)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `.claude/skills/chunk/SKILL.md` (description; argument default; `next` per spec §4.4, with the `gh` commands; a `chore #N` section per §4.3; `resume` unchanged), `.claude/skills/chunk/stages/1-brainstorm.md` (start from the chunk issue; the scheduling case of §4.2; no roadmap row), `2-grill.md` and `3-plan.md` (no roadmap status), `7-close-out.md` (`Closes #N`; no roadmap row; the rollout of §4.8 for a chunk that changes `infra/github`), `.claude/skills/triage/SKILL.md` (Order in the field check; scheduling is the maintainer's act on the Project, not a roadmap row; the roadmap search becomes an issue-title search).
 - **Check that fails before:** `git grep -n -i roadmap .claude/skills/` lists the order and status reads and writes above.
 - **Verify:** every remaining `git grep -n -i roadmap .claude/` hit is a reference to milestone goals or history, each named in `log.md` (R3).
