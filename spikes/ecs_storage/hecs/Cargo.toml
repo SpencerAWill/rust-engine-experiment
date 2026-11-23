@@ -1,0 +1,20 @@
+[package]
+name = "spike_ecs_hecs"
+description = "ECS storage spike: the hecs baseline backend (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { workspace = true }
+hecs = { version = "0.11.2", default-features = false, features = ["std"] }
+spike_ecs_harness = { path = "../harness" }
+
+[dev-dependencies]
+spike_ecs_vec = { path = "../vec" }
+
+[lints]
+workspace = true

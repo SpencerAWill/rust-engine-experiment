@@ -42,7 +42,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 3: `spike_ecs_hecs` (R1, R3, R5, R6)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hecs/Cargo.toml`, `src/lib.rs`, the seven workload modules, `src/tests.rs` (new); `xtask/src/coverage.rs` (`spike_ecs_hecs` in both lists); `Cargo.lock`.
 - **Test first:** seven conformance tests named `<workload>_hecs_matches_the_reference`, with the parameters of step 1. They fail first because the package does not exist.
 - **Change:** spec §4.3 to §4.5 for `hecs`: `query_mut`/`query` per step, never `PreparedQuery`; a `CommandBuffer` kept in the workload for changes decided inside a query (`entity_churn`, `agents`), run with `run_on`; harness types stored as they are, except the agent newtypes.

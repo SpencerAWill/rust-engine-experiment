@@ -1147,6 +1147,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hecs"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7602e3af4f3f6387532d73a4a0f4d1ee2e8ee3c28078ca657126770aa3a9aa4"
+dependencies = [
+ "foldhash",
+ "hashbrown 0.17.1",
+ "spin",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2388,6 +2399,16 @@ version = "0.1.0"
 dependencies = [
  "agents_2d",
  "engine",
+]
+
+[[package]]
+name = "spike_ecs_hecs"
+version = "0.1.0"
+dependencies = [
+ "engine",
+ "hecs",
+ "spike_ecs_harness",
+ "spike_ecs_vec",
 ]
 
 [[package]]
