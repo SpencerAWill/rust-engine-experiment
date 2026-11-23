@@ -1,6 +1,6 @@
 # M3.6: Runtime-registered components in safe byte columns
 
-- **Status:** Draft (2026-11-22)
+- **Status:** Accepted (2026-11-22)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.3, M3.4, M3.5 · **Decides:** no ADR
 - **Followed by:** M3.10, the bevy_ecs and hecs baselines (maintainer, 2026-11-22)
 - **Issue:** none (tracking issue #66)
