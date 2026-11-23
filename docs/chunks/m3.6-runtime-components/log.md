@@ -1,0 +1,16 @@
+# M3.6 log: Runtime-registered components in safe byte columns
+
+- **Status:** Living (2026-11-22)
+
+<!-- Append-only. One or two lines per entry, written when it happens, not at the end:
+- <date> <tag> <text>
+Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 6; see docs/lessons/README.md). -->
+
+- 2026-11-22 decision Picked M3.6 by the `/chunk next` rule: M3.5 names no Followed-by chunk; M3.6 is the first `Planned` M3 row whose dependencies (M3.3, M3.4, M3.5) are `Done`. The row cites no issue (tracking issue #66).
+- 2026-11-22 decision Value model (maintainer): runtime-registered components are plain data only: a layout of size and alignment, bitwise copy, no drop or clone hooks (those wait for M3.7 or M8).
+- 2026-11-22 decision Access (maintainer): both safe access paths over the same byte column, measured side by side: copy in and out through a codec, and zero-copy `bytemuck` casts over aligned storage for `Pod` types.
+- 2026-11-22 done Maintainer asked, before choosing the prototype, whether to widen the field (more variants and optimizations of each storage model) or ship several models and let engine users choose. Answered in session; prototype and workload choice pending.
+- 2026-11-22 decision Prototype (maintainer): byte columns go in `spike_ecs_archetype`'s tables, beside `Column<T>`. Archetype and hybrid share the table design, so the result carries to whichever M3.8 picks; the archetype-against-hybrid choice stays M3.8's. Not widening the field with more variants first: the measured gaps are structural, the variants (#80, #81, #88) are queued on M3.8's choice, and M3.10's bevy_ecs and hecs baselines check how well tuned the prototypes are. M3.10 goes next after this chunk.
+- 2026-11-22 decision Workloads (maintainer): `simple_iter` (row access), `add_remove` (byte-row moves) and `frag_iter` (runtime-id matching across 27 types), each with both access paths.
+- 2026-11-22 done Feasibility check in a scratch crate: `bytemuck` 1.25.2 `derive(Pod, Zeroable)` compiles under `#![forbid(unsafe_code)]`, and `cast_slice_mut` from a `Vec<[u64; 2]>` to a `#[repr(C)]` two-`f32` struct works.
+- 2026-11-22 decision My calls in the draft spec (to grill): `Pod` mirror types in the workload modules rather than glam's `bytemuck` feature; alignment capped at 16 by a 16-byte aligned block storage; little-endian codecs; a raw query that hands out whole tables, not rows; `Result` errors rather than panics with `try_` twins; no zero-sized, bundle-spawned, `Commands` or optional raw components; names for `Debug` only; spec header names M3.10 as Followed by.
