@@ -56,7 +56,7 @@ pulumi up
 - **Merging** is squash only, with the pull request title as the commit subject, in both the
   repository settings and the `main` ruleset.
 - **Labels** are authoritative: a label not listed in `index.ts` is deleted on `pulumi up`.
-- **Milestones** (M3 onward) are created from `index.ts`; Pulumi ignores their `state`, so closing one at a milestone boundary is a `gh api` call ([docs/maintainers.md](../../docs/maintainers.md#when-a-milestone-completes)), not a change here. A milestone created by hand is not managed.
+- **Milestones** (M3 onward) are created from `index.ts`; Pulumi ignores their `state`, so closing one at a milestone boundary is a `gh api` call ([docs/maintainers.md](../../docs/maintainers.md#when-a-milestone-completes)), not a change here. Never remove a milestone's entry from `index.ts`, even once it is closed: its issues point at it (`retainOnDelete` keeps it on GitHub, unmanaged). A milestone created by hand is not managed.
 - **The repository resource is protected** and has `archiveOnDestroy`, so `pulumi destroy`
   cannot delete the repository.
 - **Variables and secrets**:

@@ -18,7 +18,7 @@ Pass `--limit 1000` to every `gh issue list`, `gh project item-list` and `gh sea
 
 ## 1. Check the Project
 
-Read the "Issue tracking" section of `docs/maintainers.md` for the Project's name, number, fields and options. Check the title with `gh project view <number> --owner <owner>` and compare the fields with `gh project field-list <number> --owner <owner> --format json`: Status, Priority and Size must exist as single-select fields with exactly the documented option names (order does not matter; ignore GitHub's built-in fields), and Order must exist as a number field. If a field or an option is missing or renamed, stop and say which one differs and what the document expects. Do not guess, and do not edit the Project.
+Read the "Issue tracking" section of `docs/maintainers.md` for the Project's name, number, fields and options. Check the title with `gh project view <number> --owner <owner>` and compare the fields with `gh project field-list <number> --owner <owner> --format json`: Status, Priority and Size must exist as single-select fields with exactly the documented option names (order does not matter; ignore GitHub's built-in fields), and Order must exist as a field whose values are numbers (`field-list` does not report a field's data type, so read it from `gh project item-list <number> --owner <owner> --limit 1000 --format json`: some item's `order` is a JSON number). If a field or an option is missing or renamed, stop and say which one differs and what the document expects. Do not guess, and do not edit the Project.
 
 ## 2. Read
 

@@ -7,7 +7,6 @@
 
 Seven steps, one commit each, all by the main session: this chunk changes documents, skills, templates and configuration only (no product or test code, so no builder). The GitHub writes of spec §4.8 are steps 1 and 8; step 8 runs in stage 7, after `pulumi up`, and is listed here so its checklist is in one place.
 
-- Edit only the passages that name the roadmap as the place of scheduled work, order or status (spec §4.7); historical documents are untouched (R7).
 - `AGENTS.md` stays under 80 lines (`check-docs` enforces it); it is 66 now.
 - The "next" rule and the chore steps are written once, in `.claude/skills/chunk/SKILL.md`; `docs/workflow.md` states the rule in prose and links there (lesson docs-1).
 
@@ -93,3 +92,6 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 ## 5. Deviations
 
 - Step 2 also updated `infra/github/README.md` (it lists what `index.ts` declares), which the plan did not name.
+- Step 6 added one sentence to "Later milestones" (each list becomes chunk issues when its milestone is current), which the plan called unchanged.
+- Close-out edits M3.20's own roadmap row to `Done (PR #n)` (spec §4.6), the last row any chunk edits, although stage 7 now says there is no roadmap row to edit.
+- Review round 1 (log.md): `retainOnDelete` on the milestones; the milestone number looked up by title; the triage Order check reads a numeric value; a chore's brief only from the maintainer's text; the chunk-ID rule kept once, in `docs/maintainers.md`.

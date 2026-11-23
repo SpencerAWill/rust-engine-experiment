@@ -216,9 +216,11 @@ const labels: { name: string; color: string; description: string }[] = [
 new github.IssueLabels("labels", { repository: repo.name, labels });
 
 // ---------------------------------------------------------------------------------------------
-// Milestones (M3.20): one per open roadmap milestone. Goals and exit criteria are documents and
-// stay in docs/roadmap.md; a milestone holds the issues that belong to it. Pulumi creates them
-// and then ignores `state`, so a milestone is closed at its boundary with one command
+// Milestones (M3.20): one per milestone from M3 on. Never remove an entry, even once the milestone
+// is closed: issues point at it, and `retainOnDelete` only keeps the milestone on GitHub (it
+// would no longer be managed). Goals and exit criteria are documents and stay in
+// docs/roadmap.md; a milestone holds the issues that belong to it. Pulumi creates them and then
+// ignores `state`, so a milestone is closed at its boundary with one command
 // (docs/maintainers.md, "When a milestone completes"), not a change here.
 // ---------------------------------------------------------------------------------------------
 
@@ -239,10 +241,10 @@ for (const { title, goal } of milestones) {
             owner: new pulumi.Config("github").require("owner"),
             repository: repo.name,
             title,
-            description: `${goal}. Goal and exit criteria: docs/roadmap.md#milestones`,
+            description: `${goal}. Goal and exit criteria: https://github.com/SpencerAWill/rust-engine-experiment/blob/main/docs/roadmap.md#milestones`,
             state: "open",
         },
-        { ignoreChanges: ["state"] },
+        { ignoreChanges: ["state"], retainOnDelete: true },
     );
 }
 
