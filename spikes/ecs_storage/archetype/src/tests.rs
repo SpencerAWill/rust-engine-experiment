@@ -1272,3 +1272,91 @@ mod bytes_add_remove {
         zero_count::<BytesCastAddRemove>();
     }
 }
+
+mod bytes_frag_iter {
+    use proptest::prelude::*;
+    use spike_ecs_harness::frag_iter::{Data, Z};
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::frag_iter::VecFragIter;
+
+    use crate::Codec;
+    use crate::archetype::ArchetypeId;
+    use crate::bytes_frag_iter::{BytesCastFragIter, BytesCopyFragIter};
+    use crate::frag_iter::ArchetypeFragIter;
+
+    const PARAMS: Params = Params {
+        count: 20,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    fn round_trip<T: Codec>(value: &T) -> T {
+        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
+        value.encode(&mut bytes);
+        T::decode(&bytes)
+    }
+
+    proptest! {
+        #[test]
+        fn codec_round_trips_data(bits in any::<u32>()) {
+            prop_assert_eq!(round_trip(&Data(f32::from_bits(bits))).0.to_bits(), bits);
+        }
+
+        #[test]
+        fn codec_round_trips_letter_z(bits in any::<u32>()) {
+            prop_assert_eq!(round_trip(&Z(f32::from_bits(bits))).0.to_bits(), bits);
+        }
+    }
+
+    #[test]
+    fn frag_iter_bytes_copy_matches_the_reference() {
+        check_conformance::<VecFragIter, BytesCopyFragIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_bytes_cast_matches_the_reference() {
+        check_conformance::<VecFragIter, BytesCastFragIter>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn frag_iter_bytes_copy_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeFragIter::setup(PARAMS);
+        let mut bytes = BytesCopyFragIter::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), 27);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), 27);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.step_archetypes(), typed.step_archetypes());
+        let all: Vec<_> = (1..=26).map(ArchetypeId::new).collect();
+        assert_eq!(bytes.step_archetypes(), all);
+        bytes.world().check_invariants().unwrap();
+    }
+
+    #[test]
+    fn frag_iter_bytes_cast_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeFragIter::setup(PARAMS);
+        let mut bytes = BytesCastFragIter::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), 27);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), 27);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.step_archetypes(), typed.step_archetypes());
+        bytes.world().check_invariants().unwrap();
+    }
+
+    #[test]
+    fn zero_count_is_valid_bytes_frag_iter() {
+        fn zero_count<W: Workload>() {
+            let mut w = W::setup(Params { count: 0, seed: 7 });
+            assert_eq!(w.checksum(), 0);
+            w.step();
+            assert_eq!(w.checksum(), 0);
+        }
+        zero_count::<BytesCopyFragIter>();
+        zero_count::<BytesCastFragIter>();
+    }
+}

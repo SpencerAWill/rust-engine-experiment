@@ -99,7 +99,7 @@ Choices the spec leaves to implementation:
 
 ### Step 6: the `frag_iter` backends (R11 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/bytes_frag_iter.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Change:** `Codec` for the 26 letter types and `Data` through a macro; setup registers 27 raw components (letters in `LETTERS` order, then `Data`, or whatever order makes `ComponentId` order match the typed backend's column order; the builder states which); one `spawn_raw` per entity with `(letter, data)`. Step: one `write Data` query. Checksum: one `read letter, read Data` query per letter, `Letter::from_index`, `rules::hash`.
 - **Test first:** `frag_iter_bytes_copy_matches_the_reference`, `frag_iter_bytes_cast_matches_the_reference` (`count: 20`), `frag_iter_bytes_*_has_the_typed_archetype_count` (27 after setup and after a step), `zero_count_is_valid_bytes_frag_iter`.
@@ -165,3 +165,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 - Step 3: runs borrow the query (`RawRun<'w, 'q>`, `RawRunMut<'w, 'q>`) rather than cloning it, so a run's one allocation is its slot buffer; the runs are public types (`RawRun`, `RawRunMut`). `Table` gained `raw_columns` and `raw_columns_mut`, which hand out views of byte columns only, so the query module never holds `&mut dyn ErasedColumn` and skips a mixed table's typed columns.
 - Step 4: `RawRunMut` also has a `#[cfg(test)] matched_archetypes()`, since the step's query writes and a read run rejects it. The backends build their step and checksum queries once at setup and keep them; `codec.rs` holds a `const fn layout` helper and the `f32` read and write helpers (`as_chunks`, per clippy).
 - Step 5: the implementation was written before the tests (not test-first); the tests' first failure was a compile error, and the behavioural red check (the remove pass skipped in both backends) failed both conformance tests. The remove pass collects a table's entities with `extend_from_slice`, where the typed backend pushes per row.
+- Step 6: letters are registered A to Z (ids 0 to 25), then `Data` (26); the typed backend's ids interleave (A, Data, B, ...), but archetypes are created in the same spawn order, so both worlds have 27 and the step matches archetypes 1 to 26.
