@@ -63,7 +63,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 7: final verification
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Do:** `cargo xtask ci` on the last step's commit; `git diff --stat main` shows no historical document (`docs/chunks/m*` other than m3.20, `docs/adr/`).
 - **Commit:** with the log line only: `docs: record the M3.20 ci run (M3.20)`
 
