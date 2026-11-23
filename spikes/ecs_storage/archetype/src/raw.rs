@@ -145,6 +145,79 @@ impl fmt::Display for CastError {
 
 impl core::error::Error for CastError {}
 
+/// Runs `$fixed` with `$n` bound to a constant for the common value sizes of 4, 8, 12 and 16
+/// bytes, and `$general` for any other size. With a runtime size the byte moves below compile to
+/// calls into libc (`memcpy`, `memmove`, `bzero`), which cost several nanoseconds each on a
+/// value of a few bytes; with a constant size they are a load and a store. The checks stay.
+macro_rules! by_size_class {
+    ($size:expr, |$n:ident| $fixed:expr, $general:expr) => {
+        match $size {
+            4 => {
+                const $n: usize = 4;
+                $fixed
+            }
+            8 => {
+                const $n: usize = 8;
+                $fixed
+            }
+            12 => {
+                const $n: usize = 12;
+                $fixed
+            }
+            16 => {
+                const $n: usize = 16;
+                $fixed
+            }
+            _ => $general,
+        }
+    };
+}
+
+/// Copies `src` over `dst`, which are the same length.
+#[inline]
+fn copy_value(dst: &mut [u8], src: &[u8]) {
+    by_size_class!(
+        src.len(),
+        |N| {
+            let dst: &mut [u8; N] = (&mut dst[..N])
+                .try_into()
+                .expect("a slice of N bytes is an array of N bytes");
+            dst.copy_from_slice(&src[..N]);
+        },
+        dst.copy_from_slice(src)
+    );
+}
+
+/// Zeroes `dst`.
+#[inline]
+fn zero_value(dst: &mut [u8]) {
+    by_size_class!(
+        dst.len(),
+        |N| {
+            let dst: &mut [u8; N] = (&mut dst[..N])
+                .try_into()
+                .expect("a slice of N bytes is an array of N bytes");
+            *dst = [0; N];
+        },
+        dst.fill(0)
+    );
+}
+
+/// Copies the `size` bytes at `from` over the `size` bytes at `to` in `bytes`.
+#[inline]
+fn copy_value_within(bytes: &mut [u8], from: usize, to: usize, size: usize) {
+    by_size_class!(
+        size,
+        |N| {
+            let value: [u8; N] = bytes[from..from + N]
+                .try_into()
+                .expect("a slice of N bytes is an array of N bytes");
+            bytes[to..to + N].copy_from_slice(&value);
+        },
+        bytes.copy_within(from..from + size, to)
+    );
+}
+
 /// The storage unit of a byte column: 16 bytes, 16-aligned.
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -200,7 +273,7 @@ impl ByteColumn {
             self.blocks.resize(need, Block::zeroed());
         }
         let end = start + self.layout.size;
-        self.all_bytes_mut()[start..end].copy_from_slice(bytes);
+        copy_value(&mut self.all_bytes_mut()[start..end], bytes);
         self.len += 1;
     }
 
@@ -212,7 +285,7 @@ impl ByteColumn {
             "ByteColumn::overwrite got a value of the wrong size; this is a bug in the prototype"
         );
         let size = self.layout.size;
-        self.bytes_mut()[row * size..(row + 1) * size].copy_from_slice(bytes);
+        copy_value(&mut self.bytes_mut()[row * size..(row + 1) * size], bytes);
     }
 
     /// Whether every byte past the last value is zero, and no block is unused.
@@ -258,7 +331,7 @@ impl ByteColumn {
     fn pop_last(&mut self) {
         let size = self.layout.size;
         let last = self.len - 1;
-        self.all_bytes_mut()[last * size..(last + 1) * size].fill(0);
+        zero_value(&mut self.all_bytes_mut()[last * size..(last + 1) * size]);
         self.len = last;
         self.blocks.truncate((last * size).div_ceil(BLOCK));
     }
@@ -286,8 +359,7 @@ impl ErasedColumn for ByteColumn {
         let size = self.layout.size;
         let last = self.len - 1;
         if row != last {
-            self.all_bytes_mut()
-                .copy_within(last * size..(last + 1) * size, row * size);
+            copy_value_within(self.all_bytes_mut(), last * size, row * size, size);
         }
         self.pop_last();
     }

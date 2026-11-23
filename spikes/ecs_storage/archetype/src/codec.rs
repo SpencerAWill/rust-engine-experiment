@@ -33,16 +33,31 @@ pub(crate) const fn layout(size: usize, align: usize) -> RawLayout {
     }
 }
 
-/// Writes `values` as little-endian `f32`s into `out`.
-pub(crate) fn write_f32s(values: &[f32], out: &mut [u8]) {
+/// Writes `values` as little-endian `f32`s into the first `4 * N` bytes of `out`.
+///
+/// The slice is cut to its exact length once, so the copy loop has a constant trip count and
+/// compiles to straight-line stores (an unknown length made it a `memcpy` call per value).
+///
+/// # Panics
+///
+/// Panics if `out` is shorter than `4 * N` bytes.
+#[inline]
+pub(crate) fn write_f32s<const N: usize>(values: &[f32; N], out: &mut [u8]) {
+    let out = &mut out[..N * 4];
     let (chunks, _) = out.as_chunks_mut::<4>();
     for (value, chunk) in values.iter().zip(chunks) {
         *chunk = value.to_le_bytes();
     }
 }
 
-/// Reads `N` little-endian `f32`s from `bytes`.
+/// Reads `N` little-endian `f32`s from the first `4 * N` bytes of `bytes`.
+///
+/// # Panics
+///
+/// Panics if `bytes` is shorter than `4 * N` bytes.
+#[inline]
 pub(crate) fn read_f32s<const N: usize>(bytes: &[u8]) -> [f32; N] {
+    let bytes = &bytes[..N * 4];
     let mut values = [0.0_f32; N];
     let (chunks, _) = bytes.as_chunks::<4>();
     for (value, chunk) in values.iter_mut().zip(chunks) {
