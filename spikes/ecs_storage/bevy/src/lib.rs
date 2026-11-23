@@ -8,7 +8,9 @@
 //! ([ADR 0002](../../../docs/adr/0002-originality-and-dependency-licensing.md)); the crate only
 //! calls its public API.
 //!
-//! The backend named `bevy_ecs` stores every component type in table storage. Each workload
+//! The backend named `bevy_ecs` stores every component type in table storage. The backend named
+//! `bevy_ecs_sparse` (`add_remove` and `agents` only) stores `B` and `Seeker` in `SparseSet`
+//! storage, as `hybrid` does, and every other type in a table. Each workload
 //! drives its `World` directly and on one thread, with no scheduler, no systems and no
 //! application object, and no batch spawn or insert: structural changes go one entity at a
 //! time, as in the prototypes. Every query a step runs is a `QueryState` built in `setup`. Changes decided inside a query are
@@ -38,3 +40,11 @@ use bevy_ecs::component::Component;
 /// The orphan rule forbids implementing `Component` for the harness's types, so each is wrapped.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Table<T: Send + Sync + 'static>(pub T);
+
+/// A harness type stored as a `bevy_ecs` component in `SparseSet` storage.
+///
+/// Inserting or removing one moves no table row, but it does move the entity to another
+/// archetype, because bevy makes sparse-set components part of an archetype's identity.
+#[derive(Component, Clone, Copy, Debug)]
+#[component(storage = "SparseSet")]
+pub struct Sparse<T: Send + Sync + 'static>(pub T);

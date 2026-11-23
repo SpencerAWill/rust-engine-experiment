@@ -28,7 +28,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 2: `bevy_ecs_sparse` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/lib.rs` (`Sparse<T>` if step 1 left it out), `src/add_remove.rs`, `src/agents.rs`, `src/tests.rs`.
 - **Test first:**
   - Conformance: `add_remove_bevy_sparse_matches_the_reference` and `agents_bevy_sparse_matches_the_reference`, as in step 1.
@@ -100,4 +100,4 @@ Choices the spec leaves to implementation, fixed here:
 
 ## 5. Deviations
 
-None yet.
+- Step 2: the sparse twins are written out in full, not shared through a generic, so the committed table backends' step code is unchanged (plan §1 allowed either). `bevy_storage_is_table_for_every_type` checks the `add_remove` and `agents` types only; every other `bevy_ecs` type is a `Table<T>`, whose storage is fixed by its derive.
