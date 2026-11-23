@@ -18,6 +18,7 @@ pub mod add_remove;
 pub mod agents;
 mod archetype;
 mod bundle;
+pub mod bytes_add_remove;
 pub mod bytes_simple_iter;
 mod codec;
 mod commands;

@@ -1188,3 +1188,87 @@ mod bytes_simple_iter {
         zero_count::<BytesCastSimpleIter>();
     }
 }
+
+mod bytes_add_remove {
+    use proptest::prelude::*;
+    use spike_ecs_harness::add_remove::{A, B};
+    use spike_ecs_harness::{Params, Workload, check_conformance};
+    use spike_ecs_vec::add_remove::VecAddRemove;
+
+    use crate::Codec;
+    use crate::add_remove::ArchetypeAddRemove;
+    use crate::archetype::ArchetypeId;
+    use crate::bytes_add_remove::{BytesCastAddRemove, BytesCopyAddRemove};
+
+    const PARAMS: Params = Params {
+        count: 1_000,
+        seed: 42,
+    };
+    const TICKS: u64 = 120;
+
+    fn round_trip<T: Codec>(value: &T) -> T {
+        let mut bytes = vec![0xAA_u8; T::LAYOUT.size()];
+        value.encode(&mut bytes);
+        T::decode(&bytes)
+    }
+
+    proptest! {
+        #[test]
+        fn codec_round_trips_a(bits in any::<u32>()) {
+            prop_assert_eq!(round_trip(&A(f32::from_bits(bits))).0.to_bits(), bits);
+        }
+
+        #[test]
+        fn codec_round_trips_b(bits in any::<u32>()) {
+            prop_assert_eq!(round_trip(&B(f32::from_bits(bits))).0.to_bits(), bits);
+        }
+    }
+
+    #[test]
+    fn add_remove_bytes_copy_matches_the_reference() {
+        check_conformance::<VecAddRemove, BytesCopyAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_bytes_cast_matches_the_reference() {
+        check_conformance::<VecAddRemove, BytesCastAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_bytes_copy_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeAddRemove::setup(PARAMS);
+        let mut bytes = BytesCopyAddRemove::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.read_archetypes(), typed.read_archetypes());
+        assert_eq!(bytes.remove_archetypes(), vec![ArchetypeId::new(2)]);
+        bytes.world().check_invariants().unwrap();
+    }
+
+    #[test]
+    fn add_remove_bytes_cast_has_the_typed_archetype_count() {
+        let mut typed = ArchetypeAddRemove::setup(PARAMS);
+        let mut bytes = BytesCastAddRemove::setup(PARAMS);
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        typed.step();
+        bytes.step();
+        assert_eq!(bytes.archetype_count(), typed.archetype_count());
+        assert_eq!(bytes.read_archetypes(), typed.read_archetypes());
+        assert_eq!(bytes.remove_archetypes(), vec![ArchetypeId::new(2)]);
+        bytes.world().check_invariants().unwrap();
+    }
+
+    #[test]
+    fn zero_count_is_valid_bytes_add_remove() {
+        fn zero_count<W: Workload>() {
+            let mut w = W::setup(Params { count: 0, seed: 7 });
+            assert_eq!(w.checksum(), 0);
+            w.step();
+            assert_eq!(w.checksum(), 0);
+        }
+        zero_count::<BytesCopyAddRemove>();
+        zero_count::<BytesCastAddRemove>();
+    }
+}

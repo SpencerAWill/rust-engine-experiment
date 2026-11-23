@@ -90,7 +90,7 @@ Choices the spec leaves to implementation:
 
 ### Step 5: the `add_remove` backends (R11 in part)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/bytes_add_remove.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Change:** `Codec` for `A` and `B`; `BytesCopyAddRemove` and `BytesCastAddRemove` with the two passes of §4.7 (the read pass collects `(Entity, f32)` from a `read A` query, inserts `B` from `rules::make_b`; the remove pass collects the entities of a `with B` query and removes `B`). Checksum: a `read A, without B` query then a `read A, read B` query, `rules::hash(a, None)` and `rules::hash(a, Some(b))`.
 - **Test first:** `add_remove_bytes_copy_matches_the_reference`, `add_remove_bytes_cast_matches_the_reference`, `add_remove_bytes_*_has_the_typed_archetype_count`, `zero_count_is_valid_bytes_add_remove`; the step query functions are shared with `#[cfg(test)]` hooks (ecs-1).
@@ -164,3 +164,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 - Step 2: `Table::check` gained a third invariant, T3 (no nonzero byte past a byte column's values), for the spec's zero tail; the `check_invariants_*` red-check tests corrupt columns in `table.rs`'s tests, where the columns are reachable (ecs-6). `insert_raw` and `remove_raw` do no map lookup (the kind check is an array index), against one `BTreeMap` lookup in `insert::<T>` and `remove::<T>`.
 - Step 3: runs borrow the query (`RawRun<'w, 'q>`, `RawRunMut<'w, 'q>`) rather than cloning it, so a run's one allocation is its slot buffer; the runs are public types (`RawRun`, `RawRunMut`). `Table` gained `raw_columns` and `raw_columns_mut`, which hand out views of byte columns only, so the query module never holds `&mut dyn ErasedColumn` and skips a mixed table's typed columns.
 - Step 4: `RawRunMut` also has a `#[cfg(test)] matched_archetypes()`, since the step's query writes and a read run rejects it. The backends build their step and checksum queries once at setup and keep them; `codec.rs` holds a `const fn layout` helper and the `f32` read and write helpers (`as_chunks`, per clippy).
+- Step 5: the implementation was written before the tests (not test-first); the tests' first failure was a compile error, and the behavioural red check (the remove pass skipped in both backends) failed both conformance tests. The remove pass collects a table's entities with `extend_from_slice`, where the typed backend pushes per row.
