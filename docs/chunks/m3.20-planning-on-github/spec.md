@@ -64,7 +64,7 @@ Priority ranks unscheduled work; Order ranks scheduled work. Neither is read for
 
 ### 4.3 Chores
 
-A chore is a scheduled issue without a chunk ID, scheduled into the current milestone *(main session's call)*: Size S, done as a plain pull request (conventional commit, CI, `Chunk: None (chore, #N)` in the template, a review if not trivial, `Closes #N`), not the seven stages. It has an Order like a chunk. `/chunk next` lists the current milestone's scheduled chores beside the next chunk, and the maintainer picks; an issue bigger than S is scheduled as a chunk. At a milestone boundary, open chores move to the next milestone (`docs/maintainers.md` checklist).
+A chore is a scheduled issue without a chunk ID, scheduled into the current milestone *(main session's call)*: Size S, done as one small pull request, not the seven stages. It has an Order like a chunk. `/chunk chore #N` runs it (maintainer): a branch `chore/<n>-<slug>`; a `builder` writes it test-first from the issue's definition; `cargo xtask ci --quick`, then the full `cargo xtask ci`; one fresh `review-code` if it changes code; a pull request with `Chunk: None (chore, #N)` in the template and `Closes #N`; commit messages ending ` (#N)` in place of a chunk ID (the one exception, stated in `AGENTS.md`); then the merge go-ahead, as for a chunk. No spec, plan, log, compound stage or close-out commit. `/chunk next` lists the current milestone's scheduled chores beside the next chunk, and the maintainer picks; an issue bigger than S is scheduled as a chunk. At a milestone boundary, open chores move to the next milestone (`docs/maintainers.md` checklist).
 
 ### 4.4 Order, dependencies and "next"
 
@@ -90,25 +90,25 @@ Each file below changes only where it names the roadmap as the place of schedule
 
 - `docs/workflow.md` ("From issue to chunk", "Who is the source of truth", the cardinality table): §4.1 to §4.4.
 - `docs/maintainers.md` ("Issue tracking", "When a milestone completes"): the Order field, the "Next up" view, how to schedule a chunk and a chore, closing a milestone in Pulumi, no tracking issue to close.
-- `.claude/skills/chunk/SKILL.md` (`next`) and stages 1, 2, 3 and 7: `next` reads GitHub (§4.4); stage 1 starts from the chunk issue and edits no roadmap row; stages 2 and 3 set no roadmap status; stage 7 closes through `Closes #N` and edits no roadmap row (the spec, plan and log statuses are unchanged).
+- `.claude/skills/chunk/SKILL.md`: a `chore #N` section (§4.3); `next` and stages 1, 2, 3 and 7: `next` reads GitHub (§4.4); stage 1 starts from the chunk issue and edits no roadmap row; stages 2 and 3 set no roadmap status; stage 7 closes through `Closes #N` and edits no roadmap row (the spec, plan and log statuses are unchanged).
 - `.claude/skills/triage/SKILL.md`: the field check includes `Order` (a number field); triage still never sets Scheduled or Order.
-- `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/README.md`, `docs/chunks/README.md`, `.claude/README.md`, `.github/PULL_REQUEST_TEMPLATE.md`, the issue forms' "Depends on" hints, and `docs/chunks/_template/spec.md`: where they point to the roadmap for planned work.
+- `AGENTS.md` (also the commit-message exception for chores), `CONTRIBUTING.md`, `README.md`, `docs/README.md`, `docs/chunks/README.md`, `.claude/README.md`, `.github/PULL_REQUEST_TEMPLATE.md`, the issue forms' "Depends on" hints, and `docs/chunks/_template/spec.md`: where they point to the roadmap for planned work.
 
 Historical documents (specs, plans and logs of done chunks, ADRs) are not edited.
 
 ### 4.8 Migration (GitHub writes, authorized by this spec)
 
-These writes change GitHub, not the repository, so they are not in the pull request:
+These writes change GitHub, not the repository. They roll out before the merge, at the go-ahead, as M3.18's did (maintainer):
 
-- **Before the pull request** (so the pull request can close it): this chunk's own issue, `M3.20: Planning state on GitHub`, created with the Definition of Ready headings and added to the Project; and the `Order` number field created on the Project (`gh project field-create`).
-- **After the merge**, once the maintainer has run `pulumi up` (milestones exist), as one checklist in the plan, each item checked by reading it back:
-  1. Chunk issues for M3.10, M3.7 and M3.8, their bodies in the Definition of Ready headings: the problem and proposal from the roadmap row's text (M3.8's caveats with their log links), the outcome and verification from the row and the M3 exit criteria, the dependencies from the row; no design beyond the row *(main session's call)*; Status Scheduled, milestone M3, Orders 10 (M3.10), 20 (M3.7), 30 (M3.8), and M3.8 blocked by the other two.
-  2. Milestone M3 on every open direct sub-issue of #66, milestone M4 on every open direct sub-issue of #67, and M3 on this chunk's issue; any other issue gets a milestone only when it is scheduled. A milestone says where an issue belongs; only Status Scheduled makes it eligible to be next.
+- **Before the pull request opens** (so it can close the issue): this chunk's own issue, `M3.20: Planning state on GitHub`, with the Definition of Ready headings, added to the Project with Status Scheduled; and the `Order` number field created on the Project (`gh project field-create`).
+- **At stage 7, after the pull request and its close-out commit are pushed:** the maintainer runs `pulumi preview` then `pulumi up` in `infra/github` from the branch (milestones exist from then on); then the main session runs this checklist, reading each item back and recording it in `log.md`, and pushes the log before asking for the go-ahead:
+  1. Chunk issues for M3.10, M3.7 and M3.8, their bodies in the Definition of Ready headings: the problem and proposal from the roadmap row's text (M3.8's caveats with their log links), the outcome and verification from the row and the M3 exit criteria, the dependencies from the row; no design beyond the row *(main session's call)*; Status Scheduled, milestone M3, Orders 10 (M3.10), 20 (M3.7), 30 (M3.8), M3.8 blocked by the other two.
+  2. Milestone M3 on every open direct sub-issue of #66 and on this chunk's issue, milestone M4 on every open direct sub-issue of #67; any other issue gets a milestone only when it is scheduled. A milestone says where an issue belongs; only Status Scheduled makes it eligible to be next.
   3. #41 retitled `M3.12: ...` (§4.2), unscheduled.
   4. #66 and #67 closed as completed, each with a comment that milestones replace them.
   5. The "Next up" view: created by the maintainer in the browser (views are not settable through `gh`), as `docs/maintainers.md` describes.
 
-If the pull request is abandoned, only the two "before" writes exist, and both are removed.
+If the pull request is abandoned instead of merged, every write above is undone: the three chunk issues closed as not planned, the milestones removed from the issues and from `index.ts` (`pulumi up`), #41's title restored, #66 and #67 reopened, the Order field deleted.
 
 ## 5. Requirements
 
@@ -120,8 +120,9 @@ If the pull request is abandoned, only the two "before" writes exist, and both a
 - **M3.20-R6** `docs/roadmap.md` MUST have the shape of §4.6, with every heading anchor that existing documents link to still resolving.
 - **M3.20-R7** Every file of §4.7 MUST name GitHub, not the roadmap, as the place of scheduled work, order and status; historical documents MUST be unchanged.
 - **M3.20-R8** The spec template's `**Issue:**` line MUST be required, and the PR template MUST name chores.
-- **M3.20-R9** The migration of §4.8 MUST be done and read back: the "before" writes before the pull request opens, the "after" checklist after the merge.
+- **M3.20-R9** The migration of §4.8 MUST be done and read back before the merge go-ahead: the first two writes before the pull request opens, the checklist after `pulumi up`.
 - **M3.20-R10** After the migration, a dry run of `/chunk next`'s selection MUST name M3.10.
+- **M3.20-R11** `/chunk chore #N` MUST run a chore as §4.3 says, and `AGENTS.md` MUST state the chore commit-message exception.
 
 ## 6. Cross-cutting concerns
 
@@ -135,7 +136,7 @@ If the pull request is abandoned, only the two "before" writes exist, and both a
 - **FFI exposure:** none.
 - **Performance:** n/a.
 - **Documentation:** §4.7; the CHANGELOG gets a "Changed" entry.
-- **Policy changes:** yes: the workflow's source of truth for planning (no ADR: process, as M3.18 decided for its own change; the decision is reversible by moving the state back). `infra/github` gains milestones; the maintainer runs `pulumi up`.
+- **Policy changes:** yes: the workflow's source of truth for planning, and the chore lane's commit-message exception in `AGENTS.md` (no ADR: process, as M3.18 decided for its own change; the decision is reversible by moving the state back). `infra/github` gains milestones; the maintainer runs `pulumi up` before the go-ahead.
 
 ## 7. Alternatives considered
 
@@ -162,12 +163,13 @@ If the pull request is abandoned, only the two "before" writes exist, and both a
 | R8 | The two templates |
 | R9 | `gh issue view`, `gh project item-list` and `gh api --method GET` read-backs in `log.md`, per checklist item |
 | R10 | The selection run by hand with `gh` after the migration, its result in `log.md` |
+| R11 | review-spec of the `chore` section against §4.3; `AGENTS.md`'s commit rule |
 
 ## 9. Done when
 
-- [ ] R1 to R8 have their evidence; `cargo xtask ci` passes.
-- [ ] The pull request is merged and the maintainer has run `pulumi up`.
-- [ ] R9 and R10 have their evidence: the "before" writes in `log.md`; the "after" checklist, which runs after the merge when an agent can no longer commit to the branch, as a comment on this chunk's issue.
+- [ ] R1 to R8 and R11 have their evidence; `cargo xtask ci` passes.
+- [ ] The maintainer has run `pulumi preview` and `pulumi up` from the branch (R5 in `log.md`).
+- [ ] R9 and R10 have their evidence in `log.md`, pushed before the merge go-ahead.
 
 ## 10. Open questions
 
