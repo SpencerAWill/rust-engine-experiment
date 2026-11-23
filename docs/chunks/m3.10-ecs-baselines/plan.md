@@ -51,7 +51,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 4: the dependency guard (R2)
 
-- [ ] **Who:** main session (configuration)
+- [x] **Who:** main session (configuration)
 - **Files:** `deny.toml`; `log.md`.
 - **Test first:** before the change, temporarily add `hecs = { version = "0.11.2", default-features = false, features = ["std"] }` to `spikes/ecs_storage/harness/Cargo.toml` and run `cargo deny check bans`. It passes, because nothing bans `hecs` yet.
 - **Change:** the `deny` list of spec §4.2. Then, with the temporary dependency still in place, `cargo deny check bans` MUST fail with `crate 'hecs = 0.11.2' is explicitly banned`. Revert the manifest and `Cargo.lock` (`git diff --stat` shows only `deny.toml`), and record both outputs in `log.md` with the commit (specs-2, specs-4).
