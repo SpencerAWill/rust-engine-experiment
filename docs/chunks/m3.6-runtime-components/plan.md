@@ -72,7 +72,7 @@ Choices the spec leaves to implementation:
 
 ### Step 3: the raw query (R8, R9)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `src/raw_query.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Interfaces produced:** `RawQuery::new()`, `read`, `write`, `with`, `without` (each `fn(self, ComponentId) -> Self`, `#[must_use]`); `World::query_raw`, `World::query_raw_mut`; `RawRun<'w>` and `RawRunMut<'w>` with `for_each_table`; `RawTable<'a, 'w>` with `entities`, `column`, `column_mut`, `len`; `RawQueryError::{UnknownId(ComponentId), NotRaw(ComponentId), Repeated(ComponentId), WriteInReadQuery(ComponentId)}`.
 - **Test first:** `unknown_id_is_rejected_before_any_table`, `not_raw_is_rejected_before_any_table`, `repeated_id_is_rejected_before_any_table` (fetch with fetch, fetch with filter, filter with filter), `write_in_read_query_is_rejected` (each with a counting closure that stays at 0); `raw_query_visits_matching_non_empty_archetypes_in_creation_order` (a world with matching, non-matching, `without`-excluded and empty archetypes); `column_on_a_write_fetch_panics`, `column_mut_on_a_read_fetch_panics`, `column_mut_twice_panics` (`should_panic(expected = …)` with each message); `two_write_fetches_are_usable_at_once`; `writes_through_column_mut_are_seen_by_get_raw`; `typed_query_ignores_raw_columns`; review focus 7. They fail to compile before `raw_query.rs` exists.
@@ -162,3 +162,4 @@ The roadmap's M3.8 row caveats and `Done` status, the spec's `Implemented` statu
 
 - Step 1: `cast` and `cast_mut` map `bytemuck`'s cast error, which the size and alignment checks make impossible, to `CastError::SizeMismatch` through `unreachable_cast` rather than `expect`, so the public casts stay panic-free (clippy `missing_panics_doc`). The views also offer `len`, `is_empty` and `layout`.
 - Step 2: `Table::check` gained a third invariant, T3 (no nonzero byte past a byte column's values), for the spec's zero tail; the `check_invariants_*` red-check tests corrupt columns in `table.rs`'s tests, where the columns are reachable (ecs-6). `insert_raw` and `remove_raw` do no map lookup (the kind check is an array index), against one `BTreeMap` lookup in `insert::<T>` and `remove::<T>`.
+- Step 3: runs borrow the query (`RawRun<'w, 'q>`, `RawRunMut<'w, 'q>`) rather than cloning it, so a run's one allocation is its slot buffer; the runs are public types (`RawRun`, `RawRunMut`). `Table` gained `raw_columns` and `raw_columns_mut`, which hand out views of byte columns only, so the query module never holds `&mut dyn ErasedColumn` and skips a mixed table's typed columns.

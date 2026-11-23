@@ -474,6 +474,399 @@ mod raw_model {
     }
 }
 
+/// The raw query: validation before any table, matching and order, the table view's rules.
+mod raw_query {
+    use crate::archetype::ArchetypeId;
+    use crate::{
+        ComponentId, Entity, RawLayout, RawQuery, RawQueryError, RawRun, RawRunMut, World,
+    };
+
+    fn lay(size: usize, align: usize) -> RawLayout {
+        RawLayout::new(size, align).unwrap()
+    }
+
+    fn message(payload: &(dyn core::any::Any + Send)) -> &str {
+        payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or_default()
+    }
+
+    /// A world with raw components `a` (4 bytes), `b` (8), `c` (1) and `d` (4), and no entity.
+    fn world4() -> (World, [ComponentId; 4]) {
+        let mut w = World::new();
+        let ida = w.register_raw("a", lay(4, 4));
+        let idb = w.register_raw("b", lay(8, 4));
+        let idc = w.register_raw("c", lay(1, 1));
+        let idd = w.register_raw("d", lay(4, 4));
+        (w, [ida, idb, idc, idd])
+    }
+
+    fn word(n: u32) -> [u8; 4] {
+        n.to_le_bytes()
+    }
+
+    fn spawn(w: &mut World, values: &[(ComponentId, &[u8])]) -> Entity {
+        w.spawn_raw(values).unwrap()
+    }
+
+    /// The entity list of every table a read run visits.
+    fn visited(run: RawRun<'_, '_>) -> Vec<Vec<Entity>> {
+        let mut tables = Vec::new();
+        run.for_each_table(|t| tables.push(t.entities().to_vec()));
+        tables
+    }
+
+    fn visited_mut(run: RawRunMut<'_, '_>) -> Vec<Vec<Entity>> {
+        let mut tables = Vec::new();
+        run.for_each_table(|t| tables.push(t.entities().to_vec()));
+        tables
+    }
+
+    fn rejected(w: &mut World, q: &RawQuery) -> (RawQueryError, usize) {
+        // Both entry points; a rejected query visits nothing.
+        let mut count = 0;
+        let read = match w.query_raw(q) {
+            Ok(run) => {
+                run.for_each_table(|_| count += 1);
+                None
+            }
+            Err(e) => Some(e),
+        };
+        let write = match w.query_raw_mut(q) {
+            Ok(run) => {
+                run.for_each_table(|_| count += 1);
+                None
+            }
+            Err(e) => Some(e),
+        };
+        let err = write.or(read).expect("the query was rejected");
+        (err, count)
+    }
+
+    #[test]
+    fn unknown_id_is_rejected_before_any_table() {
+        let (mut w, [ida, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        let ghost = ComponentId::new(99);
+        for q in [
+            RawQuery::new().read(ghost),
+            RawQuery::new().read(ida).write(ghost),
+            RawQuery::new().read(ida).with(ghost),
+            RawQuery::new().read(ida).without(ghost),
+        ] {
+            assert_eq!(rejected(&mut w, &q), (RawQueryError::UnknownId(ghost), 0));
+        }
+    }
+
+    #[test]
+    fn not_raw_is_rejected_before_any_table() {
+        let (mut w, [ida, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        let e = w.spawn();
+        w.insert(e, 5_u32);
+        let typed = w.component_id::<u32>().unwrap();
+        for q in [
+            RawQuery::new().read(typed),
+            RawQuery::new().read(ida).write(typed),
+            RawQuery::new().read(ida).with(typed),
+            RawQuery::new().read(ida).without(typed),
+        ] {
+            assert_eq!(rejected(&mut w, &q), (RawQueryError::NotRaw(typed), 0));
+        }
+        assert!(w.check_invariants().is_ok());
+    }
+
+    #[test]
+    fn repeated_id_is_rejected_before_any_table() {
+        let (mut w, [ida, idb, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1)), (idb, &[0; 8])]);
+        for q in [
+            RawQuery::new().read(ida).read(ida),
+            RawQuery::new().read(ida).write(ida),
+            RawQuery::new().read(ida).with(ida),
+            RawQuery::new().read(ida).without(ida),
+            RawQuery::new().with(idb).without(idb),
+            RawQuery::new().with(idb).with(idb),
+            RawQuery::new().without(idb).without(idb),
+        ] {
+            let (err, count) = rejected(&mut w, &q);
+            assert!(matches!(err, RawQueryError::Repeated(_)), "{q:?}");
+            assert_eq!(count, 0);
+        }
+        assert_eq!(
+            rejected(&mut w, &RawQuery::new().read(ida).with(ida)).0,
+            RawQueryError::Repeated(ida)
+        );
+    }
+
+    #[test]
+    fn write_in_read_query_is_rejected() {
+        let (mut w, [ida, idb, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1)), (idb, &[0; 8])]);
+        let q = RawQuery::new().read(ida).write(idb);
+        let mut count = 0;
+        match w.query_raw(&q) {
+            Err(e) => assert_eq!(e, RawQueryError::WriteInReadQuery(idb)),
+            Ok(run) => {
+                run.for_each_table(|_| count += 1);
+                panic!("a write fetch was accepted by query_raw");
+            }
+        }
+        assert_eq!(count, 0);
+        // The same query is fine in the exclusive entry point.
+        assert_eq!(visited_mut(w.query_raw_mut(&q).unwrap()).len(), 1);
+    }
+
+    #[test]
+    fn raw_query_errors_say_what_to_do() {
+        let id = ComponentId::new(3);
+        assert_eq!(
+            RawQueryError::NotRaw(id).to_string(),
+            "component id 3 is a Rust type's; use the typed API"
+        );
+        for e in [
+            RawQueryError::UnknownId(id),
+            RawQueryError::Repeated(id),
+            RawQueryError::WriteInReadQuery(id),
+        ] {
+            let text = e.to_string();
+            assert!(text.contains("component id 3"), "{text}");
+            let _: &dyn core::error::Error = &e;
+        }
+        assert!(
+            RawQueryError::WriteInReadQuery(id)
+                .to_string()
+                .contains("query_raw_mut")
+        );
+    }
+
+    #[test]
+    fn raw_query_visits_matching_non_empty_archetypes_in_creation_order() {
+        let (mut w, [ida, idb, idc, idd]) = world4();
+        // Archetype 1 is [a, b], 2 is [a], 3 is [a, c] (excluded), 4 is [a, d] (emptied), 5 is
+        // [b] (does not match), 6 is [a, b] again for later entities (same archetype as 1).
+        let e1 = spawn(&mut w, &[(ida, &word(1)), (idb, &[1; 8])]);
+        let e2 = spawn(&mut w, &[(ida, &word(2))]);
+        spawn(&mut w, &[(ida, &word(3)), (idc, &[3])]);
+        let gone = spawn(&mut w, &[(ida, &word(4)), (idd, &word(4))]);
+        spawn(&mut w, &[(idb, &[5; 8])]);
+        let e6 = spawn(&mut w, &[(idb, &[6; 8]), (ida, &word(6))]);
+        assert!(w.despawn(gone));
+        assert_eq!(w.archetype_count(), 6);
+
+        let q = RawQuery::new().read(ida).without(idc);
+        let run = w.query_raw(&q).unwrap();
+        let ids: Vec<usize> = run.matched_archetypes().iter().map(|i| i.index()).collect();
+        assert_eq!(ids, vec![1, 2, 4], "the emptied archetype matches too");
+        assert_eq!(visited(run), vec![vec![e1, e6], vec![e2]]);
+        assert_eq!(
+            visited_mut(w.query_raw_mut(&q).unwrap()),
+            vec![vec![e1, e6], vec![e2]]
+        );
+        assert_eq!(
+            w.query_raw(&q).unwrap().matched_archetypes(),
+            vec![
+                ArchetypeId::new(1),
+                ArchetypeId::new(2),
+                ArchetypeId::new(4)
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_query_with_filters_only() {
+        let (mut w, [ida, idb, idc, _]) = world4();
+        let e1 = spawn(&mut w, &[(ida, &word(1)), (idb, &[1; 8])]);
+        let e2 = spawn(&mut w, &[(ida, &word(2))]);
+        let e3 = spawn(&mut w, &[(idc, &[3])]);
+        let q = RawQuery::new().with(ida);
+        assert_eq!(visited(w.query_raw(&q).unwrap()), vec![vec![e1], vec![e2]]);
+        let q = RawQuery::new().without(ida);
+        // The empty archetype has no rows, so it is skipped; `c`'s archetype is visited.
+        assert_eq!(visited(w.query_raw(&q).unwrap()), vec![vec![e3]]);
+        // No fetch and no filter: every non-empty archetype.
+        assert_eq!(
+            visited(w.query_raw(&RawQuery::new()).unwrap()),
+            vec![vec![e1], vec![e2], vec![e3]]
+        );
+        let mut seen = 0;
+        w.query_raw(&RawQuery::new().with(ida))
+            .unwrap()
+            .for_each_table(|t| {
+                assert_eq!(t.len(), t.entities().len());
+                seen += t.len();
+            });
+        assert_eq!(seen, 2);
+    }
+
+    #[test]
+    fn column_on_a_write_fetch_panics() {
+        let (mut w, [ida, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        let q = RawQuery::new().write(ida);
+        let err = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            w.query_raw_mut(&q).unwrap().for_each_table(|t| {
+                let _ = t.column(0);
+            });
+        }))
+        .unwrap_err();
+        assert_eq!(
+            message(&*err),
+            "RawTable::column: fetch 0 is a write fetch; take it with column_mut"
+        );
+    }
+
+    #[test]
+    fn column_mut_on_a_read_fetch_panics() {
+        let (mut w, [ida, idb, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1)), (idb, &[0; 8])]);
+        let q = RawQuery::new().write(ida).read(idb);
+        let err = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+                let _ = t.column_mut(1);
+            });
+        }))
+        .unwrap_err();
+        assert_eq!(
+            message(&*err),
+            "RawTable::column_mut: fetch 1 is a read fetch; take it with column"
+        );
+    }
+
+    #[test]
+    fn column_mut_twice_panics() {
+        let (mut w, [ida, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        let q = RawQuery::new().write(ida);
+        let err = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+                let _first = t.column_mut(0);
+                let _second = t.column_mut(0);
+            });
+        }))
+        .unwrap_err();
+        assert_eq!(
+            message(&*err),
+            "RawTable::column_mut: fetch 0 was already taken for this table"
+        );
+    }
+
+    #[test]
+    fn a_fetch_that_does_not_exist_panics() {
+        let (mut w, [ida, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        let q = RawQuery::new().read(ida);
+        let err = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            w.query_raw(&q).unwrap().for_each_table(|t| {
+                let _ = t.column(1);
+            });
+        }))
+        .unwrap_err();
+        assert_eq!(
+            message(&*err),
+            "RawTable::column: fetch 1 does not exist; the query has 1 fetches"
+        );
+    }
+
+    #[test]
+    fn a_second_table_can_take_the_same_fetch_again() {
+        let (mut w, [ida, idb, ..]) = world4();
+        spawn(&mut w, &[(ida, &word(1))]);
+        spawn(&mut w, &[(ida, &word(2)), (idb, &[0; 8])]);
+        let mut taken = 0;
+        w.query_raw_mut(&RawQuery::new().write(ida))
+            .unwrap()
+            .for_each_table(|mut t| {
+                let col = t.column_mut(0);
+                assert_eq!(col.len(), 1);
+                taken += 1;
+            });
+        assert_eq!(taken, 2);
+    }
+
+    #[test]
+    fn two_write_fetches_are_usable_at_once() {
+        let (mut w, [ida, idb, ..]) = world4();
+        let e = spawn(&mut w, &[(ida, &word(1)), (idb, &word(2).repeat(2))]);
+        let q = RawQuery::new().write(ida).write(idb);
+        w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+            let (ca, cb) = (t.column_mut(0), t.column_mut(1));
+            ca.rows_mut().next().unwrap().copy_from_slice(&word(7));
+            cb.rows_mut().next().unwrap().fill(9);
+        });
+        assert_eq!(w.get_raw(e, ida), Some(&word(7)[..]));
+        assert_eq!(w.get_raw(e, idb), Some(&[9; 8][..]));
+        w.check_invariants().unwrap();
+    }
+
+    #[test]
+    fn writes_through_column_mut_are_seen_by_get_raw() {
+        let (mut w, [ida, idb, ..]) = world4();
+        let es: Vec<Entity> = (0..5)
+            .map(|n| {
+                spawn(
+                    &mut w,
+                    &[(ida, &word(n)), (idb, &[u8::try_from(n).unwrap(); 8])],
+                )
+            })
+            .collect();
+        let q = RawQuery::new().write(ida).read(idb);
+        w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+            let (ca, cb) = (t.column_mut(0), t.column(1));
+            let words = ca.cast_mut::<u32>().unwrap();
+            for (x, bytes) in words.iter_mut().zip(cb.rows()) {
+                *x += u32::from(bytes[0]) * 100 + 1;
+            }
+        });
+        for (n, e) in es.iter().enumerate() {
+            let want = u32::try_from(n).unwrap() * 101 + 1;
+            assert_eq!(w.get_raw(*e, ida), Some(&word(want)[..]));
+        }
+        w.check_invariants().unwrap();
+    }
+
+    #[test]
+    fn a_read_fetch_in_a_mut_run_gives_a_shared_view() {
+        let (mut w, [ida, idb, ..]) = world4();
+        let e = spawn(&mut w, &[(ida, &word(3)), (idb, &[1; 8])]);
+        let q = RawQuery::new().read(idb).write(ida);
+        let mut seen = Vec::new();
+        w.query_raw_mut(&q).unwrap().for_each_table(|mut t| {
+            let (rb, wa) = (t.column(0), t.column_mut(1));
+            // The shared view is `Copy` and outlives the call.
+            let again = rb;
+            seen.push((rb.get(0).unwrap().to_vec(), again.len(), wa.len()));
+        });
+        assert_eq!(seen, vec![(vec![1; 8], 1, 1)]);
+        assert_eq!(w.get_raw(e, idb), Some(&[1; 8][..]));
+    }
+
+    #[test]
+    fn typed_query_ignores_raw_columns() {
+        let (mut w, [ida, ..]) = world4();
+        let e = w.spawn();
+        w.insert(e, 5_u32);
+        w.insert_raw(e, ida, &word(9)).unwrap();
+        let other = w.spawn();
+        w.insert(other, 6_u32);
+        // The typed query matches on its own ids and sees both entities.
+        let mut sum = 0;
+        w.query::<&u32>().for_each(|v| sum += *v);
+        assert_eq!(sum, 11);
+        // The raw query matches the mixed archetype and never touches its typed column.
+        let q = RawQuery::new().read(ida);
+        assert_eq!(visited(w.query_raw(&q).unwrap()), vec![vec![e]]);
+        let mut got = Vec::new();
+        w.query_raw_mut(&RawQuery::new().write(ida))
+            .unwrap()
+            .for_each_table(|mut t| got.push(t.column_mut(0).get(0).unwrap().to_vec()));
+        assert_eq!(got, vec![word(9).to_vec()]);
+        w.check_invariants().unwrap();
+    }
+}
+
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;

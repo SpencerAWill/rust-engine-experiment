@@ -24,6 +24,7 @@ pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
 mod raw;
+mod raw_query;
 pub mod simple_iter;
 pub mod sprites;
 mod table;
@@ -39,6 +40,7 @@ pub use bundle::Bundle;
 pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};
+pub use raw_query::{RawQuery, RawQueryError, RawRun, RawRunMut, RawTable};
 pub use world::{InvariantViolation, RawError, World};
 
 /// The marker type of [`Entity`] IDs.

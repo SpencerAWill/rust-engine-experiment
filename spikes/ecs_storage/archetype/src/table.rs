@@ -4,7 +4,7 @@ use core::any::{Any, TypeId};
 
 use crate::archetype::ComponentId;
 use crate::bundle::Bundle;
-use crate::raw::{ByteColumn, RawColumn, RawLayout};
+use crate::raw::{ByteColumn, RawColumn, RawColumnMut, RawLayout};
 use crate::{Entity, InvariantViolation};
 
 /// The values of one component type in one archetype, one per row.
@@ -173,6 +173,33 @@ impl Table {
         (
             &self.entities,
             self.columns.iter_mut().map(|c| ColumnMut(&mut **c)),
+        )
+    }
+
+    /// The entity list and the byte columns, each with its column index. A typed column is
+    /// skipped. The views cannot push, remove or resize (T1).
+    pub(crate) fn raw_columns(&self) -> (&[Entity], impl Iterator<Item = (usize, RawColumn<'_>)>) {
+        (
+            &self.entities,
+            self.columns
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| matches!(c.describe(), ColumnDesc::Raw(_)))
+                .map(|(i, c)| (i, RawColumn::new(ByteColumn::from_erased(&**c)))),
+        )
+    }
+
+    /// As [`Table::raw_columns`], the views exclusive.
+    pub(crate) fn raw_columns_mut(
+        &mut self,
+    ) -> (&[Entity], impl Iterator<Item = (usize, RawColumnMut<'_>)>) {
+        (
+            &self.entities,
+            self.columns
+                .iter_mut()
+                .enumerate()
+                .filter(|(_, c)| matches!(c.describe(), ColumnDesc::Raw(_)))
+                .map(|(i, c)| (i, RawColumnMut::new(ByteColumn::from_erased_mut(&mut **c)))),
         )
     }
 

@@ -87,7 +87,7 @@ impl World {
     }
 
     /// The layout of raw component `id`.
-    fn raw_layout(&self, id: ComponentId) -> Result<RawLayout, RawError> {
+    pub(crate) fn raw_layout(&self, id: ComponentId) -> Result<RawLayout, RawError> {
         match self.components.get(id.index()).map(|c| &c.kind) {
             None => Err(RawError::UnknownId(id)),
             Some(ComponentKind::Rust { .. }) => Err(RawError::NotRaw(id)),

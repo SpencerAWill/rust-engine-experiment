@@ -398,9 +398,13 @@ impl<'t> RawColumn<'t> {
 pub struct RawColumnMut<'t>(&'t mut ByteColumn);
 
 impl<'t> RawColumnMut<'t> {
-    #[cfg(test)]
     pub(crate) fn new(column: &'t mut ByteColumn) -> Self {
         Self(column)
+    }
+
+    /// The same column as a shared view that lives as long as the borrow.
+    pub(crate) fn into_shared(self) -> RawColumn<'t> {
+        RawColumn::new(self.0)
     }
 
     /// The number of values.
