@@ -68,7 +68,7 @@ Seven steps, one commit each, all by the main session: this chunk changes docume
 
 ### Step 8 (stage 7): rollout and migration (R5, R9, R10)
 
-- [ ] **Who:** maintainer (`pulumi preview`, `pulumi up`, the "Next up" view), main session (the rest)
+- [x] **Who:** maintainer (`pulumi preview`, `pulumi up`, the "Next up" view), main session (the rest)
 - **Do,** after the pull request and its close-out commit are pushed: ask the maintainer to run `pulumi preview` then `pulumi up` in `infra/github` from the branch and paste the preview's summary; then spec §4.8 items 1 to 4, each read back with `gh`; then R10: run §4.4's selection with `gh` and record that it names M3.10, and trial the changed `next` section with a fresh read-only agent given only the skill (tooling-7), recording what it selects; then ask the maintainer to create the "Next up" view; record everything in `log.md`, push, and ask for the merge go-ahead.
 - **Commit:** `docs: record the M3.20 rollout (M3.20)`
 
