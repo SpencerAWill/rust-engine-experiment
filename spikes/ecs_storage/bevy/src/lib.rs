@@ -5,8 +5,8 @@
 //! It implements the harness's workloads on a `bevy_ecs` [`World`](bevy_ecs::world::World) so a
 //! prototype's numbers can be read against a mature engine measured in the same harness. No code
 //! is taken from `bevy_ecs` or any other project
-//! ([ADR 0002](../../../docs/adr/0002-originality-and-dependency-licensing.md)); the crate only
-//! calls its public API.
+//! (`docs/adr/0002-originality-and-dependency-licensing.md`); the crate only calls its public
+//! API.
 //!
 //! The backend named `bevy_ecs` stores every component type in table storage. The backend named
 //! `bevy_ecs_sparse` (`add_remove` and `agents` only) stores `B` and `Seeker` in `SparseSet`

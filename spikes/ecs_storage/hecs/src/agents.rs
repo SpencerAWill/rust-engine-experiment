@@ -1,7 +1,7 @@
 //! The `agents` workload on a `hecs` `World`.
 
 use engine::prelude::{Prng, Transform2d, Vec2};
-use hecs::{CommandBuffer, Entity, World};
+use hecs::{Entity, World};
 use spike_ecs_harness::agents::{self as rules, Agent, Agents, Input, Seeker};
 use spike_ecs_harness::{Params, Workload, dt};
 
@@ -17,14 +17,25 @@ pub struct Velocity(pub Vec2);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ttl(pub u32);
 
+/// A structural change decided inside the query and applied after it.
+#[derive(Clone, Copy, Debug)]
+enum Change {
+    /// Remove `Seeker` from the entity.
+    RemoveSeeker(Entity),
+    /// Insert `Seeker` on the entity.
+    InsertSeeker(Entity, Seeker),
+    /// Despawn the entity.
+    Despawn(Entity),
+}
+
 /// `agents` on a `hecs` [`World`].
 ///
 /// Agents spawn into the 4- or 5-element archetype (without or with `Seeker`). `Seeker` comes
-/// and goes while an agent lives, so changes are recorded in a [`CommandBuffer`] during the step
-/// and run, in recorded order, after the iteration.
+/// and goes while an agent lives, so changes are recorded in a reused `Vec` during the step and
+/// applied through `World`, in recorded order, after the iteration.
 pub struct HecsAgents {
     world: World,
-    commands: CommandBuffer,
+    changes: Vec<Change>,
     prng: Prng,
     next_id: u64,
     tick: u64,
@@ -72,7 +83,7 @@ impl Workload for HecsAgents {
     fn setup(params: Params) -> Self {
         let mut w = Self {
             world: World::new(),
-            commands: CommandBuffer::new(),
+            changes: Vec::new(),
             prng: Prng::from_seed(params.seed),
             next_id: 0,
             tick: 0,
@@ -86,7 +97,8 @@ impl Workload for HecsAgents {
     fn step(&mut self) {
         let cursor = Input::scripted(self.tick).cursor;
         let dt = self.dt;
-        let commands = &mut self.commands;
+        self.changes.clear();
+        let changes = &mut self.changes;
         self.world
             .query_mut::<(
                 Entity,
@@ -108,18 +120,30 @@ impl Workload for HecsAgents {
                     dt,
                 );
                 // The seeker change is recorded before the despawn, so an agent caught and
-                // expired in the same tick has its removal run first and the despawn last.
+                // expired in the same tick has its removal applied first and the despawn last.
                 match (before, local, seeker) {
                     (Some(_), Some(new), Some(slot)) => *slot = new,
-                    (Some(_), None, _) => commands.remove_one::<Seeker>(e),
-                    (None, Some(new), _) => commands.insert_one(e, new),
+                    (Some(_), None, _) => changes.push(Change::RemoveSeeker(e)),
+                    (None, Some(new), _) => changes.push(Change::InsertSeeker(e, new)),
                     _ => {}
                 }
                 if ttl.0 == 0 {
-                    commands.despawn(e);
+                    changes.push(Change::Despawn(e));
                 }
             });
-        self.commands.run_on(&mut self.world);
+        for &change in &self.changes {
+            match change {
+                Change::RemoveSeeker(e) => {
+                    let _ = self.world.remove_one::<Seeker>(e);
+                }
+                Change::InsertSeeker(e, seeker) => {
+                    let _ = self.world.insert_one(e, seeker);
+                }
+                Change::Despawn(e) => {
+                    let _ = self.world.despawn(e);
+                }
+            }
+        }
         self.respawn();
         self.tick += 1;
     }

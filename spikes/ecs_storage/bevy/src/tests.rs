@@ -243,3 +243,25 @@ fn bevy_sparse_insert_moves_archetype_not_table() {
         "same archetype"
     );
 }
+
+#[test]
+fn add_remove_bevy_never_registers_sparse_b() {
+    use spike_ecs_harness::add_remove::B;
+
+    let mut w = BevyAddRemove::setup(PARAMS);
+    for _ in 0..3 {
+        w.step();
+    }
+    assert!(w.world().components().component_id::<Sparse<B>>().is_none());
+}
+
+#[test]
+fn add_remove_bevy_sparse_never_registers_table_b() {
+    use spike_ecs_harness::add_remove::B;
+
+    let mut w = BevySparseAddRemove::setup(PARAMS);
+    for _ in 0..3 {
+        w.step();
+    }
+    assert!(w.world().components().component_id::<Table<B>>().is_none());
+}

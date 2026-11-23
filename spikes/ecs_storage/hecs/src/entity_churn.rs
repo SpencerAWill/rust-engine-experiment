@@ -1,17 +1,17 @@
 //! The `entity_churn` workload on a `hecs` `World`.
 
 use engine::prelude::Prng;
-use hecs::{CommandBuffer, Entity, World};
+use hecs::{Entity, World};
 use spike_ecs_harness::entity_churn::{
     self as rules, EntityChurn, Lifetime, Position, SpawnId, Velocity,
 };
 use spike_ecs_harness::{Params, Workload};
 
-/// `entity_churn` on a `hecs` [`World`]: expired entities are despawned through a command buffer
-/// and replaced with `spawn` until the target count is alive again.
+/// `entity_churn` on a `hecs` [`World`]: expired entities are recorded in a reused `Vec`, despawned
+/// after the iteration and replaced with `spawn` until the target count is alive again.
 pub struct HecsEntityChurn {
     world: World,
-    commands: CommandBuffer,
+    despawns: Vec<Entity>,
     prng: Prng,
     next_id: u64,
     count: usize,
@@ -44,7 +44,7 @@ impl Workload for HecsEntityChurn {
     fn setup(params: Params) -> Self {
         let mut w = Self {
             world: World::new(),
-            commands: CommandBuffer::new(),
+            despawns: Vec::new(),
             prng: Prng::from_seed(params.seed),
             next_id: 0,
             count: params.count,
@@ -54,17 +54,20 @@ impl Workload for HecsEntityChurn {
     }
 
     fn step(&mut self) {
-        let commands = &mut self.commands;
+        self.despawns.clear();
+        let despawns = &mut self.despawns;
         self.world
             .query_mut::<(Entity, &mut Position, &Velocity, &mut Lifetime)>()
             .into_iter()
             .for_each(|(e, position, velocity, lifetime)| {
                 rules::update(position, velocity, lifetime);
                 if rules::is_expired(lifetime) {
-                    commands.despawn(e);
+                    despawns.push(e);
                 }
             });
-        self.commands.run_on(&mut self.world);
+        for &e in &self.despawns {
+            let _ = self.world.despawn(e);
+        }
         self.respawn();
     }
 
