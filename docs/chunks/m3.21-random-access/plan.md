@@ -116,7 +116,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 11: allocation count (R5, ecs-2)
 
-- [ ] **Who:** main session, in a scratchpad crate outside the workspace (its own `[workspace]`, the pinned `rust-toolchain.toml`, a counting `#[global_allocator]`, the spike crates by path)
+- [x] **Who:** main session, in a scratchpad crate outside the workspace (its own `[workspace]`, the pinned `rust-toolchain.toml`, a counting `#[global_allocator]`, the spike crates by path)
 - **Files:** `log.md` only.
 - **Test first:** none (a measurement); the count is checked against expectation: the workload's own code adds 0 allocations per step; each prototype's per-step count equals its recorded per-query-run count times the query runs of both passes (two queries plus one `Lookup`), plus despawn/respawn storage growth.
 - **Change:** count allocations per `step` for each of the seven backends at `count` 10,000 after 700 warm-up ticks; record them with the commit (specs-2, specs-4).
