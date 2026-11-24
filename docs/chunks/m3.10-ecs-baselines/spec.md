@@ -1,6 +1,6 @@
 # M3.10: bevy_ecs and hecs baselines as harness backends
 
-- **Status:** Accepted (2026-11-23); amended 2026-11-23 after review (§4.2 and R2: the wrapper crates are banned too; §4.4: hecs applies deferred changes through `World`, not `CommandBuffer`; §4.7 and R11: `cargo xtask bench` excludes the spike packages)
+- **Status:** Implemented (PR #103, 2026-11-24); amended 2026-11-23 after review (§4.2 and R2: the wrapper crates are banned too; §4.4: hecs applies deferred changes through `World`, not `CommandBuffer`; §4.7 and R11: `cargo xtask bench` excludes the spike packages)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2 · **Decides:** no ADR
 - **Issue:** #100
 - **Estimated size:** about 1,300 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_bevy` about 650 with its sparse variant, `spike_ecs_hecs` about 450, bench registration about 60, `deny.toml`, xtask and documents about 120)
@@ -191,17 +191,17 @@ Both bench crates gain `spike_ecs_bevy` and `spike_ecs_hecs` as dev-dependencies
 
 ## 9. Done when
 
-- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms.
-- [ ] The 16 conformance tests and the R4 and R5 unit tests pass.
-- [ ] `cargo xtask deny` passes and the R2 negative check is recorded in `log.md`.
-- [ ] `cargo xtask spike-bench ecs` lists the three baseline backends, and its informal output is in the pull request.
-- [ ] The documents and tooling of §4.7 are updated.
-- [ ] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request.
-- [ ] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in.
+- [ ] `cargo xtask ci` passes locally on the final code commit, and CI is green on all three platforms. *Local: passes on 09a0893, the final code commit (1,168 tests; log.md); later commits are documents only. CI on PR #103: pending.*
+- [x] The 16 conformance tests and the R4 and R5 unit tests pass. *16 `*_matches_the_reference` tests, 5 R4 removal tests, 3 R5 storage tests and the 2 wrapper tests (§8, R5) pass on 09a0893.*
+- [x] `cargo xtask deny` passes and the R2 negative check is recorded in `log.md`. *Both negative checks, a direct `hecs` dependency and one through `spike_ecs_bevy`, are in log.md (steps 4 and the security fix).*
+- [x] `cargo xtask spike-bench ecs` lists the three baseline backends, and its informal output is in the pull request. *132 ids, 33 of them baseline, on 09a0893; the table is in PR #103 and log.md.*
+- [x] The documents and tooling of §4.7 are updated. *Spike READMEs, CONTRIBUTING.md, CHANGELOG, `coverage.rs`, `bench_args` (R11), crate docs.*
+- [x] The reviews of CONTRIBUTING.md "Reviews before a pull request" are recorded in `log.md` and the pull request. *Three rounds; PR #103 Reviews section.*
+- [x] The spec is `Implemented`, the plan and log `Historical`, with Deviations filled in. *This close-out commit.*
 
 ## 10. Open questions
 
-None yet.
+None.
 
 ## 11. Prior art and sources
 
