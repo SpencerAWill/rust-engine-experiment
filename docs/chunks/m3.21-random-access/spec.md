@@ -1,6 +1,6 @@
 # M3.21: random_access workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-24)
+- **Status:** Accepted (2026-11-24)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10 · **Decides:** no ADR
 - **Issue:** #106
 - **Estimated size:** about 1,250 changed lines, excluding tests, lockfiles and generated files (harness module about 120, `vec_aos` about 90, six ECS backends about 110 each, the prototypes' `Lookup` about 60 each, bench registration about 30, documents about 40)
