@@ -1,6 +1,6 @@
 # M3.21: random_access workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-24)
+- **Status:** Implemented (PR #134, 2026-11-24); amended 2026-11-24 in step 3 (§4.6: `Lookup` is `Copy` only where it owns no cache) and in planning (§4.3: hecs's view type)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10 · **Decides:** no ADR
 - **Issue:** #106
 - **Estimated size:** about 1,250 changed lines, excluding tests, lockfiles and generated files (harness module about 120, `vec_aos` about 90, six ECS backends about 110 each, the prototypes' `Lookup` about 60 each, bench registration about 30, documents about 40)
@@ -181,11 +181,11 @@ impl<'w, T: 'static> Lookup<'w, T> {
 
 ## 9. Done when
 
-- [ ] The harness module, the four prototypes' `Lookup` and the seven implementations exist, and every conformance and agreement test passes.
-- [ ] Both spike benches register `random_access` for the seven backends.
-- [ ] The documents of §4.5 are updated.
-- [ ] One informal run is in the pull request, `log.md` and on #102.
-- [ ] `cargo xtask ci` passes.
+- [x] The harness module, the four prototypes' `Lookup` and the seven implementations exist, and every conformance and agreement test passes. *All pass in the full `ci` on 517ed8b4ffb9e120085cb3a4e3a164f7bb28313f, with the write-back tests added in review.*
+- [x] Both spike benches register `random_access` for the seven backends. *21 `random_access` ids in the informal run; the cache bench builds.*
+- [x] The documents of §4.5 are updated. *`check-docs` 0 problems; `review-docs`.*
+- [ ] One informal run is in the pull request, `log.md` and on #102. *In PR #134 and `log.md`; the #102 comment is posted after this commit.*
+- [x] `cargo xtask ci` passes. *On 517ed8b4ffb9e120085cb3a4e3a164f7bb28313f; CI on the PR pending.*
 
 ## 10. Open questions
 

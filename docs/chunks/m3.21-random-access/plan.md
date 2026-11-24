@@ -1,6 +1,6 @@
 # M3.21 plan: random_access workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-24)
+- **Status:** Historical: executed in PR #134 (2026-11-24); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach
@@ -159,4 +159,6 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 - Step 3: `Lookup` is not `Copy` on `archetype` (its column cache is a `Vec`); spec §4.6's main-session call amended. `World`'s private `lookup` renamed `find_by_components`. `World::lookup` allocates one `Vec` per pass A (counted in step 11).
 - Step 5: dense gains `pub(crate) World::allocator()` for `Lookup`.
 - Steps 4 to 8: the reused-index test (R4) is in `archetype` only, as R4 asks for one prototype.
+- Step 12 ran after review (as the step says), and the full `ci` ran three times: `typos` flagged a short hash in `log.md` twice.
+- Review: the round-1 fixes (write-back invariant tests on six backends, hybrid `Lookup` `Clone`, the agreement tests' despawned case, hand-written `Debug`) landed as one commit, since they share `tests.rs` files.
 - Step 6: hybrid's private `lookup` renamed `find_archetype`; the agreement test is split into a table-type and a sparse-type test; no `roster()` hook (unused there).
