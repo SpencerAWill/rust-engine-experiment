@@ -4,7 +4,7 @@
 
 ## The loop
 
-Each chunk goes through seven stages in one session; the next chunk starts in a new one. Only two stages wait for the maintainer.
+Each chunk goes through seven stages, and the next chunk starts in a new session. Only two stages wait for the maintainer.
 
 | Stage | Done by | Model | Produces | Waits for the maintainer |
 |---|---|---|---|---|
@@ -21,6 +21,7 @@ In Claude Code, `/chunk next` starts stage 1 for the next chunk, `/chunk resume`
 - **Picking the next chunk:** in the current milestone (the open GitHub milestone with the lowest number), the scheduled chunk issue that is not in flight (no branch on origin, which stage 1 pushes at once, and no open pull request from this repository closing it) and has no open "blocked by" issue, with the lowest Order. The maintainer may name another; naming work that is not yet a scheduled chunk schedules it. The exact query is in [the chunk skill](../.claude/skills/chunk/SKILL.md#next).
 - **The main session does not write product or test code** in stages 4 and 5. It dispatches, checks each result against the step's file list, commits, and keeps the documents.
 - **An approved spec authorizes what it states**, public API changes included. Pushing the chunk's branch (in stage 1, as soon as it is created), opening its pull request (stage 7), and opening labelled issues for follow-ups found along the way (stage 7) are part of the loop.
+- **Clear the context after the plan** (suggested, not a wait). The work and review stages do not need the brainstorm and grill conversation: the spec, the plan and `log.md` hold what was decided, and every later turn re-sends the whole context. Once the plan is committed (`docs: add the <title> plan (<id>)`), interrupt the session, run `/rename <id> spec and plan` so that conversation can be found again with `/resume`, then `/clear` and `/chunk resume`, which continues at stage 4 from disk. Unless interrupted, the loop goes straight on to stage 4.
 - **The simplify pass** (behaviour-preserving cleanups: reuse, simplification, efficiency; `/simplify` in Claude Code) runs once over the whole chunk's diff, before any reviewer, and is committed on its own (`refactor: simplify (M<N>.<n>)`), so reviewers can see what it changed.
 - **After the merge go-ahead**, in the same turn, the main session squash-merges the commit the required checks passed on (`gh pr merge --squash --delete-branch --match-head-commit <sha>`, never `--admin`), reminds the maintainer to run `pulumi preview` and `pulumi up` if `infra/github/` changed, names the chunk that comes next, and stops. The maintainer starts it with `/chunk next` in a new session, so each chunk begins with a clean context. If a check fails after the go-ahead, it fixes the failure as in stage 5 and asks again.
 
