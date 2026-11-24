@@ -125,7 +125,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 12: the informal run (R8)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `log.md`.
 - **Test first:** none.
 - **Change:** `/bench-run` with `cargo xtask spike-bench ecs` on the final code commit (after review fixes; specs-4). Before quoting, compare `hybrid` with `archetype` and each baseline with the prototype nearest its model (ecs-9); any departure from expectation says whether its cause is measured or expected and unmeasured (specs-6, docs-3). Record the commit, conditions, power log and the `random_access` table in `log.md`. The pull request and the comment on #102 (posted in stage 7, after the pull request exists) carry the same table.
