@@ -16,3 +16,7 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-24 decision (maintainer) `hybrid` keeps all six `random_access` components in tables: nothing is added or removed; a sparse-`Position` variant is out of scope (#105).
 - 2026-11-24 decision (maintainer) The lookup resolves the type once per pass on every backend: the four prototypes gain a read-only `World::lookup::<T>() -> Lookup` (spec §4.6), bevy uses a held `QueryState` with `get_manual`, hecs `World::view`. Amends the "no new prototype API" non-goal for this view only. Name `Lookup` (not `View`, which `sparse_set` uses for its query path) is the main session's call.
 - 2026-11-24 decision (maintainer) Spec approved; status Accepted.
+- 2026-11-24 done Lessons (`lessons-researcher`, registered agent): ecs-1, 2, 5, 6, 7, 9, 11; docs-1, 3; specs-1, 2, 3, 4, 6. All followed (plan §4).
+- 2026-11-24 decision Spec §4.3 corrected without changing what is built: `hecs` stores the harness types unwrapped, so its view is `World::view::<&Position>()`, not `&Table<Position>`.
+- 2026-11-24 surprise The cache bench's size check (`prepared`) asserts only that each listed size is in `Spec::SIZES`, at run time under Valgrind; a missing size passes. Plan step 9 checks the lines by review.
+- 2026-11-24 done Plan written and accepted: 12 steps; agents dispatched by registered name (`builder`, reviewers).
