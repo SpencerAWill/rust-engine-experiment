@@ -45,8 +45,9 @@ self.world.query::<(&Position, &Target<Entity>)>().for_each(|(p, t)| {
 });
 // Pass B: mutable, same entities in the same order.
 let mut i = 0;
-self.world.query_mut::<(Entity, &Slot, &mut Position, &mut Velocity, &mut Target<Entity>, &mut Lifetime)>()
-    .for_each(|(e, slot, p, v, t, life)| {
+// The prototypes' queries take tuples of up to four elements, so the six are nested.
+self.world.query_mut::<(Entity, (&Slot, &mut Position, &mut Velocity), (&mut Target<Entity>, &mut Lifetime))>()
+    .for_each(|(e, (slot, p, v), (t, life))| {
         let (velocity, retarget) = self.scratch[i];
         i += 1;
         // write velocity and retarget, integrate, age, note expiry
@@ -74,7 +75,7 @@ The common rules of M3.2 §4.4 apply (initial values from `Prng::from_seed(param
 - **Setup.** Spawn entities `0..count` into slots `0..count` (entity `i` in slot `i`), fill the roster, then set every `Target::entity` to `roster[target.slot]`. Setup MAY spawn with a placeholder handle and patch it; setup is not measured. The next spawn index is `count`.
 - **Step, pass A (read).** For every entity, with own position `p` and target `t`: if the backend's lookup of `Position` by `t.entity` succeeds, `q` is that position; otherwise `t.entity` is stale, the entity is retargeted to `h = roster[t.slot]`, and `q` is `h`'s position (`h` is always live). The new velocity is `steer(p, q)`: `(q.0 - p.0) * GAIN` with `GAIN = 0.5`, as `Vec2` subtraction then scalar multiplication *(my call)*. Pass A MUST NOT change any component: every lookup in a step sees the positions as they were at the start of the step, so the result does not depend on iteration order.
 - **Step, pass B (write).** For every entity: write the new velocity, and the new handle if it was retargeted; then `integrate`: `position.0 = position.0 + velocity.0 * DT` (scalar multiplication, then addition) and `lifetime.0 = lifetime.0 - 1`. An entity whose lifetime is now 0 expires.
-- **Step, respawn.** Despawn every expired entity. Then, for each freed slot in ascending slot order, spawn the next spawn index into it with `spawn`, set `roster[slot]` to its handle, and give it `Target { slot: t, entity: roster[t] }` as the roster stands at that moment. If slot `t` is refilled later in the same step, that handle is stale and the next step's pass A retargets it to the new occupant, which is the same entity it would have resolved to now.
+- **Step, respawn.** Despawn every expired entity. Then, for each freed slot in ascending slot order, spawn the next spawn index into it with `spawn`, giving it `Target { slot: t, entity: roster[t] }` as the roster stands just before this spawn, then set `roster[slot]` to its handle. So the bundle is complete before the spawn and no handle is patched afterwards. When `t` is the entity's own slot or a slot refilled later in the same step, that handle is the dead occupant's: the next step's pass A finds it stale and retargets to `roster[t]`, the entity it would have resolved to now, so the checksum is the same *(main session's call, from the cold read)*.
 - **Hash.** `u64(spawn id)`, `u32(slot)`, `vec2(position)`, `vec2(velocity)`, `u32(lifetime)`, `u32(target slot)`. The handle is not hashed: it differs between backends. A backend that reads a dead entity's leftover position, or the wrong entity, changes the next velocity and so the checksum.
 
 The harness module exports `RandomAccess` (the `Spec` marker), the component types, `spawn`, `steer`, `integrate`, `is_expired` and `hash`, each with the floating-point order above, so backends call them and do not write their own.
@@ -106,7 +107,7 @@ Two passes are the same algorithm on every backend, so the only cost that differ
 - **M3.21-R2** `vec_aos` MUST implement `random_access` as §4.4 gives it.
 - **M3.21-R3** `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs` MUST each implement `random_access` with the two passes, the lookup and the respawn order of §4.3, and MUST pass `check_conformance` against `vec_aos` at `count` 1,000, seed 42, for 700 ticks (past every initial entity's lifetime).
 - **M3.21-R4** Within the conformance run, stale handles MUST occur: a `vec_aos` test MUST show that at least one retarget happens in the 700 ticks, and one prototype's test MUST show a stale handle whose index has been reused by a live entity (a generation mismatch, not only an absent index).
-- **M3.21-R5** Pass A MUST NOT change any component, and the step MUST NOT allocate after `setup` beyond the growth of the backend's own storage (the scratch and expiry `Vec`s are reused).
+- **M3.21-R5** Pass A MUST NOT change any component, and the workload's own code MUST NOT allocate in `step`: the scratch and expiry `Vec`s are reserved in `setup` and reused. The backends' own allocations (the prototypes' per-query-run allocations recorded in their logs, storage growth) are allowed and not changed *(main session's call, from the cold read)*.
 - **M3.21-R6** Both spike benches MUST register `random_access` for all seven backends with `Spec::SIZES`; `cargo xtask spike-bench ecs` lists the rows.
 - **M3.21-R7** The documents of §4.5 MUST be updated.
 - **M3.21-R8** The pull request MUST show one informal `cargo xtask spike-bench ecs` run under the benchmark run protocol, labelled informal, with the `random_access` rows; the same rows MUST be in `log.md` and in a comment on #102.
