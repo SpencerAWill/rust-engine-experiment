@@ -27,7 +27,7 @@ Coverage, the nightly fuzz run and the weekly mutants run are report-only and ou
 
 Work is done in chunks, each one GitHub issue scheduled in a milestone, each through seven stages: brainstorm, grill, plan, work, review, compound, close out ([docs/workflow.md](docs/workflow.md)). In Claude Code, `/chunk next` starts the next scheduled one, `/chunk resume` continues one, and `/chunk chore #N` runs a small scheduled chore without the stages.
 
-- **Wait for the maintainer only twice:** spec approval (at the end of the grill) and the merge go-ahead. Between them, move to the next stage without asking.
+- **Wait for the maintainer only three times:** spec approval (at the end of the grill), a pause after the plan commit (to clear the context, [docs/workflow.md](docs/workflow.md#the-loop)), and the merge go-ahead. Between them, move to the next stage without asking.
 - **Roles.** The main session writes documents, dispatches agents (`.claude/agents/`) and commits. A `builder` (Sonnet) writes product and test code; independent reviewers check it and never see the builder's reasoning.
 - **Stop and ask** when:
   - the spec is wrong or silent on something that changes what gets built;
