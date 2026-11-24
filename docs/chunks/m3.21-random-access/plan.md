@@ -89,7 +89,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 8: `hecs` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hecs/src/random_access.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** `random_access_hecs_matches_the_reference`. Fails first: the type does not exist.
 - **Change:** spec §4.3 for hecs: pass A `world.query::<(&Position, &Target<Entity>)>()` with `world.view::<&Position>()` beside it; pass B `query_mut`; despawn and spawn through `World` after pass B; `for_each` in both passes (ecs-7).

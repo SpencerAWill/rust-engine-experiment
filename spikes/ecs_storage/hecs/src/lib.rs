@@ -28,6 +28,7 @@ pub mod agents;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
+pub mod random_access;
 pub mod simple_iter;
 pub mod sprites;
 

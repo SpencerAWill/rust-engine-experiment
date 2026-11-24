@@ -7,6 +7,7 @@ use crate::agents::HecsAgents;
 use crate::entity_churn::HecsEntityChurn;
 use crate::frag_iter::HecsFragIter;
 use crate::heavy_compute::HecsHeavyCompute;
+use crate::random_access::HecsRandomAccess;
 use crate::simple_iter::HecsSimpleIter;
 use crate::sprites::HecsSprites;
 
@@ -58,4 +59,12 @@ fn sprites_hecs_matches_the_reference() {
 #[test]
 fn agents_hecs_matches_the_reference() {
     check_conformance::<spike_ecs_vec::agents::VecAgents, HecsAgents>(PARAMS, 1_300).unwrap();
+}
+
+#[test]
+fn random_access_hecs_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::random_access::VecRandomAccess, HecsRandomAccess>(
+        PARAMS, 700,
+    )
+    .unwrap();
 }
