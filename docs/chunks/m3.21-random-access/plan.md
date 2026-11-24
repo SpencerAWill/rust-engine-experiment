@@ -157,4 +157,6 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 - Step 1: `integrate` takes `dt: f32` (computed once in `setup`, as the other workloads do) instead of calling `dt()` per entity; `spawn` panics on `count` 0 (never called then). See log.md.
 - Step 3: `Lookup` is not `Copy` on `archetype` (its column cache is a `Vec`); spec §4.6's main-session call amended. `World`'s private `lookup` renamed `find_by_components`. `World::lookup` allocates one `Vec` per pass A (counted in step 11).
+- Step 5: dense gains `pub(crate) World::allocator()` for `Lookup`.
+- Steps 4 to 8: the reused-index test (R4) is in `archetype` only, as R4 asks for one prototype.
 - Step 6: hybrid's private `lookup` renamed `find_archetype`; the agreement test is split into a table-type and a sparse-type test; no `roster()` hook (unused there).
