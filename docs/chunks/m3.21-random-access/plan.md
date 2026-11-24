@@ -53,7 +53,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 4: `sparse_set` (R3, R5, R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/sparse_set/src/world.rs` (or `src/lookup.rs`), `src/lib.rs`, `src/random_access.rs` (new), `src/tests.rs`.
 - **Test first:** `lookup_agrees_with_get` and `lookup_of_an_unregistered_type_is_none` as step 3; `random_access_sparse_set_matches_the_reference`; `random_access_sparse_set_zero_count_is_valid`. Fails first: `lookup` does not exist.
 - **Change:** spec §4.6 (`Lookup` holds the `&SparseSet<T>`, or `None`), then the backend on the view path (no group).

@@ -249,6 +249,7 @@ mod workloads {
     use crate::entity_churn::{GroupedEntityChurn, SparseSetEntityChurn};
     use crate::frag_iter::SparseSetFragIter;
     use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
+    use crate::random_access::SparseSetRandomAccess;
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
     use crate::sprites::{GroupedSprites, SparseSetSprites};
     use spike_ecs_vec::add_remove::VecAddRemove;
@@ -256,6 +257,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
 
@@ -265,6 +267,11 @@ mod workloads {
     };
     const TICKS: u64 = 120;
     const AGENT_TICKS: u64 = 1_300;
+
+    #[test]
+    fn random_access_sparse_set_matches_the_reference() {
+        check_conformance::<VecRandomAccess, SparseSetRandomAccess>(PARAMS, 700).unwrap();
+    }
 
     #[test]
     fn simple_iter_sparse_set_matches_the_reference() {
@@ -448,5 +455,73 @@ mod workloads {
         zero_count::<GroupedSprites>();
         zero_count::<SparseSetAgents>();
         zero_count::<GroupedAgents>();
+    }
+
+    #[test]
+    fn random_access_sparse_set_zero_count_is_valid() {
+        zero_count::<SparseSetRandomAccess>();
+    }
+}
+
+mod lookup {
+    use crate::{Entity, World};
+
+    #[derive(Debug, PartialEq)]
+    struct A(u32);
+    #[derive(Debug, PartialEq)]
+    struct B(u32);
+
+    fn spawn(w: &mut World, a: Option<u32>, b: Option<u32>) -> Entity {
+        let e = w.spawn();
+        if let Some(a) = a {
+            w.insert(e, A(a));
+        }
+        if let Some(b) = b {
+            w.insert(e, B(b));
+        }
+        e
+    }
+
+    /// Spawns until a handle with `like`'s index and a higher generation comes back.
+    fn reuse_index(w: &mut World, like: Entity) -> Entity {
+        loop {
+            let e = spawn(w, Some(9), None);
+            if e.index() == like.index() {
+                return e;
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_agrees_with_get() {
+        let mut w = World::new();
+        let with = spawn(&mut w, Some(1), Some(2));
+        let without = spawn(&mut w, None, Some(3));
+        let dead = spawn(&mut w, Some(4), None);
+        w.despawn(dead);
+        let old = spawn(&mut w, Some(5), None);
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        assert!(new.generation() > old.generation());
+
+        let lookup = w.lookup::<A>();
+        let both = |e| (lookup.get(e), w.get::<A>(e));
+        // Live with `A`.
+        assert_eq!(both(with), (Some(&A(1)), Some(&A(1))));
+        // Live without `A`.
+        assert_eq!(both(without), (None, None));
+        // Despawned.
+        assert_eq!(both(dead), (None, None));
+        // Stale, with its index reused by a live entity.
+        assert_eq!(both(old), (None, None));
+    }
+
+    #[test]
+    fn lookup_of_an_unregistered_type_is_none() {
+        let mut w = World::new();
+        let e = spawn(&mut w, Some(1), None);
+        let lookup = w.lookup::<B>();
+        assert_eq!(lookup.get(e), None);
+        assert_eq!(lookup.get(e), w.get::<B>(e));
     }
 }
