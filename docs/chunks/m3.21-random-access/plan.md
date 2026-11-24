@@ -107,7 +107,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 10: documents (R7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (status-line date, harness row, workload list, rules link), `spikes/README.md` (Contents row: eight workloads); the plan tick.
 - **Test first:** `grep -rn "seven" spikes/README.md spikes/ecs_storage/README.md spikes/ecs_storage/harness/src/lib.rs` finds the stale counts (docs-1: grep the phrase across `docs/` and `.claude/` too).
 - **Change:** spec §4.5's document items; the prototypes' `Lookup` in each prototype's row.
