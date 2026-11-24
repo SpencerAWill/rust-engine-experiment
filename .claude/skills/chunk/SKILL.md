@@ -10,12 +10,13 @@ The loop is described for people in [docs/workflow.md](../../../docs/workflow.md
 
 Argument: `$ARGUMENTS` (empty means `resume` if a chunk is in progress on the current branch, else `next`).
 
-## Two waits, nothing else
+## Three waits, nothing else
 
 Wait for the maintainer only at:
 
 1. **Spec approval**, at the end of the grill.
-2. **Merge go-ahead**, after the pull request is open, its close-out commit pushed.
+2. **Plan pause**, after the plan commit, so the maintainer can clear the context ([stage 3](stages/3-plan.md) step 6).
+3. **Merge go-ahead**, after the pull request is open, its close-out commit pushed.
 
 Between them, go from one stage to the next without asking. Stop and ask only for an escalation in [AGENTS.md](../../../AGENTS.md#the-loop) ("Stop and ask"); a wrong or silent spec is fixed by an amendment, grilled and approved like the spec. "Outward-facing" means anything beyond the chunk's branch, its pull request and its follow-up issues.
 
