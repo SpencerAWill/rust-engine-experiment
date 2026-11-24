@@ -24,3 +24,5 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-24 decision `spawn` panics on `count` 0 or above `u32::MAX` (documented, `#[track_caller]`, no `try_` twin: harness code, setup never calls it with 0).
 - 2026-11-24 lesson? clippy assign_op_pattern rejects `p.0 = p.0 + v * dt`; write `p.0 += v * dt` (same f32 ops, so the spec's order is kept).
 - 2026-11-24 decision (review fix) `integrate` takes `dt: f32` as its last argument; backends compute `dt()` once in setup.
+- 2026-11-24 done Step 2: `spike_ecs_vec::random_access::VecRandomAccess` (vec_aos, E = u64, two passes); 3 tests pass; first failure was E0583 (module file not found). Retargets over 700 ticks at count 1000, seed 42: 1689.
+- 2026-11-24 lesson? clippy denies `print_stdout` and `cast_possible_truncation` in spikes: a test that prints needs `#[allow(clippy::print_stdout, reason = ...)]`; use `u32::try_from(i).expect(..)` for slots.

@@ -31,7 +31,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 2: the `vec_aos` reference (R2, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/random_access.rs` (new), `vec/src/lib.rs`, `vec/src/tests.rs`.
 - **Test first:** `random_access_zero_count_is_valid` (the existing `assert_zero_count_is_valid`); `random_access_retargets_within_conformance_ticks`: steps `count` 1,000, seed 42, for 700 ticks, counting each tick the entities whose `Target::entity` changed while their `Target::slot` did not, and asserts the total is above 0 (print it); `random_access_respawns_fill_slots_in_order`: after a step with expiries, the new spawn ids increase with slot. Fails first: the type does not exist.
 - **Change:** spec §4.4: `Vec` of structs indexed by slot, `E = u64`, two passes, respawn in place in ascending slot order. No order-independence test: reversing the `Vec` would break the slot index, which is the storage; say so in a comment.

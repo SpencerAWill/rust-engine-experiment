@@ -9,6 +9,7 @@ use crate::agents::{SoaAgents, VecAgents};
 use crate::entity_churn::VecEntityChurn;
 use crate::frag_iter::VecFragIter;
 use crate::heavy_compute::VecHeavyCompute;
+use crate::random_access::VecRandomAccess;
 use crate::simple_iter::VecSimpleIter;
 use crate::sprites::VecSprites;
 
@@ -719,4 +720,60 @@ mod agents {
         assert_zero_count_is_valid::<VecAgents>();
         assert_zero_count_is_valid::<SoaAgents>();
     }
+}
+
+#[test]
+fn random_access_zero_count_is_valid() {
+    assert_zero_count_is_valid::<VecRandomAccess>();
+}
+
+/// R4: within the conformance run, some entities hold a stale handle and are retargeted, so the
+/// conformance checksums cover the stale path.
+#[test]
+#[allow(
+    clippy::print_stdout,
+    reason = "the plan asks for the count to be printed"
+)]
+fn random_access_retargets_within_conformance_ticks() {
+    let mut w = VecRandomAccess::setup(Params {
+        count: 1_000,
+        seed: 42,
+    });
+    let mut retargets = 0_usize;
+    for _ in 0..700 {
+        let before: Vec<_> = w.entities.iter().map(|e| (e.id, e.target)).collect();
+        w.step();
+        for (e, (id, target)) in w.entities.iter().zip(before) {
+            if e.id == id && e.target.slot == target.slot && e.target.entity != target.entity {
+                retargets += 1;
+            }
+        }
+    }
+    println!("random_access retargets over 700 ticks at count 1000: {retargets}");
+    assert!(retargets > 0);
+}
+
+#[test]
+fn random_access_respawns_fill_slots_in_order() {
+    let mut w = VecRandomAccess::setup(Params {
+        count: 1_000,
+        seed: 42,
+    });
+    for _ in 0..700 {
+        let first_new = w.next_id;
+        w.step();
+        let fresh: Vec<u64> = w
+            .entities
+            .iter()
+            .map(|e| e.id.0)
+            .filter(|&id| id >= first_new)
+            .collect();
+        if !fresh.is_empty() {
+            // `entities` is indexed by slot, so `fresh` is in slot order.
+            assert!(fresh.windows(2).all(|pair| pair[0] + 1 == pair[1]));
+            assert_eq!(fresh[0], first_new);
+            return;
+        }
+    }
+    panic!("no entity expired in 700 ticks");
 }
