@@ -425,6 +425,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
 
@@ -435,6 +436,7 @@ mod workloads {
     use crate::frag_iter::HybridFragIter;
     use crate::heavy_compute::HybridHeavyCompute;
     use crate::query::seal::Role;
+    use crate::random_access::HybridRandomAccess;
     use crate::simple_iter::HybridSimpleIter;
     use crate::sprites::HybridSprites;
 
@@ -652,5 +654,128 @@ mod workloads {
         zero_count::<HybridEntityChurn>();
         zero_count::<HybridSprites>();
         zero_count::<HybridAgents>();
+    }
+
+    #[test]
+    fn random_access_hybrid_matches_the_reference() {
+        check_conformance::<VecRandomAccess, HybridRandomAccess>(PARAMS, 700).unwrap();
+    }
+
+    #[test]
+    fn random_access_hybrid_zero_count_is_valid() {
+        zero_count::<HybridRandomAccess>();
+    }
+
+    /// ecs-11: the workload's six types are all table types, so the world built by setup and
+    /// steps holds no sparse set at all, and none is registered for any of them.
+    #[test]
+    fn random_access_hybrid_registers_no_sparse_set() {
+        use crate::component::StorageKind;
+        use spike_ecs_harness::random_access::{
+            Lifetime, Position, Slot, SpawnId, Target, Velocity,
+        };
+
+        let mut w = HybridRandomAccess::setup(PARAMS);
+        for _ in 0..5 {
+            w.step();
+        }
+        let world = w.world();
+        assert_eq!(world.parts().1.len(), 0, "no sparse set exists");
+        let types = [
+            core::any::TypeId::of::<SpawnId>(),
+            core::any::TypeId::of::<Slot>(),
+            core::any::TypeId::of::<Position>(),
+            core::any::TypeId::of::<Velocity>(),
+            core::any::TypeId::of::<Lifetime>(),
+            core::any::TypeId::of::<Target<crate::Entity>>(),
+        ];
+        for ty in types {
+            let id = world.component_id_of(ty).expect("registered by setup");
+            assert_eq!(world.component_info(id).kind, StorageKind::Table);
+        }
+        world.check_invariants().unwrap();
+    }
+}
+
+mod lookup {
+    use crate::component::components;
+    use crate::{Entity, World};
+
+    #[derive(Debug, PartialEq)]
+    struct A(u32);
+    #[derive(Debug, PartialEq)]
+    struct B(u32);
+    #[derive(Debug, PartialEq)]
+    struct SA(u32);
+    #[derive(Debug, PartialEq)]
+    struct SB(u32);
+    components!(TableStorage: A, B);
+    components!(SparseStorage: SA, SB);
+
+    /// Spawns until a handle with `like`'s index and a higher generation comes back.
+    fn reuse_index(w: &mut World, like: Entity) -> Entity {
+        loop {
+            let e = w.spawn_with((A(9),));
+            if e.index() == like.index() {
+                return e;
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_agrees_with_get_for_a_table_type() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1), B(2)));
+        let without = w.spawn_with((B(3),));
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        let old = w.spawn_with((A(5),));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        assert!(new.generation() > old.generation());
+
+        let lookup = w.lookup::<A>();
+        let both = |e| (lookup.get(e), w.get::<A>(e));
+        assert_eq!(both(with), (Some(&A(1)), Some(&A(1))));
+        assert_eq!(both(without), (None, None));
+        assert_eq!(both(dead), (None, None));
+        assert_eq!(both(old), (None, None));
+    }
+
+    #[test]
+    fn lookup_agrees_with_get_for_a_sparse_type() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1),));
+        w.insert(with, SA(1));
+        let without = w.spawn_with((A(3),));
+        let dead = w.spawn_with((A(4),));
+        w.insert(dead, SA(4));
+        w.despawn(dead);
+        let old = w.spawn_with((A(5),));
+        w.insert(old, SA(5));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        w.insert(new, SA(6));
+        assert!(new.generation() > old.generation());
+
+        let lookup = w.lookup::<SA>();
+        let both = |e| (lookup.get(e), w.get::<SA>(e));
+        assert_eq!(both(with), (Some(&SA(1)), Some(&SA(1))));
+        assert_eq!(both(without), (None, None));
+        assert_eq!(both(dead), (None, None));
+        assert_eq!(both(old), (None, None));
+        assert_eq!(lookup.get(new), Some(&SA(6)));
+    }
+
+    #[test]
+    fn lookup_of_an_unregistered_type_is_none() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1),));
+        let table = w.lookup::<B>();
+        assert_eq!(table.get(e), None);
+        assert_eq!(table.get(e), w.get::<B>(e));
+        let sparse = w.lookup::<SB>();
+        assert_eq!(sparse.get(e), None);
+        assert_eq!(sparse.get(e), w.get::<SB>(e));
     }
 }

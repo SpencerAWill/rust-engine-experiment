@@ -37,3 +37,7 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-24 done Step 5: `dense` gains `World::lookup`/`Lookup` (`src/lookup.rs`, plus a `pub(crate) World::allocator`) and `random_access::DenseRandomAccess`; 69 tests pass, `cargo xtask ci --quick` rc 0. First failure of the new tests was E0432 (`crate::random_access` missing) and E0599 (no `lookup`).
 - 2026-11-24 decision `Lookup` holds `&GenIdAllocator` and `Option<&DenseColumn<T>>`, is `Copy`; `get` checks `is_alive` first because a column slot is reused after despawn. Same step order as sparse_set; no sort was needed in pass B beyond `expired` (conformance passes at 700 ticks).
 - 2026-11-24 done Red check (ecs-6): liveness check removed from `Lookup::get`: `lookup_agrees_with_get` and `random_access_dense_matches_the_reference` fail (2 of 69). Check restored.
+- 2026-11-24 surprise hybrid's private `World::lookup(&mut self, &[ComponentId])` (archetype find) collided with the new public `World::lookup::<T>`; renamed it `find_archetype`.
+- 2026-11-24 decision hybrid `Lookup` holds a private `Source` enum (Absent / Table per-archetype column slices / Sparse set); one match per `get`, no type lookup or column search (ecs-7); table path checks `is_alive`, sparse path relies on the set's full-handle compare.
+- 2026-11-24 done step 6 hybrid: Lookup, six harness types as TableStorage, HybridRandomAccess, 7 new tests; nextest hybrid 93 pass, `cargo xtask ci --quick` rc 0.
+- 2026-11-24 done step 6 fix: removed the unused roster() hook from hybrid random_access.rs

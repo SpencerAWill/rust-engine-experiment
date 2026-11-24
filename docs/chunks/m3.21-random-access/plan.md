@@ -71,7 +71,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 6: `hybrid` (R3, R5, R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/src/world.rs` (or `src/lookup.rs`), `src/lib.rs`, `src/harness_components.rs` (the six types, `Target<crate::Entity>` included, as `TableStorage`), `src/random_access.rs` (new), `src/tests.rs`.
 - **Test first:** `lookup_agrees_with_get` for a table type and for a sparse type (the four cases each), `lookup_of_an_unregistered_type_is_none`; `random_access_hybrid_matches_the_reference`; `random_access_hybrid_zero_count_is_valid`; `random_access_hybrid_registers_no_sparse_set` (ecs-11): after setup and 5 steps, the world has no sparse set for any of the six types. Fails first: `lookup` does not exist.
 - **Change:** spec §4.6 for both storage kinds, then the backend.
@@ -157,3 +157,4 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 - Step 1: `integrate` takes `dt: f32` (computed once in `setup`, as the other workloads do) instead of calling `dt()` per entity; `spawn` panics on `count` 0 (never called then). See log.md.
 - Step 3: `Lookup` is not `Copy` on `archetype` (its column cache is a `Vec`); spec §4.6's main-session call amended. `World`'s private `lookup` renamed `find_by_components`. `World::lookup` allocates one `Vec` per pass A (counted in step 11).
+- Step 6: hybrid's private `lookup` renamed `find_archetype`; the agreement test is split into a table-type and a sparse-type test; no `roster()` hook (unused there).
