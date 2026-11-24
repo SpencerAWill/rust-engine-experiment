@@ -62,7 +62,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 5: `dense` (R3, R5, R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/dense/src/world.rs` (or `src/lookup.rs`), `src/lib.rs`, `src/random_access.rs` (new), `src/tests.rs`.
 - **Test first:** as step 4, for `dense`. Fails first: `lookup` does not exist.
 - **Change:** spec §4.6 (`Lookup` holds the allocator and the `&DenseColumn<T>`, or `None`), then the backend. Pass B visits indices in ascending order, which is not slot order, so `expired` is sorted.
