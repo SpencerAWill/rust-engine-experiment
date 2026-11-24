@@ -49,3 +49,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-24 done step 8: spikes/ecs_storage/hecs/src/random_access.rs (HecsRandomAccess); conformance passes at 700 ticks; verify grep empty; ci --quick rc 0
 - 2026-11-24 lesson? hecs 0.11.2 World::view = CachedQuery::get (lock, type lookup, downcast, Arc clone) + per-archetype dynamic borrow + cache clone, once per pass; ViewBorrow::get = meta[id] bounds check + generation compare + fetch[archetype] Option + column index: no lock, no type lookup, no borrow flag per call
 - 2026-11-24 surprise hecs lib.rs crate docs still say "seven workloads" (not in step 8 files; step 10 grep should cover spikes/ecs_storage/hecs/src/lib.rs)
+- 2026-11-24 done Step 9: registered random_access for the 7 backends in bench_compare/compare.rs and bench_cache/cache.rs (+ random_access group in main!); both --no-run rc 0, ci --quick rc 0

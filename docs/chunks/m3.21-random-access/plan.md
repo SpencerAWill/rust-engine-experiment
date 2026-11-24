@@ -98,7 +98,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 9: bench registration (R6)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/benches/compare.rs`, `spikes/ecs_storage/bench_cache/benches/cache.rs`.
 - **Test first:** none runnable here: the cache bench's size assertion (`prepared`) checks that each listed size is in `Spec::SIZES`, at run time under Valgrind, which this Mac lacks; it does not catch a missing size. The `cache_bench!` lines are checked by reading them against `SIZES` (review).
 - **Change:** seven `bench::<…>` lines and seven `cache_bench!` lines in a `random_access` group, spec §4.5.
