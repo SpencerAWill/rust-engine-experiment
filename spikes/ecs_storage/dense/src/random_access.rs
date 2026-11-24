@@ -23,6 +23,28 @@ pub struct DenseRandomAccess {
     expired: Vec<(Entity, u32)>,
 }
 
+#[cfg(test)]
+impl DenseRandomAccess {
+    /// The spawn index the next respawn takes, for tests.
+    pub(crate) fn next_id(&self) -> u64 {
+        self.next_id
+    }
+
+    /// For each target whose handle is not alive, the spawn index of the entity now in the
+    /// roster at that target's slot, for tests.
+    pub(crate) fn stale_target_occupants(&self) -> Vec<u64> {
+        let mut occupants = Vec::new();
+        self.world.query::<&Target<Entity>>().for_each(|t| {
+            if !self.world.is_alive(t.entity) {
+                let occupant = self.roster[t.slot as usize];
+                let id = self.world.get::<SpawnId>(occupant);
+                occupants.push(id.expect("the roster holds live entities").0);
+            }
+        });
+        occupants
+    }
+}
+
 /// Spawns an entity with the six components, one insert each.
 fn spawn(
     world: &mut World,

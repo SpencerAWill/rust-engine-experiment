@@ -1,5 +1,7 @@
 //! [`Lookup`]: a read-only view of one component type by entity handle (M3.21 spec §4.6).
 
+use core::fmt;
+
 use crate::storage::SparseSet;
 use crate::{Entity, World};
 
@@ -31,10 +33,15 @@ impl World {
 /// Reads one component type by entity handle; made by [`World::lookup`].
 ///
 /// It borrows the [`World`], so nothing changes while it lives.
-#[derive(Debug)]
 pub struct Lookup<'w, T> {
     /// The sparse set of `T`s, or `None` if `T` was never inserted.
     set: Option<&'w SparseSet<T>>,
+}
+
+impl<T> fmt::Debug for Lookup<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lookup").finish_non_exhaustive()
+    }
 }
 
 impl<T> Clone for Lookup<'_, T> {

@@ -54,6 +54,28 @@ impl BevyRandomAccess {
     pub(crate) fn world(&self) -> &World {
         &self.world
     }
+
+    /// The spawn index the next respawn takes, for tests.
+    pub(crate) fn next_id(&self) -> u64 {
+        self.next_id
+    }
+
+    /// For each target whose handle is not alive, the spawn index of the entity now in the
+    /// roster at that target's slot, for tests.
+    pub(crate) fn stale_target_occupants(&self) -> Vec<u64> {
+        let mut occupants = Vec::new();
+        let Some(query) = self.world.try_query::<&Table<Target<Entity>>>() else {
+            return occupants;
+        };
+        for t in query.iter_manual(&self.world) {
+            if self.world.get_entity(t.0.entity).is_err() {
+                let occupant = self.roster[t.0.slot as usize];
+                let id = self.world.get::<Table<SpawnId>>(occupant);
+                occupants.push(id.expect("the roster holds live entities").0.0);
+            }
+        }
+        occupants
+    }
 }
 
 impl BevyRandomAccess {

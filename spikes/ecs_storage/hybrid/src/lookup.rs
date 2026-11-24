@@ -65,10 +65,30 @@ enum Source<'w, T> {
 /// Reads one component type by entity handle; made by [`World::lookup`].
 ///
 /// It borrows the [`World`], so no archetype is created and no row moves while it lives. It
-/// hands out `&T` only.
+/// hands out `&T` only. It is `Clone` but not `Copy`, because a table type's lookup owns the
+/// per-archetype column cache.
 pub struct Lookup<'w, T> {
     world: &'w World,
     source: Source<'w, T>,
+}
+
+impl<T> Clone for Source<'_, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Absent => Self::Absent,
+            Self::Table(columns) => Self::Table(columns.clone()),
+            Self::Sparse(set) => Self::Sparse(set),
+        }
+    }
+}
+
+impl<T> Clone for Lookup<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            world: self.world,
+            source: self.source.clone(),
+        }
+    }
 }
 
 impl<T> fmt::Debug for Lookup<'_, T> {

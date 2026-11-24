@@ -663,6 +663,27 @@ mod workloads {
             .unwrap();
     }
 
+    /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+    /// back. A target is stale after a step only if its slot was refilled in that step: an older
+    /// stale handle means the write-back is missing.
+    #[test]
+    fn random_access_hybrid_writes_back_retargets() {
+        let mut w = HybridRandomAccess::setup(PARAMS);
+        let mut stale = 0_usize;
+        for tick in 1..=RANDOM_ACCESS_TICKS {
+            let first_new = w.next_id();
+            w.step();
+            for occupant in w.stale_target_occupants() {
+                assert!(
+                    occupant >= first_new,
+                    "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+                );
+                stale += 1;
+            }
+        }
+        assert!(stale > 0, "no stale target seen over the run");
+    }
+
     #[test]
     fn random_access_hybrid_zero_count_is_valid() {
         zero_count::<HybridRandomAccess>();
@@ -729,12 +750,15 @@ mod lookup {
         let mut w = World::new();
         let with = w.spawn_with((A(1), B(2)));
         let without = w.spawn_with((B(3),));
-        let dead = w.spawn_with((A(4),));
-        w.despawn(dead);
         let old = w.spawn_with((A(5),));
         w.despawn(old);
         let new = reuse_index(&mut w, old);
         assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
 
         let lookup = w.lookup::<A>();
         let both = |e| (lookup.get(e), w.get::<A>(e));
@@ -750,15 +774,18 @@ mod lookup {
         let with = w.spawn_with((A(1),));
         w.insert(with, SA(1));
         let without = w.spawn_with((A(3),));
-        let dead = w.spawn_with((A(4),));
-        w.insert(dead, SA(4));
-        w.despawn(dead);
         let old = w.spawn_with((A(5),));
         w.insert(old, SA(5));
         w.despawn(old);
         let new = reuse_index(&mut w, old);
         w.insert(new, SA(6));
         assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.insert(dead, SA(4));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
 
         let lookup = w.lookup::<SA>();
         let both = |e| (lookup.get(e), w.get::<SA>(e));
@@ -767,6 +794,31 @@ mod lookup {
         assert_eq!(both(dead), (None, None));
         assert_eq!(both(old), (None, None));
         assert_eq!(lookup.get(new), Some(&SA(6)));
+    }
+
+    /// §4.6: a `Lookup` is `Clone` whatever its `T`, for a table type and a sparse type.
+    #[test]
+    fn lookup_clones_and_reads_through_the_clone() {
+        // Neither type is `Clone` or `Debug`.
+        struct Plain(u32);
+        struct Thin(u32);
+        components!(TableStorage: Plain);
+        components!(SparseStorage: Thin);
+
+        let mut w = World::new();
+        let e = w.spawn_with((Plain(1),));
+        w.insert(e, Thin(2));
+
+        let table = w.lookup::<Plain>();
+        let table_clone = table.clone();
+        assert_eq!(table_clone.get(e).map(|p| p.0), Some(1));
+        assert_eq!(table.get(e).map(|p| p.0), Some(1));
+        assert_eq!(format!("{table_clone:?}"), "Lookup { .. }");
+
+        let sparse = w.lookup::<Thin>();
+        let sparse_clone = sparse.clone();
+        assert_eq!(sparse_clone.get(e).map(|t| t.0), Some(2));
+        assert_eq!(sparse.get(e).map(|t| t.0), Some(2));
     }
 
     #[test]

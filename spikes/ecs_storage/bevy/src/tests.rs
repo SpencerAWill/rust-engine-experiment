@@ -64,6 +64,27 @@ fn random_access_bevy_matches_the_reference() {
     .unwrap();
 }
 
+/// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+/// back. A target is stale after a step only if its slot was refilled in that step: an older
+/// stale handle means the write-back is missing.
+#[test]
+fn random_access_bevy_writes_back_retargets() {
+    let mut w = BevyRandomAccess::setup(PARAMS);
+    let mut stale = 0_usize;
+    for tick in 1..=RANDOM_ACCESS_TICKS {
+        let first_new = w.next_id();
+        w.step();
+        for occupant in w.stale_target_occupants() {
+            assert!(
+                occupant >= first_new,
+                "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+            );
+            stale += 1;
+        }
+    }
+    assert!(stale > 0, "no stale target seen over the run");
+}
+
 #[test]
 fn random_access_bevy_clears_removals_each_step() {
     let mut w = BevyRandomAccess::setup(PARAMS);

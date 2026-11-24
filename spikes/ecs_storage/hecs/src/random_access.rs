@@ -42,6 +42,29 @@ impl HecsRandomAccess {
     }
 }
 
+#[cfg(test)]
+impl HecsRandomAccess {
+    /// The spawn index the next respawn takes, for tests.
+    pub(crate) fn next_id(&self) -> u64 {
+        self.next_id
+    }
+
+    /// For each target whose handle is not alive, the spawn index of the entity now in the
+    /// roster at that target's slot, for tests.
+    pub(crate) fn stale_target_occupants(&self) -> Vec<u64> {
+        let mut occupants = Vec::new();
+        let mut query = self.world.query::<&Target<Entity>>();
+        for t in &mut query {
+            if !self.world.contains(t.entity) {
+                let occupant = self.roster[t.slot as usize];
+                let id = self.world.get::<&SpawnId>(occupant);
+                occupants.push(id.expect("the roster holds live entities").0);
+            }
+        }
+        occupants
+    }
+}
+
 impl core::fmt::Debug for HecsRandomAccess {
     /// `hecs::World` has no `Debug`, so this shows the entity count only.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

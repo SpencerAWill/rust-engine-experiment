@@ -565,6 +565,27 @@ mod workloads {
         zero_count::<DenseAgents>();
     }
 
+    /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+    /// back. A target is stale after a step only if its slot was refilled in that step: an older
+    /// stale handle means the write-back is missing.
+    #[test]
+    fn random_access_dense_writes_back_retargets() {
+        let mut w = DenseRandomAccess::setup(PARAMS);
+        let mut stale = 0_usize;
+        for tick in 1..=RANDOM_ACCESS_TICKS {
+            let first_new = w.next_id();
+            w.step();
+            for occupant in w.stale_target_occupants() {
+                assert!(
+                    occupant >= first_new,
+                    "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+                );
+                stale += 1;
+            }
+        }
+        assert!(stale > 0, "no stale target seen over the run");
+    }
+
     #[test]
     fn random_access_dense_zero_count_is_valid() {
         zero_count::<DenseRandomAccess>();
@@ -605,12 +626,15 @@ mod lookup {
         let mut w = World::new();
         let with = spawn(&mut w, Some(1), Some(2));
         let without = spawn(&mut w, None, Some(3));
-        let dead = spawn(&mut w, Some(4), None);
-        w.despawn(dead);
         let old = spawn(&mut w, Some(5), None);
         w.despawn(old);
         let new = reuse_index(&mut w, old);
         assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = spawn(&mut w, Some(4), None);
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
 
         let lookup = w.lookup::<A>();
         let both = |e| (lookup.get(e), w.get::<A>(e));
@@ -622,6 +646,19 @@ mod lookup {
         assert_eq!(both(dead), (None, None));
         // Stale, with its index reused by a live entity.
         assert_eq!(both(old), (None, None));
+    }
+
+    /// §4.6: a `Lookup` is `Debug` and `Clone` whatever its `T`, and its `Debug` is short.
+    #[test]
+    fn lookup_is_debug_and_clone_without_bounds_on_t() {
+        struct Plain(u32);
+
+        let mut w = World::new();
+        let e = w.spawn();
+        w.insert(e, Plain(1));
+        let lookup = w.lookup::<Plain>();
+        assert_eq!(format!("{lookup:?}"), "Lookup { .. }");
+        assert_eq!(lookup.clone().get(e).map(|p| p.0), Some(1));
     }
 
     #[test]

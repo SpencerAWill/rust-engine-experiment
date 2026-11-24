@@ -1004,6 +1004,27 @@ mod workloads {
             .unwrap();
     }
 
+    /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+    /// back. A target is stale after a step only if its slot was refilled in that step: an older
+    /// stale handle means the write-back is missing.
+    #[test]
+    fn random_access_archetype_writes_back_retargets() {
+        let mut w = ArchetypeRandomAccess::setup(PARAMS);
+        let mut stale = 0_usize;
+        for tick in 1..=RANDOM_ACCESS_TICKS {
+            let first_new = w.next_id();
+            w.step();
+            for occupant in w.stale_target_occupants() {
+                assert!(
+                    occupant >= first_new,
+                    "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+                );
+                stale += 1;
+            }
+        }
+        assert!(stale > 0, "no stale target seen over the run");
+    }
+
     #[test]
     fn random_access_archetype_zero_count_is_valid() {
         zero_count::<ArchetypeRandomAccess>();
@@ -1179,12 +1200,15 @@ mod lookup {
         let mut w = World::new();
         let with = w.spawn_with((A(1), B(2)));
         let without = w.spawn_with((B(3),));
-        let dead = w.spawn_with((A(4),));
-        w.despawn(dead);
         let old = w.spawn_with((A(5),));
         w.despawn(old);
         let new = reuse_index(&mut w, old);
         assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
 
         let lookup = w.lookup::<A>();
         let both = |e| (lookup.get(e), w.get::<A>(e));
