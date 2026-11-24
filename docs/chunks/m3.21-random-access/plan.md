@@ -80,7 +80,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 7: `bevy_ecs` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/random_access.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** `random_access_bevy_matches_the_reference`; `random_access_bevy_clears_removals_each_step` (as M3.10's R4 tests, for `Table<Lifetime>`). Fails first: the type does not exist.
 - **Change:** spec §4.3 for bevy: pass A and pass B `QueryState`s and the `QueryState<&Table<Position>>` for `get_manual`, all built in `setup`; `iter_manual(..).for_each` in pass A, `iter_mut(..).for_each` in pass B; `clear_trackers` at the end of `step`; the backend's own alive count, as `BevyEntityChurn`.

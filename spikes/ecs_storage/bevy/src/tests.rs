@@ -8,6 +8,7 @@ use crate::agents::{BevyAgents, BevySparseAgents};
 use crate::entity_churn::BevyEntityChurn;
 use crate::frag_iter::BevyFragIter;
 use crate::heavy_compute::BevyHeavyCompute;
+use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
 use crate::{Sparse, Table};
@@ -50,6 +51,30 @@ fn add_remove_bevy_matches_the_reference() {
 fn entity_churn_bevy_matches_the_reference() {
     check_conformance::<spike_ecs_vec::entity_churn::VecEntityChurn, BevyEntityChurn>(PARAMS, 120)
         .unwrap();
+}
+
+#[test]
+fn random_access_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::random_access::VecRandomAccess, BevyRandomAccess>(
+        PARAMS, 700,
+    )
+    .unwrap();
+}
+
+#[test]
+fn random_access_bevy_clears_removals_each_step() {
+    let mut w = BevyRandomAccess::setup(PARAMS);
+    for tick in 1..=700 {
+        w.step();
+        let removed = w
+            .world()
+            .removed::<Table<spike_ecs_harness::random_access::Lifetime>>()
+            .count();
+        assert_eq!(
+            removed, 0,
+            "tick {tick}: step must end with World::clear_trackers"
+        );
+    }
 }
 
 #[test]
