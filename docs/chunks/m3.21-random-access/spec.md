@@ -3,7 +3,7 @@
 - **Status:** Draft (2026-11-24)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10 · **Decides:** no ADR
 - **Issue:** #106
-- **Estimated size:** about 1,000 changed lines, excluding tests, lockfiles and generated files (harness module about 120, `vec_aos` about 90, six ECS backends about 110 each, bench registration about 30, documents about 40)
+- **Estimated size:** about 1,250 changed lines, excluding tests, lockfiles and generated files (harness module about 120, `vec_aos` about 90, six ECS backends about 110 each, the prototypes' `Lookup` about 60 each, bench registration about 30, documents about 40)
 
 Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) as clarified by [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174): they are normative only in uppercase.
 
@@ -23,7 +23,7 @@ Goals:
 Non-goals:
 
 - No variant backends (`vec_soa`, `sparse_set_grouped`, `bevy_ecs_sparse`, the byte-column backends): the tracking issue (#105) keeps each workload to the seven listed backends.
-- No new prototype API. No prototype can read one entity's component by handle while a mutable query runs (`query_mut` borrows the whole `World`), and this chunk does not add a split borrow; the step is two passes on every backend instead (§4.3) *(maintainer, from the brainstorm)*.
+- No split borrow. No prototype can read one entity's component by handle while a mutable query runs (`query_mut` borrows the whole `World`), and this chunk does not add a way to; the step is two passes on every backend instead (§4.3) *(maintainer, from the brainstorm)*. The only new prototype API is the read-only `Lookup` of §4.6 *(maintainer, from the grill)*.
 - No formal results. The informal run is the Criterion bench on the Mac under the benchmark run protocol; the cache bench is registered and built, not run (as M3.10). M3.8 measures both.
 
 ## 3. Guide-level explanation
@@ -86,7 +86,8 @@ The harness module exports `RandomAccess` (the `Spec` marker), the component typ
 
 - **Pass A** is a read-only query over the entities' `Position` and `Target`, plus one lookup of `Position` by handle per entity (two for a stale handle). It pushes `(Vec2, Option<E>)` (the new velocity and the retargeted handle, if any) to a scratch `Vec` the workload owns, cleared each step and reserved for `count` entries in `setup`.
 - **Pass B** is a mutable query over `Slot`, `Position`, `Velocity`, `Target` and `Lifetime` (and the entity handle where the backend needs it to despawn) that visits the same entities in the same order as pass A and takes the `i`-th scratch entry for the `i`-th entity. Every entity has the same six components and both passes match the same storage, so each backend's iteration order is the same for both queries; conformance catches a backend where it is not, since misassigned velocities change the checksum. Expired entities are collected (handle and slot) into a second reused `Vec` during pass B and despawned after it.
-- **The lookup** is the backend's own idiom for reading one component by handle: `World::get` on the four prototypes and on `hecs` (its documented path), and a `QueryState<&Table<Position>>` held by the workload with `get_manual` on `bevy_ecs` (bevy's `World::get` looks the component id up by type on every call, which a game's system never does) *(my call)*.
+- **The lookup** resolves the component type once per pass, not per entity, so that every row measures the handle-to-location walk and not a type lookup *(maintainer, from the grill)*: `World::lookup::<Position>()` (§4.6) on the four prototypes, created once per pass A; `World::view::<&Table<Position>>()` once per pass A on `hecs` (its documented random-access path), then `ViewBorrow::get`; and on `bevy_ecs` a `QueryState<&Table<Position>>` held by the workload, created in `setup`, with `get_manual` (no archetype is created after `setup`, so its cache stays current; `update_archetypes` MAY be called at the start of pass A). `World::get` resolves the type by a map lookup on every call on the prototypes and on bevy, so no backend uses it in the step.
+- **`hybrid` storage:** all six components are table types *(maintainer, from the grill)*: nothing is added or removed, which is what `hybrid`'s sparse storage is for, so its `random_access` row walks the location table as `archetype`'s does and no sparse set is probed. A sparse-`Position` variant is out of scope (#105).
 - **Respawn order.** Slots freed in a step MUST be refilled in ascending slot order, so that spawn indices match `vec_aos`'s. A backend whose pass B does not visit slots in order sorts the collected expiries by slot (about 0.3% of `count` entries per step).
 
 Two passes are the same algorithm on every backend, so the only cost that differs between rows is the storage: the lookup, the two query passes and the structural changes. The scratch buffer adds one sequential write and read of 16 to 24 bytes per entity to every row.
@@ -101,17 +102,43 @@ Two passes are the same algorithm on every backend, so the only cost that differ
 - `spikes/ecs_storage/README.md` and `spikes/README.md`: eight workloads, and a link to §4.2 here as the rules of `random_access` (M3.2 §4.4 stays the source for the other seven). The harness crate docs say the same.
 - The informal run: `cargo xtask spike-bench ecs` under the benchmark run protocol (`/bench-run`) on the final code commit, labelled informal. Its `random_access` rows go in `log.md`, the pull request, and a comment on #102 (M3.8's issue, where the inputs to the decision are collected), with any departure from expectation said as measured or unmeasured *(my call: since M3.20 M3.8 reads its inputs from its issue, not a roadmap row)*.
 
+### 4.6 `Lookup`: a read-only component view
+
+*(maintainer, from the grill)* Each of the four prototype crates (`archetype`, `sparse_set`, `dense`, `hybrid`) gains:
+
+```rust,ignore
+impl World {
+    /// A read-only view of every entity's `T`, with `T` resolved once.
+    pub fn lookup<T: 'static>(&self) -> Lookup<'_, T>; // `T: Component` on `hybrid`
+}
+
+/// Reads one component type by entity handle.
+pub struct Lookup<'w, T> { /* borrows the World */ }
+
+impl<'w, T: 'static> Lookup<'w, T> {
+    /// `entity`'s `T`, or `None` if the entity is despawned (including a stale handle whose
+    /// index is reused) or has no `T`.
+    pub fn get(&self, entity: Entity) -> Option<&'w T>;
+}
+```
+
+- `World::lookup` resolves `T` (its `ComponentId`, and the column or storage it names) once. `Lookup::get` MUST NOT look up the type again: it checks the handle's liveness, then reaches the value through the storage's own path (the entity's location and the column of its archetype for `archetype` and for `hybrid` table types; the sparse set for `sparse_set` and for `hybrid` sparse types; the column slot for `dense`). A `Lookup` of a type with no storage yet returns `None` for every entity.
+- `archetype` and `hybrid` MAY cache, when the `Lookup` is created, the column index of `T` in each archetype (indexed by archetype), so that `get` does no search; no archetype is created while a `Lookup` lives, since it borrows the `World`.
+- `Lookup::get` MUST agree with `World::get` for every entity: live with `T`, live without `T`, despawned, and stale with its index reused. Each prototype's tests check the four cases.
+- The name is `Lookup`, not `View`, because `sparse_set` already calls its non-owning query path "views" *(main session's call)*. `Lookup` is `Clone` and `Copy`, and `Debug`.
+
 ## 5. Requirements
 
 - **M3.21-R1** `spike_ecs_harness::random_access` MUST define `RandomAccess` with `NAME = "random_access"` and `SIZES = [10_000, 100_000, 1_000_000]`, the six components, `spawn`, `steer`, `integrate`, `is_expired` and `hash` as §4.2 gives them.
 - **M3.21-R2** `vec_aos` MUST implement `random_access` as §4.4 gives it.
-- **M3.21-R3** `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs` MUST each implement `random_access` with the two passes, the lookup and the respawn order of §4.3, and MUST pass `check_conformance` against `vec_aos` at `count` 1,000, seed 42, for 700 ticks (past every initial entity's lifetime).
+- **M3.21-R3** `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs` MUST each implement `random_access` with the two passes, the lookup, the `hybrid` storage and the respawn order of §4.3, and MUST pass `check_conformance` against `vec_aos` at `count` 1,000, seed 42, for 700 ticks (past every initial entity's lifetime).
 - **M3.21-R4** Within the conformance run, stale handles MUST occur: a `vec_aos` test MUST show that at least one retarget happens in the 700 ticks, and one prototype's test MUST show a stale handle whose index has been reused by a live entity (a generation mismatch, not only an absent index).
 - **M3.21-R5** Pass A MUST NOT change any component, and the workload's own code MUST NOT allocate in `step`: the scratch and expiry `Vec`s are reserved in `setup` and reused. The backends' own allocations (the prototypes' per-query-run allocations recorded in their logs, storage growth) are allowed and not changed *(main session's call, from the cold read)*.
 - **M3.21-R6** Both spike benches MUST register `random_access` for all seven backends with `Spec::SIZES`; `cargo xtask spike-bench ecs` lists the rows.
 - **M3.21-R7** The documents of §4.5 MUST be updated.
 - **M3.21-R8** The pull request MUST show one informal `cargo xtask spike-bench ecs` run under the benchmark run protocol, labelled informal, with the `random_access` rows; the same rows MUST be in `log.md` and in a comment on #102.
 - **M3.21-R9** `cargo xtask ci` MUST pass.
+- **M3.21-R10** Each of the four prototypes MUST provide `World::lookup` and `Lookup` as §4.6 gives them, with no type lookup in `Lookup::get`, and a test that `Lookup::get` agrees with `World::get` on a live entity with `T`, a live entity without `T`, a despawned entity and a stale handle whose index is reused.
 
 ## 6. Cross-cutting concerns
 
@@ -121,7 +148,7 @@ Two passes are the same algorithm on every backend, so the only cost that differ
 - **Heap allocation:** none per step after `setup` beyond storage growth (R5); the prototypes' per-query-run allocations recorded in earlier logs apply to both passes.
 - **`no_std` and wasm:** n/a, because spike crates are outside the `no_std` and wasm builds.
 - **Frozen formats:** none touched: the workload draws from `Prng::stream` and `range`, whose streams it does not change.
-- **Public API changes:** new public items in the spike crates only; nothing in `engine`.
+- **Public API changes:** new public items in the spike crates only (the harness module, the backends' workload types, and `World::lookup` and `Lookup` in the four prototypes); nothing in `engine`.
 - **FFI exposure:** n/a, because spikes have no FFI.
 - **Performance:** one informal Criterion run (R8); M3.8 records results under the protocol. The 1,000,000 size adds setup time and memory to `spike-bench` (about 50 MB per backend instance) and to the cache bench under Callgrind.
 - **Documentation:** §4.5; every new public item documented.
@@ -131,6 +158,7 @@ Two passes are the same algorithm on every backend, so the only cost that differ
 
 - **A split-borrow API on the prototypes** (read `Position` by handle while mutably iterating `Velocity`, as bevy's two queries in one system do), single pass everywhere. Rejected by the maintainer: four `World`s gain an API, beyond the issue's size, and the decision is about storage.
 - **Prototypes in two passes, baselines in their idiomatic single pass.** Rejected by the maintainer: the rows would not run the same algorithm.
+- **`World::get` per lookup on every backend**, or as it is on the prototypes with the baselines on their cached paths. Rejected by the maintainer: `World::get` resolves the type by a map lookup on every call (a `BTreeMap` in the prototypes, a hash map in bevy), which is not a storage cost, and the mixed form would charge it to the prototypes only.
 - **A fresh random draw for a retarget** (a slot from a stream keyed by spawn id and tick). Rejected by the maintainer: the slot's new occupant needs no draws and is as deterministic.
 - **Pass B writing back through `World::get_mut` by handle** instead of the same-order query. Rejected *(my call)*: it adds a second lookup per entity, of the entity's own row, which counts the measured cost twice.
 - **Sizes 1,000 to 100,000 as `entity_churn`.** Rejected *(my call)*: at 100,000 the whole working set fits in L2 on the maintainer's machine, so the random reads would never miss it.
@@ -148,10 +176,11 @@ Two passes are the same algorithm on every backend, so the only cost that differ
 | R7 | `review-docs` |
 | R8 | the pull request, `log.md` and the comment on #102 |
 | R9 | `cargo xtask ci` output |
+| R10 | the four agreement tests in each prototype crate (CI); review of each `Lookup::get` for a type lookup |
 
 ## 9. Done when
 
-- [ ] The harness module and the seven implementations exist, and every conformance test passes.
+- [ ] The harness module, the four prototypes' `Lookup` and the seven implementations exist, and every conformance and agreement test passes.
 - [ ] Both spike benches register `random_access` for the seven backends.
 - [ ] The documents of §4.5 are updated.
 - [ ] One informal run is in the pull request, `log.md` and on #102.
