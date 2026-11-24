@@ -13,9 +13,9 @@ A lesson is guidance an agent or contributor follows by default and may deviate 
 
 - [`bench.md`](bench.md): what the instruction-count gate counts as relevant.
 - [`docs.md`](docs.md): keeping rules in one place across the documents agents read.
-- [`ecs.md`](ecs.md): ECS prototypes and queries: path tests, per-query costs, sealed query traits, failure paths, borrows that must not resize, red checks through workloads, hot-path parity with sibling backends, GAT lifetimes in seal traits, fetch lengths that keep loops vectorized, fixed lengths for byte moves of runtime size.
+- [`ecs.md`](ecs.md): ECS prototypes and queries: path tests, per-query costs, sealed query traits, failure paths, borrows that must not resize, red checks through workloads, hot-path parity with sibling backends, GAT lifetimes in seal traits, fetch lengths that keep loops vectorized, fixed lengths for byte moves of runtime size, tests that a backend never registers a sibling wrapper.
 - [`infra.md`](infra.md): Pulumi resources that other GitHub data points at.
-- [`perf.md`](perf.md): inlining hot paths, and measuring heap bytes with `dhat` and wall clock against baselines.
+- [`perf.md`](perf.md): inlining hot paths, measuring heap bytes with `dhat` and wall clock against baselines, and feature unification in benchmark builds.
 - [`specs.md`](specs.md): writing specs and plans whose checks can pass.
 - [`testing.md`](testing.md): writing tests that cannot hang or exhaust memory under mutation testing.
 - [`tooling.md`](tooling.md): hooks, permission rules, skills and container scripts for agents, and rules that read GitHub data.

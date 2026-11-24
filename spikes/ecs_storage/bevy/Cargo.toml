@@ -1,0 +1,20 @@
+[package]
+name = "spike_ecs_bevy"
+description = "ECS storage spike: the bevy_ecs baseline backends (not published)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy_ecs = { version = "0.20.1", default-features = false, features = ["std"] }
+engine = { workspace = true }
+spike_ecs_harness = { path = "../harness" }
+
+[dev-dependencies]
+spike_ecs_vec = { path = "../vec" }
+
+[lints]
+workspace = true

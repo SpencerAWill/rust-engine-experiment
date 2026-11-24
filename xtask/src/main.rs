@@ -307,11 +307,13 @@ fn run_bench(args: &[String], allow_battery: bool) -> Result<(), String> {
 }
 
 /// The spike topics `spike-bench` knows: the short name in `spike_<topic>_bench_compare`. A later
-/// spike adds one entry here and one to each package list below.
+/// spike adds one entry here, one to each package list below, and every one of its packages to
+/// `coverage::SPIKE_PACKAGES`.
 pub(crate) const SPIKE_TOPICS: &[&str] = &["ecs"];
 
-/// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves them out so the
-/// M1 suite and the baselines `bench-doc` reads do not change.
+/// The Criterion packages of the spikes. `spike-bench` runs them; `bench` leaves out every
+/// package in `coverage::SPIKE_PACKAGES`, these included, so the M1 suite and the baselines
+/// `bench-doc` reads do not change.
 pub(crate) const SPIKE_COMPARE_PACKAGES: &[&str] = &["spike_ecs_bench_compare"];
 
 /// The Gungraun packages of the spikes. They are run by hand under Valgrind, so `bench` and
@@ -360,13 +362,13 @@ pub(crate) const REGRESS_PACKAGE: &str = "engine_bench_regress";
 /// `--bench '*'` restricts it to the `[[bench]]` targets. Without it, flags after `--` (such as
 /// `--save-baseline`) are also passed to the unit-test harness of every library crate, which does
 /// not understand them and fails. The Gungraun package is excluded: its benchmarks need Valgrind.
-/// So are the spike packages, which have their own commands.
+/// So is every spike package (`coverage::SPIKE_PACKAGES`), so a spike's dependencies do not change
+/// the feature unification of the library benchmarks; the spikes have their own commands.
 fn bench_args(save: Option<&str>) -> Vec<String> {
     let mut args: Vec<String> = ["bench", "--workspace", "--exclude", REGRESS_PACKAGE]
         .map(String::from)
         .into();
-    args.extend(excludes(SPIKE_CACHE_PACKAGES));
-    args.extend(excludes(SPIKE_COMPARE_PACKAGES));
+    args.extend(excludes(coverage::SPIKE_PACKAGES));
     args.extend(["--bench", "*"].map(String::from));
     if let Some(name) = save {
         args.extend(["--", "--save-baseline", name].map(String::from));
@@ -806,9 +808,25 @@ mod tests {
                 "--exclude",
                 "engine_bench_regress",
                 "--exclude",
-                "spike_ecs_bench_cache",
+                "spike_ecs_harness",
+                "--exclude",
+                "spike_ecs_vec",
+                "--exclude",
+                "spike_ecs_sparse_set",
+                "--exclude",
+                "spike_ecs_archetype",
+                "--exclude",
+                "spike_ecs_dense",
+                "--exclude",
+                "spike_ecs_hybrid",
+                "--exclude",
+                "spike_ecs_bevy",
+                "--exclude",
+                "spike_ecs_hecs",
                 "--exclude",
                 "spike_ecs_bench_compare",
+                "--exclude",
+                "spike_ecs_bench_cache",
                 "--bench",
                 "*"
             ]
@@ -822,13 +840,41 @@ mod tests {
                 "--exclude",
                 "engine_bench_regress",
                 "--exclude",
-                "spike_ecs_bench_cache",
+                "spike_ecs_harness",
+                "--exclude",
+                "spike_ecs_vec",
+                "--exclude",
+                "spike_ecs_sparse_set",
+                "--exclude",
+                "spike_ecs_archetype",
+                "--exclude",
+                "spike_ecs_dense",
+                "--exclude",
+                "spike_ecs_hybrid",
+                "--exclude",
+                "spike_ecs_bevy",
+                "--exclude",
+                "spike_ecs_hecs",
                 "--exclude",
                 "spike_ecs_bench_compare",
+                "--exclude",
+                "spike_ecs_bench_cache",
                 "--bench",
                 "*"
             ]
         );
+    }
+
+    #[test]
+    fn bench_args_exclude_every_spike_package() {
+        let args = bench_args(None);
+        for package in coverage::SPIKE_PACKAGES {
+            let at = args.iter().position(|a| a == package);
+            assert!(
+                at.is_some_and(|i| i > 0 && args[i - 1] == "--exclude"),
+                "`bench` must exclude `{package}`"
+            );
+        }
     }
 
     #[test]

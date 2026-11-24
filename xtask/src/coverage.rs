@@ -42,14 +42,18 @@ fn clean_args() -> Vec<String> {
 }
 
 /// The packages of the spikes (`spikes/`): prototypes and their harness, not engine code. Their
-/// tests are conformance checks, which CI runs without instrumentation.
-const SPIKE_PACKAGES: &[&str] = &[
+/// tests are conformance checks, which CI runs without instrumentation. `cargo xtask bench` also
+/// excludes these packages, so that a spike's dependencies do not change the feature unification
+/// of the library benchmarks. A test checks the list against the crates under `spikes/*/*`.
+pub(crate) const SPIKE_PACKAGES: &[&str] = &[
     "spike_ecs_harness",
     "spike_ecs_vec",
     "spike_ecs_sparse_set",
     "spike_ecs_archetype",
     "spike_ecs_dense",
     "spike_ecs_hybrid",
+    "spike_ecs_bevy",
+    "spike_ecs_hecs",
     "spike_ecs_bench_compare",
     "spike_ecs_bench_cache",
 ];
@@ -219,6 +223,10 @@ mod tests {
                 "--exclude",
                 "spike_ecs_hybrid",
                 "--exclude",
+                "spike_ecs_bevy",
+                "--exclude",
+                "spike_ecs_hecs",
+                "--exclude",
                 "spike_ecs_bench_compare",
                 "--exclude",
                 "spike_ecs_bench_cache",
@@ -275,5 +283,50 @@ mod tests {
     fn ignore_regex_escapes_and_anchors_the_root() {
         let regex = ignore_regex(Path::new("/home/u/tests/repo.v2"));
         assert!(regex.starts_with("^/home/u/tests/repo\\.v2/"), "{regex}");
+    }
+
+    /// The `name` under `[package]` in the manifest text.
+    fn manifest_package_name(manifest: &str) -> Option<String> {
+        let mut in_package = false;
+        for line in manifest.lines().map(str::trim) {
+            if line.starts_with('[') {
+                in_package = line == "[package]";
+            } else if in_package
+                && let Some(rest) = line.strip_prefix("name")
+                && let Some(value) = rest.trim_start().strip_prefix('=')
+            {
+                return Some(value.trim().trim_matches('"').to_string());
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn spike_packages_match_the_spike_crates() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let mut on_disk = std::collections::BTreeSet::new();
+        for topic in std::fs::read_dir(root.join("spikes")).unwrap() {
+            let topic = topic.unwrap().path();
+            if !topic.is_dir() {
+                continue;
+            }
+            for krate in std::fs::read_dir(&topic).unwrap() {
+                let manifest = krate.unwrap().path().join("Cargo.toml");
+                if let Ok(text) = std::fs::read_to_string(&manifest) {
+                    let name = manifest_package_name(&text)
+                        .unwrap_or_else(|| panic!("no package name in {}", manifest.display()));
+                    on_disk.insert(name);
+                }
+            }
+        }
+        let listed: std::collections::BTreeSet<String> =
+            SPIKE_PACKAGES.iter().map(|p| (*p).to_string()).collect();
+        let missing: Vec<_> = on_disk.difference(&listed).collect();
+        let stale: Vec<_> = listed.difference(&on_disk).collect();
+        assert!(
+            missing.is_empty() && stale.is_empty(),
+            "SPIKE_PACKAGES is out of date: spike packages missing from the list: {missing:?}; \
+             listed but not under spikes/*/*: {stale:?}"
+        );
     }
 }
