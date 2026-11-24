@@ -926,6 +926,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
 
@@ -935,6 +936,7 @@ mod workloads {
     use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
+    use crate::random_access::ArchetypeRandomAccess;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
 
@@ -993,6 +995,42 @@ mod workloads {
         let mut w = ArchetypeHeavyCompute::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
         assert_eq!(w.step_archetypes(), ids(&[1]));
+    }
+
+    #[test]
+    fn random_access_archetype_matches_the_reference() {
+        check_conformance::<VecRandomAccess, ArchetypeRandomAccess>(PARAMS, 700).unwrap();
+    }
+
+    #[test]
+    fn random_access_archetype_zero_count_is_valid() {
+        zero_count::<ArchetypeRandomAccess>();
+    }
+
+    /// R4: over 700 ticks at 1,000 entities, some target handle is stale while its slot's
+    /// roster entry has the same index and a higher generation, so the retarget path runs.
+    #[test]
+    fn random_access_sees_a_reused_index() {
+        use spike_ecs_harness::random_access::Target;
+
+        use crate::Entity;
+
+        let mut w = ArchetypeRandomAccess::setup(PARAMS);
+        let mut seen = false;
+        for _ in 0..700 {
+            w.step();
+            let roster = w.roster();
+            w.world().query::<&Target<Entity>>().for_each(|t| {
+                let r = roster[t.slot as usize];
+                if !w.world().is_alive(t.entity)
+                    && r.index() == t.entity.index()
+                    && r.generation() > t.entity.generation()
+                {
+                    seen = true;
+                }
+            });
+        }
+        assert!(seen, "no stale target with a reused index in 700 ticks");
     }
 
     #[test]
@@ -1110,6 +1148,58 @@ mod workloads {
         zero_count::<ArchetypeEntityChurn>();
         zero_count::<ArchetypeSprites>();
         zero_count::<ArchetypeAgents>();
+    }
+}
+
+mod lookup {
+    use crate::{Entity, World};
+
+    #[derive(Debug, PartialEq)]
+    struct A(u32);
+    #[derive(Debug, PartialEq)]
+    struct B(u32);
+
+    /// Spawns until a handle with `like`'s index and a higher generation comes back.
+    fn reuse_index(w: &mut World, like: Entity) -> Entity {
+        loop {
+            let e = w.spawn_with((A(9),));
+            if e.index() == like.index() {
+                return e;
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_agrees_with_get() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1), B(2)));
+        let without = w.spawn_with((B(3),));
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        let old = w.spawn_with((A(5),));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        assert!(new.generation() > old.generation());
+
+        let lookup = w.lookup::<A>();
+        let both = |e| (lookup.get(e), w.get::<A>(e));
+        // Live with `A`.
+        assert_eq!(both(with), (Some(&A(1)), Some(&A(1))));
+        // Live without `A`.
+        assert_eq!(both(without), (None, None));
+        // Despawned.
+        assert_eq!(both(dead), (None, None));
+        // Stale, with its index reused by a live entity.
+        assert_eq!(both(old), (None, None));
+    }
+
+    #[test]
+    fn lookup_of_an_unregistered_type_is_none() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1),));
+        let lookup = w.lookup::<B>();
+        assert_eq!(lookup.get(e), None);
+        assert_eq!(lookup.get(e), w.get::<B>(e));
     }
 }
 

@@ -40,7 +40,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 3: `archetype`: `Lookup` and the backend (R3, R4, R5, R10)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/world.rs` (or `src/lookup.rs`), `src/lib.rs`, `src/random_access.rs` (new), `src/tests.rs`.
 - **Test first:**
   - `lookup_agrees_with_get`: one test with four asserts, one per spec §4.6 case (live with `T`, live without `T`, despawned, stale with its index reused, the last made by despawning then spawning until `index()` matches with a higher generation), each comparing `world.lookup::<T>().get(e)` with `world.get::<T>(e)`; plus `lookup_of_an_unregistered_type_is_none`.
@@ -156,3 +156,4 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 ## 5. Deviations
 
 - Step 1: `integrate` takes `dt: f32` (computed once in `setup`, as the other workloads do) instead of calling `dt()` per entity; `spawn` panics on `count` 0 (never called then). See log.md.
+- Step 3: `Lookup` is not `Copy` on `archetype` (its column cache is a `Vec`); spec §4.6's main-session call amended. `World`'s private `lookup` renamed `find_by_components`. `World::lookup` allocates one `Vec` per pass A (counted in step 11).

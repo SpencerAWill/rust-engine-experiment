@@ -27,6 +27,7 @@ pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod query;
+pub mod random_access;
 mod raw;
 mod raw_query;
 pub mod simple_iter;
@@ -46,7 +47,7 @@ pub use commands::Commands;
 pub use query::{Filter, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without};
 pub use raw::{CastError, LayoutError, RawColumn, RawColumnMut, RawLayout};
 pub use raw_query::{RawQuery, RawQueryError, RawRun, RawRunMut, RawTable};
-pub use world::{InvariantViolation, RawError, World};
+pub use world::{InvariantViolation, Lookup, RawError, World};
 
 /// The marker type of [`Entity`] IDs.
 #[derive(Debug)]

@@ -126,7 +126,7 @@ impl<'w, T: 'static> Lookup<'w, T> {
 - `World::lookup` resolves `T` (its `ComponentId`, and the column or storage it names) once. `Lookup::get` MUST NOT look up the type again: it checks the handle's liveness, then reaches the value through the storage's own path (the entity's location and the column of its archetype for `archetype` and for `hybrid` table types; the sparse set for `sparse_set` and for `hybrid` sparse types; the column slot for `dense`). A `Lookup` of a type with no storage yet returns `None` for every entity.
 - `archetype` and `hybrid` MAY cache, when the `Lookup` is created, the column index of `T` in each archetype (indexed by archetype), so that `get` does no search; no archetype is created while a `Lookup` lives, since it borrows the `World`.
 - `Lookup::get` MUST agree with `World::get` for every entity: live with `T`, live without `T`, despawned, and stale with its index reused. Each prototype's tests check the four cases.
-- The name is `Lookup`, not `View`, because `sparse_set` already calls its non-owning query path "views" *(main session's call)*. `Lookup` is `Clone` and `Copy`, and `Debug`.
+- The name is `Lookup`, not `View`, because `sparse_set` already calls its non-owning query path "views" *(main session's call)*. `Lookup` is `Clone` and `Debug`; it is `Copy` only where it owns no cache (amended 2026-11-24 in step 3: `archetype`'s per-archetype column cache is a `Vec`).
 
 ## 5. Requirements
 
