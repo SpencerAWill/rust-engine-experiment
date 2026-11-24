@@ -20,3 +20,7 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-24 decision Spec §4.3 corrected without changing what is built: `hecs` stores the harness types unwrapped, so its view is `World::view::<&Position>()`, not `&Table<Position>`.
 - 2026-11-24 surprise The cache bench's size check (`prepared`) asserts only that each listed size is in `Spec::SIZES`, at run time under Valgrind; a missing size passes. Plan step 9 checks the lines by review.
 - 2026-11-24 done Plan written and accepted: 12 steps; agents dispatched by registered name (`builder`, reviewers).
+- 2026-11-24 done Step 1: `spike_ecs_harness::random_access` added (components, `spawn`, `steer`, `integrate`, `is_expired`, `hash`, `GAIN`); 2 tests pass; first failure was E0425 (`spawn` not found).
+- 2026-11-24 decision `spawn` panics on `count` 0 or above `u32::MAX` (documented, `#[track_caller]`, no `try_` twin: harness code, setup never calls it with 0).
+- 2026-11-24 lesson? clippy assign_op_pattern rejects `p.0 = p.0 + v * dt`; write `p.0 += v * dt` (same f32 ops, so the spec's order is kept).
+- 2026-11-24 decision (review fix) `integrate` takes `dt: f32` as its last argument; backends compute `dt()` once in setup.

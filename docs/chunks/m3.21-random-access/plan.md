@@ -22,7 +22,7 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ### Step 1: the harness module (R1)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/random_access.rs` (new), `harness/src/lib.rs` (`pub mod random_access;`, crate doc: eight workloads, `random_access`'s rules in the M3.21 spec §4.2).
 - **Test first:** in `random_access.rs`'s test module, `spawn_follows_the_draw_order` (for `i` in `[0, 1, 999]` and `count` 1,000, `spawn` equals direct draws from `prng.stream(i)` in §4.2's order, velocity zero) and `steer_and_integrate_follow_the_spec_order` (hand-computed values for one entity, `DT` from `dt()`). Fails first: the module does not exist (E0432).
 - **Change:** spec §4.2's components, `RandomAccess` with its `NAME` and `SIZES`, and the functions above, each documented.
@@ -155,4 +155,4 @@ Every conformance test below is `check_conformance::<VecRandomAccess, X>(Params 
 
 ## 5. Deviations
 
-None.
+- Step 1: `integrate` takes `dt: f32` (computed once in `setup`, as the other workloads do) instead of calling `dt()` per entity; `spawn` panics on `count` 0 (never called then). See log.md.

@@ -3,8 +3,9 @@
 //! implements, the [`Fnv1a`] hash builder the per-entity hashes are written in, and
 //! [`check_conformance`], which compares a backend's checksums with a reference backend's.
 //!
-//! The rules of every workload are in the M3.2 spec,
-//! `docs/chunks/m3.2-spike-harness/spec.md`.
+//! The rules of seven workloads are in the M3.2 spec, `docs/chunks/m3.2-spike-harness/spec.md`;
+//! the rules of the eighth, `random_access`, are in the M3.21 spec §4.2,
+//! `docs/chunks/m3.21-random-access/spec.md`.
 
 pub mod add_remove;
 pub mod agents;
@@ -13,6 +14,7 @@ pub mod entity_churn;
 mod fnv;
 pub mod frag_iter;
 pub mod heavy_compute;
+pub mod random_access;
 pub mod simple_iter;
 pub mod sprites;
 
