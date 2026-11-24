@@ -17,6 +17,8 @@ const PARAMS: Params = Params {
     count: 1_000,
     seed: 42,
 };
+/// Ticks of the `random_access` runs, enough for entities to expire and be respawned.
+const RANDOM_ACCESS_TICKS: u64 = 700;
 
 #[test]
 fn simple_iter_bevy_matches_the_reference() {
@@ -56,7 +58,8 @@ fn entity_churn_bevy_matches_the_reference() {
 #[test]
 fn random_access_bevy_matches_the_reference() {
     check_conformance::<spike_ecs_vec::random_access::VecRandomAccess, BevyRandomAccess>(
-        PARAMS, 700,
+        PARAMS,
+        RANDOM_ACCESS_TICKS,
     )
     .unwrap();
 }
@@ -64,7 +67,7 @@ fn random_access_bevy_matches_the_reference() {
 #[test]
 fn random_access_bevy_clears_removals_each_step() {
     let mut w = BevyRandomAccess::setup(PARAMS);
-    for tick in 1..=700 {
+    for tick in 1..=RANDOM_ACCESS_TICKS {
         w.step();
         let removed = w
             .world()

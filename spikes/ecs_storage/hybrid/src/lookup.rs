@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use crate::component::StorageKind;
 use crate::sparse::SparseSet;
 use crate::table::column_slice;
 use crate::{Component, Entity, World};
@@ -29,7 +30,7 @@ impl World {
         let source = match self.component_id::<T>() {
             None => Source::Absent,
             Some(id) => match self.component_info(id).kind {
-                crate::component::StorageKind::Table => Source::Table(
+                StorageKind::Table => Source::Table(
                     self.parts()
                         .0
                         .iter()
@@ -40,7 +41,7 @@ impl World {
                         })
                         .collect(),
                 ),
-                crate::component::StorageKind::Sparse => Source::Sparse(self.sparse_set::<T>(id)),
+                StorageKind::Sparse => Source::Sparse(self.sparse_set::<T>(id)),
             },
         };
         Lookup {

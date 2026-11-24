@@ -350,13 +350,15 @@ mod workloads {
         count: 1_000,
         seed: 42,
     };
+    const TICKS: u64 = 120;
+    const AGENT_TICKS: u64 = 1_300;
+    const RANDOM_ACCESS_TICKS: u64 = 700;
 
     #[test]
     fn random_access_dense_matches_the_reference() {
-        check_conformance::<VecRandomAccess, DenseRandomAccess>(PARAMS, 700).unwrap();
+        check_conformance::<VecRandomAccess, DenseRandomAccess>(PARAMS, RANDOM_ACCESS_TICKS)
+            .unwrap();
     }
-    const TICKS: u64 = 120;
-    const AGENT_TICKS: u64 = 1_300;
 
     /// The joined list for the component types `T`, named by the world's own ids.
     fn ids(world: &World, types: &[TypeId]) -> Vec<Joined> {

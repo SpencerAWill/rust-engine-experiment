@@ -950,6 +950,7 @@ mod workloads {
     };
     const TICKS: u64 = 120;
     const AGENT_TICKS: u64 = 1_300;
+    const RANDOM_ACCESS_TICKS: u64 = 700;
 
     #[test]
     fn simple_iter_archetype_matches_the_reference() {
@@ -999,7 +1000,8 @@ mod workloads {
 
     #[test]
     fn random_access_archetype_matches_the_reference() {
-        check_conformance::<VecRandomAccess, ArchetypeRandomAccess>(PARAMS, 700).unwrap();
+        check_conformance::<VecRandomAccess, ArchetypeRandomAccess>(PARAMS, RANDOM_ACCESS_TICKS)
+            .unwrap();
     }
 
     #[test]
@@ -1007,8 +1009,8 @@ mod workloads {
         zero_count::<ArchetypeRandomAccess>();
     }
 
-    /// R4: over 700 ticks at 1,000 entities, some target handle is stale while its slot's
-    /// roster entry has the same index and a higher generation, so the retarget path runs.
+    /// R4: over `RANDOM_ACCESS_TICKS` ticks at 1,000 entities, some target handle is stale while
+    /// its slot's roster entry has the same index and a higher generation, so the retarget path runs.
     #[test]
     fn random_access_sees_a_reused_index() {
         use spike_ecs_harness::random_access::Target;
@@ -1017,7 +1019,7 @@ mod workloads {
 
         let mut w = ArchetypeRandomAccess::setup(PARAMS);
         let mut seen = false;
-        for _ in 0..700 {
+        for _ in 0..RANDOM_ACCESS_TICKS {
             w.step();
             let roster = w.roster();
             w.world().query::<&Target<Entity>>().for_each(|t| {
@@ -1030,7 +1032,10 @@ mod workloads {
                 }
             });
         }
-        assert!(seen, "no stale target with a reused index in 700 ticks");
+        assert!(
+            seen,
+            "no stale target with a reused index in {RANDOM_ACCESS_TICKS} ticks"
+        );
     }
 
     #[test]

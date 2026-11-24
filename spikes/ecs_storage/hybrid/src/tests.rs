@@ -454,6 +454,7 @@ mod workloads {
     };
     const TICKS: u64 = 120;
     const AGENT_TICKS: u64 = 1_300;
+    const RANDOM_ACCESS_TICKS: u64 = 700;
 
     #[test]
     fn simple_iter_hybrid_matches_the_reference() {
@@ -658,7 +659,8 @@ mod workloads {
 
     #[test]
     fn random_access_hybrid_matches_the_reference() {
-        check_conformance::<VecRandomAccess, HybridRandomAccess>(PARAMS, 700).unwrap();
+        check_conformance::<VecRandomAccess, HybridRandomAccess>(PARAMS, RANDOM_ACCESS_TICKS)
+            .unwrap();
     }
 
     #[test]

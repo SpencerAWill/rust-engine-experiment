@@ -100,13 +100,10 @@ impl Workload for VecRandomAccess {
         for e in &self.entities {
             let t = &e.target;
             let found = &self.entities[t.slot as usize];
-            let (q, retarget) = if found.id.0 == t.entity {
-                (found.position, None)
-            } else {
-                // Stale: the roster entry for the slot is the live occupant, which is `found`.
-                (found.position, Some(found.id.0))
-            };
-            let v = rules::steer(&e.position, &q);
+            // A mismatch means the handle is stale: the roster entry for the slot is the live
+            // occupant, which is `found`.
+            let retarget = (found.id.0 != t.entity).then_some(found.id.0);
+            let v = rules::steer(&e.position, &found.position);
             self.scratch.push((v.0, retarget));
         }
 

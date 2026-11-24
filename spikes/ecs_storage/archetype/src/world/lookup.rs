@@ -46,8 +46,8 @@ impl World {
 
 /// Reads one component type by entity handle; made by [`World::lookup`].
 ///
-/// It borrows the [`World`], so no archetype is created while it lives. Unlike a `World`
-/// lookup it is `Clone` but not `Copy`: it owns the per-archetype column cache.
+/// It borrows the [`World`], so no archetype is created while it lives. It is `Clone`
+/// but not `Copy`, because it owns the per-archetype column cache.
 pub struct Lookup<'w, T> {
     world: &'w World,
     /// The slice of `T`s in each archetype's table, indexed by archetype; `None` where the
