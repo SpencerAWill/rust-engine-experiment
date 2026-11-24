@@ -33,12 +33,13 @@ A backend implements `random_access` like any other workload ([`spikes/ecs_stora
 ```rust,ignore
 // Pass A: read-only. One lookup by handle per entity.
 self.scratch.clear();
+let positions = self.world.lookup::<Position>(); // the type is resolved once (§4.6)
 self.world.query::<(&Position, &Target<Entity>)>().for_each(|(p, t)| {
-    let (q, retarget) = match self.world.get::<Position>(t.entity) {
+    let (q, retarget) = match positions.get(t.entity) {
         Some(q) => (*q, None),
         None => {
             let h = self.roster[t.slot as usize];
-            (*self.world.get::<Position>(h).unwrap(), Some(h))
+            (*positions.get(h).unwrap(), Some(h))
         }
     };
     self.scratch.push((rules::steer(p, &q), retarget));
