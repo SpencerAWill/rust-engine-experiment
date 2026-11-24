@@ -8,6 +8,7 @@ use crate::agents::{BevyAgents, BevySparseAgents};
 use crate::entity_churn::BevyEntityChurn;
 use crate::frag_iter::BevyFragIter;
 use crate::heavy_compute::BevyHeavyCompute;
+use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
 use crate::{Sparse, Table};
@@ -16,6 +17,8 @@ const PARAMS: Params = Params {
     count: 1_000,
     seed: 42,
 };
+/// Ticks of the `random_access` runs, enough for entities to expire and be respawned.
+const RANDOM_ACCESS_TICKS: u64 = 700;
 
 #[test]
 fn simple_iter_bevy_matches_the_reference() {
@@ -50,6 +53,52 @@ fn add_remove_bevy_matches_the_reference() {
 fn entity_churn_bevy_matches_the_reference() {
     check_conformance::<spike_ecs_vec::entity_churn::VecEntityChurn, BevyEntityChurn>(PARAMS, 120)
         .unwrap();
+}
+
+#[test]
+fn random_access_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::random_access::VecRandomAccess, BevyRandomAccess>(
+        PARAMS,
+        RANDOM_ACCESS_TICKS,
+    )
+    .unwrap();
+}
+
+/// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+/// back. A target is stale after a step only if its slot was refilled in that step: an older
+/// stale handle means the write-back is missing.
+#[test]
+fn random_access_bevy_writes_back_retargets() {
+    let mut w = BevyRandomAccess::setup(PARAMS);
+    let mut stale = 0_usize;
+    for tick in 1..=RANDOM_ACCESS_TICKS {
+        let first_new = w.next_id();
+        w.step();
+        for occupant in w.stale_target_occupants() {
+            assert!(
+                occupant >= first_new,
+                "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+            );
+            stale += 1;
+        }
+    }
+    assert!(stale > 0, "no stale target seen over the run");
+}
+
+#[test]
+fn random_access_bevy_clears_removals_each_step() {
+    let mut w = BevyRandomAccess::setup(PARAMS);
+    for tick in 1..=RANDOM_ACCESS_TICKS {
+        w.step();
+        let removed = w
+            .world()
+            .removed::<Table<spike_ecs_harness::random_access::Lifetime>>()
+            .count();
+        assert_eq!(
+            removed, 0,
+            "tick {tick}: step must end with World::clear_trackers"
+        );
+    }
 }
 
 #[test]

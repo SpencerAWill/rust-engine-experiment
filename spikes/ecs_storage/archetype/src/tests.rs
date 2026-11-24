@@ -926,6 +926,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
 
@@ -935,6 +936,7 @@ mod workloads {
     use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
+    use crate::random_access::ArchetypeRandomAccess;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
 
@@ -948,6 +950,7 @@ mod workloads {
     };
     const TICKS: u64 = 120;
     const AGENT_TICKS: u64 = 1_300;
+    const RANDOM_ACCESS_TICKS: u64 = 700;
 
     #[test]
     fn simple_iter_archetype_matches_the_reference() {
@@ -993,6 +996,67 @@ mod workloads {
         let mut w = ArchetypeHeavyCompute::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
         assert_eq!(w.step_archetypes(), ids(&[1]));
+    }
+
+    #[test]
+    fn random_access_archetype_matches_the_reference() {
+        check_conformance::<VecRandomAccess, ArchetypeRandomAccess>(PARAMS, RANDOM_ACCESS_TICKS)
+            .unwrap();
+    }
+
+    /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+    /// back. A target is stale after a step only if its slot was refilled in that step: an older
+    /// stale handle means the write-back is missing.
+    #[test]
+    fn random_access_archetype_writes_back_retargets() {
+        let mut w = ArchetypeRandomAccess::setup(PARAMS);
+        let mut stale = 0_usize;
+        for tick in 1..=RANDOM_ACCESS_TICKS {
+            let first_new = w.next_id();
+            w.step();
+            for occupant in w.stale_target_occupants() {
+                assert!(
+                    occupant >= first_new,
+                    "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+                );
+                stale += 1;
+            }
+        }
+        assert!(stale > 0, "no stale target seen over the run");
+    }
+
+    #[test]
+    fn random_access_archetype_zero_count_is_valid() {
+        zero_count::<ArchetypeRandomAccess>();
+    }
+
+    /// R4: over `RANDOM_ACCESS_TICKS` ticks at 1,000 entities, some target handle is stale while
+    /// its slot's roster entry has the same index and a higher generation, so the retarget path runs.
+    #[test]
+    fn random_access_sees_a_reused_index() {
+        use spike_ecs_harness::random_access::Target;
+
+        use crate::Entity;
+
+        let mut w = ArchetypeRandomAccess::setup(PARAMS);
+        let mut seen = false;
+        for _ in 0..RANDOM_ACCESS_TICKS {
+            w.step();
+            let roster = w.roster();
+            w.world().query::<&Target<Entity>>().for_each(|t| {
+                let r = roster[t.slot as usize];
+                if !w.world().is_alive(t.entity)
+                    && r.index() == t.entity.index()
+                    && r.generation() > t.entity.generation()
+                {
+                    seen = true;
+                }
+            });
+        }
+        assert!(
+            seen,
+            "no stale target with a reused index in {RANDOM_ACCESS_TICKS} ticks"
+        );
     }
 
     #[test]
@@ -1110,6 +1174,61 @@ mod workloads {
         zero_count::<ArchetypeEntityChurn>();
         zero_count::<ArchetypeSprites>();
         zero_count::<ArchetypeAgents>();
+    }
+}
+
+mod lookup {
+    use crate::{Entity, World};
+
+    #[derive(Debug, PartialEq)]
+    struct A(u32);
+    #[derive(Debug, PartialEq)]
+    struct B(u32);
+
+    /// Spawns until a handle with `like`'s index and a higher generation comes back.
+    fn reuse_index(w: &mut World, like: Entity) -> Entity {
+        loop {
+            let e = w.spawn_with((A(9),));
+            if e.index() == like.index() {
+                return e;
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_agrees_with_get() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1), B(2)));
+        let without = w.spawn_with((B(3),));
+        let old = w.spawn_with((A(5),));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
+
+        let lookup = w.lookup::<A>();
+        let both = |e| (lookup.get(e), w.get::<A>(e));
+        // Live with `A`.
+        assert_eq!(both(with), (Some(&A(1)), Some(&A(1))));
+        // Live without `A`.
+        assert_eq!(both(without), (None, None));
+        // Despawned.
+        assert_eq!(both(dead), (None, None));
+        // Stale, with its index reused by a live entity.
+        assert_eq!(both(old), (None, None));
+    }
+
+    #[test]
+    fn lookup_of_an_unregistered_type_is_none() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1),));
+        let lookup = w.lookup::<B>();
+        assert_eq!(lookup.get(e), None);
+        assert_eq!(lookup.get(e), w.get::<B>(e));
     }
 }
 

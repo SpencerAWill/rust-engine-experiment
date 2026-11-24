@@ -425,6 +425,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
 
@@ -435,6 +436,7 @@ mod workloads {
     use crate::frag_iter::HybridFragIter;
     use crate::heavy_compute::HybridHeavyCompute;
     use crate::query::seal::Role;
+    use crate::random_access::HybridRandomAccess;
     use crate::simple_iter::HybridSimpleIter;
     use crate::sprites::HybridSprites;
 
@@ -452,6 +454,7 @@ mod workloads {
     };
     const TICKS: u64 = 120;
     const AGENT_TICKS: u64 = 1_300;
+    const RANDOM_ACCESS_TICKS: u64 = 700;
 
     #[test]
     fn simple_iter_hybrid_matches_the_reference() {
@@ -652,5 +655,181 @@ mod workloads {
         zero_count::<HybridEntityChurn>();
         zero_count::<HybridSprites>();
         zero_count::<HybridAgents>();
+    }
+
+    #[test]
+    fn random_access_hybrid_matches_the_reference() {
+        check_conformance::<VecRandomAccess, HybridRandomAccess>(PARAMS, RANDOM_ACCESS_TICKS)
+            .unwrap();
+    }
+
+    /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
+    /// back. A target is stale after a step only if its slot was refilled in that step: an older
+    /// stale handle means the write-back is missing.
+    #[test]
+    fn random_access_hybrid_writes_back_retargets() {
+        let mut w = HybridRandomAccess::setup(PARAMS);
+        let mut stale = 0_usize;
+        for tick in 1..=RANDOM_ACCESS_TICKS {
+            let first_new = w.next_id();
+            w.step();
+            for occupant in w.stale_target_occupants() {
+                assert!(
+                    occupant >= first_new,
+                    "tick {tick}: a stale target's slot holds spawn {occupant}, spawned before this step (first new: {first_new})"
+                );
+                stale += 1;
+            }
+        }
+        assert!(stale > 0, "no stale target seen over the run");
+    }
+
+    #[test]
+    fn random_access_hybrid_zero_count_is_valid() {
+        zero_count::<HybridRandomAccess>();
+    }
+
+    /// ecs-11: the workload's six types are all table types, so the world built by setup and
+    /// steps holds no sparse set at all, and none is registered for any of them.
+    #[test]
+    fn random_access_hybrid_registers_no_sparse_set() {
+        use crate::component::StorageKind;
+        use spike_ecs_harness::random_access::{
+            Lifetime, Position, Slot, SpawnId, Target, Velocity,
+        };
+
+        let mut w = HybridRandomAccess::setup(PARAMS);
+        for _ in 0..5 {
+            w.step();
+        }
+        let world = w.world();
+        assert_eq!(world.parts().1.len(), 0, "no sparse set exists");
+        let types = [
+            core::any::TypeId::of::<SpawnId>(),
+            core::any::TypeId::of::<Slot>(),
+            core::any::TypeId::of::<Position>(),
+            core::any::TypeId::of::<Velocity>(),
+            core::any::TypeId::of::<Lifetime>(),
+            core::any::TypeId::of::<Target<crate::Entity>>(),
+        ];
+        for ty in types {
+            let id = world.component_id_of(ty).expect("registered by setup");
+            assert_eq!(world.component_info(id).kind, StorageKind::Table);
+        }
+        world.check_invariants().unwrap();
+    }
+}
+
+mod lookup {
+    use crate::component::components;
+    use crate::{Entity, World};
+
+    #[derive(Debug, PartialEq)]
+    struct A(u32);
+    #[derive(Debug, PartialEq)]
+    struct B(u32);
+    #[derive(Debug, PartialEq)]
+    struct SA(u32);
+    #[derive(Debug, PartialEq)]
+    struct SB(u32);
+    components!(TableStorage: A, B);
+    components!(SparseStorage: SA, SB);
+
+    /// Spawns until a handle with `like`'s index and a higher generation comes back.
+    fn reuse_index(w: &mut World, like: Entity) -> Entity {
+        loop {
+            let e = w.spawn_with((A(9),));
+            if e.index() == like.index() {
+                return e;
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_agrees_with_get_for_a_table_type() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1), B(2)));
+        let without = w.spawn_with((B(3),));
+        let old = w.spawn_with((A(5),));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
+
+        let lookup = w.lookup::<A>();
+        let both = |e| (lookup.get(e), w.get::<A>(e));
+        assert_eq!(both(with), (Some(&A(1)), Some(&A(1))));
+        assert_eq!(both(without), (None, None));
+        assert_eq!(both(dead), (None, None));
+        assert_eq!(both(old), (None, None));
+    }
+
+    #[test]
+    fn lookup_agrees_with_get_for_a_sparse_type() {
+        let mut w = World::new();
+        let with = w.spawn_with((A(1),));
+        w.insert(with, SA(1));
+        let without = w.spawn_with((A(3),));
+        let old = w.spawn_with((A(5),));
+        w.insert(old, SA(5));
+        w.despawn(old);
+        let new = reuse_index(&mut w, old);
+        w.insert(new, SA(6));
+        assert!(new.generation() > old.generation());
+        // The free list is last in, first out and is empty here, so `dead` takes a new index
+        // and, freed, leaves it on the list: nothing spawns before it is asserted on below.
+        let dead = w.spawn_with((A(4),));
+        w.insert(dead, SA(4));
+        w.despawn(dead);
+        assert_ne!(dead.index(), old.index());
+
+        let lookup = w.lookup::<SA>();
+        let both = |e| (lookup.get(e), w.get::<SA>(e));
+        assert_eq!(both(with), (Some(&SA(1)), Some(&SA(1))));
+        assert_eq!(both(without), (None, None));
+        assert_eq!(both(dead), (None, None));
+        assert_eq!(both(old), (None, None));
+        assert_eq!(lookup.get(new), Some(&SA(6)));
+    }
+
+    /// §4.6: a `Lookup` is `Clone` whatever its `T`, for a table type and a sparse type.
+    #[test]
+    fn lookup_clones_and_reads_through_the_clone() {
+        // Neither type is `Clone` or `Debug`.
+        struct Plain(u32);
+        struct Thin(u32);
+        components!(TableStorage: Plain);
+        components!(SparseStorage: Thin);
+
+        let mut w = World::new();
+        let e = w.spawn_with((Plain(1),));
+        w.insert(e, Thin(2));
+
+        let table = w.lookup::<Plain>();
+        let table_clone = table.clone();
+        assert_eq!(table_clone.get(e).map(|p| p.0), Some(1));
+        assert_eq!(table.get(e).map(|p| p.0), Some(1));
+        assert_eq!(format!("{table_clone:?}"), "Lookup { .. }");
+
+        let sparse = w.lookup::<Thin>();
+        let sparse_clone = sparse.clone();
+        assert_eq!(sparse_clone.get(e).map(|t| t.0), Some(2));
+        assert_eq!(sparse.get(e).map(|t| t.0), Some(2));
+    }
+
+    #[test]
+    fn lookup_of_an_unregistered_type_is_none() {
+        let mut w = World::new();
+        let e = w.spawn_with((A(1),));
+        let table = w.lookup::<B>();
+        assert_eq!(table.get(e), None);
+        assert_eq!(table.get(e), w.get::<B>(e));
+        let sparse = w.lookup::<SB>();
+        assert_eq!(sparse.get(e), None);
+        assert_eq!(sparse.get(e), w.get::<SB>(e));
     }
 }

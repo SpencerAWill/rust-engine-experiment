@@ -348,6 +348,11 @@ impl World {
         id
     }
 
+    /// The entity allocator, for [`crate::Lookup`].
+    pub(crate) fn allocator(&self) -> &GenIdAllocator<EntityMarker> {
+        &self.allocator
+    }
+
     pub(crate) fn column<T: 'static>(&self) -> Option<&DenseColumn<T>> {
         let id = self.ids.get(&TypeId::of::<T>())?;
         self.columns[id.index()].as_any().downcast_ref()

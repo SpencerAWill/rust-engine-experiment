@@ -13,8 +13,10 @@ use crate::raw::{ByteColumn, RawLayout};
 use crate::table::{Column, ColumnDesc, ErasedColumn, Table};
 use crate::{Entity, EntityMarker};
 
+mod lookup;
 mod raw;
 
+pub use lookup::Lookup;
 pub use raw::RawError;
 
 /// An internal invariant of a [`World`] does not hold, which would be a bug in the prototype.
@@ -680,7 +682,7 @@ impl World {
     }
 
     /// The only reader of `by_components` outside `check_invariants`.
-    fn lookup(&mut self, components: &[ComponentId]) -> Option<ArchetypeId> {
+    fn find_by_components(&mut self, components: &[ComponentId]) -> Option<ArchetypeId> {
         #[cfg(test)]
         {
             self.lookups += 1;
@@ -690,7 +692,7 @@ impl World {
 
     /// The archetype with exactly the (ascending) `components`, created if it does not exist.
     fn find_or_create(&mut self, components: Box<[ComponentId]>) -> ArchetypeId {
-        if let Some(id) = self.lookup(&components) {
+        if let Some(id) = self.find_by_components(&components) {
             return id;
         }
         let columns: Box<[Box<dyn ErasedColumn>]> = components

@@ -540,7 +540,7 @@ impl World {
     }
 
     /// The set of sparse type `T`, whose id is `id`.
-    fn sparse_set<T: Component>(&self, id: ComponentId) -> &SparseSet<T> {
+    pub(crate) fn sparse_set<T: Component>(&self, id: ComponentId) -> &SparseSet<T> {
         self.sparse_sets[self.set_index(id)]
             .as_any()
             .downcast_ref()
@@ -867,7 +867,7 @@ impl World {
     }
 
     /// Where a live `entity` is.
-    fn location_of(&self, entity: Entity) -> Location {
+    pub(crate) fn location_of(&self, entity: Entity) -> Location {
         self.locations[entity.index() as usize]
     }
 
@@ -902,7 +902,7 @@ impl World {
     }
 
     /// The only reader of `by_components` outside `check_invariants`.
-    fn lookup(&mut self, components: &[ComponentId]) -> Option<ArchetypeId> {
+    fn find_archetype(&mut self, components: &[ComponentId]) -> Option<ArchetypeId> {
         #[cfg(test)]
         {
             self.lookups += 1;
@@ -912,7 +912,7 @@ impl World {
 
     /// The archetype with exactly the (ascending) `components`, created if it does not exist.
     fn find_or_create(&mut self, components: Box<[ComponentId]>) -> ArchetypeId {
-        if let Some(id) = self.lookup(&components) {
+        if let Some(id) = self.find_archetype(&components) {
             return id;
         }
         let columns: Box<[Box<dyn ErasedColumn>]> = components

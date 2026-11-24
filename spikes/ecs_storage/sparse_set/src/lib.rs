@@ -20,7 +20,9 @@ mod commands;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
+mod lookup;
 mod query;
+pub mod random_access;
 pub mod simple_iter;
 pub mod sprites;
 mod storage;
@@ -31,6 +33,7 @@ mod world;
 use engine::genid::GenId;
 
 pub use commands::Commands;
+pub use lookup::Lookup;
 pub use query::{
     Filter, GroupSpec, Query, QueryIter, QueryMut, QueryParam, ReadOnly, With, Without,
 };
