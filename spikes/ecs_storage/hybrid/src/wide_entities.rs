@@ -23,12 +23,12 @@ pub struct HybridWideEntities {
     with_extra: Vec<Entity>,
 }
 
-/// The read pass's query, shared with the test hook so the two cannot drift.
+/// The read pass's query.
 fn read_query(world: &World) -> Query<'_, (Entity, &W0)> {
     world.query()
 }
 
-/// The remove pass's query, shared with the test hook so the two cannot drift.
+/// The remove pass's query.
 fn remove_query(world: &World) -> Query<'_, Entity, ((), With<Extra>)> {
     world.query().with::<Extra>()
 }

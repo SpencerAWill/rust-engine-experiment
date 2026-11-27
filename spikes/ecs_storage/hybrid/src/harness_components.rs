@@ -1,8 +1,9 @@
 //! `Component` impls for the harness's types: the foreign types the ten workloads store.
 //!
 //! One module, because `sprites` and `agents` share `Transform2d`. The sparse types are
-//! `add_remove::B`, `agents::Seeker` and `wide_entities::Extra` (spec section 4.9); every other
-//! type, `Hidden` included, is a table type. The agents' own newtypes are implemented in `agents.rs`.
+//! `add_remove::B` and `agents::Seeker` (M3.5 spec section 4.9) and `wide_entities::Extra` (M3.23
+//! spec section 4.3); every other type, `Hidden` included, is a table type. The agents' own
+//! newtypes are implemented in `agents.rs`.
 
 use engine::prelude::Transform2d;
 use spike_ecs_harness::{
