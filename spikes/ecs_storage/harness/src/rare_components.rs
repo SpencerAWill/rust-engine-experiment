@@ -106,6 +106,10 @@ mod tests {
             })
             .count();
         assert_eq!(rare, 78);
+        let spawned = (0..10_000_u64)
+            .filter(|&i| spawn(&prng, i).1.is_some())
+            .count();
+        assert_eq!(spawned, 78);
     }
 
     #[test]
@@ -118,6 +122,10 @@ mod tests {
         update(&mut c, &Rare(0.5));
         assert_eq!(c, Common(0.75_f32 + 0.5_f32 - 1.0_f32));
         assert!(c.0 < 0.75);
+
+        let mut c = Common(0.5);
+        update(&mut c, &Rare(0.5));
+        assert_eq!(c, Common(0.0));
     }
 
     #[test]
