@@ -30,6 +30,7 @@ pub mod hierarchy;
 pub mod many_queries;
 mod query;
 pub mod random_access;
+pub mod rare_components;
 mod raw;
 mod raw_query;
 pub mod simple_iter;

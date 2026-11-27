@@ -334,6 +334,7 @@ mod workloads {
     use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
+    use spike_ecs_vec::rare_components::VecRareComponents;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
     use spike_ecs_vec::wide_entities::VecWideEntities;
@@ -348,12 +349,17 @@ mod workloads {
     use crate::many_queries::DenseManyQueries;
     use crate::query::Joined;
     use crate::random_access::DenseRandomAccess;
+    use crate::rare_components::DenseRareComponents;
     use crate::simple_iter::DenseSimpleIter;
     use crate::sprites::DenseSprites;
     use crate::wide_entities::DenseWideEntities;
 
     const PARAMS: Params = Params {
         count: 1_000,
+        seed: 42,
+    };
+    const RARE_PARAMS: Params = Params {
+        count: 10_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
@@ -670,6 +676,16 @@ mod workloads {
     #[test]
     fn many_queries_dense_zero_count_is_valid() {
         zero_count::<DenseManyQueries>();
+    }
+
+    #[test]
+    fn rare_components_dense_matches_the_reference() {
+        check_conformance::<VecRareComponents, DenseRareComponents>(RARE_PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn rare_components_dense_zero_count_is_valid() {
+        zero_count::<DenseRareComponents>();
     }
 }
 

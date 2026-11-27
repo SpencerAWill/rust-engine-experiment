@@ -30,6 +30,7 @@ pub mod heavy_compute;
 pub mod hierarchy;
 pub mod many_queries;
 pub mod random_access;
+pub mod rare_components;
 pub mod simple_iter;
 pub mod sprites;
 pub mod wide_entities;
