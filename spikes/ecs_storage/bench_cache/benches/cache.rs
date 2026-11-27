@@ -31,6 +31,7 @@ use spike_ecs_archetype::{
     entity_churn::ArchetypeEntityChurn,
     frag_iter::ArchetypeFragIter,
     heavy_compute::ArchetypeHeavyCompute,
+    hierarchy::ArchetypeHierarchy,
     many_queries::ArchetypeManyQueries,
     random_access::ArchetypeRandomAccess,
     simple_iter::ArchetypeSimpleIter,
@@ -40,28 +41,28 @@ use spike_ecs_archetype::{
 use spike_ecs_bevy::{
     add_remove::BevyAddRemove, add_remove::BevySparseAddRemove, agents::BevyAgents,
     agents::BevySparseAgents, entity_churn::BevyEntityChurn, frag_iter::BevyFragIter,
-    heavy_compute::BevyHeavyCompute, many_queries::BevyManyQueries,
+    heavy_compute::BevyHeavyCompute, hierarchy::BevyHierarchy, many_queries::BevyManyQueries,
     random_access::BevyRandomAccess, simple_iter::BevySimpleIter, sprites::BevySprites,
     wide_entities::BevyWideEntities,
 };
 use spike_ecs_dense::{
     add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
-    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, many_queries::DenseManyQueries,
-    random_access::DenseRandomAccess, simple_iter::DenseSimpleIter, sprites::DenseSprites,
-    wide_entities::DenseWideEntities,
+    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, hierarchy::DenseHierarchy,
+    many_queries::DenseManyQueries, random_access::DenseRandomAccess, simple_iter::DenseSimpleIter,
+    sprites::DenseSprites, wide_entities::DenseWideEntities,
 };
 use spike_ecs_harness::{Params, Spec, Workload};
 use spike_ecs_hecs::{
     add_remove::HecsAddRemove, agents::HecsAgents, entity_churn::HecsEntityChurn,
-    frag_iter::HecsFragIter, heavy_compute::HecsHeavyCompute, many_queries::HecsManyQueries,
-    random_access::HecsRandomAccess, simple_iter::HecsSimpleIter, sprites::HecsSprites,
-    wide_entities::HecsWideEntities,
+    frag_iter::HecsFragIter, heavy_compute::HecsHeavyCompute, hierarchy::HecsHierarchy,
+    many_queries::HecsManyQueries, random_access::HecsRandomAccess, simple_iter::HecsSimpleIter,
+    sprites::HecsSprites, wide_entities::HecsWideEntities,
 };
 use spike_ecs_hybrid::{
     add_remove::HybridAddRemove, agents::HybridAgents, entity_churn::HybridEntityChurn,
-    frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, many_queries::HybridManyQueries,
-    random_access::HybridRandomAccess, simple_iter::HybridSimpleIter, sprites::HybridSprites,
-    wide_entities::HybridWideEntities,
+    frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, hierarchy::HybridHierarchy,
+    many_queries::HybridManyQueries, random_access::HybridRandomAccess,
+    simple_iter::HybridSimpleIter, sprites::HybridSprites, wide_entities::HybridWideEntities,
 };
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
@@ -69,6 +70,7 @@ use spike_ecs_sparse_set::{
     entity_churn::{GroupedEntityChurn, SparseSetEntityChurn},
     frag_iter::SparseSetFragIter,
     heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute},
+    hierarchy::SparseSetHierarchy,
     many_queries::SparseSetManyQueries,
     random_access::SparseSetRandomAccess,
     simple_iter::{GroupedSimpleIter, SparseSetSimpleIter},
@@ -80,8 +82,8 @@ use spike_ecs_vec::many_queries::VecManyQueries;
 use spike_ecs_vec::random_access::VecRandomAccess;
 use spike_ecs_vec::{
     add_remove::VecAddRemove, entity_churn::VecEntityChurn, frag_iter::VecFragIter,
-    heavy_compute::VecHeavyCompute, simple_iter::VecSimpleIter, sprites::VecSprites,
-    wide_entities::VecWideEntities,
+    heavy_compute::VecHeavyCompute, hierarchy::VecHierarchy, simple_iter::VecSimpleIter,
+    sprites::VecSprites, wide_entities::VecWideEntities,
 };
 
 /// The seed of every benchmark.
@@ -325,9 +327,15 @@ cache_bench!(
     VecWideEntities,
     [1_000, 10_000, 100_000]
 );
+cache_bench!(hierarchy_vec_aos, VecHierarchy, [1_000, 10_000, 100_000]);
 cache_bench!(
     wide_entities_sparse_set,
     SparseSetWideEntities,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(
+    hierarchy_sparse_set,
+    SparseSetHierarchy,
     [1_000, 10_000, 100_000]
 );
 cache_bench!(
@@ -336,25 +344,34 @@ cache_bench!(
     [1_000, 10_000, 100_000]
 );
 cache_bench!(
+    hierarchy_archetype,
+    ArchetypeHierarchy,
+    [1_000, 10_000, 100_000]
+);
+cache_bench!(
     wide_entities_dense,
     DenseWideEntities,
     [1_000, 10_000, 100_000]
 );
+cache_bench!(hierarchy_dense, DenseHierarchy, [1_000, 10_000, 100_000]);
 cache_bench!(
     wide_entities_hybrid,
     HybridWideEntities,
     [1_000, 10_000, 100_000]
 );
+cache_bench!(hierarchy_hybrid, HybridHierarchy, [1_000, 10_000, 100_000]);
 cache_bench!(
     wide_entities_bevy_ecs,
     BevyWideEntities,
     [1_000, 10_000, 100_000]
 );
+cache_bench!(hierarchy_bevy_ecs, BevyHierarchy, [1_000, 10_000, 100_000]);
 cache_bench!(
     wide_entities_hecs,
     HecsWideEntities,
     [1_000, 10_000, 100_000]
 );
+cache_bench!(hierarchy_hecs, HecsHierarchy, [1_000, 10_000, 100_000]);
 
 library_benchmark_group!(name = simple_iter; benchmarks = simple_iter_vec_aos, simple_iter_sparse_set, simple_iter_sparse_set_grouped, simple_iter_archetype, simple_iter_archetype_bytes_copy, simple_iter_archetype_bytes_cast, simple_iter_dense, simple_iter_hybrid, simple_iter_bevy_ecs, simple_iter_hecs);
 library_benchmark_group!(name = frag_iter; benchmarks = frag_iter_vec_aos, frag_iter_sparse_set, frag_iter_archetype, frag_iter_archetype_bytes_copy, frag_iter_archetype_bytes_cast, frag_iter_dense, frag_iter_hybrid, frag_iter_bevy_ecs, frag_iter_hecs);
@@ -366,9 +383,10 @@ library_benchmark_group!(name = agents; benchmarks = agents_vec_aos, agents_vec_
 library_benchmark_group!(name = random_access; benchmarks = random_access_vec_aos, random_access_sparse_set, random_access_archetype, random_access_dense, random_access_hybrid, random_access_bevy_ecs, random_access_hecs);
 library_benchmark_group!(name = many_queries; benchmarks = many_queries_vec_aos, many_queries_sparse_set, many_queries_archetype, many_queries_dense, many_queries_hybrid, many_queries_bevy_ecs, many_queries_hecs);
 library_benchmark_group!(name = wide_entities; benchmarks = wide_entities_vec_aos, wide_entities_sparse_set, wide_entities_archetype, wide_entities_dense, wide_entities_hybrid, wide_entities_bevy_ecs, wide_entities_hecs);
+library_benchmark_group!(name = hierarchy; benchmarks = hierarchy_vec_aos, hierarchy_archetype, hierarchy_sparse_set, hierarchy_dense, hierarchy_hybrid, hierarchy_bevy_ecs, hierarchy_hecs);
 
 main!(
     config = LibraryBenchmarkConfig::default().tool(Callgrind::with_args(["--cache-sim=yes"]));
     library_benchmark_groups = simple_iter, frag_iter, heavy_compute, add_remove, entity_churn,
-        sprites, agents, random_access, many_queries, wide_entities
+        sprites, agents, random_access, many_queries, wide_entities, hierarchy
 );

@@ -19,6 +19,7 @@ use spike_ecs_archetype::{
     entity_churn::ArchetypeEntityChurn,
     frag_iter::ArchetypeFragIter,
     heavy_compute::ArchetypeHeavyCompute,
+    hierarchy::ArchetypeHierarchy,
     many_queries::ArchetypeManyQueries,
     random_access::ArchetypeRandomAccess,
     simple_iter::ArchetypeSimpleIter,
@@ -28,28 +29,28 @@ use spike_ecs_archetype::{
 use spike_ecs_bevy::{
     add_remove::BevyAddRemove, add_remove::BevySparseAddRemove, agents::BevyAgents,
     agents::BevySparseAgents, entity_churn::BevyEntityChurn, frag_iter::BevyFragIter,
-    heavy_compute::BevyHeavyCompute, many_queries::BevyManyQueries,
+    heavy_compute::BevyHeavyCompute, hierarchy::BevyHierarchy, many_queries::BevyManyQueries,
     random_access::BevyRandomAccess, simple_iter::BevySimpleIter, sprites::BevySprites,
     wide_entities::BevyWideEntities,
 };
 use spike_ecs_dense::{
     add_remove::DenseAddRemove, agents::DenseAgents, entity_churn::DenseEntityChurn,
-    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, many_queries::DenseManyQueries,
-    random_access::DenseRandomAccess, simple_iter::DenseSimpleIter, sprites::DenseSprites,
-    wide_entities::DenseWideEntities,
+    frag_iter::DenseFragIter, heavy_compute::DenseHeavyCompute, hierarchy::DenseHierarchy,
+    many_queries::DenseManyQueries, random_access::DenseRandomAccess, simple_iter::DenseSimpleIter,
+    sprites::DenseSprites, wide_entities::DenseWideEntities,
 };
 use spike_ecs_harness::{Params, Spec, Workload};
 use spike_ecs_hecs::{
     add_remove::HecsAddRemove, agents::HecsAgents, entity_churn::HecsEntityChurn,
-    frag_iter::HecsFragIter, heavy_compute::HecsHeavyCompute, many_queries::HecsManyQueries,
-    random_access::HecsRandomAccess, simple_iter::HecsSimpleIter, sprites::HecsSprites,
-    wide_entities::HecsWideEntities,
+    frag_iter::HecsFragIter, heavy_compute::HecsHeavyCompute, hierarchy::HecsHierarchy,
+    many_queries::HecsManyQueries, random_access::HecsRandomAccess, simple_iter::HecsSimpleIter,
+    sprites::HecsSprites, wide_entities::HecsWideEntities,
 };
 use spike_ecs_hybrid::{
     add_remove::HybridAddRemove, agents::HybridAgents, entity_churn::HybridEntityChurn,
-    frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, many_queries::HybridManyQueries,
-    random_access::HybridRandomAccess, simple_iter::HybridSimpleIter, sprites::HybridSprites,
-    wide_entities::HybridWideEntities,
+    frag_iter::HybridFragIter, heavy_compute::HybridHeavyCompute, hierarchy::HybridHierarchy,
+    many_queries::HybridManyQueries, random_access::HybridRandomAccess,
+    simple_iter::HybridSimpleIter, sprites::HybridSprites, wide_entities::HybridWideEntities,
 };
 use spike_ecs_sparse_set::{
     add_remove::{GroupedAddRemove, SparseSetAddRemove},
@@ -57,6 +58,7 @@ use spike_ecs_sparse_set::{
     entity_churn::{GroupedEntityChurn, SparseSetEntityChurn},
     frag_iter::SparseSetFragIter,
     heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute},
+    hierarchy::SparseSetHierarchy,
     many_queries::SparseSetManyQueries,
     random_access::SparseSetRandomAccess,
     simple_iter::{GroupedSimpleIter, SparseSetSimpleIter},
@@ -68,8 +70,8 @@ use spike_ecs_vec::many_queries::VecManyQueries;
 use spike_ecs_vec::random_access::VecRandomAccess;
 use spike_ecs_vec::{
     add_remove::VecAddRemove, entity_churn::VecEntityChurn, frag_iter::VecFragIter,
-    heavy_compute::VecHeavyCompute, simple_iter::VecSimpleIter, sprites::VecSprites,
-    wide_entities::VecWideEntities,
+    heavy_compute::VecHeavyCompute, hierarchy::VecHierarchy, simple_iter::VecSimpleIter,
+    sprites::VecSprites, wide_entities::VecWideEntities,
 };
 
 /// The seed of every benchmark.
@@ -103,6 +105,7 @@ fn compare(c: &mut Criterion) {
     bench::<VecRandomAccess>(c);
     bench::<VecManyQueries>(c);
     bench::<VecWideEntities>(c);
+    bench::<VecHierarchy>(c);
     bench::<SparseSetSimpleIter>(c);
     bench::<GroupedSimpleIter>(c);
     bench::<SparseSetFragIter>(c);
@@ -119,6 +122,7 @@ fn compare(c: &mut Criterion) {
     bench::<SparseSetRandomAccess>(c);
     bench::<SparseSetManyQueries>(c);
     bench::<SparseSetWideEntities>(c);
+    bench::<SparseSetHierarchy>(c);
     bench::<ArchetypeSimpleIter>(c);
     bench::<ArchetypeFragIter>(c);
     bench::<ArchetypeHeavyCompute>(c);
@@ -129,6 +133,7 @@ fn compare(c: &mut Criterion) {
     bench::<ArchetypeRandomAccess>(c);
     bench::<ArchetypeManyQueries>(c);
     bench::<ArchetypeWideEntities>(c);
+    bench::<ArchetypeHierarchy>(c);
     bench::<BytesCopySimpleIter>(c);
     bench::<BytesCastSimpleIter>(c);
     bench::<BytesCopyFragIter>(c);
@@ -145,6 +150,7 @@ fn compare(c: &mut Criterion) {
     bench::<DenseRandomAccess>(c);
     bench::<DenseManyQueries>(c);
     bench::<DenseWideEntities>(c);
+    bench::<DenseHierarchy>(c);
     bench::<HybridSimpleIter>(c);
     bench::<HybridFragIter>(c);
     bench::<HybridHeavyCompute>(c);
@@ -155,6 +161,7 @@ fn compare(c: &mut Criterion) {
     bench::<HybridRandomAccess>(c);
     bench::<HybridManyQueries>(c);
     bench::<HybridWideEntities>(c);
+    bench::<HybridHierarchy>(c);
     bench::<BevySimpleIter>(c);
     bench::<BevyFragIter>(c);
     bench::<BevyHeavyCompute>(c);
@@ -167,6 +174,7 @@ fn compare(c: &mut Criterion) {
     bench::<BevyRandomAccess>(c);
     bench::<BevyManyQueries>(c);
     bench::<BevyWideEntities>(c);
+    bench::<BevyHierarchy>(c);
     bench::<HecsSimpleIter>(c);
     bench::<HecsFragIter>(c);
     bench::<HecsHeavyCompute>(c);
@@ -177,6 +185,7 @@ fn compare(c: &mut Criterion) {
     bench::<HecsRandomAccess>(c);
     bench::<HecsManyQueries>(c);
     bench::<HecsWideEntities>(c);
+    bench::<HecsHierarchy>(c);
 }
 
 criterion_group!(benches, compare);

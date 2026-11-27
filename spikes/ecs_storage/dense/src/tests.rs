@@ -331,6 +331,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
@@ -343,6 +344,7 @@ mod workloads {
     use crate::entity_churn::DenseEntityChurn;
     use crate::frag_iter::DenseFragIter;
     use crate::heavy_compute::DenseHeavyCompute;
+    use crate::hierarchy::DenseHierarchy;
     use crate::many_queries::DenseManyQueries;
     use crate::query::Joined;
     use crate::random_access::DenseRandomAccess;
@@ -473,6 +475,16 @@ mod workloads {
             "B",
             DenseAddRemove::removed_last_step,
         );
+    }
+
+    #[test]
+    fn hierarchy_dense_matches_the_reference() {
+        check_conformance::<VecHierarchy, DenseHierarchy>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn hierarchy_dense_zero_count_is_valid() {
+        zero_count::<DenseHierarchy>();
     }
 
     #[test]

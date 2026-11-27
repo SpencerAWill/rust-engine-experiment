@@ -1,6 +1,6 @@
 # Spikes
 
-Status: Living (2026-11-15). Added by M3.2.
+Status: Living (2026-11-27). Added by M3.2.
 
 A **spike** is a measured experiment. Its code is kept after the decision it informed, so the numbers can be re-run and the next chunk can start from the winner: the storage prototypes of M3 are the first. Nothing under `spikes/` is part of the engine's public API.
 
@@ -13,7 +13,7 @@ A **spike** is a measured experiment. Its code is kept after the decision it inf
 
 | Topic | Milestone | What it measures |
 |---|---|---|
-| [`ecs_storage/`](ecs_storage/README.md) | M3 | Storage models for an ECS, on ten shared workloads |
+| [`ecs_storage/`](ecs_storage/README.md) | M3 | Storage models for an ECS, on eleven shared workloads |
 
 ## Rules
 

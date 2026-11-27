@@ -25,6 +25,7 @@ pub mod entity_churn;
 pub mod frag_iter;
 mod harness_components;
 pub mod heavy_compute;
+pub mod hierarchy;
 mod lookup;
 pub mod many_queries;
 mod query;

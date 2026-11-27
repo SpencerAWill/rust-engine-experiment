@@ -249,6 +249,7 @@ mod workloads {
     use crate::entity_churn::{GroupedEntityChurn, SparseSetEntityChurn};
     use crate::frag_iter::SparseSetFragIter;
     use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
+    use crate::hierarchy::SparseSetHierarchy;
     use crate::many_queries::SparseSetManyQueries;
     use crate::random_access::SparseSetRandomAccess;
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
@@ -259,6 +260,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
@@ -509,6 +511,16 @@ mod workloads {
         zero_count::<GroupedSprites>();
         zero_count::<SparseSetAgents>();
         zero_count::<GroupedAgents>();
+    }
+
+    #[test]
+    fn hierarchy_sparse_set_matches_the_reference() {
+        check_conformance::<VecHierarchy, SparseSetHierarchy>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn hierarchy_sparse_set_zero_count_is_valid() {
+        zero_count::<SparseSetHierarchy>();
     }
 
     #[test]

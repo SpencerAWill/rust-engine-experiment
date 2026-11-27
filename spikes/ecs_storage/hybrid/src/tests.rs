@@ -425,6 +425,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
@@ -437,6 +438,7 @@ mod workloads {
     use crate::entity_churn::HybridEntityChurn;
     use crate::frag_iter::HybridFragIter;
     use crate::heavy_compute::HybridHeavyCompute;
+    use crate::hierarchy::HybridHierarchy;
     use crate::many_queries::HybridManyQueries;
     use crate::query::seal::Role;
     use crate::random_access::HybridRandomAccess;
@@ -808,6 +810,32 @@ mod workloads {
             }
         }
         assert!(stale > 0, "no stale target seen over the run");
+    }
+
+    #[test]
+    fn hierarchy_hybrid_matches_the_reference() {
+        check_conformance::<VecHierarchy, HybridHierarchy>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn hierarchy_hybrid_zero_count_is_valid() {
+        zero_count::<HybridHierarchy>();
+    }
+
+    /// Spec 4.5: the empty archetype and one table per level, before and after steps.
+    #[test]
+    fn hierarchy_hybrid_holds_one_table_per_level() {
+        let mut w = HybridHierarchy::setup(PARAMS);
+        assert_eq!(w.archetype_count(), 9);
+        w.world().check_invariants().unwrap();
+        w.step();
+        assert_eq!(w.archetype_count(), 9);
+        w.world().check_invariants().unwrap();
+        for _ in 0..9 {
+            w.step();
+        }
+        assert_eq!(w.archetype_count(), 9);
+        w.world().check_invariants().unwrap();
     }
 
     #[test]

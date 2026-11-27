@@ -7,6 +7,7 @@ use crate::agents::HecsAgents;
 use crate::entity_churn::HecsEntityChurn;
 use crate::frag_iter::HecsFragIter;
 use crate::heavy_compute::HecsHeavyCompute;
+use crate::hierarchy::HecsHierarchy;
 use crate::many_queries::HecsManyQueries;
 use crate::random_access::HecsRandomAccess;
 use crate::simple_iter::HecsSimpleIter;
@@ -169,4 +170,18 @@ fn wide_entities_hecs_places_entities_in_one_archetype() {
     let w = HecsWideEntities::setup(PARAMS);
     // The root archetype and the 24-type one.
     assert_eq!(w.world().archetypes().len(), 2);
+}
+
+#[test]
+fn hierarchy_hecs_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::hierarchy::VecHierarchy, HecsHierarchy>(PARAMS, 120)
+        .unwrap();
+}
+
+#[test]
+fn hierarchy_hecs_zero_count_is_valid() {
+    let mut w = HecsHierarchy::setup(Params { count: 0, seed: 42 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
 }

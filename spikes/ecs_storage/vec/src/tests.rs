@@ -9,6 +9,7 @@ use crate::agents::{SoaAgents, VecAgents};
 use crate::entity_churn::VecEntityChurn;
 use crate::frag_iter::VecFragIter;
 use crate::heavy_compute::VecHeavyCompute;
+use crate::hierarchy::VecHierarchy;
 use crate::many_queries::VecManyQueries;
 use crate::random_access::VecRandomAccess;
 use crate::simple_iter::VecSimpleIter;
@@ -934,6 +935,37 @@ mod wide_entities {
                 seen, P.count,
                 "wide_entities: between saw {seen} entities at tick {tick}"
             );
+        }
+    }
+}
+
+mod hierarchy {
+    use super::*;
+
+    #[test]
+    fn hierarchy_vec_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecHierarchy>();
+    }
+
+    /// Spec §4.5 (ecs-13): every tick's checksum differs from every earlier tick's, tick 0
+    /// included, and every row's `GlobalTransform` differs from its value at the previous tick.
+    #[test]
+    fn hierarchy_checksum_never_repeats_and_every_global_changes() {
+        assert_checksum_never_repeats::<VecHierarchy>("hierarchy", P);
+
+        let mut w = VecHierarchy::setup(P);
+        let mut previous = w.globals();
+        assert_eq!(previous.len(), P.count);
+        for tick in 1..=TICKS {
+            w.step();
+            let now = w.globals();
+            for (i, (before, after)) in previous.iter().zip(&now).enumerate() {
+                assert_ne!(
+                    before, after,
+                    "hierarchy: row {i} did not change at tick {tick}"
+                );
+            }
+            previous = now;
         }
     }
 }
