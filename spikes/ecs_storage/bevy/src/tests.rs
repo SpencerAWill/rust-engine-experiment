@@ -8,6 +8,7 @@ use crate::agents::{BevyAgents, BevySparseAgents};
 use crate::entity_churn::BevyEntityChurn;
 use crate::frag_iter::BevyFragIter;
 use crate::heavy_compute::BevyHeavyCompute;
+use crate::many_queries::BevyManyQueries;
 use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
@@ -313,4 +314,25 @@ fn add_remove_bevy_sparse_never_registers_table_b() {
         w.step();
     }
     assert!(w.world().components().component_id::<Table<B>>().is_none());
+}
+
+#[test]
+fn many_queries_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::many_queries::VecManyQueries, BevyManyQueries>(PARAMS, 120)
+        .unwrap();
+}
+
+/// The 8 queries with no matching entity change no checksum, so the count is asserted directly.
+#[test]
+fn many_queries_bevy_holds_every_query() {
+    let w = BevyManyQueries::setup(PARAMS);
+    assert_eq!(w.query_count(), 56);
+}
+
+#[test]
+fn many_queries_bevy_zero_count_is_valid() {
+    let mut w = BevyManyQueries::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
 }

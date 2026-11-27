@@ -25,3 +25,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-26 done step 4: sparse_set SparseSetManyQueries (sparse_set/src/many_queries.rs, lib.rs, tests.rs); view path, no group; conformance and zero-count tests seen failing first (E0432, type missing), then pass; 84 sparse_set tests pass, ci --quick rc 0.
 - 2026-11-26 done step 5: dense many_queries (DenseManyQueries, BACKEND dense); no bundle spawn in dense, so spawn+insert x4 as in sparse_set; 73 dense tests pass, ci --quick rc 0
 - 2026-11-26 done step 6: HybridManyQueries (hybrid), C0..C7 as TableStorage; 98 hybrid tests pass, ci --quick rc 0
+- 2026-11-26 done step 7: BevyManyQueries (bevy/src/many_queries.rs, lib.rs, tests.rs); 56 boxed closures each owning a QueryState, query_count cfg(test) hook; conformance, holds-every-query and zero-count tests seen failing first (E0583, module missing), then pass; 25 bevy tests pass, ci --quick rc 0

@@ -78,7 +78,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 7: `bevy_ecs` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance test; `many_queries_bevy_holds_every_query` (ecs-11: the 8 empty queries change no checksum, so a `#[cfg(test)]` hook asserts the closure `Vec` has 56 entries after `setup`). Fails first: the type does not exist.
 - **Change:** §1's bevy shape.
