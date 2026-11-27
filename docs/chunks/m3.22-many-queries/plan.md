@@ -41,7 +41,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 3: `archetype` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** spec §4.4 for the prototypes: the guide's `run_query!` callback through `for_each_query!` in `step`; eight `spawn_with` bundles by group in `setup`; eight read-only four-type queries in `checksum`.

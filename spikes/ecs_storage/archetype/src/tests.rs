@@ -926,6 +926,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
@@ -936,6 +937,7 @@ mod workloads {
     use crate::entity_churn::ArchetypeEntityChurn;
     use crate::frag_iter::ArchetypeFragIter;
     use crate::heavy_compute::ArchetypeHeavyCompute;
+    use crate::many_queries::ArchetypeManyQueries;
     use crate::random_access::ArchetypeRandomAccess;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
@@ -967,6 +969,16 @@ mod workloads {
             TICKS,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn many_queries_archetype_matches_the_reference() {
+        check_conformance::<VecManyQueries, ArchetypeManyQueries>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn many_queries_archetype_zero_count_is_valid() {
+        super::zero_count::<ArchetypeManyQueries>();
     }
 
     #[test]
