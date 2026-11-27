@@ -77,7 +77,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 6: `hybrid` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/src/harness_components.rs` (every `hierarchy` type in the `TableStorage` list, `Parent<crate::Entity>` as `random_access::Target<crate::Entity>`; module doc: eleven workloads), `src/hierarchy.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests; `hierarchy_hybrid_holds_one_table_per_level` (as step 3's). Fails first: the type does not exist.
 - **Change:** spec §4.3.
