@@ -122,7 +122,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 11: allocation count (R4, R5, ecs-2)
 
-- [ ] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
+- [x] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
 - **Files:** `log.md` only.
 - **Test first:** none (a measurement). Pass rule (spec §4.5): each backend's per-step count is the same at every step after warm-up and equals its `simple_iter` control's.
 - **Change:** count allocations per `step` for the seven backends' `rare_components` and `simple_iter` at `count` 10,000, seed 42, 100 steps after 10 warm-up steps; min and max; record with the full commit hash (specs-4, docs-4). A difference from the control is explained in `log.md` or flagged.
