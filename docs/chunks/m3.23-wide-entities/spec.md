@@ -1,6 +1,6 @@
 # M3.23: wide_entities workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-26)
+- **Status:** Accepted (2026-11-26)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.26 · **Decides:** no ADR
 - **Issue:** #108
 - **Estimated size:** about 800 changed lines, excluding tests, lockfiles and generated files (harness module about 160, `vec_aos` about 70, six ECS backends about 70 each, bundle impls about 40, `hybrid`'s component list about 30, bench registration about 30, documents about 50)
