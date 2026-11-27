@@ -69,7 +69,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 6: `hybrid` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/src/harness_components.rs` (`many_queries::C0` to `C7` as `TableStorage`; module doc: nine workloads), `src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance and zero-count tests; `many_queries_hybrid_registers_no_sparse_set` (ecs-11, as `random_access_hybrid_registers_no_sparse_set`): after setup and 5 steps, the world has no sparse set for any of the eight types. Fails first: the type does not exist.
 - **Change:** as step 3.
