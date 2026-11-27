@@ -11,6 +11,7 @@ use crate::heavy_compute::BevyHeavyCompute;
 use crate::hierarchy::BevyHierarchy;
 use crate::many_queries::BevyManyQueries;
 use crate::random_access::BevyRandomAccess;
+use crate::rare_components::BevyRareComponents;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
 use crate::wide_entities::BevyWideEntities;
@@ -22,6 +23,12 @@ const PARAMS: Params = Params {
 };
 /// Ticks of the `random_access` runs, enough for entities to expire and be respawned.
 const RANDOM_ACCESS_TICKS: u64 = 700;
+
+/// The `rare_components` conformance parameters (M3.25 spec §4.4): 78 rare entities at seed 42.
+const RARE_PARAMS: Params = Params {
+    count: 10_000,
+    seed: 42,
+};
 
 /// Steps `w` 120 times; after each step every entity must have been collected for removal, once,
 /// which only happens if the insert pass gave each one a `component` (ecs-11: the checksum cannot
@@ -446,4 +453,41 @@ fn hierarchy_bevy_zero_count_is_valid() {
     assert_eq!(w.checksum(), 0);
     w.step();
     assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn rare_components_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::rare_components::VecRareComponents, BevyRareComponents>(
+        RARE_PARAMS,
+        120,
+    )
+    .unwrap();
+}
+
+#[test]
+fn rare_components_bevy_zero_count_is_valid() {
+    let mut w = BevyRareComponents::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn rare_components_bevy_stores_rare_in_a_table() {
+    use spike_ecs_harness::rare_components::Rare;
+
+    let mut w = BevyRareComponents::setup(RARE_PARAMS);
+    w.step();
+    let id = w
+        .world()
+        .components()
+        .component_id::<Table<Rare>>()
+        .expect("Table<Rare> was never registered");
+    assert!(w.world().archetypes().iter().any(|a| a.contains(id)));
+    assert!(
+        w.world()
+            .components()
+            .get_id(std::any::TypeId::of::<Sparse<Rare>>())
+            .is_none()
+    );
 }

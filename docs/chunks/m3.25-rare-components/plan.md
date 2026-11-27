@@ -84,7 +84,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 7: `bevy_ecs` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/rare_components.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests; `rare_components_bevy_stores_rare_in_a_table` (spec §4.5, as `wide_entities_bevy_stores_extra_in_a_table`: after a step `Table<Rare>` is registered and in an archetype, and `Sparse<Rare>` was never registered). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `bevy_ecs`: the step's `QueryState` built in `setup`; `clear_trackers()` at the end of `step`.
