@@ -177,6 +177,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 ## 5. Deviations
 
 - Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
-- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Steps 6 (`dense`), 7 (`hybrid`) and 9 (`hecs`) the same: none of these crates has a shared helper.
+- Steps 5, 6, 7 and 9: the per-step tests of `sparse_set`, `dense`, `hybrid` and `hecs` inlined the loop of each crate's `add_remove` insert test (`sparse_set`'s helper was tied to `AddRemoveOn`; the others had none); the simplify pass (`e29a163`) then gave each of the six crates one helper, `assert_inserts_on_every_entity_each_step(w, component, removed_last_step)`, used by its `add_remove` and `wide_entities` tests, with a `component` argument so the message names `B` or `Extra` (red check (a) re-run per crate, log.md).
 - Step 8: `bevy_ecs` also has a zero-count test (`wide_entities_bevy_zero_count_is_valid`, the crate's `many_queries` pattern); the storage test finds `Table<Extra>` by `component_id::<Table<Extra>>()`.
 - Step 9: `hecs` also has a zero-count test (`wide_entities_hecs_zero_count_is_valid`).
+- Simplify pass: `bench_compare`'s `wide_entities` lines follow each backend's `many_queries` line (the file's per-backend order), and both bench files merge the imports into each crate's `use` group; benchmark ids unchanged.
