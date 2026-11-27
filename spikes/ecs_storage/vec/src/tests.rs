@@ -12,6 +12,7 @@ use crate::heavy_compute::VecHeavyCompute;
 use crate::hierarchy::VecHierarchy;
 use crate::many_queries::VecManyQueries;
 use crate::random_access::VecRandomAccess;
+use crate::rare_components::VecRareComponents;
 use crate::simple_iter::VecSimpleIter;
 use crate::sprites::VecSprites;
 use crate::wide_entities::VecWideEntities;
@@ -967,5 +968,27 @@ mod hierarchy {
             }
             previous = now;
         }
+    }
+}
+
+mod rare_components {
+    use super::*;
+
+    /// Spec §4.4: `count` 10,000 at seed 42 gives 78 rare entities.
+    const RARE_PARAMS: Params = Params {
+        count: 10_000,
+        seed: 42,
+    };
+
+    #[test]
+    fn rare_components_vec_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecRareComponents>();
+    }
+
+    /// Spec §4.5 (ecs-13): every tick's checksum differs from every earlier tick's, tick 0
+    /// included.
+    #[test]
+    fn rare_components_checksum_never_repeats() {
+        assert_checksum_never_repeats::<VecRareComponents>("rare_components", RARE_PARAMS);
     }
 }

@@ -34,7 +34,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 2: the `vec_aos` reference (R2, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/rare_components.rs` (new), `vec/src/lib.rs`, `vec/src/tests.rs`.
 - **Test first:** `rare_components_vec_zero_count_is_valid`; `rare_components_checksum_never_repeats` (at `RARE_PARAMS`, 120 ticks: each tick's checksum differs from every earlier tick's, tick 0 included; ecs-13). Fails first: the type does not exist.
 - **Change:** spec §4.3's `vec_aos`.
