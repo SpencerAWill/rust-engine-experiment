@@ -105,7 +105,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 9: `hecs` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hecs/src/wide_entities.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and per-step tests; `wide_entities_hecs_places_entities_in_one_archetype` (after `setup`, `world.archetypes().len()` is 2, the root and the 24-type one, as the stub). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `hecs`: an `EntityBuilder` per spawn; `insert_one` and `remove_one`.
@@ -177,5 +177,6 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 ## 5. Deviations
 
 - Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
-- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Steps 6 (`dense`) and 7 (`hybrid`) the same: neither crate has a shared helper.
+- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Steps 6 (`dense`), 7 (`hybrid`) and 9 (`hecs`) the same: none of these crates has a shared helper.
 - Step 8: `bevy_ecs` also has a zero-count test (`wide_entities_bevy_zero_count_is_valid`, the crate's `many_queries` pattern); the storage test finds `Table<Extra>` by `component_id::<Table<Extra>>()`.
+- Step 9: `hecs` also has a zero-count test (`wide_entities_hecs_zero_count_is_valid`).
