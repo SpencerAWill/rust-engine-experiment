@@ -125,6 +125,12 @@ impl Iterator for Forest<'_> {
     }
 }
 
+/// `size_hint` is exact: the nodes left to yield.
+impl ExactSizeIterator for Forest<'_> {}
+
+/// Once `count` nodes are yielded, `next` returns `None` forever.
+impl core::iter::FusedIterator for Forest<'_> {}
+
 /// The forest of `count` nodes in spawn order (pre-order: each subtree is spawned in full before
 /// its next sibling), drawn from `prng.stream(i)` for node `i` in the order of M3.24 spec §4.2.
 /// The last tree is cut off at `count`.
@@ -248,6 +254,32 @@ mod tests {
                 scale: Vec2::new(sx, sy),
             }
         );
+        // Node 0 may be a leaf, so check every node of the first trees: a node below its tree's
+        // depth has the drawn number of children. Every tree before the last root is complete;
+        // only the last tree can be cut off at `count`.
+        let last_root = nodes
+            .iter()
+            .rposition(|n| n.parent.is_none())
+            .expect("a root exists");
+        let mut depths = Vec::new();
+        for node in &nodes[..last_root] {
+            let mut r = prng.stream(node.id);
+            let tree_depth = match node.parent {
+                None => r.range(1_u32..=LEVELS),
+                Some(p) => depths[usize::try_from(p).expect("fits")],
+            };
+            depths.push(tree_depth);
+            for _ in 0..5 {
+                let _ = r.range(0.0_f32..1.0);
+            }
+            let want = if node.level < tree_depth {
+                r.range(1_u32..=2) as usize
+            } else {
+                0
+            };
+            let got = nodes.iter().filter(|n| n.parent == Some(node.id)).count();
+            assert_eq!(got, want, "children of node {}", node.id);
+        }
         if children > 0 {
             assert_eq!(nodes[1].parent, Some(0));
             assert_eq!(nodes[1].level, 2);
