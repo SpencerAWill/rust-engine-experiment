@@ -21,6 +21,7 @@ pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
 mod lookup;
+pub mod many_queries;
 mod query;
 pub mod random_access;
 pub mod simple_iter;

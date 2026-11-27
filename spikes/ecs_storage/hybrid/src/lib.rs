@@ -26,6 +26,7 @@ pub mod frag_iter;
 mod harness_components;
 pub mod heavy_compute;
 mod lookup;
+pub mod many_queries;
 mod query;
 pub mod random_access;
 pub mod simple_iter;

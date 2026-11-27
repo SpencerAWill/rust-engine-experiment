@@ -13,7 +13,7 @@ A **spike** is a measured experiment. Its code is kept after the decision it inf
 
 | Topic | Milestone | What it measures |
 |---|---|---|
-| [`ecs_storage/`](ecs_storage/README.md) | M3 | Storage models for an ECS, on eight shared workloads |
+| [`ecs_storage/`](ecs_storage/README.md) | M3 | Storage models for an ECS, on nine shared workloads |
 
 ## Rules
 

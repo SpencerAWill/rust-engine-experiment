@@ -425,6 +425,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
@@ -435,6 +436,7 @@ mod workloads {
     use crate::entity_churn::HybridEntityChurn;
     use crate::frag_iter::HybridFragIter;
     use crate::heavy_compute::HybridHeavyCompute;
+    use crate::many_queries::HybridManyQueries;
     use crate::query::seal::Role;
     use crate::random_access::HybridRandomAccess;
     use crate::simple_iter::HybridSimpleIter;
@@ -711,6 +713,46 @@ mod workloads {
             core::any::TypeId::of::<Velocity>(),
             core::any::TypeId::of::<Lifetime>(),
             core::any::TypeId::of::<Target<crate::Entity>>(),
+        ];
+        for ty in types {
+            let id = world.component_id_of(ty).expect("registered by setup");
+            assert_eq!(world.component_info(id).kind, StorageKind::Table);
+        }
+        world.check_invariants().unwrap();
+    }
+
+    #[test]
+    fn many_queries_hybrid_matches_the_reference() {
+        check_conformance::<VecManyQueries, HybridManyQueries>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn many_queries_hybrid_zero_count_is_valid() {
+        zero_count::<HybridManyQueries>();
+    }
+
+    /// ecs-11: the eight types are all table types, so the world built by setup and steps holds
+    /// no sparse set at all, and none is registered for any of them.
+    #[test]
+    fn many_queries_hybrid_registers_no_sparse_set() {
+        use crate::component::StorageKind;
+        use spike_ecs_harness::many_queries::{C0, C1, C2, C3, C4, C5, C6, C7};
+
+        let mut w = HybridManyQueries::setup(PARAMS);
+        for _ in 0..5 {
+            w.step();
+        }
+        let world = w.world();
+        assert_eq!(world.parts().1.len(), 0, "no sparse set exists");
+        let types = [
+            core::any::TypeId::of::<C0>(),
+            core::any::TypeId::of::<C1>(),
+            core::any::TypeId::of::<C2>(),
+            core::any::TypeId::of::<C3>(),
+            core::any::TypeId::of::<C4>(),
+            core::any::TypeId::of::<C5>(),
+            core::any::TypeId::of::<C6>(),
+            core::any::TypeId::of::<C7>(),
         ];
         for ty in types {
             let id = world.component_id_of(ty).expect("registered by setup");

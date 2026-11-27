@@ -1,4 +1,4 @@
-//! `Component` impls for the harness's types: the foreign types the eight workloads store.
+//! `Component` impls for the harness's types: the foreign types the nine workloads store.
 //!
 //! One module, because `sprites` and `agents` share `Transform2d`. The sparse types are
 //! `add_remove::B` and `agents::Seeker` (spec section 4.9); every other type, `Hidden`
@@ -6,7 +6,7 @@
 
 use engine::prelude::Transform2d;
 use spike_ecs_harness::{
-    add_remove, agents, entity_churn, frag_iter, random_access, simple_iter, sprites,
+    add_remove, agents, entity_churn, frag_iter, many_queries, random_access, simple_iter, sprites,
 };
 
 use crate::component::components;
@@ -61,4 +61,12 @@ components!(
     random_access::Velocity,
     random_access::Lifetime,
     random_access::Target<crate::Entity>,
+    many_queries::C0,
+    many_queries::C1,
+    many_queries::C2,
+    many_queries::C3,
+    many_queries::C4,
+    many_queries::C5,
+    many_queries::C6,
+    many_queries::C7,
 );
