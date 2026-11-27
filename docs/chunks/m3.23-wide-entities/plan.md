@@ -36,7 +36,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 2: bundles of 24 on `archetype` and `hybrid` (R4, first half)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/bundle.rs`, `spikes/ecs_storage/hybrid/src/bundle.rs`, each crate's tests (the existing bundle or world test module).
 - **Test first:** in each crate, `spawn_with_takes_24_types`: a 24-tuple of distinct test-local types (from a test-local macro) spawns into exactly one new archetype (`archetype_count()` 2) and `check_invariants()` is `Ok`, for two spawns (the second hits the cached bundle). Fails first: the tuple does not implement `Bundle` (E0277).
 - **Change:** `impl_bundle!` lines for 9 to 24 types, same macro; "1 to 8" becomes "1 to 24" in each trait's doc. No other change.
@@ -176,4 +176,4 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ## 5. Deviations
 
-None yet.
+- Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
