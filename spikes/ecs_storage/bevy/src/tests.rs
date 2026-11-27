@@ -8,6 +8,7 @@ use crate::agents::{BevyAgents, BevySparseAgents};
 use crate::entity_churn::BevyEntityChurn;
 use crate::frag_iter::BevyFragIter;
 use crate::heavy_compute::BevyHeavyCompute;
+use crate::hierarchy::BevyHierarchy;
 use crate::many_queries::BevyManyQueries;
 use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
@@ -431,4 +432,18 @@ fn wide_entities_bevy_places_entities_in_one_archetype() {
     let before = bevy_ecs::world::World::new().archetypes().len();
     let w = BevyWideEntities::setup(PARAMS);
     assert_eq!(w.world().archetypes().len(), before + 1);
+}
+
+#[test]
+fn hierarchy_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::hierarchy::VecHierarchy, BevyHierarchy>(PARAMS, 120)
+        .unwrap();
+}
+
+#[test]
+fn hierarchy_bevy_zero_count_is_valid() {
+    let mut w = BevyHierarchy::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
 }

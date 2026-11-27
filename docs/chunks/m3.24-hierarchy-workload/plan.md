@@ -87,7 +87,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 7: `bevy_ecs` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/hierarchy.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** spec §4.3 for `bevy_ecs`; every type under `Table<T>`; the `QueryState`s of §1 built in `setup`; `clear_trackers()` at the end of `step`.
@@ -162,4 +162,4 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ## 5. Deviations
 
-None yet.
+- Step 7: the `bevy_ecs` tests are `hierarchy_bevy_matches_the_reference` and `hierarchy_bevy_zero_count_is_valid`, the crate's existing `<workload>_bevy_*` naming, not §1's `hierarchy_bevy_ecs_*`.
