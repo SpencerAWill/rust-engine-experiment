@@ -114,7 +114,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 11: allocation count (R4, ecs-2)
 
-- [ ] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
+- [x] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
 - **Files:** `log.md` only.
 - **Test first:** none (a measurement). Expected: `vec_aos` 0 per step; `bevy_ecs` 0 (its closures and states are built in `setup`); each prototype its recorded per-query-run count times 56; `hecs` unbroken-down.
 - **Change:** count allocations per `step` for the seven backends at `count` 1,000, seed 42, 100 steps after 10 warm-up steps; min and max; record with the full commit hash (specs-4, docs-4).
