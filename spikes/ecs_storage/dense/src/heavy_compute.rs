@@ -15,7 +15,9 @@ pub struct DenseHeavyCompute {
 }
 
 /// The step's query, shared with the test hook so the two cannot drift.
-fn step_query(world: &mut World) -> QueryMut<'_, (&mut Matrix, &mut Position, &Rotation)> {
+fn step_query(
+    world: &mut World,
+) -> QueryMut<'_, (&mut Matrix, &mut Position, &Rotation, &Velocity)> {
     world.query_mut()
 }
 
@@ -51,8 +53,9 @@ impl Workload for DenseHeavyCompute {
     }
 
     fn step(&mut self) {
-        step_query(&mut self.world)
-            .for_each(|(matrix, position, rotation)| rules::update(matrix, position, rotation));
+        step_query(&mut self.world).for_each(|(matrix, position, rotation, velocity)| {
+            rules::update(matrix, position, rotation, velocity);
+        });
     }
 
     fn checksum(&self) -> u64 {

@@ -919,6 +919,32 @@ mod raw_query {
     }
 }
 
+/// Steps `w` `ticks` times; after each step every one of the `count` entities must have been
+/// collected for removal, once, which only happens if the insert pass gave each one a `B`
+/// (ecs-11: the checksum cannot see the removal list).
+fn assert_inserts_on_every_entity_each_step<W: spike_ecs_harness::Workload>(
+    mut w: W,
+    count: usize,
+    ticks: u64,
+    removed_last_step: fn(&W) -> &[Entity],
+) {
+    for tick in 1..=ticks {
+        w.step();
+        let removed = removed_last_step(&w);
+        assert_eq!(
+            removed.len(),
+            count,
+            "the step removed B from the wrong number of entities at tick {tick}"
+        );
+        let distinct: BTreeSet<u64> = removed.iter().map(|e| e.to_bits()).collect();
+        assert_eq!(
+            distinct.len(),
+            count,
+            "an entity was removed twice in one step at tick {tick}"
+        );
+    }
+}
+
 mod workloads {
     use spike_ecs_harness::{Params, Workload, check_conformance};
     use spike_ecs_vec::add_remove::VecAddRemove;
@@ -1079,6 +1105,16 @@ mod workloads {
     #[test]
     fn entity_churn_archetype_matches_the_reference() {
         check_conformance::<VecEntityChurn, ArchetypeEntityChurn>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_archetype_inserts_on_every_entity_each_step() {
+        super::assert_inserts_on_every_entity_each_step(
+            ArchetypeAddRemove::setup(PARAMS),
+            PARAMS.count,
+            TICKS,
+            ArchetypeAddRemove::removed_last_step,
+        );
     }
 
     #[test]
@@ -1393,6 +1429,26 @@ mod bytes_add_remove {
     #[test]
     fn add_remove_bytes_cast_matches_the_reference() {
         check_conformance::<VecAddRemove, BytesCastAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_archetype_bytes_copy_inserts_on_every_entity_each_step() {
+        super::assert_inserts_on_every_entity_each_step(
+            BytesCopyAddRemove::setup(PARAMS),
+            PARAMS.count,
+            TICKS,
+            BytesCopyAddRemove::removed_last_step,
+        );
+    }
+
+    #[test]
+    fn add_remove_archetype_bytes_cast_inserts_on_every_entity_each_step() {
+        super::assert_inserts_on_every_entity_each_step(
+            BytesCastAddRemove::setup(PARAMS),
+            PARAMS.count,
+            TICKS,
+            BytesCastAddRemove::removed_last_step,
+        );
     }
 
     #[test]

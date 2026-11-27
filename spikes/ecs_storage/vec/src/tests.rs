@@ -56,6 +56,21 @@ fn assert_zero_count_is_valid<W: Workload>() {
     assert_eq!(w.checksum(), 0);
 }
 
+/// Steps `w` `TICKS` times; no tick's checksum may equal an earlier one (the state keeps changing
+/// through the last conformance tick). `name` labels the failure.
+fn assert_checksum_never_repeats<W: Workload>(name: &str, params: Params) {
+    let mut w = W::setup(params);
+    let mut seen = vec![w.checksum()];
+    for tick in 1..=TICKS {
+        w.step();
+        let sum = w.checksum();
+        if let Some(earlier) = seen.iter().position(|&c| c == sum) {
+            panic!("{name}: the checksum at tick {tick} equals the one at tick {earlier}");
+        }
+        seen.push(sum);
+    }
+}
+
 /// A broken candidate that applies `step` twice.
 struct StepTwice<W>(W);
 
@@ -236,11 +251,22 @@ mod frag_iter {
     #[test]
     fn frag_iter_data_follows_the_map() {
         let mut w = VecFragIter::setup(FRAG);
+        // One input that wraps (0.5 + 0.618_034 >= 1.0) and one that does not.
+        w.entities[0].1 = Data(0.5);
+        w.entities[1].1 = Data(0.25);
         let before: Vec<f32> = w.entities.iter().map(|(_, d)| d.0).collect();
         w.step();
+        assert_eq!(w.entities[0].1.0, 0.5_f32 + 0.618_034 - 1.0);
+        assert_eq!(w.entities[1].1.0, 0.25_f32 + 0.618_034);
         for (old, (_, new)) in before.iter().zip(&w.entities) {
-            assert_eq!(new.0, old * 0.5 + 1.0);
+            let x = old + 0.618_034;
+            assert_eq!(new.0, if x >= 1.0 { x - 1.0 } else { x });
         }
+    }
+
+    #[test]
+    fn frag_iter_checksum_never_repeats() {
+        assert_checksum_never_repeats::<VecFragIter>("frag_iter", FRAG);
     }
 
     #[test]
@@ -324,11 +350,29 @@ mod heavy_compute {
     #[test]
     fn heavy_compute_position_is_the_transformed_rotation() {
         let mut w = VecHeavyCompute::setup(HEAVY);
+        let before = w.entities.clone();
         w.step();
         assert_eq!(INVERSIONS, 100);
-        for e in &w.entities {
-            assert_eq!(e.position.0, e.matrix.0.transform_point3(e.rotation.0));
+        let dt = spike_ecs_harness::dt();
+        for (old, e) in before.iter().zip(&w.entities) {
+            // The rule written out by hand: invert 100 times, move the translation by
+            // `velocity * dt` (multiply, then add), then transform the rotation.
+            let mut m = old.matrix.0;
+            for _ in 0..100 {
+                m = m.inverse();
+            }
+            for r in 0..3 {
+                let moved = old.velocity.0[r] * dt;
+                m.w_axis[r] += moved;
+            }
+            assert_eq!(e.matrix.0, m);
+            assert_eq!(e.position.0, m.transform_point3(e.rotation.0));
         }
+    }
+
+    #[test]
+    fn heavy_compute_checksum_never_repeats() {
+        assert_checksum_never_repeats::<VecHeavyCompute>("heavy_compute", HEAVY);
     }
 
     #[test]
@@ -403,6 +447,33 @@ mod add_remove {
         for _ in 0..3 {
             w.step();
             assert!(w.entities.iter().all(|(_, b)| b.is_none()));
+        }
+    }
+
+    #[test]
+    fn add_remove_vec_inserts_on_every_entity_each_step() {
+        let mut w = VecAddRemove::setup(P);
+        for tick in 1..=TICKS {
+            let (mut calls, mut seen) = (0_u64, 0_usize);
+            w.step_with(|entities| {
+                calls += 1;
+                seen += entities.len();
+                for (i, (a, b)) in entities.iter().enumerate() {
+                    assert_eq!(
+                        *b,
+                        Some(rules::make_b(a)),
+                        "add_remove: entity {i} holds the wrong B between the passes at tick {tick}"
+                    );
+                }
+            });
+            assert_eq!(
+                calls, 1,
+                "add_remove: between ran {calls} times at tick {tick}"
+            );
+            assert_eq!(
+                seen, P.count,
+                "add_remove: between saw {seen} entities at tick {tick}"
+            );
         }
     }
 

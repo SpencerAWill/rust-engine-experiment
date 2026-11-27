@@ -25,6 +25,14 @@ impl core::fmt::Debug for HecsAddRemove {
     }
 }
 
+#[cfg(test)]
+impl HecsAddRemove {
+    /// The entities the last step removed `B` from, for tests.
+    pub(crate) fn removed_last_step(&self) -> &[Entity] {
+        &self.with_b
+    }
+}
+
 impl Workload for HecsAddRemove {
     type Spec = AddRemove;
     const BACKEND: &'static str = "hecs";

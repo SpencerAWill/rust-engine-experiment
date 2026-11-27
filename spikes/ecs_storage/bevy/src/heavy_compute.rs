@@ -3,7 +3,9 @@
 use bevy_ecs::query::QueryState;
 use bevy_ecs::world::World;
 use engine::prelude::Prng;
-use spike_ecs_harness::heavy_compute::{self as rules, HeavyCompute, Matrix, Position, Rotation};
+use spike_ecs_harness::heavy_compute::{
+    self as rules, HeavyCompute, Matrix, Position, Rotation, Velocity,
+};
 use spike_ecs_harness::{Params, Workload};
 
 use crate::Table;
@@ -13,6 +15,7 @@ type StepQuery = QueryState<(
     &'static mut Table<Matrix>,
     &'static mut Table<Position>,
     &'static Table<Rotation>,
+    &'static Table<Velocity>,
 )>;
 
 /// `heavy_compute` on a `bevy_ecs` [`World`]: one table holding every entity.
@@ -43,11 +46,11 @@ impl Workload for BevyHeavyCompute {
     }
 
     fn step(&mut self) {
-        self.step
-            .iter_mut(&mut self.world)
-            .for_each(|(mut matrix, mut position, rotation)| {
-                rules::update(&mut matrix.0, &mut position.0, &rotation.0);
-            });
+        self.step.iter_mut(&mut self.world).for_each(
+            |(mut matrix, mut position, rotation, velocity)| {
+                rules::update(&mut matrix.0, &mut position.0, &rotation.0, &velocity.0);
+            },
+        );
         self.world.clear_trackers();
     }
 

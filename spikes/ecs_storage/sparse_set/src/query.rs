@@ -1089,6 +1089,14 @@ impl<Q: QueryParam, F: Filter> QueryMut<'_, Q, F> {
     pub(crate) fn uses_group(&self) -> bool {
         Plan::new::<Q, F>(self.world, "QueryMut::uses_group").is_some_and(|p| p.group.is_some())
     }
+
+    /// Whether a run would take the group path and read every type by loop index, probing
+    /// none (the query matches its group exactly), for tests.
+    #[cfg(test)]
+    pub(crate) fn matches_group_exactly(&self) -> bool {
+        Plan::new::<Q, F>(self.world, "QueryMut::matches_group_exactly")
+            .is_some_and(|p| p.group.is_some() && p.access.direct.iter().all(|&d| d))
+    }
 }
 
 impl<Q: QueryParam, F: Filter> fmt::Debug for QueryMut<'_, Q, F> {

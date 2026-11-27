@@ -74,6 +74,11 @@ impl HybridAddRemove {
     pub(crate) fn world(&self) -> &World {
         &self.world
     }
+
+    /// The entities the last step removed `B` from, for tests.
+    pub(crate) fn removed_last_step(&self) -> &[Entity] {
+        &self.with_b
+    }
 }
 
 impl Workload for HybridAddRemove {

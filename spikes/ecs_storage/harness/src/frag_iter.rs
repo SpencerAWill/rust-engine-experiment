@@ -119,10 +119,13 @@ pub fn spawn(prng: &Prng, i: u64, count: usize) -> (Letter, Data) {
     (Letter::from_index(index, value), Data(data))
 }
 
-/// The rule for one entity: `data = data * 0.5 + 1.0` (multiply, then add; not fused).
+/// The rule for one entity: `x = data + 0.618_034`, then `data = x - 1.0` if `x >= 1.0`, else
+/// `x`. Values stay in `0.0..1.0`. A rotation by a constant near the golden ratio's conjugate, so
+/// no state repeats an earlier tick within the conformance run.
 #[inline]
 pub fn update(data: &mut Data) {
-    data.0 = data.0 * 0.5 + 1.0;
+    let x = data.0 + 0.618_034;
+    data.0 = if x >= 1.0 { x - 1.0 } else { x };
 }
 
 /// One entity's term of the checksum: `u8(letter index)`, `f32(letter value)`, `f32(data)`.

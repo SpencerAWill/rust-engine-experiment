@@ -416,7 +416,7 @@ mod workloads {
 
     #[test]
     fn heavy_compute_dense_joins() {
-        use spike_ecs_harness::heavy_compute::{Matrix, Position, Rotation};
+        use spike_ecs_harness::heavy_compute::{Matrix, Position, Rotation, Velocity};
         let mut w = DenseHeavyCompute::setup(Params {
             count: 10,
             seed: 42,
@@ -427,6 +427,7 @@ mod workloads {
                 TypeId::of::<Matrix>(),
                 TypeId::of::<Position>(),
                 TypeId::of::<Rotation>(),
+                TypeId::of::<Velocity>(),
             ],
         );
         assert_eq!(w.step_joined(), (want, vec![]));
@@ -435,6 +436,27 @@ mod workloads {
     #[test]
     fn add_remove_dense_matches_the_reference() {
         check_conformance::<VecAddRemove, DenseAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn add_remove_dense_inserts_on_every_entity_each_step() {
+        let mut w = DenseAddRemove::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed B from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
     }
 
     #[test]

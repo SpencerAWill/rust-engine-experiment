@@ -1,6 +1,6 @@
 # ECS storage spike
 
-Status: Living (2026-11-26). Added by M3.2. The rules of the first seven workloads are in the [M3.2 spec](../../docs/chunks/m3.2-spike-harness/spec.md) (§4.4), those of `random_access` in the [M3.21 spec](../../docs/chunks/m3.21-random-access/spec.md) (§4.2), those of `many_queries` in the [M3.22 spec](../../docs/chunks/m3.22-many-queries/spec.md) (§4.2); this page is how to use them.
+Status: Living (2026-11-26). Added by M3.2. The rules of the first seven workloads are in the [M3.2 spec](../../docs/chunks/m3.2-spike-harness/spec.md) (§4.4; `frag_iter`'s and `heavy_compute`'s steps amended by [M3.26](../../docs/chunks/m3.26-workload-checks-that-fail/spec.md) §4.2), those of `random_access` in the [M3.21 spec](../../docs/chunks/m3.21-random-access/spec.md) (§4.2), those of `many_queries` in the [M3.22 spec](../../docs/chunks/m3.22-many-queries/spec.md) (§4.2); this page is how to use them.
 
 ## When this applies
 

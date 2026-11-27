@@ -45,12 +45,28 @@ pub fn spawn(prng: &Prng, i: u64) -> (Matrix, Position, Rotation, Velocity) {
     (Matrix(matrix), position, rotation, velocity)
 }
 
-/// The rule for one entity: [`INVERSIONS`] times `matrix = matrix.inverse()` (written back each
-/// time), then `position = matrix.transform_point3(rotation)`.
+/// The rule for one entity, in this order: invert the matrix [`INVERSIONS`] times (written back
+/// each time); then move the matrix's translation (column 3) by `velocity * dt()`, per row a
+/// multiply and then an add, never fused; then `position = matrix.transform_point3(rotation)`.
+///
+/// In exact arithmetic the inversions alone would leave the matrix where it started (an even
+/// count), and in `f32` most matrices settle within a few dozen ticks into returning bit for bit,
+/// so the translation step is what makes the state change every tick. Every backend calls this
+/// function, so the arithmetic is written once.
 #[inline]
-pub fn update(matrix: &mut Matrix, position: &mut Position, rotation: &Rotation) {
+pub fn update(
+    matrix: &mut Matrix,
+    position: &mut Position,
+    rotation: &Rotation,
+    velocity: &Velocity,
+) {
     for _ in 0..INVERSIONS {
         matrix.0 = matrix.0.inverse();
+    }
+    let dt = crate::dt();
+    for row in 0..3 {
+        let moved = velocity.0[row] * dt;
+        matrix.0.w_axis[row] += moved;
     }
     position.0 = matrix.0.transform_point3(rotation.0);
 }

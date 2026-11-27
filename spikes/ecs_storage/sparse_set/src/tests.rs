@@ -321,6 +321,10 @@ mod workloads {
     fn grouped_heavy_compute_uses_the_group() {
         let mut w = GroupedHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
+        assert!(
+            w.matches_group_exactly(),
+            "the step query probes a type per row; the group must hold all four"
+        );
         let mut w = SparseSetHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
@@ -328,6 +332,39 @@ mod workloads {
     #[test]
     fn add_remove_sparse_set_matches_the_reference() {
         check_conformance::<VecAddRemove, SparseSetAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    /// Steps `w` 120 times; after each step every entity must have been collected for removal,
+    /// once, which only happens if the insert pass gave each one a `B` (ecs-11: the checksum
+    /// cannot see the removal list).
+    fn assert_inserts_on_every_entity_each_step<const GROUPED: bool>() {
+        let mut w = crate::add_remove::AddRemoveOn::<GROUPED>::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed B from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
+    fn add_remove_sparse_set_inserts_on_every_entity_each_step() {
+        assert_inserts_on_every_entity_each_step::<false>();
+    }
+
+    #[test]
+    fn add_remove_sparse_set_grouped_inserts_on_every_entity_each_step() {
+        assert_inserts_on_every_entity_each_step::<true>();
     }
 
     #[test]
