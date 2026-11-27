@@ -1,6 +1,6 @@
 # M3.23: wide_entities workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Implemented (PR #143, 2026-11-27)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.26 · **Decides:** no ADR
 - **Issue:** #108
 - **Estimated size:** about 800 changed lines, excluding tests, lockfiles and generated files (harness module about 160, `vec_aos` about 70, six ECS backends about 70 each, bundle impls about 40, `hybrid`'s component list about 30, bench registration about 30, documents about 50)
@@ -151,13 +151,13 @@ The `Bundle` traits of `spike_ecs_archetype` and `spike_ecs_hybrid` are implemen
 
 ## 9. Done when
 
-- [ ] The harness module and the seven implementations exist, and every conformance test passes.
-- [ ] `archetype` and `hybrid` take bundles of 24 and place every entity in one archetype.
-- [ ] The tests of §4.5 pass and their red checks are in `log.md`.
-- [ ] Both spike benches register `wide_entities` for the seven backends.
-- [ ] The documents of §4.6 are updated.
-- [ ] One informal run is in the pull request, `log.md` and on #102.
-- [ ] `cargo xtask ci` passes.
+- [x] The harness module and the seven implementations exist, and every conformance test passes (each backend's `wide_entities_<backend>_matches_the_reference`; full `ci` on 74640c8).
+- [x] `archetype` and `hybrid` take bundles of 24 and place every entity in one archetype (`spawn_with_takes_24_types`, `wide_entities_archetype_places_entities_in_one_archetype`, `wide_entities_hybrid_moves_no_row`).
+- [x] The tests of §4.5 pass and their red checks are in `log.md` (steps 3 to 9, and red check (a) again after the simplify pass).
+- [x] Both spike benches register `wide_entities` for the seven backends (`compare.rs`, `cache.rs`; the informal run lists the 21 ids).
+- [x] The documents of §4.6 are updated (`spikes/ecs_storage/README.md`, `spikes/README.md`, the harness crate doc, `harness_components.rs`, `CHANGELOG.md`).
+- [ ] One informal run is in the pull request, `log.md` and on #102: in the pull request and `log.md` (`m3.23-informal`); the #102 comment is pending the maintainer's answer on machine use during the run (`/bench-run` step 4).
+- [x] `cargo xtask ci` passes (on 74640c8, the final code; later commits change only `docs/`). CI on the pull request pending.
 
 ## 10. Open questions
 

@@ -1,6 +1,6 @@
 # M3.23 log: wide_entities workload for the ECS storage harness
 
-- **Status:** Living (2026-11-26).
+- **Status:** Historical: PR #143 (2026-11-27).
 
 <!-- Append-only. One or two lines per entry, written when it happens, not at the end:
 - <date> <tag> <text>
@@ -88,3 +88,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
   | `hecs` | 694 / 22.3 µs (31.1) | 7.07 ms / 241 µs (29.4) | 83.3 / 2.41 ms (34.6) |
 - 2026-11-27 done Sibling check before quoting (ecs-9): `hybrid` is 0.92 to 0.94 of `sparse_set` at every size (neither moves a row, as designed) and 1/9.8, 1/12.5, 1/18.8 of `archetype`; `bevy_ecs` is 2.7, 3.9, 2.8 times `archetype` and `hecs` 3.9, 3.0, 2.3 times (in `add_remove` they are 2.15 and 1.06 times `archetype` at 1,000); this run's `add_remove` rows are 0.99 to 1.04 of M3.26's (`m3.26-informal`, battery) and its `simple_iter` rows 0.95 to 1.01, so nothing looks disturbed.
 - 2026-11-27 decision Caveats for M3.8, each with how it is known (specs-6): (1) one run, no noise floor (measured: one run). (2) `vec_aos` moves nothing; its 7.9 to 11.6 times over `add_remove` is the update pass striding over 544-byte rows plus the two flag passes over the same rows (expected from spec §4.6, unmeasured separately). (3) `archetype`, `bevy_ecs` and `hecs` move the row on each insert and remove; `sparse_set`, `dense` and `hybrid` move none (spec §4.3, by design; `hybrid` pinned by its archetype-count test). (4) the difference from `add_remove` also holds the update pass, expected small on the table backends (40 bytes per entity against 1,088 moved) and the same order as `sparse_set`'s whole difference (9.6 µs at 1,000), unmeasured separately (spec §4.6). (5) `archetype`'s per-entity extra over `add_remove` rises from 157 ns at 1,000 to 333 ns at 100,000 (derived from the run), consistent with the copy becoming memory-bound at 54 MB of rows, but the cause is not measured. (6) why `bevy_ecs` and `hecs` move a 24-column row 2.3 to 3.9 times slower than `archetype` is not measured (both allocate nothing per step, log.md step 12; the cause is unmeasured).
+- 2026-11-27 done PR #143 opened. Close-out commit. The #102 comment waits for the maintainer's answer on machine use during the informal run.

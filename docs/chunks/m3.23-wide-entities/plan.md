@@ -1,6 +1,6 @@
 # M3.23 plan: wide_entities workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Historical: executed in PR #143 (2026-11-27); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach
