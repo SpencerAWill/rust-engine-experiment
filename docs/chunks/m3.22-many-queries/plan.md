@@ -105,7 +105,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 10: documents (R6)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (status-line date, harness row "nine workloads", workload list, rules link to spec §4.2), `spikes/README.md` (Contents row); the plan tick.
 - **Test first:** `grep -rnE "eight workloads|the eighth|8 workloads" spikes/ docs/README.md .claude/` finds the stale counts (docs-1 style: the paths are named).
 - **Change:** spec §4.5's document items.
@@ -153,3 +153,4 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 ## 5. Deviations
 
 - **Step 9:** rustfmt wraps two `cache_bench!` calls over several lines, so the plan's `ManyQueries,$` grep miscounts; the seven lines were counted by reading and by `grep -c "many_queries_[a-z_]*,\?$\|cache_bench!(many_queries"` (7).
+- **Step 10:** the stale-count grep missed `spikes/README.md`'s "eight shared workloads"; widened to `eight (shared )?workloads|8 workloads|the eighth`. Its one remaining match, the harness crate doc's "the eighth, `random_access`", is correct (the next clause names the ninth). `spikes/ecs_storage/README.md` also names `for_each_query!` beside the workload list.
