@@ -65,6 +65,14 @@ use spike_ecs_vec::{
     heavy_compute::VecHeavyCompute, simple_iter::VecSimpleIter, sprites::VecSprites,
 };
 
+use spike_ecs_archetype::wide_entities::ArchetypeWideEntities;
+use spike_ecs_bevy::wide_entities::BevyWideEntities;
+use spike_ecs_dense::wide_entities::DenseWideEntities;
+use spike_ecs_hecs::wide_entities::HecsWideEntities;
+use spike_ecs_hybrid::wide_entities::HybridWideEntities;
+use spike_ecs_sparse_set::wide_entities::SparseSetWideEntities;
+use spike_ecs_vec::wide_entities::VecWideEntities;
+
 /// The seed of every benchmark.
 const SEED: u64 = 42;
 
@@ -163,6 +171,13 @@ fn compare(c: &mut Criterion) {
     bench::<HecsAgents>(c);
     bench::<HecsRandomAccess>(c);
     bench::<HecsManyQueries>(c);
+    bench::<VecWideEntities>(c);
+    bench::<SparseSetWideEntities>(c);
+    bench::<ArchetypeWideEntities>(c);
+    bench::<DenseWideEntities>(c);
+    bench::<HybridWideEntities>(c);
+    bench::<BevyWideEntities>(c);
+    bench::<HecsWideEntities>(c);
 }
 
 criterion_group!(benches, compare);

@@ -115,7 +115,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 10: bench registration (R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/benches/compare.rs`, `spikes/ecs_storage/bench_cache/benches/cache.rs`.
 - **Test first:** none runnable here (the cache bench's size check runs only under Valgrind; M3.21 log). The `cache_bench!` lines are checked against `SIZES` by reading them.
 - **Change:** seven `bench::<…>` lines; seven `cache_bench!` lines with `[1_000, 10_000, 100_000]` in a `wide_entities` group added to `main!`.
