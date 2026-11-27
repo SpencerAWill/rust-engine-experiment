@@ -47,7 +47,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 3: `archetype` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/hierarchy.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests; `hierarchy_archetype_holds_one_table_per_level` (spec §4.5: `archetype_count()` is 9 after `setup`, after one step and after ten; `check_invariants()` `Ok`). Fails first: the type does not exist.
 - **Change:** spec §4.3 with `World::lookup::<GlobalTransform>()` once per level.

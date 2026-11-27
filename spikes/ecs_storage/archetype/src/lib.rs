@@ -26,6 +26,7 @@ mod commands;
 pub mod entity_churn;
 pub mod frag_iter;
 pub mod heavy_compute;
+pub mod hierarchy;
 pub mod many_queries;
 mod query;
 pub mod random_access;
