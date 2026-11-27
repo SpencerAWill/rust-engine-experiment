@@ -113,7 +113,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 10: documents (R7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (status-line date; the rules sentence links the M3.25 spec §4.2; the harness row "twelve workloads"; the workload list; the backends sentence; one sentence on what the row shows, with spec §4.6's caveats that bear on reading it), `spikes/README.md` (Contents row), `CHANGELOG.md` (one entry, as M3.23's); the plan tick.
 - **Test first:** `grep -rnE "eleven (shared )?workloads|11 workloads" spikes/ CHANGELOG.md` finds the stale text (specs-1).
 - **Change:** spec §4.6's document items (the harness crate doc and `harness_components.rs` are steps 1 and 6).
