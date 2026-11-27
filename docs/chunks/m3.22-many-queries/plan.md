@@ -60,7 +60,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 5: `dense` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/dense/src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** as step 3.
