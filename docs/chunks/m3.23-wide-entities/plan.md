@@ -95,7 +95,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 8: `bevy_ecs` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/wide_entities.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and per-step tests; `wide_entities_bevy_stores_extra_in_a_table` (spec §4.5: after one step the world holds a 25-type archetype (`archetypes()` holds one with `Table<Extra>`) and has never registered `Sparse<Extra>` (`components().get_id(TypeId::of::<Sparse<Extra>>())` is `None`)); `wide_entities_bevy_places_entities_in_one_archetype` (`setup` adds exactly one archetype over `World::new()`'s). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `bevy_ecs`: a nested `(12-tuple, 12-tuple)` bundle of `Table<Wk>` (the grill's stub, log.md); three `QueryState`s built in `setup`; `clear_trackers()` at the end of `step`.
@@ -178,3 +178,4 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 - Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
 - Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Steps 6 (`dense`) and 7 (`hybrid`) the same: neither crate has a shared helper.
+- Step 8: `bevy_ecs` also has a zero-count test (`wide_entities_bevy_zero_count_is_valid`, the crate's `many_queries` pattern); the storage test finds `Table<Extra>` by `component_id::<Table<Extra>>()`.

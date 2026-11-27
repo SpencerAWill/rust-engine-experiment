@@ -12,6 +12,7 @@ use crate::many_queries::BevyManyQueries;
 use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
+use crate::wide_entities::BevyWideEntities;
 use crate::{Sparse, Table};
 
 const PARAMS: Params = Params {
@@ -375,4 +376,55 @@ fn many_queries_bevy_zero_count_is_valid() {
     assert_eq!(w.checksum(), 0);
     w.step();
     assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::wide_entities::VecWideEntities, BevyWideEntities>(
+        PARAMS, 120,
+    )
+    .unwrap();
+}
+
+#[test]
+fn wide_entities_bevy_zero_count_is_valid() {
+    let mut w = BevyWideEntities::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_bevy_inserts_on_every_entity_each_step() {
+    assert_inserts_on_every_entity_each_step(
+        BevyWideEntities::setup(PARAMS),
+        BevyWideEntities::removed_last_step,
+    );
+}
+
+#[test]
+fn wide_entities_bevy_stores_extra_in_a_table() {
+    use spike_ecs_harness::wide_entities::Extra;
+
+    let mut w = BevyWideEntities::setup(PARAMS);
+    w.step();
+    let id = w
+        .world()
+        .components()
+        .component_id::<Table<Extra>>()
+        .expect("Table<Extra> was never registered");
+    assert!(w.world().archetypes().iter().any(|a| a.contains(id)));
+    assert!(
+        w.world()
+            .components()
+            .get_id(std::any::TypeId::of::<Sparse<Extra>>())
+            .is_none()
+    );
+}
+
+#[test]
+fn wide_entities_bevy_places_entities_in_one_archetype() {
+    let before = bevy_ecs::world::World::new().archetypes().len();
+    let w = BevyWideEntities::setup(PARAMS);
+    assert_eq!(w.world().archetypes().len(), before + 1);
 }
