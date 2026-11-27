@@ -44,7 +44,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 3: `archetype` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/rare_components.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests; `rare_components_archetype_places_rare_entities_in_their_own_table` (spec §4.5: `archetype_count()` is 3 after `setup` and after one step, `check_invariants()` `Ok`, and the step query's matched archetypes are exactly one, holding 78 rows at `RARE_PARAMS`). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `archetype`.

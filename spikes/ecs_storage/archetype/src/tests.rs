@@ -956,6 +956,7 @@ mod workloads {
     use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
+    use spike_ecs_vec::rare_components::VecRareComponents;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
     use spike_ecs_vec::wide_entities::VecWideEntities;
@@ -969,6 +970,7 @@ mod workloads {
     use crate::hierarchy::ArchetypeHierarchy;
     use crate::many_queries::ArchetypeManyQueries;
     use crate::random_access::ArchetypeRandomAccess;
+    use crate::rare_components::ArchetypeRareComponents;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
     use crate::wide_entities::ArchetypeWideEntities;
@@ -979,6 +981,10 @@ mod workloads {
 
     const PARAMS: Params = Params {
         count: 1_000,
+        seed: 42,
+    };
+    const RARE_PARAMS: Params = Params {
+        count: 10_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
@@ -1289,6 +1295,32 @@ mod workloads {
         }
         assert_eq!(w.archetype_count(), 3);
         w.world().check_invariants().unwrap();
+    }
+
+    #[test]
+    fn rare_components_archetype_matches_the_reference() {
+        check_conformance::<VecRareComponents, ArchetypeRareComponents>(RARE_PARAMS, TICKS)
+            .unwrap();
+    }
+
+    #[test]
+    fn rare_components_archetype_zero_count_is_valid() {
+        zero_count::<ArchetypeRareComponents>();
+    }
+
+    #[test]
+    fn rare_components_archetype_places_rare_entities_in_their_own_table() {
+        let mut w = ArchetypeRareComponents::setup(RARE_PARAMS);
+        let check = |w: &mut ArchetypeRareComponents| {
+            assert_eq!(w.archetype_count(), 3);
+            w.world().check_invariants().unwrap();
+            let matched = w.step_archetypes();
+            assert_eq!(matched.len(), 1);
+            assert_eq!(w.world().archetypes()[matched[0].index()].table.len(), 78);
+        };
+        check(&mut w);
+        w.step();
+        check(&mut w);
     }
 }
 
