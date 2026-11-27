@@ -1,8 +1,9 @@
 //! The `rare_components` workload on the dense `World`.
 //!
 //! Each entity is spawned empty, given `Common` by `insert`, and then `Rare` for the rare ones.
-//! The step's query joins the `Common` and `Rare` presence sets, so it visits only the entities
-//! that have both, which are the rare ones.
+//! The step's query joins the `Common` and `Rare` presence sets (`HierarchicalBitSet`s). It yields
+//! only the rare entities, but descends only where both sets have a bit, so it skips just the
+//! regions with no `Rare`: at 1% about half the 64-entity leaf words still hold one.
 
 use engine::prelude::Prng;
 use spike_ecs_harness::rare_components::{self as rules, Common, Rare, RareComponents};
@@ -11,7 +12,8 @@ use spike_ecs_harness::{Params, Workload};
 use crate::{QueryMut, World};
 
 /// `rare_components` on a dense-array [`World`]: `Rare` has an array and presence set of its own,
-/// so the step's join walks only the rare entities.
+/// so the step's join yields only the rare entities. It skips only the regions with no `Rare`: at
+/// 1% about half the 64-entity leaf words still hold one.
 #[derive(Debug)]
 pub struct DenseRareComponents {
     world: World,
