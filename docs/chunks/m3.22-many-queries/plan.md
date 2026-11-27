@@ -123,7 +123,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 12: the informal run (R7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `log.md`.
 - **Test first:** none.
 - **Change:** `/bench-run` with `cargo xtask spike-bench ecs` on the final code commit (after review fixes; specs-4). Before quoting, compare siblings (ecs-9): `hybrid` with `archetype`, `hecs` with `archetype`, and `simple_iter` rows with M3.21's run. Caveats say measured or expected and unmeasured (specs-6, docs-3), including spec §4.5's cache gap and step 11's allocations. Record commit, conditions, power log and the `many_queries` table in `log.md`; the pull request, the comment on #102 and the pointer on #84 (stage 7, once the pull request exists) carry it.
@@ -154,7 +154,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 - **Step 9:** rustfmt wraps two `cache_bench!` calls over several lines, so the plan's `ManyQueries,$` grep miscounts; the seven lines were counted by reading and by `grep -c "many_queries_[a-z_]*,\?$\|cache_bench!(many_queries"` (7).
 - **Step 10:** the stale-count grep missed `spikes/README.md`'s "eight shared workloads"; widened to `eight (shared )?workloads|8 workloads|the eighth`. Its one remaining match, the harness crate doc's "the eighth, `random_access`", is correct (the next clause names the ninth). `spikes/ecs_storage/README.md` also names `for_each_query!` beside the workload list.
-- **Step 12:** runs after review, on the final code (as the step says).
+- **Step 12:** ran after review, on the final code (as the step says), on battery power with `--allow-battery` at the maintainer's request (log.md).
 - **Review, simplify:** no change; the pass read five of seven `tests.rs` files in part and the bench files as diffs, after one send-back (log.md).
 - **Step 1:** `GROUPS` (`pub const GROUPS: u8 = 8`, plan §1) is public beyond spec §4.2's export list.
 - **Review, round 1:** four fixes in one commit (the `VecManyQueries` doc, `spawn`'s group form, the last-tick test, `TypeId` mapping in the macro test and doctest); see log.md.
