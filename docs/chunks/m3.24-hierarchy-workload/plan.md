@@ -125,7 +125,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 11: allocation count (R5, ecs-2)
 
-- [ ] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
+- [x] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
 - **Files:** `log.md` only.
 - **Test first:** none (a measurement); the pass criterion is spec §8's R5 row. Control in the same binary: one run of each prototype's read query and write query of one level, counted alone, so the expected per-step count is (update + root + 7 × (read + write)) runs.
 - **Change:** count allocations per `step` for the seven backends' `hierarchy` at `count` 1,000, seed 42, 100 steps after 10 warm-up steps; min and max; the control counts; record with the full commit hash (specs-4, docs-4). A count above the expected sum, or one that varies between steps, is a finding: explained (said how it is known, specs-6) or flagged for the caveats.
@@ -163,3 +163,4 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 ## 5. Deviations
 
 - Step 7: the `bevy_ecs` tests are `hierarchy_bevy_matches_the_reference` and `hierarchy_bevy_zero_count_is_valid`, the crate's existing `<workload>_bevy_*` naming, not §1's `hierarchy_bevy_ecs_*`.
+- Step 11: spec §8's R5 row expects 0 allocations per step on `hecs`; it is 7, one per level's `World::view` (hecs 0.11.2 allocates once per `view` call, as M3.21 counted for `random_access`), so `hecs` is held to its control's sum like the prototypes. R5 itself (no allocation from the workload's own code) holds; recorded in `log.md` and carried to the caveats.
