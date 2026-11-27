@@ -45,7 +45,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 3: the `vec_aos` reference (R2, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/wide_entities.rs` (new), `vec/src/lib.rs`, `vec/src/tests.rs`.
 - **Test first:** `wide_entities_vec_zero_count_is_valid`; `wide_entities_checksum_never_repeats` (at the conformance parameters, 120 ticks: each tick's checksum differs from every earlier tick's, tick 0 included; ecs-13); `wide_entities_vec_inserts_between_the_passes` (spec §4.5: a `#[cfg(test)]` method runs the step's loop with a closure that asserts every row holds `Some(make_extra(&wide.w0))`, after each of 120 steps). Fails first: the type does not exist.
 - **Change:** spec §4.3's `vec_aos`; the step's loop generic over the between-passes closure, the measured `step` passing a no-op, as `VecAddRemove::step_with`.

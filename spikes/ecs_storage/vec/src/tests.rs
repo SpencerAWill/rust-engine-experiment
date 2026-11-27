@@ -13,6 +13,7 @@ use crate::many_queries::VecManyQueries;
 use crate::random_access::VecRandomAccess;
 use crate::simple_iter::VecSimpleIter;
 use crate::sprites::VecSprites;
+use crate::wide_entities::VecWideEntities;
 
 /// Storage that can be reversed in place, to test that a checksum ignores storage order.
 trait Reversible {
@@ -892,5 +893,47 @@ fn many_queries_still_changes_at_the_last_tick() {
         let now = w.checksum();
         assert_ne!(now, previous, "tick {tick}");
         previous = now;
+    }
+}
+
+mod wide_entities {
+    use super::*;
+    use spike_ecs_harness::wide_entities::make_extra;
+
+    #[test]
+    fn wide_entities_vec_zero_count_is_valid() {
+        assert_zero_count_is_valid::<VecWideEntities>();
+    }
+
+    #[test]
+    fn wide_entities_checksum_never_repeats() {
+        assert_checksum_never_repeats::<VecWideEntities>("wide_entities", P);
+    }
+
+    #[test]
+    fn wide_entities_vec_inserts_between_the_passes() {
+        let mut w = VecWideEntities::setup(P);
+        for tick in 1..=TICKS {
+            let (mut calls, mut seen) = (0_u64, 0_usize);
+            w.step_with(|rows| {
+                calls += 1;
+                seen += rows.len();
+                for (i, (wide, extra)) in rows.iter().enumerate() {
+                    assert_eq!(
+                        *extra,
+                        Some(make_extra(&wide.w0)),
+                        "wide_entities: entity {i} holds the wrong Extra between the passes at tick {tick}"
+                    );
+                }
+            });
+            assert_eq!(
+                calls, 1,
+                "wide_entities: between ran {calls} times at tick {tick}"
+            );
+            assert_eq!(
+                seen, P.count,
+                "wide_entities: between saw {seen} entities at tick {tick}"
+            );
+        }
     }
 }
