@@ -1,6 +1,6 @@
 # M3.22: many_queries workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Implemented (PR #140, 2026-11-26)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.21 · **Decides:** no ADR
 - **Issue:** #107
 - **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (harness module about 130, `vec_aos` about 80, six ECS backends about 60 each, `hybrid`'s component list about 10, bench registration about 30, documents about 40)
@@ -133,11 +133,11 @@ The queries are every ordered pair `(w, r)` of distinct type indices, `w` major 
 
 ## 9. Done when
 
-- [ ] The harness module and the seven implementations exist, and every conformance test passes.
-- [ ] Both spike benches register `many_queries` for the seven backends.
-- [ ] The documents of §4.5 are updated.
-- [ ] One informal run is in the pull request, `log.md` and on #102.
-- [ ] `cargo xtask ci` passes.
+- [x] The harness module and the seven implementations exist, and every conformance test passes. *All pass in the full `ci` on 01b4217b647b21fad81e53735a13bbd16bae73bd, with the review fixes.*
+- [x] Both spike benches register `many_queries` for the seven backends. *21 `many_queries` ids in the informal run; the cache bench builds.*
+- [x] The documents of §4.5 are updated. *`check-docs` 0 problems; `review-docs`.*
+- [x] One informal run is in the pull request, `log.md` and on #102. *PR #140, `log.md`, and [the #102 comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/102#issuecomment-7207815432); the pointer on [#84](https://github.com/SpencerAWill/rust-engine-experiment/issues/84#issuecomment-7207815778).*
+- [x] `cargo xtask ci` passes. *On 01b4217b647b21fad81e53735a13bbd16bae73bd; CI on the PR pending.*
 
 ## 10. Open questions
 
