@@ -16,7 +16,7 @@ Two of the M3.2 workloads stop changing during the conformance run, and a third 
 Goals:
 
 - Every compared tick of `frag_iter` and `heavy_compute` conformance can fail: every entity's state changes at every tick, and no tick's checksum equals an earlier one's in the conformance run.
-- On every ECS backend, a step that skips `add_remove`'s insert pass, at any tick, fails a test.
+- On every ECS backend and on `vec_aos`, a step that skips `add_remove`'s insert pass, at any tick, fails a test.
 - The changed rules are written where the rules are stated, and M3.8 has informal rows for the rules as they now are.
 
 Non-goals:
@@ -50,7 +50,7 @@ These amend the M3.2 spec, §4.4.2 and §4.4.3. Spawn and hash are unchanged, so
 
 - **`frag_iter` step.** For every entity with `Data`: `x = data.0 + 0.618_034`, then `data.0 = x - 1.0` if `x >= 1.0`, else `x`. It reads only `Data`, as before, so the query is unchanged. Values stay in `0.0..1.0`. (Rotation by a constant near the golden ratio's conjugate; a dyadic constant such as 0.25 repeats with a short period.)
 - **`heavy_compute` step.** For every entity: 100 times, `matrix.0 = matrix.0.inverse()` (written back each time, as before); then, for each row `r` in 0 to 2, `translation[r] = translation[r] + velocity.0[r] * dt` (multiply, then add; not fused), where `translation` is column 3 of the matrix and `dt` is `spike_ecs_harness::dt()`; then `position.0 = matrix.0.transform_point3(rotation.0)`. The step now reads `Velocity`, which every entity already has. The harness's `heavy_compute::update` gains the `velocity: &Velocity` parameter and MUST hold the whole rule, so backends keep calling it rather than writing the arithmetic.
-- **Backends.** Every backend that implements `heavy_compute` (`vec_aos`, `sparse_set`, `sparse_set_grouped`, `archetype`, `dense`, `hybrid`, `bevy_ecs`, `hecs`) adds `&Velocity` to its step query and passes it to `update`. `sparse_set_grouped`'s step MUST still take its owning-group path, shown by its existing path test (`grouped_heavy_compute_uses_the_group`), whose query is the step's own (ecs-1); the group MAY be widened to the four types if the path needs it. Every `frag_iter` backend calls the harness's `update` already, so only the harness changes for `frag_iter`.
+- **Backends.** Every backend that implements `heavy_compute` (`vec_aos`, `sparse_set`, `sparse_set_grouped`, `archetype`, `dense`, `hybrid`, `bevy_ecs`, `hecs`) adds `&Velocity` to its step query and passes it to `update`. `sparse_set_grouped`'s group MUST be widened to `(Matrix, Position, Rotation, Velocity)`, so the step query stays an exact match of the group: a three-type group would still take the group path for the four-type query but probe `Velocity` per row (`superset_takes_the_group_path_and_probes_the_rest`), which the variant does not measure today. Its existing path test (`grouped_heavy_compute_uses_the_group`, built from the step's own query, ecs-1) still passes. *(main session's call)* Every `frag_iter` backend calls the harness's `update` already, so only the harness changes for `frag_iter`.
 
 ### 4.3 The `add_remove` per-step test
 
@@ -62,13 +62,15 @@ Every ECS `add_remove` step collects, between its two passes, the entities that 
 
 ### 4.4 `vec_aos` tests
 
+- **`add_remove`.** `vec_aos` has no removal list; its insert pass sets each entity's `Option<B>` to `Some`. Its step gets a test-only hook between the two passes, in the form M3.22 used for `many_queries`: the step's loop is generic over a closure, the measured `step` passes a no-op, and a `#[cfg(test)]` method runs the same loop with a closure that asserts every entity holds `Some(make_b(a))` between the passes, after each of 120 steps. Red check: removing the insert pass fails it. *(main session's call: the reference's insert is as invisible to conformance as any backend's, and its row is benchmarked too.)*
+
 - `frag_iter` and `heavy_compute` each get a `vec_aos` test that runs 120 ticks at the conformance parameters and asserts each tick's checksum differs from every earlier tick's, tick 0 included. *My call:* "every earlier tick" rather than ecs-13's "the one before", because the current `heavy_compute` rule passes "the one before" (its checksum changes at every tick) and fails only this form.
 - Red check: each test MUST fail with the old rule put back; recorded in `log.md`.
 - The existing `vec_aos` tests that state the old rules (`frag_iter_data_follows_the_map`, `heavy_compute_position_is_the_transformed_rotation`, and any other a builder finds) are updated to the new rules, with `frag_iter` covering both the wrapping and the non-wrapping branch, and `heavy_compute` checking the translation moved by `velocity * dt`. The long-run finiteness tests stay.
 
 ### 4.5 Documents
 
-- **M3.2 spec.** §4.4.2 and §4.4.3 are amended in place: the new step text, marked "amended 2026-11-26 (M3.26)", with the old rule and the reason in one sentence each; the status line names the amendment. R8's parenthesis on `add_remove` gains a pointer to §4.3 of this spec. The step sentence "The map converges to 2.0" goes.
+- **M3.2 spec.** §4.4.2 and §4.4.3 are amended in place: the new step text, marked "amended 2026-11-26 (M3.26)", with the old rule and the reason in one sentence each; the status line names the amendment. R8's parenthesis on `add_remove` gains a pointer to §4.3 of this spec. The step sentence "The map converges to 2.0" goes, and so does §4.4.3's "Position is overwritten, not accumulated, so it stays bounded" (the translation now accumulates; it stays finite, §4.1). R9's verification row, which states `d * 0.5 + 1.0`, gets the same dated note.
 - **Harness doc comments** for both `update` functions and the module docs that state a rule.
 - **`spikes/ecs_storage/README.md`**: the status line, and the sentence that points to the M3.2 rules says they are amended by M3.26.
 - **`CHANGELOG.md`**: one entry.
@@ -81,11 +83,11 @@ Every ECS `add_remove` step collects, between its two passes, the entities that 
 
 - **M3.26-R1** The `frag_iter` and `heavy_compute` rules MUST be those of §4.2, held in the harness's `update` functions, and every backend that implements them MUST pass conformance against `vec_aos` (120 ticks) under the new rules.
 - **M3.26-R2** `vec_aos` MUST have, for `frag_iter` and for `heavy_compute`, a test that every tick's checksum in 120 ticks at the conformance parameters differs from every earlier tick's (§4.4), shown failing with the old rule.
-- **M3.26-R3** Each of the ten ECS `add_remove` backends MUST have the per-step test of §4.3, shown failing on each with the insert pass removed and with the insert at tick 1 only.
-- **M3.26-R4** `sparse_set_grouped`'s `heavy_compute` step MUST take its owning-group path, shown by its existing path test.
+- **M3.26-R3** Each of the ten ECS `add_remove` backends MUST have the per-step test of §4.3, shown failing on each with the insert pass removed and with the insert at tick 1 only; `vec_aos` MUST have the between-passes test of §4.4, shown failing with the insert pass removed.
+- **M3.26-R4** `sparse_set_grouped`'s `heavy_compute` group MUST be the four step types, and its step MUST take the group path, shown by its existing path test.
 - **M3.26-R5** The documents of §4.5 MUST state the new rules; no document MAY state an old rule as current.
 - **M3.26-R6** The pull request MUST show one informal `spike-bench ecs` run under the protocol with the `frag_iter` and `heavy_compute` rows; the same rows MUST be in `log.md` and in a comment on #102 (§4.6).
-- **M3.26-R7** Non-test builds of the `add_remove` backends MUST NOT change (§4.3).
+- **M3.26-R7** Non-test builds of the ECS `add_remove` backends MUST NOT change (§4.3); `vec_aos`'s `add_remove` step changes only by the no-op closure of §4.4.
 
 ## 6. Cross-cutting concerns
 
@@ -117,8 +119,8 @@ Every ECS `add_remove` step collects, between its two passes, the entities that 
 |---|---|
 | R1 | The conformance tests of `frag_iter` and `heavy_compute` in each backend crate; harness `update` unit tests; `cargo xtask ci` |
 | R2 | The two `vec_aos` tests; the old-rule red check in `log.md` |
-| R3 | The ten tests; the two red checks per backend in `log.md` (`--no-fail-fast` output) |
-| R4 | `grouped_heavy_compute_uses_the_group` |
+| R3 | The ten tests and the `vec_aos` test; the red checks in `log.md` (`--no-fail-fast` output) |
+| R4 | `grouped_heavy_compute_uses_the_group`; the `group::<...>()` call in `setup`, checked in review |
 | R5 | `review-docs`; `git grep -n -e '0.5 + 1.0' -e 'converges to 2' -- ':!docs/chunks/'` finds nothing, and in `docs/chunks/m3.2-spike-harness/spec.md` it matches only the amendment notes (other chunk folders are historical records and keep the old text) |
 | R6 | The pull request, `log.md` and the #102 comment; `/bench-run`'s power log |
 | R7 | Accessors and their imports under `#[cfg(test)]`, checked in review |
