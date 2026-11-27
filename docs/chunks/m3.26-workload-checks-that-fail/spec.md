@@ -1,6 +1,6 @@
 # M3.26: workload checks that can fail for frag_iter, heavy_compute and add_remove
 
-- **Status:** Draft (2026-11-26)
+- **Status:** Accepted (2026-11-26)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10 · **Decides:** no ADR
 - **Issue:** #141
 - **Estimated size:** about 200 changed lines, excluding tests, lockfiles and generated files (harness rules about 20, eight `heavy_compute` steps about 4 each, ten `add_remove` test accessors about 6 each, documents about 60)
