@@ -142,7 +142,7 @@ Conformance runs at `count` 10,000, seed 42, for 120 ticks, not the usual `count
 - [x] The tests of §4.5 pass and the allocation counts are in `log.md` (steps 1 to 8 with their red checks, the review fixes' two mutations; counts in step 11, re-run on 7ee52a7).
 - [x] Both spike benches register `rare_components` for the seven backends (`compare.rs`, `cache.rs`; the informal run lists the 21 ids).
 - [x] The documents of §4.6 are updated (`spikes/ecs_storage/README.md`, `spikes/README.md`, the harness crate doc, `harness_components.rs`, `CHANGELOG.md`).
-- [ ] One informal run is in the pull request, `log.md` and on #102, and the comment on #41 is posted (`m3.25-informal` in PR #145 and `log.md`; [#41 comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/41#issuecomment-7224369289) posted; the #102 comment waits for the maintainer's answer on machine use during the run).
+- [x] One informal run is in the pull request, `log.md` and on #102, and the comment on #41 is posted (`m3.25-informal`; [#102 comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/102#issuecomment-7224401699), after the maintainer confirmed the machine was left alone; [#41 comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/41#issuecomment-7224369289)).
 - [x] `cargo xtask ci` passes (on 85bfea8; the final code is that of 7ee52a7, later commits change only `docs/`). CI on the pull request pending.
 
 ## 10. Open questions
