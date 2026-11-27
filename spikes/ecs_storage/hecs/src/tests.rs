@@ -7,6 +7,7 @@ use crate::agents::HecsAgents;
 use crate::entity_churn::HecsEntityChurn;
 use crate::frag_iter::HecsFragIter;
 use crate::heavy_compute::HecsHeavyCompute;
+use crate::many_queries::HecsManyQueries;
 use crate::random_access::HecsRandomAccess;
 use crate::simple_iter::HecsSimpleIter;
 use crate::sprites::HecsSprites;
@@ -88,4 +89,17 @@ fn random_access_hecs_writes_back_retargets() {
         }
     }
     assert!(stale > 0, "no stale target seen over the run");
+}
+
+#[test]
+fn many_queries_hecs_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::many_queries::VecManyQueries, HecsManyQueries>(PARAMS, 120)
+        .unwrap();
+}
+
+#[test]
+fn many_queries_hecs_zero_count_is_valid() {
+    let mut w = HecsManyQueries::setup(Params { count: 0, seed: 42 });
+    w.step();
+    assert_eq!(w.checksum(), 0);
 }

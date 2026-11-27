@@ -87,7 +87,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 8: `hecs` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hecs/src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance test. Fails first: the type does not exist.
 - **Change:** spec §4.4 for `hecs`: `query_mut` per query through `for_each_query!`.
