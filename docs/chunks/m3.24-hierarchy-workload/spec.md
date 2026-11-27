@@ -174,7 +174,7 @@ On table storage each level is its own table, so a level's queries walk one tabl
 - [x] The tests of §4.5 pass and their red checks are in `log.md` (steps 2 to 8, and the review fix's two mutations of the forest).
 - [x] Both spike benches register `hierarchy` for the seven backends (`compare.rs`, `cache.rs`; the informal run lists the 21 ids).
 - [x] The documents of §4.6 are updated (`spikes/ecs_storage/README.md`, `spikes/README.md`, the harness crate doc, `harness_components.rs`, `CHANGELOG.md`).
-- [ ] One informal run is in the pull request, `log.md` and on #102: in the pull request and `log.md` (`m3.24-informal`); the #102 comment is pending the maintainer's answer on machine use during the run (`/bench-run` step 4).
+- [x] One informal run is in the pull request, `log.md` and on #102 (`m3.24-informal`; [comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/102#issuecomment-7222577349), after the maintainer confirmed the machine was left alone).
 - [x] `cargo xtask ci` passes (on 587bb86, the final code of d30753b; later commits change only `docs/`). CI on the pull request pending.
 
 ## 10. Open questions
