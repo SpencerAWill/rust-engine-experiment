@@ -34,6 +34,7 @@ mod raw_query;
 pub mod simple_iter;
 pub mod sprites;
 mod table;
+pub mod wide_entities;
 mod world;
 
 #[cfg(test)]

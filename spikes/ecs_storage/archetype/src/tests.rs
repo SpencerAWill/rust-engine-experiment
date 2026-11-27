@@ -956,6 +956,7 @@ mod workloads {
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
+    use spike_ecs_vec::wide_entities::VecWideEntities;
 
     use crate::add_remove::ArchetypeAddRemove;
     use crate::agents::ArchetypeAgents;
@@ -967,6 +968,7 @@ mod workloads {
     use crate::random_access::ArchetypeRandomAccess;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
+    use crate::wide_entities::ArchetypeWideEntities;
 
     fn ids(v: &[usize]) -> Vec<ArchetypeId> {
         v.iter().map(|&i| ArchetypeId::new(i)).collect()
@@ -1222,6 +1224,40 @@ mod workloads {
         zero_count::<ArchetypeEntityChurn>();
         zero_count::<ArchetypeSprites>();
         zero_count::<ArchetypeAgents>();
+    }
+
+    #[test]
+    fn wide_entities_archetype_matches_the_reference() {
+        check_conformance::<VecWideEntities, ArchetypeWideEntities>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn wide_entities_archetype_zero_count_is_valid() {
+        zero_count::<ArchetypeWideEntities>();
+    }
+
+    #[test]
+    fn wide_entities_archetype_inserts_on_every_entity_each_step() {
+        super::assert_inserts_on_every_entity_each_step(
+            ArchetypeWideEntities::setup(PARAMS),
+            PARAMS.count,
+            TICKS,
+            ArchetypeWideEntities::removed_last_step,
+        );
+    }
+
+    #[test]
+    fn wide_entities_archetype_places_entities_in_one_archetype() {
+        let mut w = ArchetypeWideEntities::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.archetype_count(), 3);
+        for _ in 0..9 {
+            w.step();
+        }
+        assert_eq!(w.archetype_count(), 3);
+        w.world().check_invariants().unwrap();
     }
 }
 

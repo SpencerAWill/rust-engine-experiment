@@ -55,7 +55,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 4: `archetype` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/archetype/src/wide_entities.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance, zero-count and per-step tests; `wide_entities_archetype_places_entities_in_one_archetype` (spec §4.4: after `setup` `archetype_count()` is 2, after one step 3, after ten steps still 3; `check_invariants()` `Ok`). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `archetype`; one `spawn_with` of the 24-tuple per entity.
