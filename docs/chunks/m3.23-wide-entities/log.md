@@ -22,3 +22,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-26 decision (maintainer) The update pass's share of the `wide_entities` rows is a caveat in the #102 comment only (expected scale, unmeasured); no moves-only row and no separate timing.
 - 2026-11-26 decision (maintainer) Spec approved; status Accepted.
 - 2026-11-26 done Lessons (`lessons-researcher`, registered agent): ecs-1, 2, 4, 5, 6, 7, 8, 9, 11, 13; specs-1, 2, 3, 4, 6; docs-1, 3, 4. ecs-4, 5, 8 not applicable; the rest followed (plan §4). Plan written and accepted: 13 steps; agents dispatched by registered name.
+- 2026-11-26 done Step 1: harness wide_entities module (macro for W0..W23/Wide/spawn/hash), 5 tests green; fails-first was E0432 (module items missing). ci --quick rc 0.

@@ -27,7 +27,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 1: the harness module (R1)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/wide_entities.rs` (new), `harness/src/lib.rs` (`pub mod wide_entities;`; crate doc: ten workloads, `wide_entities`'s rules in the M3.23 spec §4.2).
 - **Test first:** in the module's test module: `sizes_follow_the_cycle` (`size_of::<Wk>()` is `4 * [1, 2, 3, 4, 8, 16][k % 6]` for all 24, and `size_of::<Wide>()` is 544); `spawn_follows_the_draw_order` (for `i` in `[0, 1, 999]`: the 136 values, read in type then element order, equal 136 direct `range(0.0_f32..1.0)` draws from `prng.stream(i)`); `update_wraps_and_keeps_the_order` (an element at `0.25` gives `0.868_034` with no wrap; at `0.5` gives `0.5 + 0.618_034 - 1.0` computed in f32, the wrap; the other 20 types are not arguments, so only the four change); `make_extra_reads_w0`; `hash_sees_every_type` (changing one element of each of the 24 types in turn changes the hash, and `Some(&Extra)` hashes differently from `None`). Fails first: the module does not exist (E0432).
 - **Change:** spec §4.2, each item documented.
