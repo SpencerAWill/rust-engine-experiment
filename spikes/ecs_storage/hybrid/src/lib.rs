@@ -33,6 +33,7 @@ pub mod simple_iter;
 mod sparse;
 pub mod sprites;
 mod table;
+pub mod wide_entities;
 mod world;
 
 #[cfg(test)]

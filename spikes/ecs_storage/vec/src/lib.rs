@@ -13,6 +13,7 @@ pub mod many_queries;
 pub mod random_access;
 pub mod simple_iter;
 pub mod sprites;
+pub mod wide_entities;
 
 #[cfg(test)]
 mod tests;

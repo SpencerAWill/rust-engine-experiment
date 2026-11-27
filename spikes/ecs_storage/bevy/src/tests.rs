@@ -12,6 +12,7 @@ use crate::many_queries::BevyManyQueries;
 use crate::random_access::BevyRandomAccess;
 use crate::simple_iter::BevySimpleIter;
 use crate::sprites::BevySprites;
+use crate::wide_entities::BevyWideEntities;
 use crate::{Sparse, Table};
 
 const PARAMS: Params = Params {
@@ -22,10 +23,11 @@ const PARAMS: Params = Params {
 const RANDOM_ACCESS_TICKS: u64 = 700;
 
 /// Steps `w` 120 times; after each step every entity must have been collected for removal, once,
-/// which only happens if the insert pass gave each one a `B` (ecs-11: the checksum cannot see the
-/// removal list).
+/// which only happens if the insert pass gave each one a `component` (ecs-11: the checksum cannot
+/// see the removal list).
 fn assert_inserts_on_every_entity_each_step<W: Workload>(
     mut w: W,
+    component: &str,
     removed_last_step: fn(&W) -> &[bevy_ecs::entity::Entity],
 ) {
     for tick in 1..=120 {
@@ -34,7 +36,7 @@ fn assert_inserts_on_every_entity_each_step<W: Workload>(
         assert_eq!(
             removed.len(),
             PARAMS.count,
-            "the step removed B from the wrong number of entities at tick {tick}"
+            "the step removed {component} from the wrong number of entities at tick {tick}"
         );
         let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
         assert_eq!(
@@ -78,6 +80,7 @@ fn add_remove_bevy_matches_the_reference() {
 fn add_remove_bevy_inserts_on_every_entity_each_step() {
     assert_inserts_on_every_entity_each_step(
         BevyAddRemove::setup(PARAMS),
+        "B",
         BevyAddRemove::removed_last_step,
     );
 }
@@ -204,6 +207,7 @@ fn add_remove_bevy_sparse_matches_the_reference() {
 fn add_remove_bevy_sparse_inserts_on_every_entity_each_step() {
     assert_inserts_on_every_entity_each_step(
         BevySparseAddRemove::setup(PARAMS),
+        "B",
         BevySparseAddRemove::removed_last_step,
     );
 }
@@ -375,4 +379,56 @@ fn many_queries_bevy_zero_count_is_valid() {
     assert_eq!(w.checksum(), 0);
     w.step();
     assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_bevy_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::wide_entities::VecWideEntities, BevyWideEntities>(
+        PARAMS, 120,
+    )
+    .unwrap();
+}
+
+#[test]
+fn wide_entities_bevy_zero_count_is_valid() {
+    let mut w = BevyWideEntities::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_bevy_inserts_on_every_entity_each_step() {
+    assert_inserts_on_every_entity_each_step(
+        BevyWideEntities::setup(PARAMS),
+        "Extra",
+        BevyWideEntities::removed_last_step,
+    );
+}
+
+#[test]
+fn wide_entities_bevy_stores_extra_in_a_table() {
+    use spike_ecs_harness::wide_entities::Extra;
+
+    let mut w = BevyWideEntities::setup(PARAMS);
+    w.step();
+    let id = w
+        .world()
+        .components()
+        .component_id::<Table<Extra>>()
+        .expect("Table<Extra> was never registered");
+    assert!(w.world().archetypes().iter().any(|a| a.contains(id)));
+    assert!(
+        w.world()
+            .components()
+            .get_id(std::any::TypeId::of::<Sparse<Extra>>())
+            .is_none()
+    );
+}
+
+#[test]
+fn wide_entities_bevy_places_entities_in_one_archetype() {
+    let before = bevy_ecs::world::World::new().archetypes().len();
+    let w = BevyWideEntities::setup(PARAMS);
+    assert_eq!(w.world().archetypes().len(), before + 1);
 }

@@ -11,6 +11,7 @@ use crate::many_queries::HecsManyQueries;
 use crate::random_access::HecsRandomAccess;
 use crate::simple_iter::HecsSimpleIter;
 use crate::sprites::HecsSprites;
+use crate::wide_entities::HecsWideEntities;
 
 const PARAMS: Params = Params {
     count: 1_000,
@@ -46,16 +47,21 @@ fn add_remove_hecs_matches_the_reference() {
         .unwrap();
 }
 
-#[test]
-fn add_remove_hecs_inserts_on_every_entity_each_step() {
-    let mut w = HecsAddRemove::setup(PARAMS);
+/// Steps `w` 120 times; after each step every entity must have been collected for removal, once,
+/// which only happens if the insert pass gave each one a `component` (ecs-11: the checksum cannot
+/// see the removal list).
+fn assert_inserts_on_every_entity_each_step<W: Workload>(
+    mut w: W,
+    component: &str,
+    removed_last_step: fn(&W) -> &[hecs::Entity],
+) {
     for tick in 1..=120 {
         w.step();
-        let removed = w.removed_last_step();
+        let removed = removed_last_step(&w);
         assert_eq!(
             removed.len(),
             PARAMS.count,
-            "the step removed B from the wrong number of entities at tick {tick}"
+            "the step removed {component} from the wrong number of entities at tick {tick}"
         );
         let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
         assert_eq!(
@@ -64,6 +70,15 @@ fn add_remove_hecs_inserts_on_every_entity_each_step() {
             "an entity was removed twice in one step at tick {tick}"
         );
     }
+}
+
+#[test]
+fn add_remove_hecs_inserts_on_every_entity_each_step() {
+    assert_inserts_on_every_entity_each_step(
+        HecsAddRemove::setup(PARAMS),
+        "B",
+        HecsAddRemove::removed_last_step,
+    );
 }
 
 #[test]
@@ -122,4 +137,36 @@ fn many_queries_hecs_zero_count_is_valid() {
     let mut w = HecsManyQueries::setup(Params { count: 0, seed: 42 });
     w.step();
     assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_hecs_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::wide_entities::VecWideEntities, HecsWideEntities>(
+        PARAMS, 120,
+    )
+    .unwrap();
+}
+
+#[test]
+fn wide_entities_hecs_zero_count_is_valid() {
+    let mut w = HecsWideEntities::setup(Params { count: 0, seed: 7 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn wide_entities_hecs_inserts_on_every_entity_each_step() {
+    assert_inserts_on_every_entity_each_step(
+        HecsWideEntities::setup(PARAMS),
+        "Extra",
+        HecsWideEntities::removed_last_step,
+    );
+}
+
+#[test]
+fn wide_entities_hecs_places_entities_in_one_archetype() {
+    let w = HecsWideEntities::setup(PARAMS);
+    // The root archetype and the 24-type one.
+    assert_eq!(w.world().archetypes().len(), 2);
 }

@@ -920,10 +920,11 @@ mod raw_query {
 }
 
 /// Steps `w` `ticks` times; after each step every one of the `count` entities must have been
-/// collected for removal, once, which only happens if the insert pass gave each one a `B`
-/// (ecs-11: the checksum cannot see the removal list).
+/// collected for removal, once, which only happens if the insert pass gave each one a
+/// `component` (ecs-11: the checksum cannot see the removal list).
 fn assert_inserts_on_every_entity_each_step<W: spike_ecs_harness::Workload>(
     mut w: W,
+    component: &str,
     count: usize,
     ticks: u64,
     removed_last_step: fn(&W) -> &[Entity],
@@ -934,7 +935,7 @@ fn assert_inserts_on_every_entity_each_step<W: spike_ecs_harness::Workload>(
         assert_eq!(
             removed.len(),
             count,
-            "the step removed B from the wrong number of entities at tick {tick}"
+            "the step removed {component} from the wrong number of entities at tick {tick}"
         );
         let distinct: BTreeSet<u64> = removed.iter().map(|e| e.to_bits()).collect();
         assert_eq!(
@@ -956,6 +957,7 @@ mod workloads {
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
+    use spike_ecs_vec::wide_entities::VecWideEntities;
 
     use crate::add_remove::ArchetypeAddRemove;
     use crate::agents::ArchetypeAgents;
@@ -967,6 +969,7 @@ mod workloads {
     use crate::random_access::ArchetypeRandomAccess;
     use crate::simple_iter::ArchetypeSimpleIter;
     use crate::sprites::ArchetypeSprites;
+    use crate::wide_entities::ArchetypeWideEntities;
 
     fn ids(v: &[usize]) -> Vec<ArchetypeId> {
         v.iter().map(|&i| ArchetypeId::new(i)).collect()
@@ -1111,6 +1114,7 @@ mod workloads {
     fn add_remove_archetype_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             ArchetypeAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             ArchetypeAddRemove::removed_last_step,
@@ -1222,6 +1226,41 @@ mod workloads {
         zero_count::<ArchetypeEntityChurn>();
         zero_count::<ArchetypeSprites>();
         zero_count::<ArchetypeAgents>();
+    }
+
+    #[test]
+    fn wide_entities_archetype_matches_the_reference() {
+        check_conformance::<VecWideEntities, ArchetypeWideEntities>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn wide_entities_archetype_zero_count_is_valid() {
+        zero_count::<ArchetypeWideEntities>();
+    }
+
+    #[test]
+    fn wide_entities_archetype_inserts_on_every_entity_each_step() {
+        super::assert_inserts_on_every_entity_each_step(
+            ArchetypeWideEntities::setup(PARAMS),
+            "Extra",
+            PARAMS.count,
+            TICKS,
+            ArchetypeWideEntities::removed_last_step,
+        );
+    }
+
+    #[test]
+    fn wide_entities_archetype_places_entities_in_one_archetype() {
+        let mut w = ArchetypeWideEntities::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.archetype_count(), 3);
+        for _ in 0..9 {
+            w.step();
+        }
+        assert_eq!(w.archetype_count(), 3);
+        w.world().check_invariants().unwrap();
     }
 }
 
@@ -1435,6 +1474,7 @@ mod bytes_add_remove {
     fn add_remove_archetype_bytes_copy_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             BytesCopyAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             BytesCopyAddRemove::removed_last_step,
@@ -1445,6 +1485,7 @@ mod bytes_add_remove {
     fn add_remove_archetype_bytes_cast_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             BytesCastAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             BytesCastAddRemove::removed_last_step,

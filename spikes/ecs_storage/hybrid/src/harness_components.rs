@@ -1,17 +1,19 @@
-//! `Component` impls for the harness's types: the foreign types the nine workloads store.
+//! `Component` impls for the harness's types: the foreign types the ten workloads store.
 //!
 //! One module, because `sprites` and `agents` share `Transform2d`. The sparse types are
-//! `add_remove::B` and `agents::Seeker` (spec section 4.9); every other type, `Hidden`
-//! included, is a table type. The agents' own newtypes are implemented in `agents.rs`.
+//! `add_remove::B` and `agents::Seeker` (M3.5 spec section 4.9) and `wide_entities::Extra` (M3.23
+//! spec section 4.3); every other type, `Hidden` included, is a table type. The agents' own
+//! newtypes are implemented in `agents.rs`.
 
 use engine::prelude::Transform2d;
 use spike_ecs_harness::{
     add_remove, agents, entity_churn, frag_iter, many_queries, random_access, simple_iter, sprites,
+    wide_entities,
 };
 
 use crate::component::components;
 
-components!(SparseStorage: add_remove::B, agents::Seeker);
+components!(SparseStorage: add_remove::B, agents::Seeker, wide_entities::Extra);
 
 components!(
     TableStorage:
@@ -69,4 +71,28 @@ components!(
     many_queries::C5,
     many_queries::C6,
     many_queries::C7,
+    wide_entities::W0,
+    wide_entities::W1,
+    wide_entities::W2,
+    wide_entities::W3,
+    wide_entities::W4,
+    wide_entities::W5,
+    wide_entities::W6,
+    wide_entities::W7,
+    wide_entities::W8,
+    wide_entities::W9,
+    wide_entities::W10,
+    wide_entities::W11,
+    wide_entities::W12,
+    wide_entities::W13,
+    wide_entities::W14,
+    wide_entities::W15,
+    wide_entities::W16,
+    wide_entities::W17,
+    wide_entities::W18,
+    wide_entities::W19,
+    wide_entities::W20,
+    wide_entities::W21,
+    wide_entities::W22,
+    wide_entities::W23,
 );

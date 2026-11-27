@@ -181,7 +181,7 @@ impl World {
         entity
     }
 
-    /// Creates an entity with the components of `bundle`, a flat tuple of 1 to 8 values, placed
+    /// Creates an entity with the components of `bundle`, a flat tuple of 1 to 24 values, placed
     /// straight into the table for exactly those types.
     ///
     /// # Panics
@@ -1207,5 +1207,26 @@ mod tests {
             .unwrap();
         first.archetype = ArchetypeId::new(other);
         assert!(violation(&w).contains("B1"), "got: {}", violation(&w));
+    }
+
+    #[test]
+    fn spawn_with_takes_24_types() {
+        macro_rules! wide {
+            ($($name:ident),+) => {
+                $(
+                    #[derive(Debug, PartialEq)]
+                    struct $name(u32);
+                )+
+                let mut w = World::new();
+                w.spawn_with(($($name(1),)+));
+                w.spawn_with(($($name(2),)+));
+                assert_eq!(w.archetype_count(), 2);
+                assert_eq!(w.check_invariants(), Ok(()));
+            };
+        }
+        wide!(
+            W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, W16, W17, W18,
+            W19, W20, W21, W22, W23
+        );
     }
 }

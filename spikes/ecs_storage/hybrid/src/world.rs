@@ -1524,4 +1524,26 @@ mod tests {
         x.spawn_with((A(1), S(2), C(3)));
         assert!(corrupt(&mut x, &|i| i.types = Box::new([])).contains("B1"));
     }
+
+    #[test]
+    fn spawn_with_takes_24_types() {
+        macro_rules! wide {
+            ($($name:ident),+) => {
+                $(
+                    #[derive(Debug, PartialEq)]
+                    struct $name(u32);
+                )+
+                components!(TableStorage: $($name),+);
+                let mut w = World::new();
+                w.spawn_with(($($name(1),)+));
+                w.spawn_with(($($name(2),)+));
+                assert_eq!(w.archetype_count(), 2);
+                assert_eq!(w.check_invariants(), Ok(()));
+            };
+        }
+        wide!(
+            W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, W16, W17, W18,
+            W19, W20, W21, W22, W23
+        );
+    }
 }
