@@ -82,7 +82,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 8: the informal run (R6)
 
-- [ ] **Who:** main session, through `/bench-run`, after stage 5's fixes are in (specs-4)
+- [x] **Who:** main session, through `/bench-run`, after stage 5's fixes are in (specs-4)
 - **Files:** `docs/chunks/m3.26-workload-checks-that-fail/log.md`.
 - **Change:** `cargo xtask spike-bench ecs --save m3.26-informal` on the final code commit; the `frag_iter` and `heavy_compute` medians per backend and size, with the commit hash, machine, power log check and "one run, no noise floor"; before quoting, the sibling check (ecs-7, ecs-9): `hybrid` against `archetype` and `sparse_set_grouped` against `sparse_set` on both workloads, and any gap explained as measured or unmeasured (specs-6). The same rows go in the pull request and a comment on #102 (spec §4.6).
 - **Verify:** the run's rc 0 and its id count; `pmset -g log` shows no sleep in the window.
@@ -111,3 +111,4 @@ Choices the spec leaves to implementation, fixed here:
 - **Step 6, names:** the bevy tests are `add_remove_bevy_inserts_on_every_entity_each_step` and `add_remove_bevy_sparse_inserts_on_every_entity_each_step`, following that crate's `add_remove_bevy_*` / `add_remove_bevy_sparse_*` prefixes rather than the backend names `bevy_ecs` / `bevy_ecs_sparse`. bevy's two backends have separate steps, so each red check took one edit per backend.
 - **Step 3, form:** the test calls the `pub(crate)` `step_with` directly with its asserting closure, rather than through a separate `#[cfg(test)]` method as spec §4.4 words it; the measured `step` is `step_with(|_| {})` either way.
 - **Review fix F1:** `grouped_heavy_compute_uses_the_group` also asserts the group matches the step query exactly, since `uses_group()` alone holds for the old three-type group (R4's "shown by its existing path test" could not fail).
+- **Step 8, power:** run on battery at the maintainer's request (`--allow-battery`), as M3.22's was; the machine was on battery when the run was due.
