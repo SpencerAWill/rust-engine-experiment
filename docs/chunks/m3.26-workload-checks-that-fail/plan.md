@@ -65,7 +65,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 6: `add_remove` tests on `bevy_ecs` and `hecs` (R3, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bevy/src/{add_remove,tests}.rs`; `spikes/ecs_storage/hecs/src/{add_remove,tests}.rs`.
 - **Test first, change, red checks:** as step 4, three tests (`bevy_ecs`, `bevy_ecs_sparse`, `hecs`).
 - **Verify:** `cargo nextest run -p spike_ecs_bevy -p spike_ecs_hecs` passes; `cargo xtask ci --quick` rc 0.
@@ -108,3 +108,4 @@ Choices the spec leaves to implementation, fixed here:
 
 - **Step 2, files:** `spikes/ecs_storage/dense/src/tests.rs` also changed: `heavy_compute_dense_joins` lists the step query's types, so it gains `Velocity`. The file list missed it.
 - **Step 2, verify:** the `rules::update` grep shows seven call sites, not eight: `sparse_set` and `sparse_set_grouped` share one generic `HeavyComputeOn<GROUPED>` step. Each passes four arguments.
+- **Step 6, names:** the bevy tests are `add_remove_bevy_inserts_on_every_entity_each_step` and `add_remove_bevy_sparse_inserts_on_every_entity_each_step`, following that crate's `add_remove_bevy_*` / `add_remove_bevy_sparse_*` prefixes rather than the backend names `bevy_ecs` / `bevy_ecs_sparse`. bevy's two backends have separate steps, so each red check took one edit per backend.
