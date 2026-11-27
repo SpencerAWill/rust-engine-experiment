@@ -75,7 +75,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 6: `dense` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/dense/src/wide_entities.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance, zero-count and per-step tests. Fails first: the type does not exist.
 - **Change:** as step 5.
@@ -177,4 +177,4 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 ## 5. Deviations
 
 - Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
-- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass.
+- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Step 6 (`dense`) the same: the crate has no shared helper.

@@ -335,6 +335,7 @@ mod workloads {
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
+    use spike_ecs_vec::wide_entities::VecWideEntities;
 
     use crate::World;
     use crate::add_remove::DenseAddRemove;
@@ -347,6 +348,7 @@ mod workloads {
     use crate::random_access::DenseRandomAccess;
     use crate::simple_iter::DenseSimpleIter;
     use crate::sprites::DenseSprites;
+    use crate::wide_entities::DenseWideEntities;
 
     const PARAMS: Params = Params {
         count: 1_000,
@@ -448,6 +450,40 @@ mod workloads {
                 removed.len(),
                 PARAMS.count,
                 "the step removed B from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
+    fn wide_entities_dense_matches_the_reference() {
+        check_conformance::<VecWideEntities, DenseWideEntities>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn wide_entities_dense_zero_count_is_valid() {
+        zero_count::<DenseWideEntities>();
+    }
+
+    /// Steps 120 times; after each step every entity must have been collected for removal, once,
+    /// which only happens if the insert pass gave each one an `Extra` (ecs-11: the checksum cannot
+    /// see the removal list).
+    #[test]
+    fn wide_entities_dense_inserts_on_every_entity_each_step() {
+        let mut w = DenseWideEntities::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed Extra from the wrong number of entities at tick {tick}"
             );
             let distinct: std::collections::BTreeSet<u64> =
                 removed.iter().map(|e| e.to_bits()).collect();

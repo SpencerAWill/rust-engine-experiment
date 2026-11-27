@@ -28,6 +28,7 @@ pub mod simple_iter;
 pub mod sprites;
 #[cfg(test)]
 mod tests;
+pub mod wide_entities;
 mod world;
 
 use engine::genid::GenId;
