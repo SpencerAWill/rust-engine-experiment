@@ -19,7 +19,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 1: the `frag_iter` rule (R1, R2)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/frag_iter.rs` (`update` and its doc, module doc if it states the rule); `spikes/ecs_storage/vec/src/tests.rs`.
 - **Test first:** `frag_iter_checksum_never_repeats` fails on the old rule (tick 26 equals tick 25); `frag_iter_data_follows_the_map` rewritten for the new rule, with one input that wraps (`0.5` gives `0.5 + 0.618_034 - 1.0` computed the same way) and one that does not (`0.25`), fails on the old rule.
 - **Change:** spec §4.2, `frag_iter`.

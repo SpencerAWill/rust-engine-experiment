@@ -236,10 +236,30 @@ mod frag_iter {
     #[test]
     fn frag_iter_data_follows_the_map() {
         let mut w = VecFragIter::setup(FRAG);
+        // One input that wraps (0.5 + 0.618_034 >= 1.0) and one that does not.
+        w.entities[0].1 = Data(0.5);
+        w.entities[1].1 = Data(0.25);
         let before: Vec<f32> = w.entities.iter().map(|(_, d)| d.0).collect();
         w.step();
+        assert_eq!(w.entities[0].1.0, 0.5_f32 + 0.618_034 - 1.0);
+        assert_eq!(w.entities[1].1.0, 0.25_f32 + 0.618_034);
         for (old, (_, new)) in before.iter().zip(&w.entities) {
-            assert_eq!(new.0, old * 0.5 + 1.0);
+            let x = old + 0.618_034;
+            assert_eq!(new.0, if x >= 1.0 { x - 1.0 } else { x });
+        }
+    }
+
+    #[test]
+    fn frag_iter_checksum_never_repeats() {
+        let mut w = VecFragIter::setup(FRAG);
+        let mut seen = vec![w.checksum()];
+        for tick in 1..=TICKS {
+            w.step();
+            let sum = w.checksum();
+            if let Some(earlier) = seen.iter().position(|&c| c == sum) {
+                panic!("frag_iter: the checksum at tick {tick} equals the one at tick {earlier}");
+            }
+            seen.push(sum);
         }
     }
 
