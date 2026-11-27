@@ -121,8 +121,7 @@ pub fn spawn(prng: &Prng, i: u64, count: usize) -> (Letter, Data) {
 
 /// The rule for one entity: `x = data + 0.618_034`, then `data = x - 1.0` if `x >= 1.0`, else
 /// `x`. Values stay in `0.0..1.0`. A rotation by a constant near the golden ratio's conjugate, so
-/// no state repeats an earlier tick within the conformance run (amended by M3.26; the earlier
-/// halve-and-add rule settled on one value and froze the checksum).
+/// no state repeats an earlier tick within the conformance run.
 #[inline]
 pub fn update(data: &mut Data) {
     let x = data.0 + 0.618_034;
