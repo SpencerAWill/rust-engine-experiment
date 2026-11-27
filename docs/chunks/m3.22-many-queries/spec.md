@@ -1,6 +1,6 @@
 # M3.22: many_queries workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-26)
+- **Status:** Draft (2026-11-26); cold read applied 2026-11-26
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.21 · **Decides:** no ADR
 - **Issue:** #107
 - **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (harness module about 130, `vec_aos` about 80, six ECS backends about 60 each, `hybrid`'s component list about 10, bench registration about 30, documents about 40)
@@ -32,7 +32,7 @@ The harness defines the eight component types and one macro that lists the 56 qu
 
 ```rust,ignore
 macro_rules! run_query {
-    ($write:ident, $read:ident) => {
+    ($write:ty, $read:ty) => {
         world.query_mut::<(&mut $write, &$read)>().for_each(|(w, r)| rules::update(&mut w.0, r.0));
     };
 }
@@ -56,8 +56,8 @@ The common rules of M3.2 §4.4 apply (initial values from `Prng::from_seed(param
 - **Components.** Eight types `C0` to `C7`, each `pub struct Cn(pub f32)` *(my call: named types, not one const-generic type, so `hybrid`'s component list and bevy's `Table<T>` wrapper take them as they take every other harness type)*.
 - **Groups.** Entity `i` is in group `g = i % 8` and has exactly the four types `C(g)`, `C(g+1)`, `C(g+2)` and `C(g+3)`, indices modulo 8. So the world has eight archetypes of `count / 8` entities each (rounded as `i % 8` gives), and every type is in four of them.
 - **Spawn.** `spawn(prng: &Prng, i: u64) -> Spawn` returns entity `i`'s group and its four values, one draw each in `0.0_f32..1.0` from `prng.stream(i)`, in the order `C(g)`, `C(g+1)`, `C(g+2)`, `C(g+3)`. `Spawn { group: u8, values: [f32; 4] }`, where `values[k]` is the value of `C((g + k) % 8)`.
-- **Step.** The 56 queries of §4.3, in that order. Query `(w, r)` visits every entity that has both `Cw` and `Cr` and applies `update(&mut cw.0, cr.0)`: `cw = cw * 0.5 + cr * 0.25 + 0.125`, multiplications first, then the additions left to right, not fused *(my call: with values in `0..1` the result stays in `0..1` and tends to 0.5, never to subnormals)*. Within one query each entity's update reads and writes only that entity, so iteration order inside a query does not change the result; the order of the queries does, and is fixed.
-- **Hash.** `u8(group)`, then `f32` of each of the four values in the spawn order.
+- **Step.** The 56 queries of §4.3, in that order. Query `(w, r)` visits every entity that has both `Cw` and `Cr` and applies `update(&mut cw.0, cr.0)`: `x = cw + cr * 0.5 + 0.25` (the multiplication, then the additions left to right, not fused), then `cw = x - 1.0` if `x >= 1.0`, else `cw = x`. Values stay in `0.0..1.0` and never settle *(main session's call, from the cold read: the first draft's contracting rule, `cw * 0.5 + cr * 0.25 + 0.125`, froze every value at 0.5 by about tick 18, so most conformance ticks compared checksums that could not differ; the wrapping rule, simulated in f32 on 64 entities for 5,000 ticks, changed state every tick and never repeated one)*. Within one query each entity's update reads and writes only that entity, so iteration order inside a query does not change the result; the order of the queries does, and is fixed.
+- **Hash.** `hash(group: u8, values: [f32; 4])`: `u8(group)`, then `f32` of each of the four values in the spawn order. No component holds the group: an ECS backend's `checksum` runs eight read-only queries, `(&C(g), &C(g+1), &C(g+2), &C(g+3))` for `g` in `0..8`, each of which matches exactly group `g` *(main session's call, from the cold read)*.
 
 The harness module exports `ManyQueries` (the `Spec` marker), `C0` to `C7`, `Spawn`, `spawn`, `update`, `hash`, `QUERIES` and `for_each_query!`.
 
@@ -66,7 +66,7 @@ The harness module exports `ManyQueries` (the `Spec` marker), `C0` to `C7`, `Spa
 The queries are every ordered pair `(w, r)` of distinct type indices, `w` major and `r` minor: `(0, 1)`, `(0, 2)`, …, `(0, 7)`, `(1, 0)`, `(1, 2)`, …, `(7, 6)`. That is 56 queries. With `d = (r - w) mod 8`, a query matches three groups when `d` is 1 or 7, two when 2 or 6, one when 3 or 5, and none when 4: 16 queries match three eighths of the entities, 16 two eighths, 16 one eighth, and 8 match no entity, which a real frame has too (a system with nothing to do this frame still starts). Each entity is updated 12 times per step.
 
 - `QUERIES: [(u8, u8); 56]` lists them in order, for `vec_aos` and for tests.
-- `for_each_query!($m:ident)`, a `#[macro_export]` macro, expands to `$m!(C0, C1); $m!(C0, C2); …; $m!(C7, C6);` in the same order. Every ECS backend MUST run its step through it, so no backend can drop or reorder a query. A dropped query that matches no entity changes no checksum, so conformance cannot catch it; the macro and a harness test that its expansion order equals `QUERIES` do *(main session's call)*.
+- `for_each_query!($m:ident)`, a `#[macro_export]` macro, expands to `$m!($crate::many_queries::C0, $crate::many_queries::C1); …; $m!($crate::many_queries::C7, $crate::many_queries::C6);` in the same order, one line per pair written out (no recursion); the callback takes `($write:ty, $read:ty)`, so a backend need not import the eight types and can wrap them (`Table<$write>`) *(main session's call, from the stub: a `macro_rules!` callback defined in `step` after the `World` borrow is in scope can use it)*. Every ECS backend MUST run its step's queries through it (`bevy_ecs` builds its 56 closures through it in `setup` and runs them in that order, §4.4), so no backend can drop or reorder a query. A dropped query that matches no entity changes no checksum, so conformance cannot catch it; the macro and a harness test that its expansion order equals `QUERIES` do *(main session's call)*.
 
 ### 4.4 Per backend
 
@@ -74,7 +74,7 @@ The queries are every ordered pair `(w, r)` of distinct type indices, `w` major 
 
 - **The four prototypes:** `world.query_mut::<(&mut Cw, &Cr)>().for_each(…)` per query, each run building its match from scratch, as today.
 - **`hybrid`:** all eight types are table types *(my call, as M3.21's `random_access`: nothing is added or removed, which is what `hybrid`'s sparse storage is for)*.
-- **`bevy_ecs`:** the workload holds 56 `QueryState<(&mut Table<Cw>, &Table<Cr>)>`, built in `setup` (`world.query()`), and runs each with `iter_mut` in order; `world.clear_trackers()` at the end of the step, as its other workloads. No archetype is created after `setup`.
+- **`bevy_ecs`:** the workload holds 56 `QueryState<(&mut Table<Cw>, &Table<Cr>)>`, built in `setup` (`world.query()`), and runs each with `iter_mut` in order. The 56 states have distinct types, so each is owned by a boxed `FnMut(&mut World)` closure built in `setup`, in a `Vec` run in order: one indirect call per query, as bevy's own schedule runs each system through `dyn System` *(main session's call, from the stub)*; `world.clear_trackers()` at the end of the step, as its other workloads. No archetype is created after `setup`.
 - **`hecs`:** `world.query_mut::<(&mut Cw, &Cr)>()` per query, using `hecs`'s per-type cache in the `World`; no `PreparedQuery`, as its other workloads.
 - **`vec_aos`:** one `Vec` of `{ group: u8, values: [f32; 8] }` (absent types unused), and for each query of `QUERIES` one pass over every entity that updates those in a matching group. It is the reference, not a storage model: its row pays a full pass per query.
 
@@ -88,7 +88,7 @@ The queries are every ordered pair `(w, r)` of distinct type indices, `w` major 
 
 - **M3.22-R1** `spike_ecs_harness::many_queries` MUST define `ManyQueries` with `NAME = "many_queries"` and `SIZES = [100, 1_000, 10_000]`, `C0` to `C7`, `Spawn`, `spawn`, `update` and `hash` as §4.2 gives them, and `QUERIES` and `for_each_query!` as §4.3 gives them.
 - **M3.22-R2** `vec_aos` MUST implement `many_queries` as §4.4 gives it.
-- **M3.22-R3** `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs` MUST each implement `many_queries` as §4.4 gives it, running the step through `for_each_query!`, and MUST pass `check_conformance` against `vec_aos` at `count` 1,000, seed 42, for 120 ticks.
+- **M3.22-R3** `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs` MUST each implement `many_queries` as §4.4 gives it, running its queries through `for_each_query!` as §4.3 gives it, and MUST pass `check_conformance` against `vec_aos` at `count` 1,000, seed 42, for 120 ticks.
 - **M3.22-R4** The workload's own code MUST NOT allocate in `step`. The backends' own allocations (the prototypes' per-query-run allocations) are allowed and not changed.
 - **M3.22-R5** Both spike benches MUST register `many_queries` for all seven backends with `Spec::SIZES`; `cargo xtask spike-bench ecs` lists the rows.
 - **M3.22-R6** The documents of §4.5 MUST be updated.
@@ -122,7 +122,7 @@ The queries are every ordered pair `(w, r)` of distinct type indices, `w` major 
 
 | Requirement | Verified by |
 |---|---|
-| R1 | review against §4.2 and §4.3; a spawn test (values equal direct draws from `prng.stream(i)` in order); a test that `for_each_query!`'s expansion order equals `QUERIES` and that `QUERIES` holds 56 distinct pairs with `w != r`; a test of the per-query match counts on `vec_aos` (3, 2, 1 or 0 groups by `d`) |
+| R1 | review against §4.2 and §4.3; a spawn test (values equal direct draws from `prng.stream(i)` in order); a test that `for_each_query!`'s expansion order equals `QUERIES` and that `QUERIES` holds 56 distinct pairs with `w != r`; a test of the per-query match counts on `vec_aos` (3, 2, 1 or 0 groups by `d`); a `vec_aos` test that the checksum after tick 120 differs from the one after tick 119, so the conformance run's last tick still compares changing state |
 | R2 | review against §4.4; R3's tests use it as the reference |
 | R3 | `check_conformance` tests in each backend crate (CI); review that each step uses `for_each_query!` |
 | R4 | review of each `step` |
