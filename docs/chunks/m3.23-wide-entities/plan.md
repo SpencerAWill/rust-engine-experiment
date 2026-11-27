@@ -124,7 +124,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 11: documents (R8)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (status-line date; the rules sentence links the M3.23 spec §4.2; the harness row "ten workloads"; the archetype and hybrid rows' `spawn_with` bundles of up to 24 types and `hybrid`'s sparse `Extra`; the workload list; the backends sentence), `spikes/README.md` (Contents row), `CHANGELOG.md` (one entry, as M3.22's); the plan tick.
 - **Test first:** `grep -rnE "nine (shared )?workloads|9 workloads|1 to 8" spikes/ CHANGELOG.md` finds the stale text (specs-1: the paths are named).
 - **Change:** spec §4.6's document items.
