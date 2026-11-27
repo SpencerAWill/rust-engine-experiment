@@ -134,7 +134,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 12: the informal run (R8)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `log.md`.
 - **Test first:** none.
 - **Change:** `/bench-run` with `cargo xtask spike-bench ecs --save m3.24-informal` on the final code commit (after review fixes; specs-4). Before quoting, compare siblings (ecs-9): `hybrid` with `archetype` (the same tables, so within noise is expected); `sparse_set` with `dense`; `hecs` and `bevy_ecs` with `archetype`; and the run's `random_access` and `simple_iter` rows with M3.23's `m3.23-informal`, so a disturbed run shows. Caveats per spec §4.6, each said as measured or expected and unmeasured (specs-6, docs-3), with step 11's counts. Record commit, conditions, power log and the `hierarchy` table in `log.md`; the pull request and the comment on #102 (stage 7, once the pull request exists) carry them (specs-2).
