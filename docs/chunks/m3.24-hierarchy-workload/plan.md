@@ -67,7 +67,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 5: `dense` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/dense/src/hierarchy.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** as step 4.
