@@ -162,7 +162,7 @@ On table storage each level is its own table, so a level's queries walk one tabl
 | R2 | review against §4.4; R3's tests use it as the reference; the changing-state test |
 | R3 | `check_conformance` tests in each backend crate (CI); review against §4.3 |
 | R4 | the tests in CI; the red checks in `log.md` |
-| R5 | review of each `step`; an allocation count per step (ecs-2): after 10 warm-up steps the count is the same at every one of 100 steps, 0 on `vec_aos`, `bevy_ecs` and `hecs`, and on the prototypes the sum of their per-query-run allocations over the step's 16 query runs (counted the same way in the same binary) *(main session's call, from the cold read)* |
+| R5 | review of each `step`; an allocation count per step (ecs-2): after 10 warm-up steps the count is the same at every one of 100 steps, 0 on `vec_aos` and `bevy_ecs`, and on the prototypes and `hecs` the sum of their per-query-run allocations over the step's 16 query runs (counted the same way in the same binary) *(main session's call, from the cold read; corrected after the count, without changing what is built: the row said 0 on `hecs`, but its `World::view` allocates once per call, so the step counts 7, one per level, `log.md`)* |
 | R6 | the bench crates build in `ci`; `spike-bench` output in the pull request |
 | R7 | `review-docs` |
 | R8 | the pull request, `log.md` and the comment on #102; `/bench-run`'s power log |
