@@ -1,6 +1,6 @@
 # M3.24: hierarchy workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-27)
+- **Status:** Accepted (2026-11-27)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.21, M3.26 · **Decides:** no ADR
 - **Issue:** #110
 - **Estimated size:** about 1,050 changed lines, excluding tests, lockfiles and generated files (harness module about 220, `vec_aos` about 80, six ECS backends about 110 each, bench registration about 30, `hybrid`'s component list about 20, documents about 50)
