@@ -131,7 +131,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 12: the informal run (R8)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `log.md`.
 - **Test first:** none.
 - **Change:** `/bench-run` with `cargo xtask spike-bench ecs --save m3.25-informal` on the final code commit (after review fixes; specs-4). Before quoting, compare siblings (ecs-9): `hybrid` with `archetype` (both walk one table here), `hecs` and `bevy_ecs` with `archetype`, and this run's `simple_iter` rows with M3.23's `m3.23-informal`. Caveats per spec §4.6, each said as measured or expected and unmeasured (specs-6, docs-3), with step 11's counts. Record commit, conditions, power log and the `rare_components` table in `log.md`; the pull request, the comment on #102 and the comment on #41 (stage 7, once the pull request exists) carry them.
