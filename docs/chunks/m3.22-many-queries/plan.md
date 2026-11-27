@@ -51,7 +51,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 4: `sparse_set` (R3, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/sparse_set/src/many_queries.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** the conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** as step 3, on the view path (no group).

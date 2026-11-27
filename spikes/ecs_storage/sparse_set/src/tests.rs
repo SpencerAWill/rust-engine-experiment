@@ -249,6 +249,7 @@ mod workloads {
     use crate::entity_churn::{GroupedEntityChurn, SparseSetEntityChurn};
     use crate::frag_iter::SparseSetFragIter;
     use crate::heavy_compute::{GroupedHeavyCompute, SparseSetHeavyCompute};
+    use crate::many_queries::SparseSetManyQueries;
     use crate::random_access::SparseSetRandomAccess;
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
     use crate::sprites::{GroupedSprites, SparseSetSprites};
@@ -257,6 +258,7 @@ mod workloads {
     use spike_ecs_vec::entity_churn::VecEntityChurn;
     use spike_ecs_vec::frag_iter::VecFragIter;
     use spike_ecs_vec::heavy_compute::VecHeavyCompute;
+    use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
@@ -483,6 +485,16 @@ mod workloads {
     #[test]
     fn random_access_sparse_set_zero_count_is_valid() {
         zero_count::<SparseSetRandomAccess>();
+    }
+
+    #[test]
+    fn many_queries_sparse_set_matches_the_reference() {
+        check_conformance::<VecManyQueries, SparseSetManyQueries>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn many_queries_sparse_set_zero_count_is_valid() {
+        zero_count::<SparseSetManyQueries>();
     }
 }
 
