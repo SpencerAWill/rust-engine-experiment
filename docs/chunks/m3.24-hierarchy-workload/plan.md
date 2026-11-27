@@ -97,7 +97,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 8: `hecs` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hecs/src/hierarchy.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** spec §4.3 for `hecs`: `world.view::<&GlobalTransform>()` once per level beside `world.query::<..>().with::<&D>()`; `query_mut` for the other passes.
