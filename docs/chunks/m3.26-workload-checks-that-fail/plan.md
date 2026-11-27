@@ -73,7 +73,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 7: documents (R5)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `docs/chunks/m3.2-spike-harness/spec.md` (status line, §4.4.2, §4.4.3, R8, R9's verification row); `spikes/ecs_storage/README.md`; `CHANGELOG.md`.
 - **Test first:** the spec's R5 grep, `git grep -n -e '0.5 + 1.0' -e 'converges to 2' -- ':!docs/chunks/'`, finds nothing after steps 1 and 2 (code and its docs), and in `docs/chunks/m3.2-spike-harness/spec.md` matches the rule lines before this step.
 - **Change:** spec §4.5.

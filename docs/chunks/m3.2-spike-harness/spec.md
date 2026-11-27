@@ -1,6 +1,6 @@
 # M3.2: Spike harness
 
-- **Status:** Implemented (PR #36, 2026-11-14). Accepted (2026-11-14); amended before implementation (2026-11-14): one directory per spike topic (§4.1, §4.7, §4.8), and R8 narrowed because `add_remove`'s step is idempotent.
+- **Status:** Implemented (PR #36, 2026-11-14). Accepted (2026-11-14); amended before implementation (2026-11-14): one directory per spike topic (§4.1, §4.7, §4.8), and R8 narrowed because `add_remove`'s step is idempotent; amended 2026-11-26 by [M3.26](../m3.26-workload-checks-that-fail/spec.md): the `frag_iter` and `heavy_compute` steps (§4.4.2, §4.4.3), so their state changes every tick, and R8 points to M3.26's per-step `add_remove` test.
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.0, M3.1 · **Decides:** no ADR
 - **Estimated size:** about 1,500 changed lines, excluding tests, lockfiles and generated files (`spike_ecs_harness` about 450, `spike_ecs_vec` about 550, the two bench crates about 270, xtask about 60, documents about 170)
 
@@ -204,7 +204,7 @@ Size 20 per letter (520 entities).
 
 - **Components.** 26 letter types `A` to `Z`, each `struct X(pub f32)`, and `Data(f32)`. Entity `i` has letter `i / count` (0 is `A`) and `Data`, so the entities fall into 26 groups that differ only in their letter type.
 - **Spawn.** For `i` in `0..26 * count`: the letter's value, one draw in `0.0_f32..1.0`; then `Data`, one draw in `0.0_f32..1.0`.
-- **Step.** For every entity with `Data`: `data.0 = data.0 * 0.5 + 1.0` (multiply, then add; not fused). The map converges to 2.0 and stays finite.
+- **Step.** For every entity with `Data`: `x = data.0 + 0.618_034`, then `data.0 = x - 1.0` if `x >= 1.0`, else `x`. Values stay in `0.0..1.0`. *Amended 2026-11-26 ([M3.26](../m3.26-workload-checks-that-fail/spec.md) §4.2): the step was `data.0 = data.0 * 0.5 + 1.0`. Every value settled on one number by tick 26, so the checksum stopped changing and conformance could not see a skipped or repeated step.*
 - **Hash.** `u8(letter index)`, `f32(letter value)`, `f32(data)`.
 
 #### 4.4.3 `heavy_compute`
@@ -213,7 +213,7 @@ Size 1,000.
 
 - **Components.** As `simple_iter`.
 - **Spawn.** Position, rotation and velocity as `simple_iter`. Then the matrix: for column `c` in 0 to 2, for row `r` in 0 to 2, one draw in `2.0_f32..4.0` if `r == c`, else in `-0.5_f32..0.5`. Then 3 draws in `-10.0_f32..10.0` for the translation (column 3, rows 0 to 2). Row 3 is `(0, 0, 0, 1)`. The 3 by 3 part is strictly diagonally dominant, so the matrix is invertible.
-- **Step.** For every entity: 100 times, `matrix.0 = matrix.0.inverse()` (written back each time); then `position.0 = matrix.0.transform_point3(rotation.0)`. Position is overwritten, not accumulated, so it stays bounded. Inversion dominates the cost, so storage overhead should barely show here.
+- **Step.** For every entity: 100 times, `matrix.0 = matrix.0.inverse()` (written back each time); then, for each row `r` in 0 to 2, `translation[r] = translation[r] + velocity.0[r] * dt` (multiply, then add; not fused), where `translation` is column 3 of the matrix and `dt` is `spike_ecs_harness::dt()`; then `position.0 = matrix.0.transform_point3(rotation.0)`. The translation accumulates; it is finite over the conformance run ([M3.26](../m3.26-workload-checks-that-fail/spec.md) §4.1). Inversion dominates the cost, so storage overhead should barely show here. *Amended 2026-11-26 ([M3.26](../m3.26-workload-checks-that-fail/spec.md) §4.2): the step had no translation move. An even number of inversions returned 963 of 1,000 matrices bit for bit by about tick 20, so only rounding drift in the other 37 changed the checksum.*
 - **Hash.** `vec3(position)`, then the 16 matrix elements as `f32` in column-major order.
 
 #### 4.4.4 `add_remove`
@@ -305,7 +305,7 @@ The two backends differ only in layout, so their ratio is the measured cost of a
 - **M3.2-R5** The `vec_aos` backend MUST implement all seven workloads according to §4.4, and its `agents` implementation MUST wrap `agents_2d::Sim`.
 - **M3.2-R6** The `vec_soa` backend MUST implement `agents` and MUST pass `check_conformance` against `vec_aos` for 1,000 agents over 1,300 ticks (which covers respawns and a period without a cursor).
 - **M3.2-R7** Each `vec_aos` workload's checksum MUST NOT depend on storage order: permuting its storage MUST NOT change the checksum, after setup or after further steps.
-- **M3.2-R8** `check_conformance` MUST detect, reporting tick 1: a candidate that skips one entity's update in `simple_iter` and in `entity_churn`; one that skips one entity's removal of `B` in `add_remove` (its step is idempotent, so a skipped insert or a repeated step leaves the same state and is not detectable); and one that applies `step` twice in `simple_iter` and in `entity_churn`.
+- **M3.2-R8** `check_conformance` MUST detect, reporting tick 1: a candidate that skips one entity's update in `simple_iter` and in `entity_churn`; one that skips one entity's removal of `B` in `add_remove` (its step is idempotent, so a skipped insert or a repeated step leaves the same state and is not detectable; [M3.26](../m3.26-workload-checks-that-fail/spec.md) §4.3 adds a per-step test of the insert pass on every ECS backend); and one that applies `step` twice in `simple_iter` and in `entity_churn`.
 - **M3.2-R9** Each workload's rules MUST have a test on `vec_aos`, as listed in §8.
 - **M3.2-R10** `spike_ecs_bench_compare` MUST register one benchmark per workload, size and backend with the id of §4.6, timing only `step`.
 - **M3.2-R11** `spike_ecs_bench_cache` MUST register one Gungraun benchmark per workload, size and backend, with Callgrind's cache simulation on, measuring only `step`.
@@ -359,7 +359,7 @@ The two backends differ only in layout, so their ratio is the measured cost of a
 | R6 | `spike_ecs_vec` test `vec_soa_agents_matches_vec_aos` |
 | R7 | one `spike_ecs_vec` test per workload: clone, reverse one clone's storage after setup and after 10 steps, compare checksums after every one of 20 further steps |
 | R8 | `spike_ecs_vec` tests with the broken candidates defined in its test module: a skip-one variant of each of the three workloads, and a generic `StepTwice<W>` |
-| R9 | `vec_aos` unit tests. `simple_iter`: position moves by velocity, and matrix and rotation are unchanged. `frag_iter`: each of the 26 letters keeps `count` entities, and data follows `d * 0.5 + 1.0`. `heavy_compute`: every spawned matrix's determinant is non-zero, and position equals `matrix.transform_point3(rotation)` after a step. `add_remove`: no entity has `B` after a step. `entity_churn`: the population stays at `count`, spawn ids are unique and increasing among newly spawned entities, and no lifetime is 0 after a step. `sprites`: every translation is inside the world after a step, and the draw list holds exactly the entities without `Hidden`. `agents`: the wrapper and `Sim` agree |
+| R9 | `vec_aos` unit tests. `simple_iter`: position moves by velocity, and matrix and rotation are unchanged. `frag_iter`: each of the 26 letters keeps `count` entities, and data follows `x = d + 0.618_034`, minus 1.0 if `x >= 1.0` (amended 2026-11-26 by [M3.26](../m3.26-workload-checks-that-fail/spec.md); was `d * 0.5 + 1.0`). `heavy_compute`: every spawned matrix's determinant is non-zero, and position equals `matrix.transform_point3(rotation)` after a step. `add_remove`: no entity has `B` after a step. `entity_churn`: the population stays at `count`, spawn ids are unique and increasing among newly spawned entities, and no lifetime is 0 after a step. `sprites`: every translation is inside the world after a step, and the draw list holds exactly the entities without `Hidden`. `agents`: the wrapper and `Sim` agree |
 | R10 | `cargo xtask spike-bench ecs` output, pasted into the pull request; `cargo xtask bench-smoke` |
 | R11 | `cargo bench -p spike_ecs_bench_cache` in the devcontainer, output pasted into the pull request; `cargo xtask bench-smoke` |
 | R12 | xtask unit tests of the argument lists (as for `bench_args`) and of `spike-bench`'s flag parsing; a `bench-doc` unit test that a `spike/` benchmark id is skipped; `cargo xtask coverage` and `check-unsafe` output naming (or not naming) the spike packages as §4.7 says |
