@@ -37,7 +37,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 3: the `vec_aos` `add_remove` hook (R3, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/add_remove.rs`, `vec/src/tests.rs`.
 - **Test first:** `add_remove_vec_inserts_on_every_entity_each_step` (through a `#[cfg(test)]` method that calls `step_with` with an asserting closure: every entity holds `Some(make_b(a))`; 120 steps, tick in the message). Fails first: the method does not exist.
 - **Change:** §1's hook.

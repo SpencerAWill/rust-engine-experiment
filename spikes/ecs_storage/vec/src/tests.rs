@@ -456,6 +456,33 @@ mod add_remove {
     }
 
     #[test]
+    fn add_remove_vec_inserts_on_every_entity_each_step() {
+        let mut w = VecAddRemove::setup(P);
+        for tick in 1..=TICKS {
+            let (mut calls, mut seen) = (0_u64, 0_usize);
+            w.step_with(|entities| {
+                calls += 1;
+                seen += entities.len();
+                for (i, (a, b)) in entities.iter().enumerate() {
+                    assert_eq!(
+                        *b,
+                        Some(rules::make_b(a)),
+                        "add_remove: entity {i} holds the wrong B between the passes at tick {tick}"
+                    );
+                }
+            });
+            assert_eq!(
+                calls, 1,
+                "add_remove: between ran {calls} times at tick {tick}"
+            );
+            assert_eq!(
+                seen, P.count,
+                "add_remove: between saw {seen} entities at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
     fn add_remove_is_order_independent() {
         assert_order_independent::<VecAddRemove>(P);
     }
