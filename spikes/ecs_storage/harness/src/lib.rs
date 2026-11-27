@@ -5,7 +5,8 @@
 //!
 //! The rules of seven workloads are in the M3.2 spec, `docs/chunks/m3.2-spike-harness/spec.md`;
 //! the rules of the eighth, `random_access`, are in the M3.21 spec §4.2,
-//! `docs/chunks/m3.21-random-access/spec.md`.
+//! `docs/chunks/m3.21-random-access/spec.md`; the rules of the ninth, `many_queries`, are in the
+//! M3.22 spec §4.2, `docs/chunks/m3.22-many-queries/spec.md`.
 
 pub mod add_remove;
 pub mod agents;
@@ -14,6 +15,7 @@ pub mod entity_churn;
 mod fnv;
 pub mod frag_iter;
 pub mod heavy_compute;
+pub mod many_queries;
 pub mod random_access;
 pub mod simple_iter;
 pub mod sprites;

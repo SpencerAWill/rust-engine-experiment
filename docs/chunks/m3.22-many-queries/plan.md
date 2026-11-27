@@ -23,7 +23,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 1: the harness module (R1)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/many_queries.rs` (new), `harness/src/lib.rs` (`pub mod many_queries;`; crate doc: nine workloads, `many_queries`'s rules in the M3.22 spec §4.2).
 - **Test first:** in `many_queries.rs`'s test module: `spawn_follows_the_draw_order` (for `i` in `[0, 1, 7, 8, 999]`: group `i % 8`, values equal four direct `range(0.0_f32..1.0)` draws from `prng.stream(i)`); `update_wraps_and_keeps_the_order` (hand-computed: `update(0.5, 0.25)` gives `0.875`; `update(0.75, 0.5)` gives `0.25`, the wrap; `update(0.0, 0.0)` gives `0.25`); `queries_are_every_ordered_pair` (`QUERIES` holds 56 distinct pairs, `w != r`, `w` major, `r` minor); `the_macro_expands_in_query_order` (collects `for_each_query!`'s expansion by type name and compares with `QUERIES`, as the grill's stub did). Fails first: the module does not exist (E0432).
 - **Change:** spec §4.2 and §4.3, each item documented.
