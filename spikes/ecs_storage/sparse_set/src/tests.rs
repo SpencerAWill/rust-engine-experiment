@@ -252,6 +252,7 @@ mod workloads {
     use crate::hierarchy::SparseSetHierarchy;
     use crate::many_queries::SparseSetManyQueries;
     use crate::random_access::SparseSetRandomAccess;
+    use crate::rare_components::SparseSetRareComponents;
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
     use crate::sprites::{GroupedSprites, SparseSetSprites};
     use crate::wide_entities::SparseSetWideEntities;
@@ -263,12 +264,17 @@ mod workloads {
     use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
+    use spike_ecs_vec::rare_components::VecRareComponents;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
     use spike_ecs_vec::wide_entities::VecWideEntities;
 
     const PARAMS: Params = Params {
         count: 1_000,
+        seed: 42,
+    };
+    const RARE_PARAMS: Params = Params {
+        count: 10_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
@@ -576,6 +582,17 @@ mod workloads {
     #[test]
     fn many_queries_sparse_set_zero_count_is_valid() {
         zero_count::<SparseSetManyQueries>();
+    }
+
+    #[test]
+    fn rare_components_sparse_set_matches_the_reference() {
+        check_conformance::<VecRareComponents, SparseSetRareComponents>(RARE_PARAMS, TICKS)
+            .unwrap();
+    }
+
+    #[test]
+    fn rare_components_sparse_set_zero_count_is_valid() {
+        zero_count::<SparseSetRareComponents>();
     }
 }
 

@@ -54,7 +54,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 4: `sparse_set` (R3, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/sparse_set/src/rare_components.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests. Fails first: the type does not exist.
 - **Change:** spec §4.3: `spawn`, `insert` of `Common`, then of `Rare` for the rare ones; no group.
