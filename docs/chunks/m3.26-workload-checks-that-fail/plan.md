@@ -1,6 +1,6 @@
 # M3.26 plan: workload checks that can fail for frag_iter, heavy_compute and add_remove
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Historical: executed in PR #142 (2026-11-26); the spec and the code are authoritative.
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach

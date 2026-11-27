@@ -1,6 +1,6 @@
 # M3.26: workload checks that can fail for frag_iter, heavy_compute and add_remove
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Implemented (PR #142, 2026-11-26). Accepted (2026-11-26).
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10 · **Decides:** no ADR
 - **Issue:** #141
 - **Estimated size:** about 200 changed lines, excluding tests, lockfiles and generated files (harness rules about 20, eight `heavy_compute` steps about 4 each, ten `add_remove` test accessors about 6 each, documents about 60)
@@ -127,12 +127,12 @@ Every ECS `add_remove` step collects, between its two passes, the entities that 
 
 ## 9. Done when
 
-- [ ] `frag_iter` and `heavy_compute` follow §4.2, and every backend passes their conformance.
-- [ ] The two `vec_aos` tests pass and were seen failing with the old rules.
-- [ ] Ten `add_remove` per-step tests pass and were seen failing with the insert removed and at tick 1 only.
-- [ ] The M3.2 spec, harness docs, spike README and changelog state the new rules.
-- [ ] The informal run is in the pull request, `log.md` and on #102.
-- [ ] `cargo xtask ci` passes.
+- [x] `frag_iter` and `heavy_compute` follow §4.2, and every backend passes their conformance (`cargo xtask test`; log.md, steps 1 and 2).
+- [x] The two `vec_aos` tests pass and were seen failing with the old rules (log.md: tick 26 against 25, tick 44 against 38; re-run after the simplify pass, F2).
+- [x] Ten `add_remove` per-step tests pass and were seen failing with the insert removed and at tick 1 only (log.md, steps 4 to 6 and F2; `vec_aos`'s hook test too, step 3).
+- [x] The M3.2 spec, harness docs, spike README and changelog state the new rules (step 7; R5 grep clean; `review-docs`).
+- [x] The informal run is in the pull request, `log.md` and on #102 (issuecomment-7209163085); on battery at the maintainer's request.
+- [x] `cargo xtask ci` passes (full run rc 0 on 836e5d3, the pushed head before this close-out commit; GitHub CI on #142 pending at close-out).
 
 ## 10. Open questions
 
