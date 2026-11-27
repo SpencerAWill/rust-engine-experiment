@@ -253,6 +253,7 @@ mod workloads {
     use crate::random_access::SparseSetRandomAccess;
     use crate::simple_iter::{GroupedSimpleIter, SparseSetSimpleIter};
     use crate::sprites::{GroupedSprites, SparseSetSprites};
+    use crate::wide_entities::SparseSetWideEntities;
     use spike_ecs_vec::add_remove::VecAddRemove;
     use spike_ecs_vec::agents::VecAgents;
     use spike_ecs_vec::entity_churn::VecEntityChurn;
@@ -262,6 +263,7 @@ mod workloads {
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
+    use spike_ecs_vec::wide_entities::VecWideEntities;
 
     const PARAMS: Params = Params {
         count: 1_000,
@@ -496,6 +498,40 @@ mod workloads {
         zero_count::<GroupedSprites>();
         zero_count::<SparseSetAgents>();
         zero_count::<GroupedAgents>();
+    }
+
+    #[test]
+    fn wide_entities_sparse_set_matches_the_reference() {
+        check_conformance::<VecWideEntities, SparseSetWideEntities>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn wide_entities_sparse_set_zero_count_is_valid() {
+        zero_count::<SparseSetWideEntities>();
+    }
+
+    /// Steps 120 times; after each step every entity must have been collected for removal, once,
+    /// which only happens if the insert pass gave each one an `Extra` (ecs-11: the checksum cannot
+    /// see the removal list).
+    #[test]
+    fn wide_entities_sparse_set_inserts_on_every_entity_each_step() {
+        let mut w = SparseSetWideEntities::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed Extra from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
     }
 
     /// The retargeted handle is not hashed, so the reference comparison cannot see pass B write it
