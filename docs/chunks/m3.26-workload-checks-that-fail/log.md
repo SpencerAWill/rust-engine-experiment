@@ -1,0 +1,17 @@
+# M3.26 log: workload checks that can fail for frag_iter, heavy_compute and add_remove
+
+- **Status:** Living (2026-11-26).
+
+<!-- Append-only. One or two lines per entry, written when it happens, not at the end:
+- <date> <tag> <text>
+Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 6; see docs/lessons/README.md). -->
+
+- 2026-11-26 done Picked by `/chunk next`: M3.26 (#141), order 12, the lowest unblocked Scheduled chunk in M3; no scheduled chores. Branch `m3.26-workload-checks-that-fail` pushed.
+- 2026-11-26 done Simulation (ecs-13), scratchpad crate with path deps on `spike_ecs_harness`, `spike_ecs_vec` and `engine`, pinned toolchain, conformance params: `frag_iter` (count 20, seed 42) checksum equals the previous one at 95 of 120 ticks, first at tick 26 (every value 2.0). `heavy_compute` (1,000, 42): checksum differs from the previous at every tick to 1,000, but entities whose hash changes fall 1,000, 265, 103, 71, 59 at ticks 1 to 5 and stay at 37 from about tick 20 to 120. `add_remove` (1,000, 42): equal at all 120 ticks, as designed.
+- 2026-11-26 surprise `heavy_compute` does settle per entity: 963 of 1,000 matrices reach an exact f32 two-cycle (100 inversions, an even count, return the matrix bit for bit), so their position and hash stop changing; the checksum keeps changing only through the other 37.
+- 2026-11-26 surprise The existing `archetype`, `hybrid` and `dense` `add_remove` tests see the insert only once (an archetype, a registered `B` or a column that exists after the first step); a step that inserted only on tick 1 would pass them too. Every ECS `add_remove` step collects its removal list from a `With<B>` query between the passes (`with_b`), so the list's contents after a step show what the insert pass did.
+- 2026-11-26 surprise The M3.2 spec's R8 already says `add_remove`'s skipped insert or repeated step is not detectable by conformance (amended 2026-11-14).
+- 2026-11-26 decision (maintainer) `frag_iter`'s rule becomes `x = data + 0.618034`, minus 1.0 if `x >= 1.0` (reads only `Data`, as now). Simulated over 520 entities and 120 ticks: every entity changes every tick, no state repeats an earlier tick; `data + 0.25` (period 4) and keeping the rule with a shorter check were rejected.
+- 2026-11-26 decision (maintainer, after asking what the correct fix was) `heavy_compute`'s rule changes too: 100 inversions, then the matrix translation += velocity * dt, then position as now. With an even inversion count the step is the identity in exact arithmetic, so the current checksum moves only through rounding drift in 37 entities. Simulated: 1,000 of 1,000 entities change every tick, no checksum repeats an earlier tick in 120 or 1,000 ticks, translation reaches 26.2 by tick 1,000 (finite); 101 inversions rejected (alternates with period 2, 843 repeats in 1,000 ticks). My first recommendation (keep the rule) was wrong.
+- 2026-11-26 decision (maintainer) The `add_remove` per-step test goes on every ECS backend (ten), not only the three #141 names.
+- 2026-11-26 done Spec drafted (`spec.md`, Draft). Main session's calls: the `vec_aos` tests assert each checksum differs from every earlier tick's (the old `heavy_compute` rule passes "differs from the one before"); the `add_remove` red checks run on all ten backends; `add_remove`'s rule is left alone (a checksum that reads `B` rejected, §7).
