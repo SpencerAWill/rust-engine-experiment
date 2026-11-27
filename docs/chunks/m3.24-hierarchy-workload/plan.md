@@ -28,7 +28,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 1: the harness module (R1)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/hierarchy.rs` (new), `harness/src/lib.rs` (`pub mod hierarchy;`; crate doc: the eleventh, `hierarchy`, in the M3.24 spec §4.2).
 - **Test first:** in the module's test module: `forest_links_parents_first` (at `count` 1,000 and 100,000, seed 42: ids `0..count` in order; each parent id lower than its child's, with level one less; roots have `None` and level 1; every level from 1 to 8 has at least one node, none above 8); `forest_follows_the_draw_order` (node 0 at seed 42: depth, translation x and y in the root ranges, rotation, scale x and y, then the child count if depth > 1, equal to direct draws from `prng.stream(0)`; and the first non-root node's translation draws in `-16.0..16.0`); `spin_wraps_and_keeps_the_order` (0.0 gives 0.05; a rotation within 0.05 of `PI` gives `r - TAU` computed in f32; `PI - 0.05` exactly is checked against the `> PI` compare as written); `root_and_place_compose` (`root` equals `to_world(DVec2::ZERO)`; `place` equals `parent.0.mul_transform(local.0)`); `hash_sees_every_field` (changing each of id, level, parent, each local field and each global field in turn changes the hash; `None` and `Some(u64::MAX - 1)` differ). Fails first: the module does not exist (E0432).
 - **Change:** spec §4.2, each item documented.
