@@ -133,7 +133,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 12: allocation count (R6, ecs-2)
 
-- [ ] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
+- [x] **Who:** main session, in a scratchpad crate outside the workspace (own `[workspace]`, the pinned `rust-toolchain.toml`, the repo's `Cargo.lock`, a counting `#[global_allocator]` over `alloc` and `realloc`, the spike crates by path, release)
 - **Files:** `log.md` only.
 - **Test first:** none (a measurement). Expected: `vec_aos` 0 per step; each prototype its per-query-run count times 3 plus whatever its `insert` and `remove` allocate after warm-up, which should match its `add_remove` count at the same size (measured in the same crate as a control); `bevy_ecs` and `hecs` compared with their `add_remove` the same way.
 - **Change:** count allocations per `step` for the seven backends' `wide_entities` and `add_remove` at `count` 1,000, seed 42, 100 steps after 10 warm-up steps; min and max; record with the full commit hash (specs-4, docs-4). A `wide_entities` count above its `add_remove` control is a finding for the caveats, explained or flagged.
