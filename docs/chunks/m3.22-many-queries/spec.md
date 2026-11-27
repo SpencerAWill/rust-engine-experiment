@@ -1,6 +1,6 @@
 # M3.22: many_queries workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-26); cold read applied 2026-11-26
+- **Status:** Accepted (2026-11-26)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.21 · **Decides:** no ADR
 - **Issue:** #107
 - **Estimated size:** about 650 changed lines, excluding tests, lockfiles and generated files (harness module about 130, `vec_aos` about 80, six ECS backends about 60 each, `hybrid`'s component list about 10, bench registration about 30, documents about 40)
