@@ -37,7 +37,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 2: the `vec_aos` reference (R2, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/hierarchy.rs` (new), `vec/src/lib.rs`, `vec/src/tests.rs`.
 - **Test first:** `hierarchy_vec_zero_count_is_valid`; `hierarchy_checksum_never_repeats_and_every_global_changes` (spec §4.5, ecs-13: at the conformance parameters, 120 ticks: each tick's checksum differs from every earlier tick's, tick 0 included, and every row's `GlobalTransform` differs from its value at the previous tick; a `#[cfg(test)]` accessor returns the rows' globals). Fails first: the type does not exist (E0583 or E0432).
 - **Change:** spec §4.4.
