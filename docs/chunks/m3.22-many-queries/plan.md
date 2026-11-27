@@ -154,3 +154,5 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 - **Step 9:** rustfmt wraps two `cache_bench!` calls over several lines, so the plan's `ManyQueries,$` grep miscounts; the seven lines were counted by reading and by `grep -c "many_queries_[a-z_]*,\?$\|cache_bench!(many_queries"` (7).
 - **Step 10:** the stale-count grep missed `spikes/README.md`'s "eight shared workloads"; widened to `eight (shared )?workloads|8 workloads|the eighth`. Its one remaining match, the harness crate doc's "the eighth, `random_access`", is correct (the next clause names the ninth). `spikes/ecs_storage/README.md` also names `for_each_query!` beside the workload list.
+- **Step 12:** runs after review, on the final code (as the step says).
+- **Review, simplify:** no change; the pass read five of seven `tests.rs` files in part and the bench files as diffs, after one send-back (log.md).
