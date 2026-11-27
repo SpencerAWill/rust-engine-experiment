@@ -10,12 +10,19 @@ use crate::heavy_compute::HecsHeavyCompute;
 use crate::hierarchy::HecsHierarchy;
 use crate::many_queries::HecsManyQueries;
 use crate::random_access::HecsRandomAccess;
+use crate::rare_components::HecsRareComponents;
 use crate::simple_iter::HecsSimpleIter;
 use crate::sprites::HecsSprites;
 use crate::wide_entities::HecsWideEntities;
 
 const PARAMS: Params = Params {
     count: 1_000,
+    seed: 42,
+};
+
+/// The `rare_components` conformance parameters (M3.25 spec §4.4): 78 rare entities at seed 42.
+const RARE_PARAMS: Params = Params {
+    count: 10_000,
     seed: 42,
 };
 
@@ -181,6 +188,23 @@ fn hierarchy_hecs_matches_the_reference() {
 #[test]
 fn hierarchy_hecs_zero_count_is_valid() {
     let mut w = HecsHierarchy::setup(Params { count: 0, seed: 42 });
+    assert_eq!(w.checksum(), 0);
+    w.step();
+    assert_eq!(w.checksum(), 0);
+}
+
+#[test]
+fn rare_components_hecs_matches_the_reference() {
+    check_conformance::<spike_ecs_vec::rare_components::VecRareComponents, HecsRareComponents>(
+        RARE_PARAMS,
+        120,
+    )
+    .unwrap();
+}
+
+#[test]
+fn rare_components_hecs_zero_count_is_valid() {
+    let mut w = HecsRareComponents::setup(Params { count: 0, seed: 7 });
     assert_eq!(w.checksum(), 0);
     w.step();
     assert_eq!(w.checksum(), 0);
