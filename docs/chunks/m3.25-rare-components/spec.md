@@ -1,6 +1,6 @@
 # M3.25: rare_components workload for the ECS storage harness
 
-- **Status:** Draft (2026-11-27)
+- **Status:** Accepted (2026-11-27)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.26 · **Decides:** no ADR
 - **Issue:** #109
 - **Estimated size:** about 500 changed lines, excluding tests, lockfiles and generated files (harness module about 90, `vec_aos` about 50, six ECS backends about 45 each, bench registration about 30, documents about 60)
