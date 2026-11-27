@@ -57,7 +57,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 5: `add_remove` tests on `hybrid` and `dense` (R3, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/{hybrid,dense}/src/{add_remove,tests}.rs`.
 - **Test first, change, red checks:** as step 4, two tests.
 - **Verify:** `cargo nextest run -p spike_ecs_hybrid -p spike_ecs_dense` passes; `cargo xtask ci --quick` rc 0.

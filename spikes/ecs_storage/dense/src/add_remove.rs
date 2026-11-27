@@ -34,6 +34,11 @@ impl DenseAddRemove {
         &self.world
     }
 
+    /// The entities the last step removed `B` from, for tests.
+    pub(crate) fn removed_last_step(&self) -> &[Entity] {
+        &self.with_b
+    }
+
     /// The sets the read pass's query joins (required, excluded), for tests.
     pub(crate) fn read_joined(&self) -> crate::query::JoinedSets {
         read_query(&self.world).joined()
