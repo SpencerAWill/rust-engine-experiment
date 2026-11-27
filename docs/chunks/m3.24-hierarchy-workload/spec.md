@@ -1,6 +1,6 @@
 # M3.24: hierarchy workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-27)
+- **Status:** Implemented (PR #144, 2026-11-27)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.21, M3.26 · **Decides:** no ADR
 - **Issue:** #110
 - **Estimated size:** about 1,050 changed lines, excluding tests, lockfiles and generated files (harness module about 220, `vec_aos` about 80, six ECS backends about 110 each, bench registration about 30, `hybrid`'s component list about 20, documents about 50)
@@ -170,12 +170,12 @@ On table storage each level is its own table, so a level's queries walk one tabl
 
 ## 9. Done when
 
-- [ ] The harness module and the seven implementations exist, and every conformance test passes.
-- [ ] The tests of §4.5 pass and their red checks are in `log.md`.
-- [ ] Both spike benches register `hierarchy` for the seven backends.
-- [ ] The documents of §4.6 are updated.
-- [ ] One informal run is in the pull request, `log.md` and on #102.
-- [ ] `cargo xtask ci` passes.
+- [x] The harness module and the seven implementations exist, and every conformance test passes (each backend's `hierarchy_<backend>_matches_the_reference`, `hierarchy_bevy_matches_the_reference` on `bevy_ecs`; full `ci` on 587bb86).
+- [x] The tests of §4.5 pass and their red checks are in `log.md` (steps 2 to 8, and the review fix's two mutations of the forest).
+- [x] Both spike benches register `hierarchy` for the seven backends (`compare.rs`, `cache.rs`; the informal run lists the 21 ids).
+- [x] The documents of §4.6 are updated (`spikes/ecs_storage/README.md`, `spikes/README.md`, the harness crate doc, `harness_components.rs`, `CHANGELOG.md`).
+- [ ] One informal run is in the pull request, `log.md` and on #102: in the pull request and `log.md` (`m3.24-informal`); the #102 comment is pending the maintainer's answer on machine use during the run (`/bench-run` step 4).
+- [x] `cargo xtask ci` passes (on 587bb86, the final code of d30753b; later commits change only `docs/`). CI on the pull request pending.
 
 ## 10. Open questions
 

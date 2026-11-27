@@ -1,6 +1,6 @@
 # M3.24 plan: hierarchy workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-27)
+- **Status:** Historical: executed in PR #144 (2026-11-27); the spec and the code are authoritative
 - **Spec:** [spec.md](spec.md). This plan argues from the spec; read both. Progress and surprises go in [log.md](log.md).
 
 ## 1. Approach
@@ -164,3 +164,5 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 - Step 7: the `bevy_ecs` tests are `hierarchy_bevy_matches_the_reference` and `hierarchy_bevy_zero_count_is_valid`, the crate's existing `<workload>_bevy_*` naming, not §1's `hierarchy_bevy_ecs_*`.
 - Step 11: spec §8's R5 row expects 0 allocations per step on `hecs`; it is 7, one per level's `World::view` (hecs 0.11.2 allocates once per `view` call, as M3.21 counted for `random_access`), so `hecs` is held to its control's sum like the prototypes. R5 itself (no allocation from the workload's own code) holds; recorded in `log.md` and carried to the caveats.
+- Step 1, after review: `forest_follows_the_draw_order` also checks every node of every complete tree against its drawn child count (the code review found the step's node-0 check could not catch a wrong child-count rule; node 0 is a leaf at seed 42), and `Forest` implements `ExactSizeIterator` and `FusedIterator`.
+- Steps 11 and 12 ran in this order around the review: step 11 before it and again on the final code (unchanged counts), step 12 after it, on the final code (specs-4); the spec's R5 row was corrected for `hecs` during review.
