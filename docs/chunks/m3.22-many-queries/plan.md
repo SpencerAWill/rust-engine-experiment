@@ -157,4 +157,4 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 - **Step 12:** runs after review, on the final code (as the step says).
 - **Review, simplify:** no change; the pass read five of seven `tests.rs` files in part and the bench files as diffs, after one send-back (log.md).
 - **Step 1:** `GROUPS` (`pub const GROUPS: u8 = 8`, plan §1) is public beyond spec §4.2's export list.
-- **Review, round 1:** four fixes in one commit (the `vec_aos` doc, `spawn`'s group form, the last-tick test, `TypeId` mapping in the macro test and doctest); see log.md.
+- **Review, round 1:** four fixes in one commit (the `VecManyQueries` doc, `spawn`'s group form, the last-tick test, `TypeId` mapping in the macro test and doctest); see log.md.
