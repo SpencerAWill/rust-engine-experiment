@@ -56,6 +56,21 @@ fn assert_zero_count_is_valid<W: Workload>() {
     assert_eq!(w.checksum(), 0);
 }
 
+/// Steps `w` `TICKS` times; no tick's checksum may equal an earlier one (the state keeps changing
+/// through the last conformance tick). `name` labels the failure.
+fn assert_checksum_never_repeats<W: Workload>(name: &str, params: Params) {
+    let mut w = W::setup(params);
+    let mut seen = vec![w.checksum()];
+    for tick in 1..=TICKS {
+        w.step();
+        let sum = w.checksum();
+        if let Some(earlier) = seen.iter().position(|&c| c == sum) {
+            panic!("{name}: the checksum at tick {tick} equals the one at tick {earlier}");
+        }
+        seen.push(sum);
+    }
+}
+
 /// A broken candidate that applies `step` twice.
 struct StepTwice<W>(W);
 
@@ -251,16 +266,7 @@ mod frag_iter {
 
     #[test]
     fn frag_iter_checksum_never_repeats() {
-        let mut w = VecFragIter::setup(FRAG);
-        let mut seen = vec![w.checksum()];
-        for tick in 1..=TICKS {
-            w.step();
-            let sum = w.checksum();
-            if let Some(earlier) = seen.iter().position(|&c| c == sum) {
-                panic!("frag_iter: the checksum at tick {tick} equals the one at tick {earlier}");
-            }
-            seen.push(sum);
-        }
+        assert_checksum_never_repeats::<VecFragIter>("frag_iter", FRAG);
     }
 
     #[test]
@@ -366,18 +372,7 @@ mod heavy_compute {
 
     #[test]
     fn heavy_compute_checksum_never_repeats() {
-        let mut w = VecHeavyCompute::setup(HEAVY);
-        let mut seen = vec![w.checksum()];
-        for tick in 1..=TICKS {
-            w.step();
-            let sum = w.checksum();
-            if let Some(earlier) = seen.iter().position(|&c| c == sum) {
-                panic!(
-                    "heavy_compute: the checksum at tick {tick} equals the one at tick {earlier}"
-                );
-            }
-            seen.push(sum);
-        }
+        assert_checksum_never_repeats::<VecHeavyCompute>("heavy_compute", HEAVY);
     }
 
     #[test]

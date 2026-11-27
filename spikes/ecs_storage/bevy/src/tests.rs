@@ -21,6 +21,30 @@ const PARAMS: Params = Params {
 /// Ticks of the `random_access` runs, enough for entities to expire and be respawned.
 const RANDOM_ACCESS_TICKS: u64 = 700;
 
+/// Steps `w` 120 times; after each step every entity must have been collected for removal, once,
+/// which only happens if the insert pass gave each one a `B` (ecs-11: the checksum cannot see the
+/// removal list).
+fn assert_inserts_on_every_entity_each_step<W: Workload>(
+    mut w: W,
+    removed_last_step: fn(&W) -> &[bevy_ecs::entity::Entity],
+) {
+    for tick in 1..=120 {
+        w.step();
+        let removed = removed_last_step(&w);
+        assert_eq!(
+            removed.len(),
+            PARAMS.count,
+            "the step removed B from the wrong number of entities at tick {tick}"
+        );
+        let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
+        assert_eq!(
+            distinct.len(),
+            PARAMS.count,
+            "an entity was removed twice in one step at tick {tick}"
+        );
+    }
+}
+
 #[test]
 fn simple_iter_bevy_matches_the_reference() {
     check_conformance::<spike_ecs_vec::simple_iter::VecSimpleIter, BevySimpleIter>(PARAMS, 120)
@@ -52,22 +76,10 @@ fn add_remove_bevy_matches_the_reference() {
 
 #[test]
 fn add_remove_bevy_inserts_on_every_entity_each_step() {
-    let mut w = BevyAddRemove::setup(PARAMS);
-    for tick in 1..=120 {
-        w.step();
-        let removed = w.removed_last_step();
-        assert_eq!(
-            removed.len(),
-            PARAMS.count,
-            "the step removed B from the wrong number of entities at tick {tick}"
-        );
-        let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
-        assert_eq!(
-            distinct.len(),
-            PARAMS.count,
-            "an entity was removed twice in one step at tick {tick}"
-        );
-    }
+    assert_inserts_on_every_entity_each_step(
+        BevyAddRemove::setup(PARAMS),
+        BevyAddRemove::removed_last_step,
+    );
 }
 
 #[test]
@@ -190,22 +202,10 @@ fn add_remove_bevy_sparse_matches_the_reference() {
 
 #[test]
 fn add_remove_bevy_sparse_inserts_on_every_entity_each_step() {
-    let mut w = BevySparseAddRemove::setup(PARAMS);
-    for tick in 1..=120 {
-        w.step();
-        let removed = w.removed_last_step();
-        assert_eq!(
-            removed.len(),
-            PARAMS.count,
-            "the step removed B from the wrong number of entities at tick {tick}"
-        );
-        let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
-        assert_eq!(
-            distinct.len(),
-            PARAMS.count,
-            "an entity was removed twice in one step at tick {tick}"
-        );
-    }
+    assert_inserts_on_every_entity_each_step(
+        BevySparseAddRemove::setup(PARAMS),
+        BevySparseAddRemove::removed_last_step,
+    );
 }
 
 #[test]

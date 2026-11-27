@@ -8,7 +8,8 @@ use spike_ecs_harness::{Params, Workload};
 
 use crate::{QueryMut, World};
 
-/// `heavy_compute` on a [`World`]; `GROUPED` declares the `(Matrix, Position, Rotation, Velocity)` group.
+/// `heavy_compute` on a [`World`]; `GROUPED` declares the
+/// `(Matrix, Position, Rotation, Velocity)` group.
 #[derive(Debug)]
 pub struct HeavyComputeOn<const GROUPED: bool> {
     world: World,
@@ -16,7 +17,8 @@ pub struct HeavyComputeOn<const GROUPED: bool> {
 
 /// `heavy_compute` on a sparse-set `World` without groups.
 pub type SparseSetHeavyCompute = HeavyComputeOn<false>;
-/// `heavy_compute` on a sparse-set `World` with the `(Matrix, Position, Rotation, Velocity)` group.
+/// `heavy_compute` on a sparse-set `World` with the
+/// `(Matrix, Position, Rotation, Velocity)` group.
 pub type GroupedHeavyCompute = HeavyComputeOn<true>;
 
 /// The step's query, shared with the test hook so the two cannot drift.
