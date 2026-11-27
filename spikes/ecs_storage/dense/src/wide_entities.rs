@@ -13,8 +13,8 @@ use spike_ecs_harness::{Params, Workload};
 
 use crate::{Entity, Query, With, World};
 
-/// `wide_entities` on a dense-array [`World`]: every tick moves each 24-type entity to 25 types
-/// (adding `Extra`) and back.
+/// `wide_entities` on a dense-array [`World`]: every tick adds `Extra` to each 24-type entity and
+/// removes it again; no row moves.
 #[derive(Debug)]
 pub struct DenseWideEntities {
     world: World,

@@ -47,16 +47,21 @@ fn add_remove_hecs_matches_the_reference() {
         .unwrap();
 }
 
-#[test]
-fn add_remove_hecs_inserts_on_every_entity_each_step() {
-    let mut w = HecsAddRemove::setup(PARAMS);
+/// Steps `w` 120 times; after each step every entity must have been collected for removal, once,
+/// which only happens if the insert pass gave each one a `component` (ecs-11: the checksum cannot
+/// see the removal list).
+fn assert_inserts_on_every_entity_each_step<W: Workload>(
+    mut w: W,
+    component: &str,
+    removed_last_step: fn(&W) -> &[hecs::Entity],
+) {
     for tick in 1..=120 {
         w.step();
-        let removed = w.removed_last_step();
+        let removed = removed_last_step(&w);
         assert_eq!(
             removed.len(),
             PARAMS.count,
-            "the step removed B from the wrong number of entities at tick {tick}"
+            "the step removed {component} from the wrong number of entities at tick {tick}"
         );
         let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
         assert_eq!(
@@ -65,6 +70,15 @@ fn add_remove_hecs_inserts_on_every_entity_each_step() {
             "an entity was removed twice in one step at tick {tick}"
         );
     }
+}
+
+#[test]
+fn add_remove_hecs_inserts_on_every_entity_each_step() {
+    assert_inserts_on_every_entity_each_step(
+        HecsAddRemove::setup(PARAMS),
+        "B",
+        HecsAddRemove::removed_last_step,
+    );
 }
 
 #[test]
@@ -143,22 +157,11 @@ fn wide_entities_hecs_zero_count_is_valid() {
 
 #[test]
 fn wide_entities_hecs_inserts_on_every_entity_each_step() {
-    let mut w = HecsWideEntities::setup(PARAMS);
-    for tick in 1..=120 {
-        w.step();
-        let removed = w.removed_last_step();
-        assert_eq!(
-            removed.len(),
-            PARAMS.count,
-            "the step removed Extra from the wrong number of entities at tick {tick}"
-        );
-        let distinct: std::collections::BTreeSet<_> = removed.iter().collect();
-        assert_eq!(
-            distinct.len(),
-            PARAMS.count,
-            "an entity was removed twice in one step at tick {tick}"
-        );
-    }
+    assert_inserts_on_every_entity_each_step(
+        HecsWideEntities::setup(PARAMS),
+        "Extra",
+        HecsWideEntities::removed_last_step,
+    );
 }
 
 #[test]

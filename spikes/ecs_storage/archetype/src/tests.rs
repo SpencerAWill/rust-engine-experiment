@@ -920,10 +920,11 @@ mod raw_query {
 }
 
 /// Steps `w` `ticks` times; after each step every one of the `count` entities must have been
-/// collected for removal, once, which only happens if the insert pass gave each one a `B`
-/// (ecs-11: the checksum cannot see the removal list).
+/// collected for removal, once, which only happens if the insert pass gave each one a
+/// `component` (ecs-11: the checksum cannot see the removal list).
 fn assert_inserts_on_every_entity_each_step<W: spike_ecs_harness::Workload>(
     mut w: W,
+    component: &str,
     count: usize,
     ticks: u64,
     removed_last_step: fn(&W) -> &[Entity],
@@ -934,7 +935,7 @@ fn assert_inserts_on_every_entity_each_step<W: spike_ecs_harness::Workload>(
         assert_eq!(
             removed.len(),
             count,
-            "the step removed B from the wrong number of entities at tick {tick}"
+            "the step removed {component} from the wrong number of entities at tick {tick}"
         );
         let distinct: BTreeSet<u64> = removed.iter().map(|e| e.to_bits()).collect();
         assert_eq!(
@@ -1113,6 +1114,7 @@ mod workloads {
     fn add_remove_archetype_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             ArchetypeAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             ArchetypeAddRemove::removed_last_step,
@@ -1240,6 +1242,7 @@ mod workloads {
     fn wide_entities_archetype_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             ArchetypeWideEntities::setup(PARAMS),
+            "Extra",
             PARAMS.count,
             TICKS,
             ArchetypeWideEntities::removed_last_step,
@@ -1471,6 +1474,7 @@ mod bytes_add_remove {
     fn add_remove_archetype_bytes_copy_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             BytesCopyAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             BytesCopyAddRemove::removed_last_step,
@@ -1481,6 +1485,7 @@ mod bytes_add_remove {
     fn add_remove_archetype_bytes_cast_inserts_on_every_entity_each_step() {
         super::assert_inserts_on_every_entity_each_step(
             BytesCastAddRemove::setup(PARAMS),
+            "B",
             PARAMS.count,
             TICKS,
             BytesCastAddRemove::removed_last_step,

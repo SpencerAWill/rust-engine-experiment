@@ -510,16 +510,21 @@ mod workloads {
         check_conformance::<VecAddRemove, HybridAddRemove>(PARAMS, TICKS).unwrap();
     }
 
-    #[test]
-    fn add_remove_hybrid_inserts_on_every_entity_each_step() {
-        let mut w = HybridAddRemove::setup(PARAMS);
+    /// Steps `w` `TICKS` times; after each step every entity must have been collected for
+    /// removal, once, which only happens if the insert pass gave each one a `component` (ecs-11:
+    /// the checksum cannot see the removal list).
+    fn assert_inserts_on_every_entity_each_step<W: Workload>(
+        mut w: W,
+        component: &str,
+        removed_last_step: fn(&W) -> &[crate::Entity],
+    ) {
         for tick in 1..=TICKS {
             w.step();
-            let removed = w.removed_last_step();
+            let removed = removed_last_step(&w);
             assert_eq!(
                 removed.len(),
                 PARAMS.count,
-                "the step removed B from the wrong number of entities at tick {tick}"
+                "the step removed {component} from the wrong number of entities at tick {tick}"
             );
             let distinct: std::collections::BTreeSet<u64> =
                 removed.iter().map(|e| e.to_bits()).collect();
@@ -529,6 +534,15 @@ mod workloads {
                 "an entity was removed twice in one step at tick {tick}"
             );
         }
+    }
+
+    #[test]
+    fn add_remove_hybrid_inserts_on_every_entity_each_step() {
+        assert_inserts_on_every_entity_each_step(
+            HybridAddRemove::setup(PARAMS),
+            "B",
+            HybridAddRemove::removed_last_step,
+        );
     }
 
     #[test]
@@ -543,23 +557,11 @@ mod workloads {
 
     #[test]
     fn wide_entities_hybrid_inserts_on_every_entity_each_step() {
-        let mut w = HybridWideEntities::setup(PARAMS);
-        for tick in 1..=TICKS {
-            w.step();
-            let removed = w.removed_last_step();
-            assert_eq!(
-                removed.len(),
-                PARAMS.count,
-                "the step removed Extra from the wrong number of entities at tick {tick}"
-            );
-            let distinct: std::collections::BTreeSet<u64> =
-                removed.iter().map(|e| e.to_bits()).collect();
-            assert_eq!(
-                distinct.len(),
-                PARAMS.count,
-                "an entity was removed twice in one step at tick {tick}"
-            );
-        }
+        assert_inserts_on_every_entity_each_step(
+            HybridWideEntities::setup(PARAMS),
+            "Extra",
+            HybridWideEntities::removed_last_step,
+        );
     }
 
     /// Spec 4.4: `Extra` is a sparse type, so adding and removing it moves no row: the 24 table
