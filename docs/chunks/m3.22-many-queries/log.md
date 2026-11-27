@@ -19,3 +19,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-26 decision (maintainer) Spec approved; status Accepted.
 - 2026-11-26 done Lessons (`lessons-researcher`, registered agent): ecs-1, 2, 6, 7, 9, 11; specs-1, 2, 3, 4, 6; docs-3, 4. ecs-1 not applicable (no path test); the rest followed (plan §4). Plan written and accepted: 12 steps; agents dispatched by registered name.
 - 2026-11-26 done Step 1: harness `many_queries` module (ManyQueries, GROUPS, C0 to C7, Spawn, spawn, update, hash, QUERIES, for_each_query!) and lib.rs doc; 4 tests seen failing (unresolved items) then passing; doctest passes.
+- 2026-11-26 done step 2: vec_aos VecManyQueries (vec/src/many_queries.rs, lib.rs, tests.rs); 3 new tests pass, 53 vec tests pass, ci --quick rc 0. Step loop is generic over an on_visit closure so the test hook (step_counting, cfg(test)) adds nothing to the non-test path.

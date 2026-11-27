@@ -9,6 +9,7 @@ use crate::agents::{SoaAgents, VecAgents};
 use crate::entity_churn::VecEntityChurn;
 use crate::frag_iter::VecFragIter;
 use crate::heavy_compute::VecHeavyCompute;
+use crate::many_queries::VecManyQueries;
 use crate::random_access::VecRandomAccess;
 use crate::simple_iter::VecSimpleIter;
 use crate::sprites::VecSprites;
@@ -776,4 +777,51 @@ fn random_access_respawns_fill_slots_in_order() {
         }
     }
     panic!("no entity expired in 700 ticks");
+}
+
+#[test]
+fn many_queries_vec_zero_count_is_valid() {
+    assert_zero_count_is_valid::<VecManyQueries>();
+}
+
+/// Spec §4.2: a query visits the entities that have both its types, which depends only on the
+/// distance `d = (read - write) mod 8`: 375, 250, 125 or 0 of 1,000 for `d` in {1,7}, {2,6},
+/// {3,5}, {4}.
+#[test]
+fn many_queries_match_counts_follow_the_distance() {
+    let mut w = VecManyQueries::setup(Params {
+        count: 1_000,
+        seed: 42,
+    });
+    let mut counts = [0_usize; 56];
+    w.step_counting(&mut counts);
+    for (q, &(write, read)) in spike_ecs_harness::many_queries::QUERIES.iter().enumerate() {
+        let d = (usize::from(read) + 8 - usize::from(write)) % 8;
+        let expected = match d {
+            1 | 7 => 375,
+            2 | 6 => 250,
+            3 | 5 => 125,
+            4 => 0,
+            _ => unreachable!("write and read differ"),
+        };
+        assert_eq!(counts[q], expected, "query {q} ({write}, {read})");
+    }
+}
+
+/// Spec §4.2: values wrap, so the state keeps changing through the last conformance tick.
+#[test]
+fn many_queries_still_changes_at_the_last_tick() {
+    let mut w = VecManyQueries::setup(Params {
+        count: 1_000,
+        seed: 42,
+    });
+    let mut previous = w.checksum();
+    for tick in 1..=120 {
+        w.step();
+        let now = w.checksum();
+        if tick >= 2 {
+            assert_ne!(now, previous, "tick {tick}");
+        }
+        previous = now;
+    }
 }

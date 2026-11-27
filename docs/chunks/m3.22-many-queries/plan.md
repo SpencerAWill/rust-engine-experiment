@@ -32,7 +32,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 2: the `vec_aos` reference (R2, R1's checks)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/vec/src/many_queries.rs` (new), `vec/src/lib.rs`, `vec/src/tests.rs`.
 - **Test first:** `many_queries_vec_zero_count_is_valid`; `many_queries_match_counts_follow_the_distance` (at `count` 1,000, for each of the 56 queries, the number of entities it visits is 375, 250, 125 or 0 for `d` = `(r - w) mod 8` in {1, 7}, {2, 6}, {3, 5}, {4}; through a `#[cfg(test)]` hook that counts per query); `many_queries_still_changes_at_the_last_tick` (at `count` 1,000, seed 42, the checksum after tick 120 differs from the one after tick 119, and so does each of ticks 2 to 120 from the one before). Fails first: the type does not exist.
 - **Change:** spec §4.4's `vec_aos`.
