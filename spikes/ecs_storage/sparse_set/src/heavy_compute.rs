@@ -34,6 +34,12 @@ impl<const GROUPED: bool> HeavyComputeOn<GROUPED> {
     pub(crate) fn uses_group(&mut self) -> bool {
         step_query(&mut self.world).uses_group()
     }
+
+    /// Whether the step's query matches its group exactly, so no type is probed per row, for
+    /// tests.
+    pub(crate) fn matches_group_exactly(&mut self) -> bool {
+        step_query(&mut self.world).matches_group_exactly()
+    }
 }
 
 impl<const GROUPED: bool> Workload for HeavyComputeOn<GROUPED> {

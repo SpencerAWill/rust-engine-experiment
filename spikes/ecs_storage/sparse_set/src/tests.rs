@@ -321,6 +321,10 @@ mod workloads {
     fn grouped_heavy_compute_uses_the_group() {
         let mut w = GroupedHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(w.uses_group());
+        assert!(
+            w.matches_group_exactly(),
+            "the step query probes a type per row; the group must hold all four"
+        );
         let mut w = SparseSetHeavyCompute::setup(Params { count: 10, seed: 1 });
         assert!(!w.uses_group());
     }
