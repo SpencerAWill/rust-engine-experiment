@@ -37,14 +37,16 @@ use spike_ecs_harness::hierarchy::{self as rules, Depth3, GlobalTransform, Local
 // read: the parents (depth 2) were written by the previous level's pass
 let globals = world.lookup::<GlobalTransform>();
 world
-    .query::<(&LocalTransform, &Parent<Entity>), With<Depth3>>()
+    .query::<(&LocalTransform, &Parent<Entity>)>()
+    .with::<Depth3>()
     .for_each(|(local, parent)| {
         scratch.push(rules::place(globals.get(parent.0).expect("parent is live"), local))
     });
 // write, in the same order
 let mut next = scratch.iter();
 world
-    .query_mut::<&mut GlobalTransform, With<Depth3>>()
+    .query_mut::<&mut GlobalTransform>()
+    .with::<Depth3>()
     .for_each(|global| *global = *next.next().expect("one entry per entity"));
 ```
 
@@ -72,7 +74,7 @@ The common rules of M3.2 §4.4 apply (initial values from `Prng::from_seed(param
   2. Draw from `prng.stream(i)`, in this order: if `level` is 1, the tree's depth `depth = range(1_u32..=8)`; then translation x and y, each `range(0.0_f32..320.0)` and `range(0.0_f32..180.0)` for a root and `range(-16.0_f32..16.0)` for any other node; rotation `range(-PI..PI)` (`core::f32::consts::PI`); scale x then y, each `range(0.5_f32..2.0)`; then, if `level < depth`, the child count `range(1_u32..=2)`.
   3. Emit node `i`, and push the child count copies of `(level + 1, Some(i), depth)`.
 
-  Children are pushed and popped from the same stack, so each subtree is spawned in full before its next sibling (pre-order, as a prefab spawns) *(maintainer, from the brainstorm)*. The last tree is cut off at `count`: some of its nodes have fewer children than they drew. In a scratchpad simulation of this shape, every level holds 5 to 21% of the entities at `count` 1,000 and 6 to 17% at 100,000, and a tree holds 12 to 16 entities on average (`log.md`) *(the shape is the maintainer's; the ranges are my call: roots in the `random_access` world, children within 16 units of their parent, and scales whose product over eight levels stays in `2^-8..2^8`)*.
+  Children are pushed and popped from the same stack, so each subtree is spawned in full before its next sibling (pre-order, as a prefab spawns) *(maintainer, from the brainstorm)*. The last tree is cut off at `count`: some of its nodes have fewer children than they drew. In the grill's stub (the real `Prng`, seed 42), every level holds 5 to 20% of the entities at `count` 1,000 and 6 to 18% at 100,000, and a tree holds 17 to 20 entities on average, 152 at most at 100,000 (`log.md`) *(the shape is the maintainer's; the ranges are my call: roots in the `random_access` world, children within 16 units of their parent, and scales whose product over eight levels stays in `2^-8..2^8`)*.
 - **Setup.** Spawn every node in `forest` order with `SpawnId(id)`, its `LocalTransform`, `GlobalTransform(WorldTransform2d::IDENTITY)`, its depth type, and, unless it is a root, `Parent(handle)` with the handle of node `parent`, which was spawned earlier. Then run the root pass and the level passes of the step once, so that `GlobalTransform` is consistent with the locals after `setup` (tick 0).
 - **Step.** In this order:
   1. **Update.** For every entity, `spin(&mut LocalTransform)`: `r = rotation + SPIN` with `SPIN = 0.05`, then `r - TAU` if `r > PI`, else `r`. Rotations stay in `(-PI, PI]` with one add, one compare and at most one subtract, and no trig *(my call: the local rotation changes every tick, so every world transform below a root changes every tick, and the next tick's propagation cannot reuse a value)*.
@@ -106,7 +108,7 @@ On table storage each level is its own table, so a level's queries walk one tabl
 ### 4.5 Tests beyond conformance
 
 - **Conformance** at `count` 1,000, seed 42, for 120 ticks, against `vec_aos`, on each of the six ECS backends.
-- **Stale parent** (ecs-11). A test on one prototype (`archetype`) MUST show that conformance fails when the read pass of level `k` sees the parent's global of the previous tick: red check, all seven read passes run before any write pass, fails at tick 1; recorded in `log.md` with `cargo nextest run -p <package> --no-fail-fast` output (ecs-6). The same red check on each other ECS backend, recorded, not kept as a test.
+- **Stale parent** (ecs-11), a red check, not a kept test. On each of the six ECS backends, with all seven read passes run before any write pass (so a level reads its parents' globals of the previous tick), the conformance test MUST fail (at tick 0 in the grill's stub, since `setup` runs the same propagation); recorded in `log.md` with `cargo nextest run -p <package> --no-fail-fast` output (ecs-6).
 - **Changing state** (ecs-13). A `vec_aos` test runs 120 ticks at the conformance parameters and asserts each tick's checksum differs from every earlier tick's, tick 0 included, and that every entity's `GlobalTransform` changes at every tick.
 - **Harness tests.** A forest test at `count` 1,000 and 100,000, seed 42: ids are `0..count` in order; every parent id is lower than its child's and its level is one less; every level from 1 to 8 holds at least one entity; no level exceeds 8. A spawn test: node 0's draws equal direct draws from `prng.stream(0)` in §4.2's order. A `spin` test covering the wrapping and the non-wrapping branch. A `place` test against a hand composition.
 - **Table placement** on `archetype` and `hybrid`: after `setup` the world holds the empty archetype and exactly eight others, one per level, and the same after a step.
