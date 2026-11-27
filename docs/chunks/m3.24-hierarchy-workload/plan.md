@@ -116,7 +116,7 @@ Every conformance test below is `check_conformance::<VecHierarchy, X>(Params { c
 
 ### Step 10: documents (R7)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `spikes/ecs_storage/README.md` (status-line date; the rules sentence links the M3.24 spec §4.2; the harness row "eleven workloads"; the workload list and the backends sentence; one sentence on `hierarchy` with its caveat, the one `sin_cos` per non-root entity every row holds (docs-3)), `spikes/README.md` (Contents row), `CHANGELOG.md` (one entry, the same caveat); the plan tick.
 - **Test first:** `grep -rnE "ten (shared )?workloads|10 workloads" spikes/ CHANGELOG.md` finds the stale text (specs-1: the paths are named).
 - **Change:** spec §4.6's document items.
