@@ -142,7 +142,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 13: the informal run (R9)
 
-- [ ] **Who:** main session
+- [x] **Who:** main session
 - **Files:** `log.md`.
 - **Test first:** none.
 - **Change:** `/bench-run` with `cargo xtask spike-bench ecs --save m3.23-informal` on the final code commit (after review fixes; specs-4). Before quoting, compare siblings (ecs-9): `hybrid` with `sparse_set` (neither moves a row) and with `archetype`; `hecs` and `bevy_ecs` with `archetype`; and the run's `add_remove` rows with M3.26's. Caveats per spec §4.6, each said as measured or expected and unmeasured (specs-6, docs-3), with step 12's counts. Record commit, conditions, power log and the `wide_entities` and `add_remove` tables in `log.md`; the pull request and the comment on #102 (stage 7, once the pull request exists) carry them.
