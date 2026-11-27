@@ -28,7 +28,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 2: the `heavy_compute` rule (R1, R2, R4)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/heavy_compute.rs`; `heavy_compute.rs` in `vec`, `sparse_set`, `archetype`, `dense`, `hybrid`, `bevy` and `hecs` (`src/`); `spikes/ecs_storage/vec/src/tests.rs`.
 - **Test first:** `heavy_compute_checksum_never_repeats` fails on the old rule (a checksum equal to an earlier tick's); `heavy_compute_position_is_the_transformed_rotation` updated so it checks one step against a hand-written application of the new rule (100 inversions, translation `+ velocity * dt()`, then the transform), and fails on the old rule.
 - **Change:** spec §4.2, `heavy_compute`: the harness `update`; each backend adds `&Velocity` to its step query and passes it. `sparse_set`: `setup`'s group and the type aliases' and struct's docs become `(Matrix, Position, Rotation, Velocity)`.
@@ -106,4 +106,5 @@ Choices the spec leaves to implementation, fixed here:
 
 ## 5. Deviations
 
-None.
+- **Step 2, files:** `spikes/ecs_storage/dense/src/tests.rs` also changed: `heavy_compute_dense_joins` lists the step query's types, so it gains `Velocity`. The file list missed it.
+- **Step 2, verify:** the `rules::update` grep shows seven call sites, not eight: `sparse_set` and `sparse_set_grouped` share one generic `HeavyComputeOn<GROUPED>` step. Each passes four arguments.

@@ -416,7 +416,7 @@ mod workloads {
 
     #[test]
     fn heavy_compute_dense_joins() {
-        use spike_ecs_harness::heavy_compute::{Matrix, Position, Rotation};
+        use spike_ecs_harness::heavy_compute::{Matrix, Position, Rotation, Velocity};
         let mut w = DenseHeavyCompute::setup(Params {
             count: 10,
             seed: 42,
@@ -427,6 +427,7 @@ mod workloads {
                 TypeId::of::<Matrix>(),
                 TypeId::of::<Position>(),
                 TypeId::of::<Rotation>(),
+                TypeId::of::<Velocity>(),
             ],
         );
         assert_eq!(w.step_joined(), (want, vec![]));

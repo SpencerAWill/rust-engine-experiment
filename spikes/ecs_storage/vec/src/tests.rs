@@ -344,10 +344,39 @@ mod heavy_compute {
     #[test]
     fn heavy_compute_position_is_the_transformed_rotation() {
         let mut w = VecHeavyCompute::setup(HEAVY);
+        let before = w.entities.clone();
         w.step();
         assert_eq!(INVERSIONS, 100);
-        for e in &w.entities {
-            assert_eq!(e.position.0, e.matrix.0.transform_point3(e.rotation.0));
+        let dt = spike_ecs_harness::dt();
+        for (old, e) in before.iter().zip(&w.entities) {
+            // The rule written out by hand: invert 100 times, move the translation by
+            // `velocity * dt` (multiply, then add), then transform the rotation.
+            let mut m = old.matrix.0;
+            for _ in 0..100 {
+                m = m.inverse();
+            }
+            for r in 0..3 {
+                let moved = old.velocity.0[r] * dt;
+                m.w_axis[r] += moved;
+            }
+            assert_eq!(e.matrix.0, m);
+            assert_eq!(e.position.0, m.transform_point3(e.rotation.0));
+        }
+    }
+
+    #[test]
+    fn heavy_compute_checksum_never_repeats() {
+        let mut w = VecHeavyCompute::setup(HEAVY);
+        let mut seen = vec![w.checksum()];
+        for tick in 1..=TICKS {
+            w.step();
+            let sum = w.checksum();
+            if let Some(earlier) = seen.iter().position(|&c| c == sum) {
+                panic!(
+                    "heavy_compute: the checksum at tick {tick} equals the one at tick {earlier}"
+                );
+            }
+            seen.push(sum);
         }
     }
 

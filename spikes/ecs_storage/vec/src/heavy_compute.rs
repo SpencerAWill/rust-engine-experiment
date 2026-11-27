@@ -12,11 +12,7 @@ pub(crate) struct HeavyEntity {
     pub(crate) matrix: Matrix,
     pub(crate) position: Position,
     pub(crate) rotation: Rotation,
-    /// Never read by the step; kept so the entity is as large as `simple_iter`'s.
-    #[allow(
-        dead_code,
-        reason = "part of the entity's size, never read by the step"
-    )]
+    /// Read by the step (it moves the translation).
     pub(crate) velocity: Velocity,
 }
 
@@ -47,7 +43,7 @@ impl Workload for VecHeavyCompute {
 
     fn step(&mut self) {
         for e in &mut self.entities {
-            rules::update(&mut e.matrix, &mut e.position, &e.rotation);
+            rules::update(&mut e.matrix, &mut e.position, &e.rotation, &e.velocity);
         }
     }
 

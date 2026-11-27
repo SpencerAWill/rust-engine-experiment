@@ -2,7 +2,9 @@
 
 use engine::prelude::Prng;
 use hecs::World;
-use spike_ecs_harness::heavy_compute::{self as rules, HeavyCompute, Matrix, Position, Rotation};
+use spike_ecs_harness::heavy_compute::{
+    self as rules, HeavyCompute, Matrix, Position, Rotation, Velocity,
+};
 use spike_ecs_harness::{Params, Workload};
 
 /// `heavy_compute` on a `hecs` [`World`]: one archetype holding every entity.
@@ -34,9 +36,11 @@ impl Workload for HecsHeavyCompute {
 
     fn step(&mut self) {
         self.world
-            .query_mut::<(&mut Matrix, &mut Position, &Rotation)>()
+            .query_mut::<(&mut Matrix, &mut Position, &Rotation, &Velocity)>()
             .into_iter()
-            .for_each(|(matrix, position, rotation)| rules::update(matrix, position, rotation));
+            .for_each(|(matrix, position, rotation, velocity)| {
+                rules::update(matrix, position, rotation, velocity);
+            });
     }
 
     fn checksum(&self) -> u64 {

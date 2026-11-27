@@ -8,7 +8,7 @@ use spike_ecs_harness::{Params, Workload};
 
 use crate::{QueryMut, World};
 
-/// `heavy_compute` on a [`World`]; `GROUPED` declares the `(Matrix, Position, Rotation)` group.
+/// `heavy_compute` on a [`World`]; `GROUPED` declares the `(Matrix, Position, Rotation, Velocity)` group.
 #[derive(Debug)]
 pub struct HeavyComputeOn<const GROUPED: bool> {
     world: World,
@@ -16,11 +16,13 @@ pub struct HeavyComputeOn<const GROUPED: bool> {
 
 /// `heavy_compute` on a sparse-set `World` without groups.
 pub type SparseSetHeavyCompute = HeavyComputeOn<false>;
-/// `heavy_compute` on a sparse-set `World` with the `(Matrix, Position, Rotation)` group.
+/// `heavy_compute` on a sparse-set `World` with the `(Matrix, Position, Rotation, Velocity)` group.
 pub type GroupedHeavyCompute = HeavyComputeOn<true>;
 
 /// The step's query, shared with the test hook so the two cannot drift.
-fn step_query(world: &mut World) -> QueryMut<'_, (&mut Matrix, &mut Position, &Rotation)> {
+fn step_query(
+    world: &mut World,
+) -> QueryMut<'_, (&mut Matrix, &mut Position, &Rotation, &Velocity)> {
     world.query_mut()
 }
 
@@ -44,7 +46,7 @@ impl<const GROUPED: bool> Workload for HeavyComputeOn<GROUPED> {
         let prng = Prng::from_seed(params.seed);
         let mut world = if GROUPED {
             World::builder()
-                .group::<(Matrix, Position, Rotation)>()
+                .group::<(Matrix, Position, Rotation, Velocity)>()
                 .build()
         } else {
             World::new()
@@ -61,8 +63,9 @@ impl<const GROUPED: bool> Workload for HeavyComputeOn<GROUPED> {
     }
 
     fn step(&mut self) {
-        step_query(&mut self.world)
-            .for_each(|(matrix, position, rotation)| rules::update(matrix, position, rotation));
+        step_query(&mut self.world).for_each(|(matrix, position, rotation, velocity)| {
+            rules::update(matrix, position, rotation, velocity);
+        });
     }
 
     fn checksum(&self) -> u64 {
