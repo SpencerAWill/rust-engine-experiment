@@ -11,9 +11,8 @@ use spike_ecs_harness::{Params, Workload};
 
 use crate::{QueryMut, World};
 
-/// `rare_components` on a dense-array [`World`]: `Rare` has an array and presence set of its own,
-/// so the step's join yields only the rare entities. It skips only the regions with no `Rare`: at
-/// 1% about half the 64-entity leaf words still hold one.
+/// `rare_components` on a dense-array [`World`]: `Rare` has an array and presence set of its own;
+/// the module docs say what the step's join skips.
 #[derive(Debug)]
 pub struct DenseRareComponents {
     world: World,
