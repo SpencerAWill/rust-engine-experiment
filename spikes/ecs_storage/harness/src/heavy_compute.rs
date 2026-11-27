@@ -50,7 +50,7 @@ pub fn spawn(prng: &Prng, i: u64) -> (Matrix, Position, Rotation, Velocity) {
 /// multiply and then an add, never fused; then `position = matrix.transform_point3(rotation)`.
 ///
 /// In exact arithmetic the inversions alone would leave the matrix where it started (an even
-/// count), and in `f32` most matrices (963 of 1,000 at the conformance seed) return bit for bit,
+/// count), and in `f32` most matrices settle within a few dozen ticks into returning bit for bit,
 /// so the translation step is what makes the state change every tick. Every backend calls this
 /// function, so the arithmetic is written once.
 #[inline]
