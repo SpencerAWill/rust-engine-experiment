@@ -43,6 +43,11 @@ impl<const GROUPED: bool> AddRemoveOn<GROUPED> {
     pub(crate) fn uses_group_for_remove_pass(&self) -> bool {
         remove_query(&self.world).uses_group()
     }
+
+    /// The entities the last step removed `B` from, for tests.
+    pub(crate) fn removed_last_step(&self) -> &[Entity] {
+        &self.with_b
+    }
 }
 
 impl<const GROUPED: bool> Workload for AddRemoveOn<GROUPED> {

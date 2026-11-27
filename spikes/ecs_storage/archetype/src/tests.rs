@@ -1082,6 +1082,27 @@ mod workloads {
     }
 
     #[test]
+    fn add_remove_archetype_inserts_on_every_entity_each_step() {
+        let mut w = ArchetypeAddRemove::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed B from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
     fn add_remove_archetype_layout() {
         let mut w = ArchetypeAddRemove::setup(PARAMS);
         assert_eq!(w.archetype_count(), 2);
@@ -1393,6 +1414,43 @@ mod bytes_add_remove {
     #[test]
     fn add_remove_bytes_cast_matches_the_reference() {
         check_conformance::<VecAddRemove, BytesCastAddRemove>(PARAMS, TICKS).unwrap();
+    }
+
+    /// Steps `w` 120 times; after each step every entity must have been collected for removal,
+    /// once, which only happens if the insert pass gave each one a `B` (ecs-11).
+    fn assert_inserts_on_every_entity_each_step<W: Workload>(
+        mut w: W,
+        removed_last_step: impl Fn(&W) -> Vec<u64>,
+    ) {
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = removed_last_step(&w);
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed B from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> = removed.iter().copied().collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
+    fn add_remove_archetype_bytes_copy_inserts_on_every_entity_each_step() {
+        assert_inserts_on_every_entity_each_step(BytesCopyAddRemove::setup(PARAMS), |w| {
+            w.removed_last_step().iter().map(|e| e.to_bits()).collect()
+        });
+    }
+
+    #[test]
+    fn add_remove_archetype_bytes_cast_inserts_on_every_entity_each_step() {
+        assert_inserts_on_every_entity_each_step(BytesCastAddRemove::setup(PARAMS), |w| {
+            w.removed_last_step().iter().map(|e| e.to_bits()).collect()
+        });
     }
 
     #[test]

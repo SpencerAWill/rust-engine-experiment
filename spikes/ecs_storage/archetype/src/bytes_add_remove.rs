@@ -76,6 +76,12 @@ impl Base {
         }
     }
 
+    /// The entities the last step removed `B` from, for tests.
+    #[cfg(test)]
+    fn removed_last_step(&self) -> &[Entity] {
+        &self.with_b
+    }
+
     /// The remove pass: collects the entities with `B`, then removes it from each.
     fn remove_pass(&mut self) {
         self.with_b.clear();
@@ -266,6 +272,11 @@ macro_rules! test_hooks {
             /// The world, for invariant checks in tests.
             pub(crate) fn world(&self) -> &World {
                 &self.base.world
+            }
+
+            /// The entities the last step removed `B` from, for tests.
+            pub(crate) fn removed_last_step(&self) -> &[Entity] {
+                self.base.removed_last_step()
             }
         }
     )*};

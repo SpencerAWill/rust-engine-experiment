@@ -47,7 +47,7 @@ Choices the spec leaves to implementation, fixed here:
 
 ### Step 4: `add_remove` tests on `sparse_set` and `archetype` (R3, R7)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/sparse_set/src/{add_remove,tests}.rs`; `spikes/ecs_storage/archetype/src/{add_remove,bytes_add_remove,tests}.rs`.
 - **Test first:** the §1 test for `sparse_set`, `sparse_set_grouped`, `archetype`, `archetype_bytes_copy` and `archetype_bytes_cast` (five tests). Fails first: `removed_last_step` does not exist.
 - **Change:** the §1 accessors.
