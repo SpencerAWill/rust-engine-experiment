@@ -30,6 +30,7 @@ mod lookup;
 pub mod many_queries;
 mod query;
 pub mod random_access;
+pub mod rare_components;
 pub mod simple_iter;
 mod sparse;
 pub mod sprites;

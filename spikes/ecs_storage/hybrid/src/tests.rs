@@ -428,6 +428,7 @@ mod workloads {
     use spike_ecs_vec::hierarchy::VecHierarchy;
     use spike_ecs_vec::many_queries::VecManyQueries;
     use spike_ecs_vec::random_access::VecRandomAccess;
+    use spike_ecs_vec::rare_components::VecRareComponents;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
     use spike_ecs_vec::wide_entities::VecWideEntities;
@@ -442,6 +443,7 @@ mod workloads {
     use crate::many_queries::HybridManyQueries;
     use crate::query::seal::Role;
     use crate::random_access::HybridRandomAccess;
+    use crate::rare_components::HybridRareComponents;
     use crate::simple_iter::HybridSimpleIter;
     use crate::sprites::HybridSprites;
     use crate::wide_entities::HybridWideEntities;
@@ -456,6 +458,10 @@ mod workloads {
     };
     const FRAG_PARAMS: Params = Params {
         count: 20,
+        seed: 42,
+    };
+    const RARE_PARAMS: Params = Params {
+        count: 10_000,
         seed: 42,
     };
     const TICKS: u64 = 120;
@@ -910,6 +916,52 @@ mod workloads {
             let id = world.component_id_of(ty).expect("registered by setup");
             assert_eq!(world.component_info(id).kind, StorageKind::Table);
         }
+        world.check_invariants().unwrap();
+    }
+
+    #[test]
+    fn rare_components_hybrid_matches_the_reference() {
+        check_conformance::<VecRareComponents, HybridRareComponents>(RARE_PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn rare_components_hybrid_zero_count_is_valid() {
+        zero_count::<HybridRareComponents>();
+    }
+
+    #[test]
+    fn rare_components_hybrid_places_rare_entities_in_their_own_table() {
+        let mut w = HybridRareComponents::setup(RARE_PARAMS);
+        let check = |w: &mut HybridRareComponents| {
+            assert_eq!(w.archetype_count(), 3);
+            w.world().check_invariants().unwrap();
+            let matched = w.step_archetypes();
+            assert_eq!(matched.len(), 1);
+            assert_eq!(w.world().parts().0[matched[0].index()].table.len(), 78);
+        };
+        check(&mut w);
+        w.step();
+        check(&mut w);
+    }
+
+    /// ecs-11: both types are stored in tables, so the workload measures a table walk, not a
+    /// sparse-set one.
+    #[test]
+    fn rare_components_hybrid_stores_both_in_tables() {
+        use crate::component::StorageKind;
+        use spike_ecs_harness::rare_components::{Common, Rare};
+
+        let mut w = HybridRareComponents::setup(RARE_PARAMS);
+        w.step();
+        let world = w.world();
+        for ty in [
+            core::any::TypeId::of::<Common>(),
+            core::any::TypeId::of::<Rare>(),
+        ] {
+            let id = world.component_id_of(ty).expect("registered by setup");
+            assert_eq!(world.component_info(id).kind, StorageKind::Table);
+        }
+        assert!(world.parts().1.is_empty(), "no sparse set exists");
         world.check_invariants().unwrap();
     }
 }

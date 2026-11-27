@@ -74,7 +74,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 6: `hybrid` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/src/harness_components.rs` (`rare_components::Common` and `rare_components::Rare` in the `TableStorage` list; module doc: twelve workloads), `src/rare_components.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance and zero-count tests; `rare_components_hybrid_places_rare_entities_in_their_own_table` (as step 3's); `rare_components_hybrid_stores_both_in_tables` (ecs-11, as `wide_entities_hybrid_stores_extra_sparse`: both types' `StorageKind` is the table kind, and no sparse set exists after a step). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `hybrid`.
