@@ -66,7 +66,7 @@ pub struct Spawn {
 #[must_use]
 pub fn spawn(prng: &Prng, i: u64) -> Spawn {
     let mut r = prng.stream(i);
-    let group = i.to_le_bytes()[0] % GROUPS;
+    let group = (i % u64::from(GROUPS)).to_le_bytes()[0];
     let values = [
         r.range(0.0_f32..1.0),
         r.range(0.0_f32..1.0),
@@ -158,19 +158,33 @@ pub const QUERIES: [(u8, u8); 56] = [
 /// Every ECS backend runs its step's queries through this macro, so none can drop or reorder one.
 ///
 /// ```
-/// let mut seen: Vec<(&str, &str)> = Vec::new();
+/// use core::any::TypeId;
+/// use spike_ecs_harness::many_queries::{QUERIES, C0, C1, C2, C3, C4, C5, C6, C7};
+///
+/// let ids = [
+///     TypeId::of::<C0>(),
+///     TypeId::of::<C1>(),
+///     TypeId::of::<C2>(),
+///     TypeId::of::<C3>(),
+///     TypeId::of::<C4>(),
+///     TypeId::of::<C5>(),
+///     TypeId::of::<C6>(),
+///     TypeId::of::<C7>(),
+/// ];
+/// let index_of = |id: TypeId| ids.iter().position(|&x| x == id).unwrap();
+/// let mut seen: Vec<(usize, usize)> = Vec::new();
 /// macro_rules! collect {
 ///     ($w:ty, $r:ty) => {
-///         seen.push((
-///             core::any::type_name::<$w>().rsplit("::").next().unwrap(),
-///             core::any::type_name::<$r>().rsplit("::").next().unwrap(),
-///         ));
+///         seen.push((index_of(TypeId::of::<$w>()), index_of(TypeId::of::<$r>())));
 ///     };
 /// }
 /// spike_ecs_harness::for_each_query!(collect);
 /// assert_eq!(seen.len(), 56);
-/// assert_eq!(seen[0], ("C0", "C1"));
-/// assert_eq!(seen[55], ("C7", "C6"));
+/// assert_eq!(seen[0], (0, 1));
+/// assert_eq!(seen[55], (7, 6));
+/// let expected: Vec<(usize, usize)> =
+///     QUERIES.iter().map(|&(w, r)| (usize::from(w), usize::from(r))).collect();
+/// assert_eq!(seen, expected);
 /// ```
 #[macro_export]
 macro_rules! for_each_query {
@@ -285,17 +299,25 @@ mod tests {
 
     #[test]
     fn the_macro_expands_in_query_order() {
-        fn index_of<T>() -> u8 {
-            let name = core::any::type_name::<T>();
-            let digit = name
-                .strip_prefix("spike_ecs_harness::many_queries::C")
-                .unwrap();
-            digit.parse().unwrap()
+        use core::any::TypeId;
+        fn index_of<T: 'static>(ids: &[TypeId; 8]) -> u8 {
+            let i = ids.iter().position(|&x| x == TypeId::of::<T>()).unwrap();
+            u8::try_from(i).unwrap()
         }
+        let ids = [
+            TypeId::of::<C0>(),
+            TypeId::of::<C1>(),
+            TypeId::of::<C2>(),
+            TypeId::of::<C3>(),
+            TypeId::of::<C4>(),
+            TypeId::of::<C5>(),
+            TypeId::of::<C6>(),
+            TypeId::of::<C7>(),
+        ];
         let mut seen: Vec<(u8, u8)> = Vec::new();
         macro_rules! collect {
             ($w:ty, $r:ty) => {
-                seen.push((index_of::<$w>(), index_of::<$r>()));
+                seen.push((index_of::<$w>(&ids), index_of::<$r>(&ids)));
             };
         }
         for_each_query!(collect);

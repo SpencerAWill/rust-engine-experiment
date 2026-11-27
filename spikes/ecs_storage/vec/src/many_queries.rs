@@ -25,8 +25,8 @@ impl Entity {
 /// `many_queries` as an array of structs, each query a loop over every entity that checks for
 /// its two types.
 ///
-/// The best case for this workload is a hand-written loop with no per-query setup, so it
-/// is the floor the ECS backends are read against.
+/// This is the reference for the checksum, not a floor and not a storage model: each of the
+/// 56 queries is a full pass over every entity, so its row pays 56 passes.
 #[derive(Clone, Debug)]
 pub struct VecManyQueries {
     entities: Vec<Entity>,

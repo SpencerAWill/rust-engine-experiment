@@ -819,9 +819,7 @@ fn many_queries_still_changes_at_the_last_tick() {
     for tick in 1..=120 {
         w.step();
         let now = w.checksum();
-        if tick >= 2 {
-            assert_ne!(now, previous, "tick {tick}");
-        }
+        assert_ne!(now, previous, "tick {tick}");
         previous = now;
     }
 }
