@@ -1,6 +1,6 @@
 # M3.25: rare_components workload for the ECS storage harness
 
-- **Status:** Amended (2026-11-27): §1 and §4.3 describe `dense`'s join as it runs (plan §5)
+- **Status:** Implemented (PR #145, 2026-11-27); amended 2026-11-27: §1 and §4.3 describe `dense`'s join as it runs (plan §5)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.26 · **Decides:** no ADR
 - **Issue:** #109
 - **Estimated size:** about 500 changed lines, excluding tests, lockfiles and generated files (harness module about 90, `vec_aos` about 50, six ECS backends about 45 each, bench registration about 30, documents about 60)
@@ -138,12 +138,12 @@ Conformance runs at `count` 10,000, seed 42, for 120 ticks, not the usual `count
 
 ## 9. Done when
 
-- [ ] The harness module and the seven implementations exist, and every conformance test passes.
-- [ ] The tests of §4.5 pass and the allocation counts are in `log.md`.
-- [ ] Both spike benches register `rare_components` for the seven backends.
-- [ ] The documents of §4.6 are updated.
-- [ ] One informal run is in the pull request, `log.md` and on #102, and the comment on #41 is posted.
-- [ ] `cargo xtask ci` passes.
+- [x] The harness module and the seven implementations exist, and every conformance test passes (each backend's `rare_components_<backend>_matches_the_reference`, `rare_components_bevy_matches_the_reference` on `bevy_ecs`; full `ci` on 7ee52a7).
+- [x] The tests of §4.5 pass and the allocation counts are in `log.md` (steps 1 to 8 with their red checks, the review fixes' two mutations; counts in step 11, re-run on 7ee52a7).
+- [x] Both spike benches register `rare_components` for the seven backends (`compare.rs`, `cache.rs`; the informal run lists the 21 ids).
+- [x] The documents of §4.6 are updated (`spikes/ecs_storage/README.md`, `spikes/README.md`, the harness crate doc, `harness_components.rs`, `CHANGELOG.md`).
+- [ ] One informal run is in the pull request, `log.md` and on #102, and the comment on #41 is posted (`m3.25-informal` in PR #145 and `log.md`; [#41 comment](https://github.com/SpencerAWill/rust-engine-experiment/issues/41#issuecomment-7224369289) posted; the #102 comment waits for the maintainer's answer on machine use during the run).
+- [x] `cargo xtask ci` passes (on 85bfea8; the final code is that of 7ee52a7, later commits change only `docs/`). CI on the pull request pending.
 
 ## 10. Open questions
 
