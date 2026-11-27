@@ -25,7 +25,7 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ### Step 1: the harness module (R1)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/harness/src/rare_components.rs` (new), `harness/src/lib.rs` (`pub mod rare_components;`; crate doc: the rules of the twelfth, `rare_components`, in the M3.25 spec §4.2).
 - **Test first:** in the module's test module: `spawn_follows_the_draw_order` (at seed 42, find by scanning `i` the first rare and the first non-rare entity; for each, replay `prng.stream(i)` by hand: draw 1 is `Common`, draw 2 is `d`, and for the rare one draw 3 is `Rare`; assert `spawn` returns those values and `Some`/`None` as `d < 0.01`; ecs-14); `rare_count_at_seed_42` (`count` 10,000 gives 78 rare entities, counted by replaying draw 2 of each stream, not by calling `spawn`); `update_wraps` (`Common(0.25)`, `Rare(0.5)` gives `0.75`; `Common(0.75)`, `Rare(0.5)` gives `0.75 + 0.5 - 1.0` computed in f32); `hash_sees_common_and_rare` (changing `Common`, adding a `Rare`, or changing its value each changes the hash). Fails first: the module does not exist (E0432).
 - **Change:** spec §4.2, each item documented.

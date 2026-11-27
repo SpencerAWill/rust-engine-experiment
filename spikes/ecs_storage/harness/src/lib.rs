@@ -9,7 +9,8 @@
 //! M3.22 spec §4.2, `docs/chunks/m3.22-many-queries/spec.md`; the rules of the tenth,
 //! `wide_entities`, are in the M3.23 spec §4.2, `docs/chunks/m3.23-wide-entities/spec.md`; the
 //! rules of the eleventh, `hierarchy`, are in the M3.24 spec §4.2,
-//! `docs/chunks/m3.24-hierarchy-workload/spec.md`.
+//! `docs/chunks/m3.24-hierarchy-workload/spec.md`; the rules of the twelfth, `rare_components`,
+//! are in the M3.25 spec §4.2, `docs/chunks/m3.25-rare-components/spec.md`.
 
 pub mod add_remove;
 pub mod agents;
@@ -21,6 +22,7 @@ pub mod heavy_compute;
 pub mod hierarchy;
 pub mod many_queries;
 pub mod random_access;
+pub mod rare_components;
 pub mod simple_iter;
 pub mod sprites;
 pub mod wide_entities;
