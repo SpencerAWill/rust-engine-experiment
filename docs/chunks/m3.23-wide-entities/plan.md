@@ -85,7 +85,7 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 
 ### Step 7: `hybrid` (R3, R4, R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/hybrid/src/harness_components.rs` (`wide_entities::Extra` as `SparseStorage`, `W0` to `W23` as `TableStorage`; module doc: ten workloads, the sparse types now `add_remove::B`, `agents::Seeker` and `wide_entities::Extra`), `src/wide_entities.rs` (new), `src/lib.rs`, `src/tests.rs`.
 - **Test first:** conformance, zero-count and per-step tests; `wide_entities_hybrid_moves_no_row` (spec §4.4: `archetype_count()` 2 after `setup`, after one step and after ten; `check_invariants()` `Ok`); `wide_entities_hybrid_stores_extra_sparse` (ecs-11, as `random_access_hybrid_registers_no_sparse_set`: `Extra`'s storage kind is sparse and each `Wk`'s is table). Fails first: the type does not exist.
 - **Change:** spec §4.3 for `hybrid`; setup as step 4.
@@ -177,4 +177,4 @@ Every conformance test below is `check_conformance::<VecWideEntities, X>(Params 
 ## 5. Deviations
 
 - Step 2: the tests are in each crate's `world.rs` test module (the plan allowed bundle or world); `archetype`'s `World::spawn_with` doc also said "1 to 8" and now says "1 to 24".
-- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Step 6 (`dense`) the same: the crate has no shared helper.
+- Step 5: `sparse_set`'s per-step test inlines the loop of the crate's `assert_inserts_on_every_entity_each_step`, which is tied to `AddRemoveOn`; generalising the helper is left to the simplify pass. Steps 6 (`dense`) and 7 (`hybrid`) the same: neither crate has a shared helper.

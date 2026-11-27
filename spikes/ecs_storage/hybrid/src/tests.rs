@@ -429,6 +429,7 @@ mod workloads {
     use spike_ecs_vec::random_access::VecRandomAccess;
     use spike_ecs_vec::simple_iter::VecSimpleIter;
     use spike_ecs_vec::sprites::VecSprites;
+    use spike_ecs_vec::wide_entities::VecWideEntities;
 
     use crate::add_remove::HybridAddRemove;
     use crate::agents::HybridAgents;
@@ -441,6 +442,7 @@ mod workloads {
     use crate::random_access::HybridRandomAccess;
     use crate::simple_iter::HybridSimpleIter;
     use crate::sprites::HybridSprites;
+    use crate::wide_entities::HybridWideEntities;
 
     fn ids(v: &[usize]) -> Vec<ArchetypeId> {
         v.iter().map(|&i| ArchetypeId::new(i)).collect()
@@ -527,6 +529,105 @@ mod workloads {
                 "an entity was removed twice in one step at tick {tick}"
             );
         }
+    }
+
+    #[test]
+    fn wide_entities_hybrid_matches_the_reference() {
+        check_conformance::<VecWideEntities, HybridWideEntities>(PARAMS, TICKS).unwrap();
+    }
+
+    #[test]
+    fn wide_entities_hybrid_zero_count_is_valid() {
+        zero_count::<HybridWideEntities>();
+    }
+
+    #[test]
+    fn wide_entities_hybrid_inserts_on_every_entity_each_step() {
+        let mut w = HybridWideEntities::setup(PARAMS);
+        for tick in 1..=TICKS {
+            w.step();
+            let removed = w.removed_last_step();
+            assert_eq!(
+                removed.len(),
+                PARAMS.count,
+                "the step removed Extra from the wrong number of entities at tick {tick}"
+            );
+            let distinct: std::collections::BTreeSet<u64> =
+                removed.iter().map(|e| e.to_bits()).collect();
+            assert_eq!(
+                distinct.len(),
+                PARAMS.count,
+                "an entity was removed twice in one step at tick {tick}"
+            );
+        }
+    }
+
+    /// Spec 4.4: `Extra` is a sparse type, so adding and removing it moves no row: the 24 table
+    /// types stay in one archetype (plus the empty one) throughout.
+    #[test]
+    fn wide_entities_hybrid_moves_no_row() {
+        let mut w = HybridWideEntities::setup(PARAMS);
+        w.world().check_invariants().unwrap();
+        assert_eq!(w.archetype_count(), 2);
+        w.step();
+        assert_eq!(w.archetype_count(), 2);
+        for _ in 0..9 {
+            w.step();
+        }
+        assert_eq!(w.archetype_count(), 2);
+        w.world().check_invariants().unwrap();
+    }
+
+    /// ecs-11: `Extra` is stored in a sparse set and each `Wk` in a table, so the workload
+    /// measures a sparse insert and remove, not a row move.
+    #[test]
+    fn wide_entities_hybrid_stores_extra_sparse() {
+        use crate::component::StorageKind;
+        use spike_ecs_harness::wide_entities::{
+            Extra, W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, W16, W17,
+            W18, W19, W20, W21, W22, W23,
+        };
+
+        let mut w = HybridWideEntities::setup(PARAMS);
+        for _ in 0..5 {
+            w.step();
+        }
+        let world = w.world();
+        let id = world
+            .component_id_of(core::any::TypeId::of::<Extra>())
+            .expect("registered by the first step");
+        assert_eq!(world.component_info(id).kind, StorageKind::Sparse);
+        let tables = [
+            core::any::TypeId::of::<W0>(),
+            core::any::TypeId::of::<W1>(),
+            core::any::TypeId::of::<W2>(),
+            core::any::TypeId::of::<W3>(),
+            core::any::TypeId::of::<W4>(),
+            core::any::TypeId::of::<W5>(),
+            core::any::TypeId::of::<W6>(),
+            core::any::TypeId::of::<W7>(),
+            core::any::TypeId::of::<W8>(),
+            core::any::TypeId::of::<W9>(),
+            core::any::TypeId::of::<W10>(),
+            core::any::TypeId::of::<W11>(),
+            core::any::TypeId::of::<W12>(),
+            core::any::TypeId::of::<W13>(),
+            core::any::TypeId::of::<W14>(),
+            core::any::TypeId::of::<W15>(),
+            core::any::TypeId::of::<W16>(),
+            core::any::TypeId::of::<W17>(),
+            core::any::TypeId::of::<W18>(),
+            core::any::TypeId::of::<W19>(),
+            core::any::TypeId::of::<W20>(),
+            core::any::TypeId::of::<W21>(),
+            core::any::TypeId::of::<W22>(),
+            core::any::TypeId::of::<W23>(),
+        ];
+        for ty in tables {
+            let id = world.component_id_of(ty).expect("registered by setup");
+            assert_eq!(world.component_info(id).kind, StorageKind::Table);
+        }
+        world.check_invariants().unwrap();
     }
 
     #[test]
