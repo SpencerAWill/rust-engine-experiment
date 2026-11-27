@@ -96,7 +96,7 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ### Step 9: bench registration (R5)
 
-- [ ] **Who:** builder
+- [x] **Who:** builder
 - **Files:** `spikes/ecs_storage/bench_compare/benches/compare.rs`, `spikes/ecs_storage/bench_cache/benches/cache.rs`.
 - **Test first:** none runnable here: the cache bench's size check runs only under Valgrind and does not catch a missing size (M3.21 log). The `cache_bench!` lines are checked against `SIZES` by reading them.
 - **Change:** seven `bench::<…>` lines; seven `cache_bench!` lines with `[100, 1_000, 10_000]` in a `many_queries` group added to `main!`.
@@ -152,4 +152,4 @@ Every conformance test below is `check_conformance::<VecManyQueries, X>(Params {
 
 ## 5. Deviations
 
-None yet.
+- **Step 9:** rustfmt wraps two `cache_bench!` calls over several lines, so the plan's `ManyQueries,$` grep miscounts; the seven lines were counted by reading and by `grep -c "many_queries_[a-z_]*,\?$\|cache_bench!(many_queries"` (7).

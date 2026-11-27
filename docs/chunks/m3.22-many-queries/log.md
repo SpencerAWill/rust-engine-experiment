@@ -27,3 +27,4 @@ Tags: done, decision, surprise, dead-end, lesson? (a candidate lesson for stage 
 - 2026-11-26 done step 6: HybridManyQueries (hybrid), C0..C7 as TableStorage; 98 hybrid tests pass, ci --quick rc 0
 - 2026-11-26 done step 7: BevyManyQueries (bevy/src/many_queries.rs, lib.rs, tests.rs); 56 boxed closures each owning a QueryState, query_count cfg(test) hook; conformance, holds-every-query and zero-count tests seen failing first (E0583, module missing), then pass; 25 bevy tests pass, ci --quick rc 0
 - 2026-11-26 done step 8: HecsManyQueries (hecs/src/many_queries.rs, lib.rs, tests.rs); query_mut().into_iter() per query via for_each_query!, no PreparedQuery/CommandBuffer; conformance and zero-count tests seen failing first (E0583, module missing), then pass; 11 hecs tests pass
+- 2026-11-26 done Step 9: many_queries registered in compare.rs (7 bench::<>) and cache.rs (7 cache_bench! [100, 1_000, 10_000], many_queries group in main!); both benches build --no-run
