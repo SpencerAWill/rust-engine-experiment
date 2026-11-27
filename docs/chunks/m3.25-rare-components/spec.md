@@ -1,6 +1,6 @@
 # M3.25: rare_components workload for the ECS storage harness
 
-- **Status:** Accepted (2026-11-27)
+- **Status:** Amended (2026-11-27): §1 and §4.3 describe `dense`'s join as it runs (plan §5)
 - **Milestone:** M3 (ECS storage decision) · **Depends on:** M3.2, M3.10, M3.26 · **Decides:** no ADR
 - **Issue:** #109
 - **Estimated size:** about 500 changed lines, excluding tests, lockfiles and generated files (harness module about 90, `vec_aos` about 50, six ECS backends about 45 each, bench registration about 30, documents about 60)
@@ -9,7 +9,7 @@ Requirement keywords (MUST, MUST NOT, SHOULD, MAY) follow [RFC 2119](https://www
 
 ## 1. Summary
 
-This chunk adds a twelfth workload, `rare_components`, to the ECS storage spike. Every entity has a `Common` component and about 1% of them, chosen by a per-entity draw, also have `Rare`; each tick one query `(&mut Common, &Rare)` updates the rare entities. Finding few entities in a large world costs very different time across storage models (`vec_aos` and `dense` walk the whole index space, table storage walks one small table, `sparse_set` walks `Rare`'s set and probes `Common`'s sparse index at scattered indices), and the storage decision (M3.8, #102) has no workload that measures it. At the end the workload passes conformance against `vec_aos` on `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs`, both spike benches list it, and an informal Criterion run is in the pull request and on #102.
+This chunk adds a twelfth workload, `rare_components`, to the ECS storage spike. Every entity has a `Common` component and about 1% of them, chosen by a per-entity draw, also have `Rare`; each tick one query `(&mut Common, &Rare)` updates the rare entities. Finding few entities in a large world costs very different time across storage models (`vec_aos` walks every row, `dense` joins hierarchical presence bitsets that skip only the regions with no rare entity, table storage walks one small table, `sparse_set` walks `Rare`'s set and probes `Common`'s sparse index at scattered indices), and the storage decision (M3.8, #102) has no workload that measures it. At the end the workload passes conformance against `vec_aos` on `archetype`, `sparse_set`, `dense`, `hybrid`, `bevy_ecs` and `hecs`, both spike benches list it, and an informal Criterion run is in the pull request and on #102.
 
 ## 2. Goals and non-goals
 
@@ -65,7 +65,7 @@ Each backend spawns entity `i` with `Common` alone or with `Common` and `Rare` i
 
 - **`archetype`:** `spawn_with((common,))` or `spawn_with((common, rare))`; the world holds the `{Common}` and `{Common, Rare}` tables, and the query walks the second only.
 - **`hybrid`:** as `archetype`; `Common` and `Rare` are both table types *(maintainer: `Rare` is never added or removed, only iterated, so a user of the hybrid model would make it a table type)*. With `Rare` sparse, the query would walk every `Common` row and probe `Rare`'s set for each; that configuration is not measured (§4.6 caveat).
-- **`sparse_set`, `dense`:** `spawn` then `insert` of `Common`, then of `Rare` for the rare ones. On `sparse_set` the query is driven by the smaller storage, `Rare`'s, and probes `Common`'s sparse index; on `dense` it joins the two presence bitsets over the whole index space.
+- **`sparse_set`, `dense`:** `spawn` then `insert` of `Common`, then of `Rare` for the rare ones. On `sparse_set` the query is driven by the smaller storage, `Rare`'s, and probes `Common`'s sparse index; on `dense` it joins the two hierarchical presence bitsets, descending only where both have a bit, so it skips the regions with no `Rare` (at 1% about half the 64-entity leaf words still hold one).
 - **`bevy_ecs`:** both types in table storage under the crate's `Table<T>` wrapper; spawned with a one- or two-element tuple bundle; the step's query is a `QueryState` built in `setup`; `world.clear_trackers()` at the end of the step, as its other workloads.
 - **`hecs`:** spawned from a one- or two-element tuple; `query_mut::<(&mut Common, &Rare)>()` per step.
 - **`vec_aos`:** one `Vec<(Common, Option<Rare>)>`; the step walks every row and updates those with `Some`. It is the reference, not a storage model.

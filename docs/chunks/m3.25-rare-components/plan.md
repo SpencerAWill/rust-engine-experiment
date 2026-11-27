@@ -162,5 +162,4 @@ Every conformance test is `check_conformance::<VecRareComponents, X>(RARE_PARAMS
 
 ## 5. Deviations
 
-- Spec §1 and §4.3 say `dense` walks, or joins its presence bitsets over, the whole index space. Its join is over `HierarchicalBitSet` and descends only where both sets have a bit, so it skips regions with no rare entity; at 1% about half the 64-entity leaf words still hold one (log.md, step 5). The spec text is description, not a requirement, and is not amended; the README and `dense`'s docs say it this way.
-- Step 12 (the informal run) runs after stage 5's fixes, on the final code commit, as the step itself says (specs-4).
+- Spec §1 and §4.3 said `dense` walks, or joins its presence bitsets over, the whole index space. Its join is over `HierarchicalBitSet` and descends only where both sets have a bit, so it skips regions with no rare entity; at 1% about half the 64-entity leaf words still hold one (log.md, step 5). The spec is amended to say this (maintainer, after the docs re-review), as are the README and `dense`'s docs.
